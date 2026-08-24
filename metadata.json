@@ -1,0 +1,6 @@
+{
+  "name": "HSPD Roleplay Assistant & Pasal Hub",
+  "description": "Tool interaktif kepolisian SAMP / HSPD: Kalkulator pasal pidana & lalin, webhook logger Discord, generator megaphone, SOP & Ten-codes, Hak Miranda, manajemen roster anggota & riwayat kasus.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
