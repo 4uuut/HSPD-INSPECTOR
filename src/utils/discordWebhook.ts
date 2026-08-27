@@ -1,5 +1,9 @@
-import { ArrestRecord, DutyLog, OfficerAccount, OfficerWarning, DischargeRecord, PromotionRecord } from '../types';
+import { 
+  ArrestRecord, DutyLog, OfficerAccount, OfficerWarning, DischargeRecord, PromotionRecord,
+  DetectiveCase, BoloAlert, ImpoundRecord, OfficerProfile, VaultAuditLog, DestructionRegistryItem
+} from '../types';
 import { dataURLtoBlob } from './imageCompressor';
+import { pushToFirestore, syncAllWebhooksToFirestore } from '../services/firebaseRealtimeSync';
 
 // Case / Arrest Webhook Keys
 export const WEBHOOK_STORAGE_KEY = 'hspd_discord_webhook_url';
@@ -31,12 +35,57 @@ export const DISCHARGE_BOT_NAME_KEY = 'hspd_discharge_bot_name';
 export const DISCHARGE_BOT_AVATAR_KEY = 'hspd_discharge_bot_avatar';
 export const DISCHARGE_AUTO_SEND_KEY = 'hspd_discharge_auto_send';
 
+// Dedicated PIN Reset / Password Security Webhook Keys
+export const PIN_RESET_WEBHOOK_STORAGE_KEY = 'hspd_pin_reset_webhook_url';
+export const PIN_RESET_BOT_NAME_KEY = 'hspd_pin_reset_bot_name';
+export const PIN_RESET_BOT_AVATAR_KEY = 'hspd_pin_reset_bot_avatar';
+export const PIN_RESET_AUTO_SEND_KEY = 'hspd_pin_reset_auto_send';
+export const DEFAULT_PIN_RESET_WEBHOOK_URL = 'https://discord.com/api/webhooks/1541543930661699658/mIUtFMbg5XlG6PRwV2kydPk-4qaViFaxMoMpmi1tpGee-o4WRAU4WI2nqBC7SJQJ2Xu2';
+
+// Dedicated Roster & Member Info Update Webhook Keys
+export const ROSTER_WEBHOOK_STORAGE_KEY = 'hspd_roster_webhook_url';
+export const ROSTER_BOT_NAME_KEY = 'hspd_roster_bot_name';
+export const ROSTER_BOT_AVATAR_KEY = 'hspd_roster_bot_avatar';
+export const ROSTER_AUTO_SEND_KEY = 'hspd_roster_auto_send';
+
+// Dedicated Detective / CID Case Board Webhook Keys
+export const DETECTIVE_WEBHOOK_STORAGE_KEY = 'hspd_detective_webhook_url';
+export const DETECTIVE_BOT_NAME_KEY = 'hspd_detective_bot_name';
+export const DETECTIVE_BOT_AVATAR_KEY = 'hspd_detective_bot_avatar';
+export const DETECTIVE_AUTO_SEND_KEY = 'hspd_detective_auto_send';
+
+// Dedicated BOLO Alert Dispatch Webhook Keys
+export const BOLO_WEBHOOK_STORAGE_KEY = 'hspd_bolo_webhook_url';
+export const BOLO_BOT_NAME_KEY = 'hspd_bolo_bot_name';
+export const BOLO_BOT_AVATAR_KEY = 'hspd_bolo_bot_avatar';
+export const BOLO_AUTO_SEND_KEY = 'hspd_bolo_auto_send';
+
+// Dedicated Traffic Impound Lot Webhook Keys
+export const IMPOUND_WEBHOOK_STORAGE_KEY = 'hspd_impound_webhook_url';
+export const IMPOUND_BOT_NAME_KEY = 'hspd_impound_bot_name';
+export const IMPOUND_BOT_AVATAR_KEY = 'hspd_impound_bot_avatar';
+export const IMPOUND_AUTO_SEND_KEY = 'hspd_impound_auto_send';
+
+// Dedicated Police Vault & Weekly Audit Webhook Keys
+export const VAULT_WEBHOOK_STORAGE_KEY = 'hspd_vault_webhook_url';
+export const VAULT_BOT_NAME_KEY = 'hspd_vault_bot_name';
+export const VAULT_BOT_AVATAR_KEY = 'hspd_vault_bot_avatar';
+export const VAULT_AUTO_SEND_KEY = 'hspd_vault_auto_send';
+
+// Dedicated Weapon & Vehicle Destruction / Smelting Webhook Keys
+export const DESTRUCTION_WEBHOOK_STORAGE_KEY = 'hspd_destruction_webhook_url';
+export const DESTRUCTION_BOT_NAME_KEY = 'hspd_destruction_bot_name';
+export const DESTRUCTION_BOT_AVATAR_KEY = 'hspd_destruction_bot_avatar';
+export const DESTRUCTION_AUTO_SEND_KEY = 'hspd_destruction_auto_send';
+
 export interface WebhookConfig {
   webhookUrl: string;
   botName: string;
   botAvatar: string;
   autoSendOnSave: boolean;
 }
+
+export type DiscordWebhookConfig = WebhookConfig;
 
 export function getSavedWebhookConfig(): WebhookConfig {
   try {
@@ -56,12 +105,17 @@ export function getSavedWebhookConfig(): WebhookConfig {
   }
 }
 
+export const getDiscordWebhookConfig = getSavedWebhookConfig;
+
 export function saveWebhookConfig(config: Partial<WebhookConfig>) {
   try {
     if (config.webhookUrl !== undefined) localStorage.setItem(WEBHOOK_STORAGE_KEY, config.webhookUrl);
     if (config.botName !== undefined) localStorage.setItem(BOT_NAME_KEY, config.botName);
     if (config.botAvatar !== undefined) localStorage.setItem(BOT_AVATAR_KEY, config.botAvatar);
     if (config.autoSendOnSave !== undefined) localStorage.setItem(AUTO_WEBHOOK_KEY, config.autoSendOnSave ? 'true' : 'false');
+    
+    // Sync all webhooks bundle to Firestore
+    syncAllWebhooksToFirestore();
   } catch (e) {
     console.error('Failed to save webhook settings', e);
   }
@@ -91,6 +145,7 @@ export function saveDutyWebhookConfig(config: Partial<WebhookConfig>) {
     if (config.botName !== undefined) localStorage.setItem(DUTY_BOT_NAME_KEY, config.botName);
     if (config.botAvatar !== undefined) localStorage.setItem(DUTY_BOT_AVATAR_KEY, config.botAvatar);
     if (config.autoSendOnSave !== undefined) localStorage.setItem(DUTY_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
   } catch (e) {
     console.error('Failed to save duty webhook settings', e);
   }
@@ -120,6 +175,7 @@ export function savePromotionWebhookConfig(config: Partial<WebhookConfig>) {
     if (config.botName !== undefined) localStorage.setItem(PROMOTION_BOT_NAME_KEY, config.botName);
     if (config.botAvatar !== undefined) localStorage.setItem(PROMOTION_BOT_AVATAR_KEY, config.botAvatar);
     if (config.autoSendOnSave !== undefined) localStorage.setItem(PROMOTION_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
   } catch (e) {
     console.error('Failed to save promotion webhook settings', e);
   }
@@ -149,6 +205,7 @@ export function saveWarningWebhookConfig(config: Partial<WebhookConfig>) {
     if (config.botName !== undefined) localStorage.setItem(WARNING_BOT_NAME_KEY, config.botName);
     if (config.botAvatar !== undefined) localStorage.setItem(WARNING_BOT_AVATAR_KEY, config.botAvatar);
     if (config.autoSendOnSave !== undefined) localStorage.setItem(WARNING_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
   } catch (e) {
     console.error('Failed to save warning webhook settings', e);
   }
@@ -178,8 +235,221 @@ export function saveDischargeWebhookConfig(config: Partial<WebhookConfig>) {
     if (config.botName !== undefined) localStorage.setItem(DISCHARGE_BOT_NAME_KEY, config.botName);
     if (config.botAvatar !== undefined) localStorage.setItem(DISCHARGE_BOT_AVATAR_KEY, config.botAvatar);
     if (config.autoSendOnSave !== undefined) localStorage.setItem(DISCHARGE_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
   } catch (e) {
     console.error('Failed to save discharge webhook settings', e);
+  }
+}
+
+export function getSavedPinResetWebhookConfig(): WebhookConfig {
+  try {
+    const savedUrl = localStorage.getItem(PIN_RESET_WEBHOOK_STORAGE_KEY);
+    const effectiveUrl = (savedUrl && savedUrl.trim()) ? savedUrl : DEFAULT_PIN_RESET_WEBHOOK_URL;
+    return {
+      webhookUrl: effectiveUrl,
+      botName: localStorage.getItem(PIN_RESET_BOT_NAME_KEY) || 'HSPD Security & Credentials HQ',
+      botAvatar: localStorage.getItem(PIN_RESET_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: localStorage.getItem(PIN_RESET_AUTO_SEND_KEY) !== 'false'
+    };
+  } catch {
+    return {
+      webhookUrl: DEFAULT_PIN_RESET_WEBHOOK_URL,
+      botName: 'HSPD Security & Credentials HQ',
+      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: true
+    };
+  }
+}
+
+export function savePinResetWebhookConfig(config: Partial<WebhookConfig>) {
+  try {
+    if (config.webhookUrl !== undefined) localStorage.setItem(PIN_RESET_WEBHOOK_STORAGE_KEY, config.webhookUrl);
+    if (config.botName !== undefined) localStorage.setItem(PIN_RESET_BOT_NAME_KEY, config.botName);
+    if (config.botAvatar !== undefined) localStorage.setItem(PIN_RESET_BOT_AVATAR_KEY, config.botAvatar);
+    if (config.autoSendOnSave !== undefined) localStorage.setItem(PIN_RESET_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
+  } catch (e) {
+    console.error('Failed to save pin reset webhook settings', e);
+  }
+}
+
+export function getSavedRosterWebhookConfig(): WebhookConfig {
+  try {
+    return {
+      webhookUrl: localStorage.getItem(ROSTER_WEBHOOK_STORAGE_KEY) || localStorage.getItem(PROMOTION_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
+      botName: localStorage.getItem(ROSTER_BOT_NAME_KEY) || 'HSPD Personnel & Roster Bureau',
+      botAvatar: localStorage.getItem(ROSTER_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: localStorage.getItem(ROSTER_AUTO_SEND_KEY) !== 'false'
+    };
+  } catch {
+    return {
+      webhookUrl: '',
+      botName: 'HSPD Personnel & Roster Bureau',
+      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: true
+    };
+  }
+}
+
+export function saveRosterWebhookConfig(config: Partial<WebhookConfig>) {
+  try {
+    if (config.webhookUrl !== undefined) localStorage.setItem(ROSTER_WEBHOOK_STORAGE_KEY, config.webhookUrl);
+    if (config.botName !== undefined) localStorage.setItem(ROSTER_BOT_NAME_KEY, config.botName);
+    if (config.botAvatar !== undefined) localStorage.setItem(ROSTER_BOT_AVATAR_KEY, config.botAvatar);
+    if (config.autoSendOnSave !== undefined) localStorage.setItem(ROSTER_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
+  } catch (e) {
+    console.error('Failed to save roster webhook settings', e);
+  }
+}
+
+export function getSavedDetectiveWebhookConfig(): WebhookConfig {
+  try {
+    return {
+      webhookUrl: localStorage.getItem(DETECTIVE_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
+      botName: localStorage.getItem(DETECTIVE_BOT_NAME_KEY) || 'HSPD Detective Bureau & CID',
+      botAvatar: localStorage.getItem(DETECTIVE_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: localStorage.getItem(DETECTIVE_AUTO_SEND_KEY) !== 'false'
+    };
+  } catch {
+    return {
+      webhookUrl: '',
+      botName: 'HSPD Detective Bureau & CID',
+      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: true
+    };
+  }
+}
+
+export function saveDetectiveWebhookConfig(config: Partial<WebhookConfig>) {
+  try {
+    if (config.webhookUrl !== undefined) localStorage.setItem(DETECTIVE_WEBHOOK_STORAGE_KEY, config.webhookUrl);
+    if (config.botName !== undefined) localStorage.setItem(DETECTIVE_BOT_NAME_KEY, config.botName);
+    if (config.botAvatar !== undefined) localStorage.setItem(DETECTIVE_BOT_AVATAR_KEY, config.botAvatar);
+    if (config.autoSendOnSave !== undefined) localStorage.setItem(DETECTIVE_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
+  } catch (e) {
+    console.error('Failed to save detective webhook settings', e);
+  }
+}
+
+export function getSavedBoloWebhookConfig(): WebhookConfig {
+  try {
+    return {
+      webhookUrl: localStorage.getItem(BOLO_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
+      botName: localStorage.getItem(BOLO_BOT_NAME_KEY) || 'HSPD BOLO & Dispatch HQ',
+      botAvatar: localStorage.getItem(BOLO_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: localStorage.getItem(BOLO_AUTO_SEND_KEY) !== 'false'
+    };
+  } catch {
+    return {
+      webhookUrl: '',
+      botName: 'HSPD BOLO & Dispatch HQ',
+      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: true
+    };
+  }
+}
+
+export function saveBoloWebhookConfig(config: Partial<WebhookConfig>) {
+  try {
+    if (config.webhookUrl !== undefined) localStorage.setItem(BOLO_WEBHOOK_STORAGE_KEY, config.webhookUrl);
+    if (config.botName !== undefined) localStorage.setItem(BOLO_BOT_NAME_KEY, config.botName);
+    if (config.botAvatar !== undefined) localStorage.setItem(BOLO_BOT_AVATAR_KEY, config.botAvatar);
+    if (config.autoSendOnSave !== undefined) localStorage.setItem(BOLO_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
+  } catch (e) {
+    console.error('Failed to save BOLO webhook settings', e);
+  }
+}
+
+export function getSavedImpoundWebhookConfig(): WebhookConfig {
+  try {
+    return {
+      webhookUrl: localStorage.getItem(IMPOUND_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
+      botName: localStorage.getItem(IMPOUND_BOT_NAME_KEY) || 'HSPD Traffic Enforcement & Impound Lot',
+      botAvatar: localStorage.getItem(IMPOUND_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: localStorage.getItem(IMPOUND_AUTO_SEND_KEY) !== 'false'
+    };
+  } catch {
+    return {
+      webhookUrl: '',
+      botName: 'HSPD Traffic Enforcement & Impound Lot',
+      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: true
+    };
+  }
+}
+
+export function saveImpoundWebhookConfig(config: Partial<WebhookConfig>) {
+  try {
+    if (config.webhookUrl !== undefined) localStorage.setItem(IMPOUND_WEBHOOK_STORAGE_KEY, config.webhookUrl);
+    if (config.botName !== undefined) localStorage.setItem(IMPOUND_BOT_NAME_KEY, config.botName);
+    if (config.botAvatar !== undefined) localStorage.setItem(IMPOUND_BOT_AVATAR_KEY, config.botAvatar);
+    if (config.autoSendOnSave !== undefined) localStorage.setItem(IMPOUND_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
+  } catch (e) {
+    console.error('Failed to save impound webhook settings', e);
+  }
+}
+
+export function getSavedVaultWebhookConfig(): WebhookConfig {
+  try {
+    return {
+      webhookUrl: localStorage.getItem(VAULT_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
+      botName: localStorage.getItem(VAULT_BOT_NAME_KEY) || 'HSPD Vault & Armory Bureau',
+      botAvatar: localStorage.getItem(VAULT_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: localStorage.getItem(VAULT_AUTO_SEND_KEY) !== 'false'
+    };
+  } catch {
+    return {
+      webhookUrl: '',
+      botName: 'HSPD Vault & Armory Bureau',
+      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: true
+    };
+  }
+}
+
+export function saveVaultWebhookConfig(config: Partial<WebhookConfig>) {
+  try {
+    if (config.webhookUrl !== undefined) localStorage.setItem(VAULT_WEBHOOK_STORAGE_KEY, config.webhookUrl);
+    if (config.botName !== undefined) localStorage.setItem(VAULT_BOT_NAME_KEY, config.botName);
+    if (config.botAvatar !== undefined) localStorage.setItem(VAULT_BOT_AVATAR_KEY, config.botAvatar);
+    if (config.autoSendOnSave !== undefined) localStorage.setItem(VAULT_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
+  } catch (e) {
+    console.error('Failed to save vault webhook settings', e);
+  }
+}
+
+export function getSavedDestructionWebhookConfig(): WebhookConfig {
+  try {
+    return {
+      webhookUrl: localStorage.getItem(DESTRUCTION_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
+      botName: localStorage.getItem(DESTRUCTION_BOT_NAME_KEY) || 'HSPD Evidence & Smelting Registry',
+      botAvatar: localStorage.getItem(DESTRUCTION_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: localStorage.getItem(DESTRUCTION_AUTO_SEND_KEY) !== 'false'
+    };
+  } catch {
+    return {
+      webhookUrl: '',
+      botName: 'HSPD Evidence & Smelting Registry',
+      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: true
+    };
+  }
+}
+
+export function saveDestructionWebhookConfig(config: Partial<WebhookConfig>) {
+  try {
+    if (config.webhookUrl !== undefined) localStorage.setItem(DESTRUCTION_WEBHOOK_STORAGE_KEY, config.webhookUrl);
+    if (config.botName !== undefined) localStorage.setItem(DESTRUCTION_BOT_NAME_KEY, config.botName);
+    if (config.botAvatar !== undefined) localStorage.setItem(DESTRUCTION_BOT_AVATAR_KEY, config.botAvatar);
+    if (config.autoSendOnSave !== undefined) localStorage.setItem(DESTRUCTION_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
+  } catch (e) {
+    console.error('Failed to save destruction webhook settings', e);
   }
 }
 
@@ -1141,6 +1411,114 @@ export async function testPromotionDiscordWebhook(config: WebhookConfig): Promis
 }
 
 /**
+ * Test ping for PIN Reset & Credentials Security Webhook
+ */
+export async function testPinResetDiscordWebhook(config: WebhookConfig): Promise<{ success: boolean; message: string }> {
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'Masukkan URL Discord Webhook Reset PIN yang valid (dimulai dengan https://discord.com/api/webhooks/...)'
+    };
+  }
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD Security & Credentials HQ',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [
+      {
+        title: '🔑 UJI COBA INTEGRASI WEBHOOK RESET PIN & KREDENSIAL',
+        description: 'Koneksi laporan permohonan reset password & otorisasi kredensial terminal MDT berhasil terhubung.',
+        color: 0x10B981,
+        fields: [
+          { name: 'Channel Target', value: '🟢 **PIN Reset / Credentials Helpdesk**', inline: true },
+          { name: 'Waktu Pengujian', value: new Date().toLocaleString('id-ID'), inline: true },
+          { name: 'Status Sistem', value: '🟢 **Ready for PIN & Auth Alerts**', inline: true },
+        ],
+        footer: {
+          text: 'HSPD Security & CAD Headquarters • HighState Roleplay',
+        }
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return {
+      success: true,
+      message: '✅ Sinyal Webhook Reset PIN & Kredensial Berhasil Terhubung!'
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `❌ Gagal terhubung ke Webhook Reset PIN: ${err.message || 'Periksa kembali URL Webhook'}`
+    };
+  }
+}
+
+/**
+ * Test ping for Roster & Member Information Webhook
+ */
+export async function testRosterDiscordWebhook(config: WebhookConfig): Promise<{ success: boolean; message: string }> {
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'Masukkan URL Discord Webhook Roster / Anggota yang valid (dimulai dengan https://discord.com/api/webhooks/...)'
+    };
+  }
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD Personnel & Roster Bureau',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [
+      {
+        title: '🛡️ UJI COBA INTEGRASI WEBHOOK ROSTER & INFORMASI ANGGOTA',
+        description: 'Koneksi siaran pendaftaran personel baru & pembaruan database anggota kepolisian berhasil terhubung.',
+        color: 0x3B82F6,
+        fields: [
+          { name: 'Channel Target', value: '🟢 **Roster & Personnel Directory**', inline: true },
+          { name: 'Waktu Pengujian', value: new Date().toLocaleString('id-ID'), inline: true },
+          { name: 'Status Sistem', value: '🟢 **Ready for Roster Announcements**', inline: true },
+        ],
+        footer: {
+          text: 'HSPD Personnel Bureau • HighState Roleplay',
+        }
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return {
+      success: true,
+      message: '✅ Sinyal Webhook Roster & Personel Berhasil Terhubung!'
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `❌ Gagal terhubung ke Webhook Roster: ${err.message || 'Periksa kembali URL Webhook'}`
+    };
+  }
+}
+
+/**
  * Send an Officer PIN Reset / Change Request to Discord Webhook
  */
 export async function sendPinResetRequestToDiscord(params: {
@@ -1152,7 +1530,7 @@ export async function sendPinResetRequestToDiscord(params: {
   discordTag?: string;
   customConfig?: Partial<WebhookConfig>;
 }): Promise<{ success: boolean; message: string }> {
-  const config = { ...getSavedWebhookConfig(), ...params.customConfig };
+  const config = { ...getSavedPinResetWebhookConfig(), ...params.customConfig };
 
   if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
     return {
@@ -1267,7 +1645,7 @@ export async function sendPinResetResolvedWebhookToDiscord(params: {
   notes?: string;
   customConfig?: Partial<WebhookConfig>;
 }): Promise<{ success: boolean; message: string }> {
-  const config = { ...getSavedWebhookConfig(), ...params.customConfig };
+  const config = { ...getSavedPinResetWebhookConfig(), ...params.customConfig };
 
   if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
     return {
@@ -1327,7 +1705,7 @@ export async function sendPinResetResolvedWebhookToDiscord(params: {
   };
 
   const payload = {
-    username: config.botName.trim() || 'HSPD CAD Security Center',
+    username: config.botName.trim() || 'HSPD Security & Credentials HQ',
     avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
     embeds: [embedObj],
   };
@@ -1355,5 +1733,1238 @@ export async function sendPinResetResolvedWebhookToDiscord(params: {
     };
   }
 }
+
+/**
+ * Send New Officer Induction / Registration announcement to Discord Webhook
+ */
+export async function sendNewOfficerRegistrationToDiscord(params: {
+  officerName: string;
+  officerBadge: string;
+  officerRank: string;
+  officerDivision: string;
+  officerPhone?: string;
+  initialPin: string;
+  registeredBy: string;
+  registeredByBadge: string;
+  registeredByRank: string;
+  customConfig?: Partial<WebhookConfig>;
+}): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedRosterWebhookConfig(), ...params.customConfig };
+
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'URL Webhook Discord belum disetting.'
+    };
+  }
+
+  const dateStr = new Date().toLocaleString('id-ID', {
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+
+  const fields = [
+    {
+      name: '👮 NAMA LENGKAP ANGGOTA',
+      value: `**${params.officerName}**`,
+      inline: true,
+    },
+    {
+      name: '🏷️ NOMOR BADGE / LENCANA',
+      value: `\`${params.officerBadge}\``,
+      inline: true,
+    },
+    {
+      name: '🎖️ PANGKAT DILANTIK',
+      value: `**${params.officerRank}**`,
+      inline: true,
+    },
+    {
+      name: '🏢 DIVISI PENUGASAN',
+      value: `**${params.officerDivision}**`,
+      inline: true,
+    },
+    {
+      name: '📞 KONTAK / RADIO',
+      value: params.officerPhone ? `\`${params.officerPhone}\`` : '`-`',
+      inline: true,
+    },
+    {
+      name: '👑 DIRESMIKAN OLEH',
+      value: `**${params.registeredByRank} ${params.registeredBy}** (\`${params.registeredByBadge}\`)`,
+      inline: true,
+    },
+    {
+      name: '🕒 TANGGAL PENDAFTARAN',
+      value: `${dateStr}`,
+      inline: false,
+    },
+    {
+      name: '🔐 INFORMASI LOGIN TERMINAL MDT',
+      value: `>>> Gunakan Nama Lengkap / Badge \`${params.officerBadge}\` dengan PIN Default yang telah diberikan oleh Supervisor. Segera laporkan jika membutuhkan bantuan akses.`,
+      inline: false,
+    }
+  ];
+
+  const embedObj = {
+    title: `🛡️ PENGUMUMAN PENDAFTARAN PERSONEL BARU KEPOLISIAN HSPD`,
+    description: `Selamat bergabung kepada **${params.officerRank} ${params.officerName}** (\`${params.officerBadge}\`) di jajaran **State of High State Police Department**. Personel telah resmi terdaftar di database Roster Kepolisian!`,
+    color: 0x3B82F6, // Blue
+    fields,
+    footer: {
+      text: `HSPD Personnel Roster Bureau • Highstate Roleplay • ${dateStr}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD Personnel & Roster Bureau',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [embedObj],
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return {
+      success: true,
+      message: `Pemberitahuan pendaftaran ${params.officerName} berhasil dikirim ke Webhook Discord!`
+    };
+  } catch (err: any) {
+    console.error('New Officer Webhook Error:', err);
+    return {
+      success: false,
+      message: `Gagal mengirim ke Discord: ${err.message || 'Cek koneksi'}`
+    };
+  }
+}
+
+/**
+ * Send Officer Profile / Member Information Update to Discord Webhook
+ */
+export async function sendOfficerProfileUpdateToDiscord(params: {
+  officerName: string;
+  officerBadge: string;
+  officerRank: string;
+  updateType: 'DIVISI' | 'KONTAK' | 'PROFIL' | 'MUTASI' | 'KREDENSIAL';
+  changes: Array<{ label: string; oldValue?: string; newValue: string }>;
+  updatedBy: string;
+  updatedByBadge: string;
+  updatedByRank: string;
+  notes?: string;
+  customConfig?: Partial<WebhookConfig>;
+}): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedRosterWebhookConfig(), ...params.customConfig };
+
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'URL Webhook Discord belum disetting.'
+    };
+  }
+
+  const dateStr = new Date().toLocaleString('id-ID', {
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [
+    {
+      name: '👮 PERSONEL KEPOLISIAN',
+      value: `Nama: **${params.officerName}**\nBadge: \`${params.officerBadge}\`\nPangkat: **${params.officerRank}**`,
+      inline: true,
+    },
+    {
+      name: '👑 DIPERBARUI OLEH',
+      value: `Nama: **${params.updatedBy}**\nBadge: \`${params.updatedByBadge}\`\nPangkat: **${params.updatedByRank}**`,
+      inline: true,
+    },
+    {
+      name: '🕒 WAKTU PEMBARUAN',
+      value: `${dateStr}`,
+      inline: true,
+    },
+  ];
+
+  params.changes.forEach((c) => {
+    fields.push({
+      name: `📋 PERUBAHAN: ${c.label.toUpperCase()}`,
+      value: c.oldValue ? `Sebelum: \`${c.oldValue}\` ➔ **Baru:** \`${c.newValue}\`` : `**Nilai Baru:** \`${c.newValue}\``,
+      inline: false,
+    });
+  });
+
+  if (params.notes) {
+    fields.push({
+      name: '📝 CATATAN ADMINISTRASI',
+      value: `>>> *${params.notes}*`,
+      inline: false,
+    });
+  }
+
+  const embedObj = {
+    title: `📋 PEMBARUAN DATA & INFORMASI PERSONEL KEPOLISIAN`,
+    description: `Telah dilakukan pembaruan data untuk petugas **${params.officerRank} ${params.officerName}** (\`${params.officerBadge}\`) di database Roster Kepolisian HSPD.`,
+    color: 0x6366F1, // Indigo
+    fields,
+    footer: {
+      text: `HSPD Personnel & Roster Bureau • Highstate Roleplay • ${dateStr}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD Personnel & Roster Bureau',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [embedObj],
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return {
+      success: true,
+      message: `Pembaruan data ${params.officerName} berhasil dikirim ke Webhook Discord!`
+    };
+  } catch (err: any) {
+    console.error('Officer Update Webhook Error:', err);
+    return {
+      success: false,
+      message: `Gagal mengirim ke Discord: ${err.message || 'Cek koneksi'}`
+    };
+  }
+}
+
+/**
+ * =========================================================================
+ * 1. DETECTIVE BUREAU / CID CASE BOARD WEBHOOK FUNCTIONS
+ * =========================================================================
+ */
+export async function sendDetectiveCaseToDiscord(
+  caseItem: DetectiveCase,
+  eventType: 'CREATED' | 'UPDATED' | 'WARRANT_ISSUED' | 'SOLVED' | 'EVIDENCE_ADDED',
+  actor?: OfficerProfile,
+  customConfig?: Partial<WebhookConfig>
+): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedDetectiveWebhookConfig(), ...customConfig };
+
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'URL Webhook Discord untuk Kasus Detektif belum disetting.'
+    };
+  }
+
+  const dateStr = new Date().toLocaleString('id-ID', {
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+
+  // Theme color & event header
+  let embedColor = 0x6366F1; // Indigo default
+  let eventTitle = `🔍 [CID] BERKAS INVESTIGASI KASUS - ${caseItem.caseNumber}`;
+  let eventDesc = `Pembaruan berkas penyelidikan Divisi Reserse Kriminal & Intelijen (Detective Bureau / CID HSPD).`;
+
+  if (eventType === 'CREATED') {
+    embedColor = 0x3B82F6; // Blue
+    eventTitle = `📂 [CID KASUS BARU] ${caseItem.caseNumber} - ${caseItem.title.toUpperCase()}`;
+    eventDesc = `Berkas perkara investigasi baru resmi dibuka oleh Detektif Kepolisian.`;
+  } else if (eventType === 'WARRANT_ISSUED' || caseItem.warrantIssued) {
+    embedColor = 0xDC2626; // Red
+    eventTitle = `⚡ [SURAT PERINTAH / WARRANT] ${caseItem.caseNumber} - ${caseItem.title.toUpperCase()}`;
+    eventDesc = `Surat Perintah Penggeledahan / Penangkapan (Search & Arrest Warrant) resmi diterbitkan!`;
+  } else if (eventType === 'SOLVED' || caseItem.status === 'SOLVED_CLOSED') {
+    embedColor = 0x10B981; // Emerald Green
+    eventTitle = `✅ [KASUS TERUNGKAP / SOLVED] ${caseItem.caseNumber} - ${caseItem.title.toUpperCase()}`;
+    eventDesc = `Kasus kejahatan telah berhasil diungkap dan ditutup oleh tim penyidik reserse.`;
+  } else if (eventType === 'EVIDENCE_ADDED') {
+    embedColor = 0x8B5CF6; // Purple
+    eventTitle = `📦 [BARANG BUKTI BARU] ${caseItem.caseNumber} - ${caseItem.title.toUpperCase()}`;
+    eventDesc = `Barang bukti forensik/balistik baru telah diamankan ke Evidence Locker HSPD.`;
+  }
+
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [
+    {
+      name: '📁 NOMOR & JUDUL KASUS',
+      value: `**${caseItem.title}**\n\`Nomor Berkas: ${caseItem.caseNumber}\``,
+      inline: false,
+    },
+    {
+      name: '🕵️ PENYIDIK UTAMA (LEAD DETECTIVE)',
+      value: `**${caseItem.leadDetective}** (\`${caseItem.leadDetectiveBadge}\`)\nDivisi: \`${caseItem.division}\``,
+      inline: true,
+    },
+    {
+      name: '📊 STATUS & PRIORITAS',
+      value: `Status: **${caseItem.status}**\nPrioritas: **${caseItem.priority}**`,
+      inline: true,
+    },
+    {
+      name: '📍 LOKASI TKP & TANGGAL KEJADIAN',
+      value: `TKP: **${caseItem.location}**\nTanggal: \`${caseItem.incidentDate}\``,
+      inline: true,
+    }
+  ];
+
+  // Suspects info
+  if (caseItem.suspects && caseItem.suspects.length > 0) {
+    const suspectList = caseItem.suspects.map((s, idx) => {
+      const aliasStr = s.alias ? ` ("${s.alias}")` : '';
+      const gangStr = s.gangAffiliation ? ` [${s.gangAffiliation}]` : '';
+      return `${idx + 1}. **${s.name}**${aliasStr}${gangStr} - \`${s.status}\``;
+    }).join('\n');
+
+    fields.push({
+      name: `👥 TERSANGKA & TARGET BURON (${caseItem.suspects.length})`,
+      value: suspectList.length > 1000 ? `${suspectList.slice(0, 1000)}...` : suspectList,
+      inline: false,
+    });
+  }
+
+  // Evidence info
+  if (caseItem.evidences && caseItem.evidences.length > 0) {
+    const evidenceList = caseItem.evidences.map((e, idx) => {
+      return `${idx + 1}. [**${e.type}**] ${e.title} *(Lokasi: ${e.storageLocation})*`;
+    }).join('\n');
+
+    fields.push({
+      name: `📦 BARANG BUKTI TERSITA (${caseItem.evidences.length} Item)`,
+      value: evidenceList.length > 1000 ? `${evidenceList.slice(0, 1000)}...` : evidenceList,
+      inline: false,
+    });
+  }
+
+  // Warrant Info
+  if (caseItem.warrantIssued) {
+    fields.push({
+      name: '⚡ STATUS SURAT PERINTAH (WARRANT)',
+      value: `🚨 **WARRANT AKTIF** - \`${caseItem.warrantNumber || 'ACTIVE-WARRANT'}\`\n*Seluruh unit kepolisian berwenang melakukan penangkapan dan penggeledahan.*`,
+      inline: false,
+    });
+  }
+
+  // Summary
+  if (caseItem.summary) {
+    fields.push({
+      name: '📝 RINGKASAN PERKARA & INTELIJEN',
+      value: `>>> ${caseItem.summary}`,
+      inline: false,
+    });
+  }
+
+  // Actor
+  if (actor) {
+    fields.push({
+      name: '👤 PETUGAS PELAPOR',
+      value: `**${actor.rank} ${actor.name}** (\`${actor.badge}\`)`,
+      inline: true,
+    });
+  }
+
+  const embedObj = {
+    title: eventTitle,
+    description: eventDesc,
+    color: embedColor,
+    fields,
+    footer: {
+      text: `HSPD Detective Bureau (CID) • Highstate Roleplay • ${dateStr}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD Detective Bureau & CID',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [embedObj],
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return {
+      success: true,
+      message: `Berkas kasus ${caseItem.caseNumber} berhasil dikirim ke Webhook Kasus Detektif!`
+    };
+  } catch (err: any) {
+    console.error('Detective Case Webhook Error:', err);
+    return {
+      success: false,
+      message: `Gagal mengirim ke Webhook Kasus Detektif: ${err.message || 'Cek URL Webhook'}`
+    };
+  }
+}
+
+export async function testDetectiveDiscordWebhook(config: WebhookConfig): Promise<{ success: boolean; message: string }> {
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'Masukkan URL Discord Webhook Kasus Detektif yang valid (dimulai dengan https://discord.com/api/webhooks/...)'
+    };
+  }
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD Detective Bureau & CID',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [
+      {
+        title: '🔍 UJI COBA INTEGRASI WEBHOOK KASUS DETEKTIF (CID CASEBOARD)',
+        description: 'Koneksi log berkas investigasi kasus kriminal & surat perintah penangkapan (Warrant) berhasil terhubung.',
+        color: 0x6366F1,
+        fields: [
+          { name: 'Channel Target', value: '🟢 **Detective Bureau / CID Investigation Channel**', inline: true },
+          { name: 'Waktu Pengujian', value: new Date().toLocaleString('id-ID'), inline: true },
+          { name: 'Status Sistem', value: '🟢 **Ready for Caseboard Intelligence & Ballistics**', inline: true },
+        ],
+        footer: {
+          text: 'HSPD Detective Bureau • HighState Roleplay',
+        }
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return {
+      success: true,
+      message: '✅ Sinyal Webhook Kasus Detektif (CID) Berhasil Terhubung!'
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `❌ Gagal terhubung ke Webhook Kasus Detektif: ${err.message || 'Periksa kembali URL Webhook'}`
+    };
+  }
+}
+
+/**
+ * =========================================================================
+ * 2. BOLO ALERTS (BE ON LOOK OUT) DISPATCH WEBHOOK FUNCTIONS
+ * =========================================================================
+ */
+export async function sendBoloAlertToDiscord(
+  bolo: BoloAlert,
+  eventType: 'PUBLISHED' | 'CLEARED',
+  actor?: OfficerProfile,
+  customConfig?: Partial<WebhookConfig>
+): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedBoloWebhookConfig(), ...customConfig };
+
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'URL Webhook Discord untuk Siaga BOLO belum disetting.'
+    };
+  }
+
+  const dateStr = new Date().toLocaleString('id-ID', {
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+
+  let embedColor = 0xDC2626; // Red for high danger
+  if (eventType === 'CLEARED') {
+    embedColor = 0x10B981; // Green
+  } else if (bolo.dangerLevel === 'EXTREME_ARMED_DANGEROUS') {
+    embedColor = 0x991B1B; // Dark Red
+  } else if (bolo.dangerLevel === 'MEDIUM') {
+    embedColor = 0xF59E0B; // Amber
+  } else if (bolo.dangerLevel === 'LOW') {
+    embedColor = 0x3B82F6; // Blue
+  }
+
+  const isPublished = eventType === 'PUBLISHED';
+  const embedTitle = isPublished
+    ? `🚨 [BOLO SIAGA DARURAT] PERINGATAN BURONAN: ${bolo.title.toUpperCase()}`
+    : `✅ [BOLO DITUTUP / CLEAR] BURONAN TERTANGKAP: ${bolo.title.toUpperCase()}`;
+
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [
+    {
+      name: '🎯 TARGET & JUDUL BOLO',
+      value: `**${bolo.title}**`,
+      inline: false,
+    },
+    {
+      name: '🏷️ TIPE TARGET',
+      value: `\`${bolo.type}\``,
+      inline: true,
+    },
+    {
+      name: '⚠️ TINGKAT BAHAYA',
+      value: bolo.dangerLevel === 'EXTREME_ARMED_DANGEROUS' 
+        ? '🔴 **BERSENJATA BERAT & EKSTREM BAHAYA**' 
+        : bolo.dangerLevel === 'HIGH' 
+          ? '🟠 **TINGGI (HIGH)**' 
+          : bolo.dangerLevel === 'MEDIUM' 
+            ? '🟡 **SEDANG (MEDIUM)**' 
+            : '⚪ **RENDAH / INFORMATIF**',
+      inline: true,
+    },
+    {
+      name: '📍 LOKASI TERAKHIR TERLIHAT (LAST SEEN)',
+      value: `**${bolo.lastSeenLocation || 'Los Santos Area'}**`,
+      inline: true,
+    },
+    {
+      name: '📝 CIRI-CIRI / INSTRUKSI PATROLI LAPANGAN',
+      value: `>>> ${bolo.description || 'Waspadai target saat berpatroli, utamakan keselamatan dan koordinasikan back-up unit.'}`,
+      inline: false,
+    },
+    {
+      name: isPublished ? '👮 DITERBITKAN OLEH' : '👮 DISELESAIKAN OLEH',
+      value: `**${bolo.issuedBy}** (\`${bolo.issuedByBadge}\`)${actor ? `\nPetugas Penindak: **${actor.rank} ${actor.name}**` : ''}`,
+      inline: false,
+    }
+  ];
+
+  const embedObj = {
+    title: embedTitle,
+    description: isPublished 
+      ? `🚨 **PERHATIAN SELURUH UNIT PATROLI HSPD:** Segera lakukan pemantauan dan siaga terhadap buronan/kendaraan yang terdaftar di bawah ini!` 
+      : `Peringatan BOLO ini telah dicabut / diselesaikan karena target telah diamankan atau diproses.`,
+    color: embedColor,
+    fields,
+    footer: {
+      text: `HSPD Dispatch & BOLO Alert System • Highstate Roleplay • ${dateStr}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD BOLO & Dispatch HQ',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [embedObj],
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return {
+      success: true,
+      message: `Peringatan BOLO "${bolo.title}" berhasil disiarkan ke Webhook Discord!`
+    };
+  } catch (err: any) {
+    console.error('BOLO Webhook Error:', err);
+    return {
+      success: false,
+      message: `Gagal mengirim BOLO ke Webhook Discord: ${err.message || 'Cek URL Webhook'}`
+    };
+  }
+}
+
+export async function testBoloDiscordWebhook(config: WebhookConfig): Promise<{ success: boolean; message: string }> {
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'Masukkan URL Discord Webhook BOLO yang valid (dimulai dengan https://discord.com/api/webhooks/...)'
+    };
+  }
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD BOLO & Dispatch HQ',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [
+      {
+        title: '🚨 UJI COBA INTEGRASI WEBHOOK SIAGA BOLO (ALL POINTS BULLETIN)',
+        description: 'Koneksi siaran darurat BOLO / buronan kendaraan & suspect berbahaya berhasil terhubung.',
+        color: 0xDC2626,
+        fields: [
+          { name: 'Channel Target', value: '🟢 **BOLO Alerts & Dispatch Channel**', inline: true },
+          { name: 'Waktu Pengujian', value: new Date().toLocaleString('id-ID'), inline: true },
+          { name: 'Status Sistem', value: '🟢 **Ready for Tactical Broadcast & Pursuit Alerts**', inline: true },
+        ],
+        footer: {
+          text: 'HSPD BOLO & Dispatch HQ • HighState Roleplay',
+        }
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return {
+      success: true,
+      message: '✅ Sinyal Webhook Siaga BOLO Berhasil Terhubung!'
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `❌ Gagal terhubung ke Webhook BOLO: ${err.message || 'Periksa kembali URL Webhook'}`
+    };
+  }
+}
+
+/**
+ * =========================================================================
+ * 3. TRAFFIC ENFORCEMENT & IMPOUND LOT WEBHOOK FUNCTIONS
+ * =========================================================================
+ */
+export async function sendImpoundRecordToDiscord(
+  imp: ImpoundRecord,
+  eventType: 'IMPOUNDED' | 'RELEASED' | 'DELETED',
+  actor?: OfficerProfile,
+  customConfig?: Partial<WebhookConfig>
+): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedImpoundWebhookConfig(), ...customConfig };
+
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'URL Webhook Discord untuk Sitaan Kendaraan (Impound) belum disetting.'
+    };
+  }
+
+  const dateStr = new Date().toLocaleString('id-ID', {
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+
+  const isImpounded = eventType === 'IMPOUNDED';
+  const embedColor = isImpounded ? 0x059669 : 0x3B82F6; // Emerald for impounded, Blue for release
+  const embedTitle = isImpounded 
+    ? `🚗 [IMPOUND LOT] PENYITAAN KENDARAAN - PLAT #${imp.plateNumber}` 
+    : `🔓 [IMPOUND RELEASE] KENDARAAN RESMI DITEBUS - PLAT #${imp.plateNumber}`;
+
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [
+    {
+      name: '🚗 PLAT & MODEL KENDARAAN',
+      value: `Plat: **\`${imp.plateNumber}\`**\nModel: **${imp.vehicleModel}** (${imp.color})`,
+      inline: true,
+    },
+    {
+      name: '👤 PEMILIK TERDAFTAR',
+      value: `**${imp.ownerName}**`,
+      inline: true,
+    },
+    {
+      name: '🔒 STATUS PENYITAAN',
+      value: isImpounded ? '🔒 **DISITA DI IMPOUND LOT**' : '✅ **RESMI DITEBUS / DILEPAS**',
+      inline: true,
+    },
+    {
+      name: '📜 ALASAN PENYITAAN / PASAL',
+      value: `>>> ${imp.reason}`,
+      inline: false,
+    },
+    {
+      name: '💰 DURASI & BIAYA TEBUSAN DENDA',
+      value: `Durasi Sitaan: **${imp.impoundDays} Hari**\nBiaya Tebus: **$${imp.impoundFee.toLocaleString('id-ID')}** (Uang In-Game)`,
+      inline: true,
+    },
+    {
+      name: '📍 LOKASI PENINDAKAN',
+      value: `**${imp.locationFound || 'Commerce, Los Santos'}**`,
+      inline: true,
+    },
+    {
+      name: '👮 PETUGAS PENYITA',
+      value: `**${imp.officerName}** (\`${imp.officerBadge}\`)${actor ? `\nPetugas Pelapor: **${actor.rank} ${actor.name}**` : ''}`,
+      inline: false,
+    }
+  ];
+
+  const embedObj = {
+    title: embedTitle,
+    description: isImpounded
+      ? `Kendaraan berikut telah disita oleh Satuan Lalu Lintas (Traffic Enforcement Unit) dan diamankan di Garasi Impound Lot HSPD.`
+      : `Kendaraan telah melunasi denda administrasi atau menyelesaikan masa sitaan dan diserahterimakan kembali ke pemilik.`,
+    color: embedColor,
+    fields,
+    footer: {
+      text: `HSPD Traffic Enforcement & Impound Lot • Highstate Roleplay • ${dateStr}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD Traffic Enforcement & Impound Lot',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [embedObj],
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return {
+      success: true,
+      message: `Rekor Impound plat ${imp.plateNumber} berhasil dikirim ke Webhook Discord!`
+    };
+  } catch (err: any) {
+    console.error('Impound Webhook Error:', err);
+    return {
+      success: false,
+      message: `Gagal mengirim data Impound ke Webhook Discord: ${err.message || 'Cek URL Webhook'}`
+    };
+  }
+}
+
+export async function testImpoundDiscordWebhook(config: WebhookConfig): Promise<{ success: boolean; message: string }> {
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'Masukkan URL Discord Webhook Impound yang valid (dimulai dengan https://discord.com/api/webhooks/...)'
+    };
+  }
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD Traffic Enforcement & Impound Lot',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [
+      {
+        title: '🚗 UJI COBA INTEGRASI WEBHOOK SITAAN KENDARAAN (IMPOUND LOT)',
+        description: 'Koneksi log sitaan kendaraan lalu lintas & pembayaran denda tebusan berhasil terhubung.',
+        color: 0x059669,
+        fields: [
+          { name: 'Channel Target', value: '🟢 **Traffic Enforcement & Impound Lot Channel**', inline: true },
+          { name: 'Waktu Pengujian', value: new Date().toLocaleString('id-ID'), inline: true },
+          { name: 'Status Sistem', value: '🟢 **Ready for Impound Lot Logging & Fee Verification**', inline: true },
+        ],
+        footer: {
+          text: 'HSPD Traffic Enforcement • HighState Roleplay',
+        }
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return {
+      success: true,
+      message: '✅ Sinyal Webhook Sita Kendaraan (Impound) Berhasil Terhubung!'
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `❌ Gagal terhubung ke Webhook Impound: ${err.message || 'Periksa kembali URL Webhook'}`
+    };
+  }
+}
+
+// ==========================================
+// 🏦 POLICE VAULT & ARMORY (WEEKLY 1X AUDIT) WEBHOOK
+// ==========================================
+export async function sendVaultAuditToDiscord(
+  audit: VaultAuditLog,
+  officer?: OfficerProfile | null
+): Promise<{ success: boolean; message: string }> {
+  const config = getSavedVaultWebhookConfig();
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'URL Discord Webhook Brankas & Audit Mingguan belum dikonfigurasi di Pengaturan Webhook!'
+    };
+  }
+
+  const dateStr = new Date(audit.timestamp).toLocaleString('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const nextDueDateStr = new Date(audit.nextAuditDueDate).toLocaleDateString('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+
+  const sealStatusMap = {
+    INTACT_SECURED: '🟢 **TERSEGEL UTUH & AMAN (INTACT)**',
+    SEAL_BROKEN_DISCREPANCY: '🔴 **PERINGATAN: SEGEL RUSAK / ADA SELISIH**',
+    UNDER_MAINTENANCE: '🟡 **SEDANG DALAM PERAWATAN SISTEM**'
+  };
+
+  const fields: any[] = [
+    {
+      name: '🗓️ PERIODE & TANGGAL AUDIT MINGGUAN',
+      value: `Periode: **${audit.weekLabel}**\nTanggal Pelaksanaan: **${audit.auditDate}**\nJadwal Audit Berikutnya: **${nextDueDateStr}**`,
+      inline: false,
+    },
+    {
+      name: '👮 AUDITOR UTAMA & SAKSI',
+      value: `Auditor: **${audit.auditorRank} ${audit.auditorName}** (\`${audit.auditorBadge}\`)\nSaksi Pendamping: **${audit.witnessOfficer || 'Petugas Jaga Logistik'}**`,
+      inline: true,
+    },
+    {
+      name: '🔒 STATUS SEGEL BRANKAS FISIK',
+      value: sealStatusMap[audit.vaultSealStatus] || '🟢 **TERSEGEL UTUH**',
+      inline: true,
+    },
+    {
+      name: '💵 KAS BRANKAS KEPOLISIAN',
+      value: `Kas Uang Sitaan: **$${audit.cashConfiscated.toLocaleString('id-ID')}**\nKas Operasional Dinas: **$${audit.cleanCashFund.toLocaleString('id-ID')}**\nTotal Kas Tersimpan: **$${(audit.cashConfiscated + audit.cleanCashFund).toLocaleString('id-ID')}**`,
+      inline: false,
+    },
+    {
+      name: '🔫 STOK SENJATA INVENTARIS & SITAAN',
+      value: `• Handguns / Pistol: **${audit.weaponsSummary.handgunsCount} Unit**\n• Shotguns: **${audit.weaponsSummary.shotgunsCount} Unit**\n• Sub-Machine Guns (SMG): **${audit.weaponsSummary.smgCount} Unit**\n• Assault Rifles (M4/AK): **${audit.weaponsSummary.rifleCount} Unit**\n• Heavy Tactical Weapons: **${audit.weaponsSummary.heavyWeaponsCount} Unit**`,
+      inline: true,
+    },
+    {
+      name: '🎯 PERSEDIAAN AMUNISI GUDANG',
+      value: `• Pistol 9mm Ammo: **${audit.ammoSummary.pistolAmmo.toLocaleString('id-ID')} Butir**\n• Shotgun Shells 12G: **${audit.ammoSummary.shotgunShells.toLocaleString('id-ID')} Shells**\n• SMG 9mm/45 ACP: **${audit.ammoSummary.smgAmmo.toLocaleString('id-ID')} Butir**\n• Rifle 5.56mm Ammo: **${audit.ammoSummary.rifleAmmo.toLocaleString('id-ID')} Butir**`,
+      inline: true,
+    },
+    {
+      name: '💊 REKAPITULASI NARKOTIKA SITAAN',
+      value: `• Marijuana / Weed: **${audit.drugsSummary.weedGrams} Gram**\n• Cocaine Murni: **${audit.drugsSummary.cocaineGrams} Gram**\n• Crack Cocaine: **${audit.drugsSummary.crackGrams} Gram**\n• Methamphetamine: **${audit.drugsSummary.methGrams} Gram**\n• Pills / Butir Ekstasi: **${audit.drugsSummary.pillsCount} Butir**`,
+      inline: false,
+    }
+  ];
+
+  if (audit.otherItemsNote) {
+    fields.push({
+      name: '📦 BARANG SITAAN BERHARGA LAINNYA',
+      value: `>>> ${audit.otherItemsNote}`,
+      inline: false,
+    });
+  }
+
+  if (audit.auditNotes) {
+    fields.push({
+      name: '📝 CATATAN & REKOMENDASI AUDIT',
+      value: `>>> ${audit.auditNotes}`,
+      inline: false,
+    });
+  }
+
+  const embedObj: any = {
+    title: `🏦 BERITA ACARA AUDIT BRANKAS & GUDANG SENJATA [${audit.auditNumber}]`,
+    description: `Laporan resmi pemeriksaan fisik dan stock opname berkala mingguan (1x Seminggu) Brankas Sentral & Armory Departemen Kepolisian HSPD.`,
+    color: audit.vaultSealStatus === 'SEAL_BROKEN_DISCREPANCY' ? 0xDC2626 : 0xD97706,
+    fields,
+    footer: {
+      text: `HSPD Central Vault & Armory Bureau • Siklus Audit Mingguan • ${dateStr}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    },
+    timestamp: new Date(audit.timestamp).toISOString(),
+  };
+
+  // Check for image upload
+  let firstPhoto = audit.evidencePhotos && audit.evidencePhotos.length > 0 ? audit.evidencePhotos[0] : undefined;
+
+  if (firstPhoto && firstPhoto.startsWith('data:image')) {
+    try {
+      const { blob } = dataURLtoBlob(firstPhoto);
+      const formData = new FormData();
+      formData.append('file', blob, 'vault_audit_evidence.jpg');
+      
+      embedObj.image = { url: 'attachment://vault_audit_evidence.jpg' };
+
+      const payload = {
+        username: config.botName.trim() || 'HSPD Vault & Armory Bureau',
+        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        embeds: [embedObj],
+      };
+
+      formData.append('payload_json', JSON.stringify(payload));
+
+      const res = await fetch(config.webhookUrl.trim(), {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      return { success: true, message: `Laporan Audit Brankas ${audit.auditNumber} berhasil dikirim beserta bukti foto ke Discord!` };
+    } catch (err: any) {
+      console.warn('Failed to send image blob in vault webhook, falling back to json:', err);
+    }
+  } else if (firstPhoto && firstPhoto.startsWith('http')) {
+    embedObj.image = { url: firstPhoto };
+  }
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: config.botName.trim() || 'HSPD Vault & Armory Bureau',
+        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        embeds: [embedObj],
+      })
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return { success: true, message: `Laporan Audit Brankas ${audit.auditNumber} berhasil dikirim ke Webhook Discord!` };
+  } catch (err: any) {
+    return { success: false, message: `Gagal mengirim Laporan Audit Brankas: ${err.message || 'Cek koneksi'}` };
+  }
+}
+
+export async function testVaultDiscordWebhook(config: WebhookConfig): Promise<{ success: boolean; message: string }> {
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'Masukkan URL Discord Webhook Brankas & Audit Mingguan yang valid.'
+    };
+  }
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD Vault & Armory Bureau',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [
+      {
+        title: '🏦 UJI COBA INTEGRASI WEBHOOK BRANKAS & AUDIT MINGGUAN',
+        description: 'Sistem notifikasi berita acara audit mingguan brankas & gudang logistik senjata HSPD berhasil terhubung.',
+        color: 0xD97706,
+        fields: [
+          { name: 'Channel Target', value: '🟢 **Police Vault & Weekly Armory Stock Opname**', inline: true },
+          { name: 'Siklus Pembaruan', value: '⏱️ **Wajib Update 1x Seminggu (7 Hari)**', inline: true },
+          { name: 'Waktu Pengujian', value: new Date().toLocaleString('id-ID'), inline: false },
+        ],
+        footer: {
+          text: 'HSPD Central Vault Bureau • HighState Roleplay',
+        }
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return { success: true, message: '✅ Sinyal Webhook Brankas & Audit Mingguan Berhasil Terhubung!' };
+  } catch (err: any) {
+    return { success: false, message: `❌ Gagal terhubung ke Webhook Brankas: ${err.message}` };
+  }
+}
+
+// ==========================================
+// 💥 WEAPON & VEHICLE SMELTING / DESTRUCTION REGISTRY WEBHOOK
+// ==========================================
+export async function sendDestructionRecordToDiscord(
+  item: DestructionRegistryItem,
+  eventType: 'PROPOSED' | 'APPROVED' | 'DESTROYED',
+  officer?: OfficerProfile | null
+): Promise<{ success: boolean; message: string }> {
+  const config = getSavedDestructionWebhookConfig();
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'URL Discord Webhook Peleburan Kendaraan / Senjata belum dikonfigurasi di Pengaturan Webhook!'
+    };
+  }
+
+  const dateStr = new Date(item.timestamp).toLocaleString('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const typeLabels = {
+    VEHICLE: '🚗 KENDARAAN (PENGHANCURAN / CRUSHING)',
+    WEAPON: '🔫 SENJATA API & AMUNISI (PELEBURAN / SMELTING)',
+    NARCOTICS: '💊 NARKOTIKA SITAAN (PEMBAKARAN INCINERATOR)',
+    CONTRABAND: '📦 BARANG SELUNDUPAN / ILEGAL'
+  };
+
+  const reasonLabels = {
+    COURT_ORDER_INKRACHT: '⚖️ Putusan Pengadilan Inkracht (Perintah Pemusnahan Resmi)',
+    ILLEGAL_SERIAL_ERASED: '🚫 Senjata Ilegal Tanpa Izin & Nomor Seri Dihapus/Digosok',
+    UNCLAIMED_IMPOUND_EXPIRED: '⏱️ Masa Sitaan Impound Kadaluarsa (>30 Hari Tidak Ditebus)',
+    TOTAL_WRECK_UNSAFE: '💥 Kerusakan Total / Rongsokan Berat Tidak Layak Jalan',
+    CONTRABAND_HAZARDOUS: '☣️ Zat Kimia Narkotika Berbahaya Bagi Publik'
+  };
+
+  const statusLabels = {
+    PROPOSED_PENDING_APPROVAL: '⏳ **MENUNGGU PERSETUJUAN (PENDING HIGH COMMAND)**',
+    APPROVED_SCHEDULED: '⚙️ **DISETUJUI & DIJADWALKAN KE TUNGKU PELEBURAN**',
+    SMELTED_DESTROYED: '💥 **SELESAI DILEBUR / DIMUSNAHKAN TOTAL (SCRAPPED)**',
+    REJECTED_RETAINED: '🛑 **DITOLAK / DITAHAN UNTUK PENYIDIKAN LEBIH LANJUT**'
+  };
+
+  const statusColors = {
+    PROPOSED_PENDING_APPROVAL: 0xF59E0B, // Amber
+    APPROVED_SCHEDULED: 0x3B82F6,        // Blue
+    SMELTED_DESTROYED: 0xEF4444,         // Red
+    REJECTED_RETAINED: 0x6B7280          // Gray
+  };
+
+  const fields: any[] = [
+    {
+      name: '🏷️ TIPE & JUDUL PELEBURAN',
+      value: `Tipe: **${typeLabels[item.itemType]}**\nJudul: **${item.title}**\nNo. Kasus Asal: **${item.caseNumber || 'N/A'}**`,
+      inline: false,
+    },
+    {
+      name: '💥 STATUS PELEBURAN / PEMUSNAHAN',
+      value: statusLabels[item.status] || '⚙️ **DIJADWALKAN**',
+      inline: true,
+    },
+    {
+      name: '📅 JADWAL EKSEKUSI / PELAKSANAAN',
+      value: `Tanggal: **${item.scheduledDate}**\nLokasi: **${item.facilityLocation}**`,
+      inline: true,
+    }
+  ];
+
+  // Specific Vehicle Details
+  if (item.itemType === 'VEHICLE' && item.vehicleDetails) {
+    fields.push({
+      name: '🚗 DETAIL KENDARAAN YANG AKAN/TELAH DILEBUR',
+      value: `• Model Kendaraan: **${item.vehicleDetails.model}**\n• Plat Nomor: **${item.vehicleDetails.plateNumber}**\n• Warna Bodi: **${item.vehicleDetails.color}**\n• Nomor Sasis / VIN: **${item.vehicleDetails.vin || 'Terhapus'}**\n• Pemilik Terdaftar Sebelumnya: **${item.vehicleDetails.previousOwner || 'Anonim'}**\n• Kondisi Fisik: **${item.vehicleDetails.chassisCondition || 'Rongsokan / Rusak Berat'}**`,
+      inline: false,
+    });
+  }
+
+  // Specific Weapon Details
+  if (item.itemType === 'WEAPON' && item.weaponDetails) {
+    fields.push({
+      name: '🔫 DETAIL SENJATA API YANG DILEBUR KE TUNGKU',
+      value: `• Model / Jenis Senjata: **${item.weaponDetails.weaponModel}**\n• Jumlah Unit: **${item.weaponDetails.quantity || 1} Unit**\n• Nomor Seri: **${item.weaponDetails.serialNumber}**\n• Kondisi Serial: **${item.weaponDetails.isSerialScratched ? '⚠️ Nomor Seri Terhapus / Ilegal' : 'Resmi Tercatat'}**\n• Kaliber Senjata: **${item.weaponDetails.caliber}**\n• Asal Sitaan: **${item.weaponDetails.confiscatedFrom || 'Sitaan Lapangan'}**`,
+      inline: false,
+    });
+  }
+
+  // Specific Narcotics Details
+  if (item.itemType === 'NARCOTICS' && item.narcoticsDetails) {
+    fields.push({
+      name: '💊 DETAIL NARKOTIKA YANG DIMUSNAHKAN',
+      value: `• Jenis Zat: **${item.narcoticsDetails.substance}**\n• Berat Total: **${item.narcoticsDetails.weightGrams} Gram**\n• Kemasan / Bentuk: **${item.narcoticsDetails.packaging}**\n• Metode Pemusnahan: **${item.narcoticsDetails.burningMethod || 'Insenerator Suhu Tinggi'}**`,
+      inline: false,
+    });
+  }
+
+  // Reason and Legal Basis
+  fields.push({
+    name: '⚖️ DASAR HUKUM & ALASAN PEMUSNAHAN',
+    value: `Dasar: **${reasonLabels[item.destructionReason]}**\nKeterangan: ${item.reasonDescription}\nNo. Surat Keputusan: **${item.courtOrderDocNumber || 'SURAT-PERINTAH-HSPD/2026'}**`,
+    inline: false,
+  });
+
+  // Personnel details
+  fields.push({
+    name: '👮 PETUGAS PENDAFTAR & OTORISASI HIGH COMMAND',
+    value: `Didaftarkan Oleh: **${item.registeredBy}** (\`${item.registeredByBadge}\`)\nDisetujui Oleh: **${item.authorizedBy || 'Menunggu Otorisasi High Command'}**\nPetugas Eksekutor: **${item.executorOfficer || '-'}**`,
+    inline: false,
+  });
+
+  const embedObj: any = {
+    title: `💥 BERITA ACARA PELEBURAN & PEMUSNAHAN SITAAN [${item.destructionNumber}]`,
+    description: `Dokumentasi resmi penghancuran / peleburan barang bukti dan kendaraan sitaan agar tidak dapat disalahgunakan kembali di masyarakat.`,
+    color: statusColors[item.status] || 0xEF4444,
+    fields,
+    footer: {
+      text: `HSPD Evidence Disposal & Smelting Registry • HighState Roleplay • ${dateStr}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    },
+    timestamp: new Date(item.timestamp).toISOString(),
+  };
+
+  // Image attachment priority (After photo first if destroyed, else before photo)
+  const displayPhoto = (item.afterPhotos && item.afterPhotos.length > 0)
+    ? item.afterPhotos[0]
+    : (item.beforePhotos && item.beforePhotos.length > 0 ? item.beforePhotos[0] : undefined);
+
+  if (displayPhoto && displayPhoto.startsWith('data:image')) {
+    try {
+      const { blob } = dataURLtoBlob(displayPhoto);
+      const formData = new FormData();
+      formData.append('file', blob, 'destruction_evidence.jpg');
+      
+      embedObj.image = { url: 'attachment://destruction_evidence.jpg' };
+
+      const payload = {
+        username: config.botName.trim() || 'HSPD Evidence & Smelting Registry',
+        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        embeds: [embedObj],
+      };
+
+      formData.append('payload_json', JSON.stringify(payload));
+
+      const res = await fetch(config.webhookUrl.trim(), {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      return { success: true, message: `Data Peleburan ${item.destructionNumber} berhasil dikirim beserta bukti foto ke Discord!` };
+    } catch (err: any) {
+      console.warn('Failed to send image blob in destruction webhook, falling back to json:', err);
+    }
+  } else if (displayPhoto && displayPhoto.startsWith('http')) {
+    embedObj.image = { url: displayPhoto };
+  }
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: config.botName.trim() || 'HSPD Evidence & Smelting Registry',
+        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        embeds: [embedObj],
+      })
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return { success: true, message: `Data Peleburan ${item.destructionNumber} berhasil dikirim ke Webhook Discord!` };
+  } catch (err: any) {
+    return { success: false, message: `Gagal mengirim data Peleburan: ${err.message || 'Cek koneksi'}` };
+  }
+}
+
+export async function testDestructionDiscordWebhook(config: WebhookConfig): Promise<{ success: boolean; message: string }> {
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'Masukkan URL Discord Webhook Peleburan Kendaraan / Senjata yang valid.'
+    };
+  }
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD Evidence & Smelting Registry',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [
+      {
+        title: '💥 UJI COBA INTEGRASI WEBHOOK PELEBURAN KENDARAAN & SENJATA SITAAN',
+        description: 'Sistem pencatatan peleburan scrap kendaraan, tungku peleburan senjata api, dan pemusnahan sitaan terlarang berhasil terhubung.',
+        color: 0xEF4444,
+        fields: [
+          { name: 'Channel Target', value: '🟢 **Evidence Scrapyard & Smelting Disposal Channel**', inline: true },
+          { name: 'Waktu Pengujian', value: new Date().toLocaleString('id-ID'), inline: true },
+          { name: 'Status Sistem', value: '🟢 **Ready for Vehicle Crushing & Weapon Smelting Logs**', inline: true },
+        ],
+        footer: {
+          text: 'HSPD Evidence Disposal • HighState Roleplay',
+        }
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return { success: true, message: '✅ Sinyal Webhook Peleburan Kendaraan & Senjata Berhasil Terhubung!' };
+  } catch (err: any) {
+    return { success: false, message: `❌ Gagal terhubung ke Webhook Peleburan: ${err.message}` };
+  }
+}
+
+/**
+ * Generic Discord webhook log sender
+ */
+export async function sendDiscordLog(webhookUrl: string, payload: {
+  title: string;
+  description: string;
+  color?: number;
+  fields?: { name: string; value: string; inline?: boolean }[];
+}): Promise<boolean> {
+  if (!webhookUrl || !webhookUrl.startsWith('http')) return false;
+
+  try {
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: 'HSPD Central CAD & Tactical Network',
+        avatar_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        embeds: [
+          {
+            title: payload.title,
+            description: payload.description,
+            color: payload.color || 0x3b82f6,
+            fields: payload.fields || [],
+            footer: {
+              text: `HighState Roleplay Police Dept • ${new Date().toLocaleTimeString('id-ID')}`
+            }
+          }
+        ]
+      })
+    });
+    return res.ok;
+  } catch (e) {
+    console.error('Error sending Discord log:', e);
+    return false;
+  }
+}
+
+
 
 

@@ -5,7 +5,7 @@ import {
   Send, Share2, Download, Upload, Search, Sparkles, AlertCircle,
   CheckCircle2, Globe, RefreshCw, FileSpreadsheet, Lock, Unlock, ExternalLink,
   Code, SlidersHorizontal, ChevronDown, ChevronUp, MapPin, Camera, Package, BadgeCheck, Image as ImageIcon,
-  ShieldAlert, KeyRound, ArrowRight, ZoomIn, X, Clock
+  ShieldAlert, KeyRound, ArrowRight, ZoomIn, X, Clock, Printer, Award
 } from 'lucide-react';
 import { 
   getSavedWebhookConfig, saveWebhookConfig, sendArrestRecordToDiscord, 
@@ -17,6 +17,7 @@ import {
 } from '../utils/authorityPin';
 import { AuthorityPinModal } from './AuthorityPinModal';
 import { HSPD_LOGO_URL } from '../assets/logo';
+import { exportElementAsImage } from '../utils/exportDocumentAsImage';
 
 interface Props {
   records: ArrestRecord[];
@@ -77,7 +78,44 @@ export const ArrestHistory: React.FC<Props> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCooperative, setFilterCooperative] = useState<'all' | 'coop' | 'normal'>('all');
   const [selectedPhotoPreview, setSelectedPhotoPreview] = useState<{ url: string; title: string } | null>(null);
+  const [selectedPrintRecord, setSelectedPrintRecord] = useState<ArrestRecord | null>(null);
+  const [isExportingImage, setIsExportingImage] = useState<'png' | 'jpeg' | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Export Arrest Certificate to PNG / JPG
+  const handleExportArrestImage = async (format: 'png' | 'jpeg') => {
+    if (!selectedPrintRecord) return;
+    setIsExportingImage(format);
+    try {
+      const res = await exportElementAsImage('arrest-ticket-certificate-sheet', {
+        fileName: `BERITA_ACARA_PENANGKAPAN_${selectedPrintRecord.suspectName.replace(/\s+/g, '_')}_${selectedPrintRecord.id}`,
+        format,
+        quality: 0.98,
+        backgroundColor: '#0F1318',
+        scale: 2
+      });
+
+      if (res.success) {
+        setWebhookStatusMessage({
+          type: 'success',
+          text: `Berhasil mengunduh Lembar Berita Acara / Tilang dalam format ${format.toUpperCase()}!`
+        });
+        setTimeout(() => setWebhookStatusMessage(null), 4000);
+      } else {
+        setWebhookStatusMessage({
+          type: 'error',
+          text: res.error || 'Gagal mengekspor dokumen ke gambar.'
+        });
+      }
+    } catch (e: any) {
+      setWebhookStatusMessage({
+        type: 'error',
+        text: e.message || 'Terjadi kesalahan saat memproses gambar.'
+      });
+    } finally {
+      setIsExportingImage(null);
+    }
+  };
 
   // Save webhook settings to localStorage
   useEffect(() => {
@@ -1111,6 +1149,16 @@ ${r.evidenceUrl ? `\n[b]Bukti / Evidence (Foto / Video):[/b]\n${isImage ? `[img]
                     <span>{isSending ? 'MENGIRIM...' : 'KIRIM KE DISCORD'}</span>
                   </button>
 
+                  {/* Cetak Berita Acara / Surat Tilang (PNG/JPG/PDF) */}
+                  <button
+                    onClick={() => setSelectedPrintRecord(r)}
+                    className="px-2 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 text-[10px] font-bold rounded flex items-center justify-center gap-1 border border-emerald-700/80 transition font-mono"
+                    title="Buka & Cetak / Ekspor Berita Acara Penangkapan Resmi ke format PNG / JPG"
+                  >
+                    <FileText className="w-3 h-3 text-emerald-400" />
+                    <span>DOKUMEN</span>
+                  </button>
+
                   {/* Copy Text MDC */}
                   <button
                     onClick={() => handleCopy(reportStr, r.id)}
@@ -1189,6 +1237,253 @@ ${r.evidenceUrl ? `\n[b]Bukti / Evidence (Foto / Video):[/b]\n${isImage ? `[img]
                 className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold text-xs"
               >
                 TUTUP
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BERITA ACARA PENANGKAPAN & SURAT TILANG CETAK MODAL (PNG / JPG / PRINT) */}
+      {selectedPrintRecord && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in font-mono text-xs">
+          <div className="bg-[#12151B] border-2 border-emerald-600 rounded-xl max-w-3xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
+            {/* Header */}
+            <div className="bg-[#0A0D12] border-b border-gray-800 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Award className="w-5 h-5 text-emerald-400" />
+                <div>
+                  <h3 className="font-bold text-sm text-gray-100">
+                    LEMBAR BERITA ACARA PENANGKAPAN & SURAT TILANG HSPD
+                  </h3>
+                  <p className="text-[10px] text-gray-400">
+                    Dokumen resmi catatan penindakan hukum, denda tilang, dan penahanan tersangka.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedPrintRecord(null)}
+                className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Document sheet that gets captured to PNG / JPG */}
+            <div className="p-4 overflow-y-auto flex-1 bg-black/40">
+              <div 
+                id="arrest-ticket-certificate-sheet"
+                className="p-7 space-y-4 bg-[#0F1318] border-2 border-emerald-700/80 rounded-xl shadow-2xl relative overflow-hidden text-gray-200 font-mono"
+                style={{ minWidth: '550px' }}
+              >
+                {/* Background Police Seal Watermark */}
+                <div className="absolute right-6 top-1/3 opacity-5 pointer-events-none select-none text-white text-9xl font-black rotate-12">
+                  HSPD
+                </div>
+
+                {/* Kop Surat Polisi */}
+                <div className="border-b-2 border-emerald-600/60 pb-3 flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <div className="text-[11px] tracking-widest uppercase text-emerald-400 font-bold flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-emerald-400 inline" />
+                      <span>HIGH SPEED POLICE DEPARTMENT (HSPD)</span>
+                    </div>
+                    <div className="text-[9px] text-gray-400 uppercase tracking-wider">
+                      DEPARTMENT OF PUBLIC SAFETY • TRAFFIC & PATROL DIVISION
+                    </div>
+                    <div className="text-[8px] text-gray-500 font-mono">
+                      HEADQUARTERS STATION 01 • MISSION ROW • LOS SANTOS STATE POLICE
+                    </div>
+                  </div>
+                  <div className="text-right border border-emerald-700/60 bg-emerald-950/40 px-3 py-1.5 rounded">
+                    <div className="text-[8px] uppercase text-emerald-300 font-bold">STATUS PENINDAKAN</div>
+                    <div className="text-[11px] font-bold text-emerald-400">
+                      ✓ RESMI DITETAPKAN
+                    </div>
+                  </div>
+                </div>
+
+                {/* Title & Document Number */}
+                <div className="text-center py-1 space-y-1">
+                  <h2 className="text-base font-black text-gray-100 uppercase tracking-widest">
+                    SURAT TILANG & BERITA ACARA PENANGKAPAN (BAP)
+                  </h2>
+                  <div className="inline-block px-3 py-1 bg-emerald-950/60 border border-emerald-700 text-emerald-300 rounded font-mono text-xs font-bold">
+                    DOKUMEN CAD #{selectedPrintRecord.id} • {new Date(selectedPrintRecord.timestamp).toLocaleDateString('id-ID')}
+                  </div>
+                </div>
+
+                {/* Metadata & Suspect Info */}
+                <div className="bg-[#161B22] p-3 rounded-lg border border-gray-700 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-gray-400 block text-[10px]">NAMA TERSANGKA:</span>
+                    <span className="text-emerald-300 font-bold text-sm">{selectedPrintRecord.suspectName}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[10px]">ID IN-GAME / PASPOR:</span>
+                    <span className="text-gray-100 font-bold">{selectedPrintRecord.suspectId}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[10px]">PETUGAS PENANGKAP:</span>
+                    <span className="text-gray-200 font-bold">{selectedPrintRecord.officerName} (Badge #{selectedPrintRecord.officerBadge})</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[10px]">PARTNER PETUGAS:</span>
+                    <span className="text-gray-200">{selectedPrintRecord.partnerOfficer || '-'}</span>
+                  </div>
+                  {selectedPrintRecord.location && (
+                    <div className="col-span-2">
+                      <span className="text-gray-400 block text-[10px]">LOKASI KEJADIAN / TKP:</span>
+                      <span className="text-amber-300 font-bold">{selectedPrintRecord.location}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Pasal Pelanggaran */}
+                <div className="bg-[#161B22] p-3 rounded-lg border border-gray-700 space-y-1.5 text-xs">
+                  <div className="text-blue-400 font-bold flex items-center justify-between border-b border-gray-800 pb-1">
+                    <span>DAFTAR PASAL PELANGGARAN:</span>
+                    <span className="text-gray-400 font-mono text-[10px]">{selectedPrintRecord.pasalCodes.length} Pasal Terbukti</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {selectedPrintRecord.pasalCodes.map(code => (
+                      <span key={code} className="px-2 py-0.5 bg-blue-950 border border-blue-700/70 text-blue-300 rounded font-bold text-[10px]">
+                        {code}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sanksi & Hukuman */}
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-[#161B22] p-2.5 rounded-lg border border-gray-700">
+                    <span className="text-gray-400 block text-[9px] uppercase">TOTAL DENDA</span>
+                    <span className="text-emerald-400 font-bold text-sm">${selectedPrintRecord.totalFine.toLocaleString()}</span>
+                    {selectedPrintRecord.isCooperative && (
+                      <span className="text-[9px] text-green-300 block">(-20% Kooperatif)</span>
+                    )}
+                  </div>
+                  <div className="bg-[#161B22] p-2.5 rounded-lg border border-gray-700">
+                    <span className="text-gray-400 block text-[9px] uppercase">HUKUMAN PENJARA</span>
+                    <span className="text-amber-400 font-bold text-sm">{selectedPrintRecord.totalJail} Bulan</span>
+                  </div>
+                  <div className="bg-[#161B22] p-2.5 rounded-lg border border-gray-700">
+                    <span className="text-gray-400 block text-[9px] uppercase">SITA KENDARAAN (IMPOUND)</span>
+                    <span className="text-rose-400 font-bold text-sm">{selectedPrintRecord.totalImpound} Hari</span>
+                  </div>
+                </div>
+
+                {/* Barang Sitaan / Contraband */}
+                {selectedPrintRecord.confiscatedItems && (
+                  <div className="bg-[#161B22] p-3 rounded-lg border border-gray-700 space-y-1 text-xs">
+                    <div className="text-amber-400 font-bold flex items-center gap-1">
+                      <Package className="w-3.5 h-3.5" />
+                      <span>BARANG BUKTI DISITA:</span>
+                    </div>
+                    <p className="text-gray-200 font-mono">{selectedPrintRecord.confiscatedItems}</p>
+                  </div>
+                )}
+
+                {/* Kronologi */}
+                {(selectedPrintRecord.chronology || selectedPrintRecord.notes) && (
+                  <div className="bg-[#161B22] p-3 rounded-lg border border-gray-700 space-y-1 text-xs">
+                    <div className="text-gray-400 font-bold">KRONOLOGI PENINDAKAN:</div>
+                    <p className="text-gray-300">{selectedPrintRecord.chronology || selectedPrintRecord.notes}</p>
+                  </div>
+                )}
+
+                {/* Foto Bukti Terlampir */}
+                {selectedPrintRecord.evidenceList && selectedPrintRecord.evidenceList.length > 0 && (
+                  <div className="bg-[#161B22] p-3 rounded-lg border border-gray-700 space-y-1.5 text-xs">
+                    <div className="text-emerald-400 font-bold">DOKUMENTASI FOTO TKP / BUKTI:</div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                      {selectedPrintRecord.evidenceList.map((photo, i) => (
+                        <img key={i} src={photo} alt={`Bukti ${i}`} className="w-full h-20 object-cover rounded border border-gray-700" />
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Signatures and Stamp Block */}
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t-2 border-gray-800 text-center text-[10px]">
+                  {/* Left: Officer */}
+                  <div className="space-y-6 flex flex-col justify-between">
+                    <div className="text-gray-400">Petugas Penindak:</div>
+                    <div className="border-t border-gray-700 pt-1 font-bold text-gray-200">
+                      <div>{selectedPrintRecord.officerName}</div>
+                      <div className="text-[9px] text-gray-400 font-normal">Badge #{selectedPrintRecord.officerBadge} • High Speed Police Dept.</div>
+                    </div>
+                  </div>
+
+                  {/* Right: Suspect signature / Official Stamp */}
+                  <div className="space-y-4 flex flex-col justify-between relative">
+                    {/* STEMPEL BASAH HSPD ARREST */}
+                    <div className="absolute right-4 top-1/4 -translate-y-1/2 border-2 border-emerald-500/80 rounded-full w-24 h-24 flex items-center justify-center rotate-[-12deg] pointer-events-none opacity-85 text-emerald-400 font-bold text-[8px] leading-tight text-center p-1 bg-emerald-950/20">
+                      <div>
+                        ★ HSPD TRAFFIC ★<br/>
+                        VERIFIED &<br/>
+                        REGISTERED<br/>
+                        {new Date(selectedPrintRecord.timestamp).toLocaleDateString('id-ID')}
+                      </div>
+                    </div>
+
+                    <div className="text-gray-400">Tersangka / Pelanggar:</div>
+                    <div className="border-t border-gray-700 pt-1 font-bold text-emerald-300 z-10">
+                      <div>{selectedPrintRecord.suspectName}</div>
+                      <div className="text-[9px] text-emerald-400 font-bold tracking-wider">ID #{selectedPrintRecord.suspectId}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons: PNG / JPG / Print */}
+            <div className="bg-[#0A0D12] border-t border-gray-800 p-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                {/* Export PNG */}
+                <button
+                  onClick={() => handleExportArrestImage('png')}
+                  disabled={isExportingImage !== null}
+                  className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded font-bold flex items-center gap-1.5 transition cursor-pointer shadow-md shadow-emerald-900/30"
+                  title="Unduh Surat Tilang / Berita Acara sebagai file PNG jernih"
+                >
+                  {isExportingImage === 'png' ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Camera className="w-3.5 h-3.5" />
+                  )}
+                  <span>Unduh PNG (HD)</span>
+                </button>
+
+                {/* Export JPG */}
+                <button
+                  onClick={() => handleExportArrestImage('jpeg')}
+                  disabled={isExportingImage !== null}
+                  className="px-3 py-2 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white rounded font-bold flex items-center gap-1.5 transition cursor-pointer shadow-md shadow-blue-900/30"
+                  title="Unduh Surat Tilang / Berita Acara sebagai file JPG"
+                >
+                  {isExportingImage === 'jpeg' ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <ImageIcon className="w-3.5 h-3.5" />
+                  )}
+                  <span>Unduh JPG</span>
+                </button>
+
+                {/* Print */}
+                <button
+                  onClick={() => window.print()}
+                  className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded font-bold flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5 text-gray-400" />
+                  <span>Cetak / PDF</span>
+                </button>
+              </div>
+
+              <button
+                onClick={() => setSelectedPrintRecord(null)}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-black rounded font-bold transition cursor-pointer"
+              >
+                Selesai / Tutup
               </button>
             </div>
           </div>

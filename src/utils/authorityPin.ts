@@ -1,4 +1,5 @@
 import { AuthorityPinConfig, AuthorityPinLog, VALID_SUPERVISOR_PASSCODES } from '../types';
+import { pushToFirestore } from '../services/firebaseRealtimeSync';
 
 export type { AuthorityPinConfig, AuthorityPinLog };
 export { VALID_SUPERVISOR_PASSCODES };
@@ -109,6 +110,7 @@ export const getAuthorityPinConfig = (): AuthorityPinConfig => {
 export const saveAuthorityPinConfig = (config: AuthorityPinConfig): void => {
   try {
     localStorage.setItem(AUTHORITY_PIN_STORAGE_KEY, JSON.stringify(config));
+    pushToFirestore('SYSTEM_CONFIGS', { id: 'authority_pin', ...config }, 'authority_pin').catch(console.error);
   } catch (err) {
     console.error('Failed to save authority PIN config', err);
   }

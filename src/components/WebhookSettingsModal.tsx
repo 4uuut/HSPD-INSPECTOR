@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { 
   Shield, Radio, Send, CheckCircle2, AlertCircle, RefreshCw, 
   X, Globe, Settings, Lock, Check, Copy, ExternalLink, Sparkles, Sliders,
-  AlertTriangle, UserX, Award
+  AlertTriangle, UserX, Award, KeyRound, Users, Search, ShieldAlert, Car,
+  Landmark, Flame, Hammer, Coins
 } from 'lucide-react';
 import { 
   getSavedWebhookConfig, saveWebhookConfig, 
@@ -10,9 +11,21 @@ import {
   getSavedPromotionWebhookConfig, savePromotionWebhookConfig,
   getSavedWarningWebhookConfig, saveWarningWebhookConfig,
   getSavedDischargeWebhookConfig, saveDischargeWebhookConfig,
+  getSavedPinResetWebhookConfig, savePinResetWebhookConfig,
+  getSavedRosterWebhookConfig, saveRosterWebhookConfig,
+  getSavedDetectiveWebhookConfig, saveDetectiveWebhookConfig,
+  getSavedBoloWebhookConfig, saveBoloWebhookConfig,
+  getSavedImpoundWebhookConfig, saveImpoundWebhookConfig,
+  getSavedVaultWebhookConfig, saveVaultWebhookConfig,
+  getSavedDestructionWebhookConfig, saveDestructionWebhookConfig,
   testDiscordWebhook, testDutyDiscordWebhook, 
   testPromotionDiscordWebhook,
   testWarningDiscordWebhook, testDischargeDiscordWebhook,
+  testPinResetDiscordWebhook, testRosterDiscordWebhook,
+  testDetectiveDiscordWebhook, testBoloDiscordWebhook,
+  testImpoundDiscordWebhook,
+  testVaultDiscordWebhook,
+  testDestructionDiscordWebhook,
   WebhookConfig 
 } from '../utils/discordWebhook';
 import { OfficerProfile, isOfficerHighRank } from '../types';
@@ -31,7 +44,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
   currentOfficer,
   onSaved
 }) => {
-  const [activeTab, setActiveTab] = useState<'case' | 'duty' | 'promotion' | 'warning' | 'discharge'>('case');
+  const [activeTab, setActiveTab] = useState<'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'impound' | 'vault' | 'destruction'>('case');
   
   // Case / Arrest Webhook State
   const [caseConfig, setCaseConfig] = useState<WebhookConfig>(() => getSavedWebhookConfig());
@@ -57,6 +70,41 @@ export const WebhookSettingsModal: React.FC<Props> = ({
   const [dischargeConfig, setDischargeConfig] = useState<WebhookConfig>(() => getSavedDischargeWebhookConfig());
   const [isTestingDischarge, setIsTestingDischarge] = useState(false);
   const [dischargeTestResult, setDischargeTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // PIN Reset & Credentials Webhook State
+  const [pinResetConfig, setPinResetConfig] = useState<WebhookConfig>(() => getSavedPinResetWebhookConfig());
+  const [isTestingPinReset, setIsTestingPinReset] = useState(false);
+  const [pinResetTestResult, setPinResetTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Roster & Member Info Webhook State
+  const [rosterConfig, setRosterConfig] = useState<WebhookConfig>(() => getSavedRosterWebhookConfig());
+  const [isTestingRoster, setIsTestingRoster] = useState(false);
+  const [rosterTestResult, setRosterTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Detective / CID Webhook State
+  const [detectiveConfig, setDetectiveConfig] = useState<WebhookConfig>(() => getSavedDetectiveWebhookConfig());
+  const [isTestingDetective, setIsTestingDetective] = useState(false);
+  const [detectiveTestResult, setDetectiveTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // BOLO Alert Webhook State
+  const [boloConfig, setBoloConfig] = useState<WebhookConfig>(() => getSavedBoloWebhookConfig());
+  const [isTestingBolo, setIsTestingBolo] = useState(false);
+  const [boloTestResult, setBoloTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Impound Lot Webhook State
+  const [impoundConfig, setImpoundConfig] = useState<WebhookConfig>(() => getSavedImpoundWebhookConfig());
+  const [isTestingImpound, setIsTestingImpound] = useState(false);
+  const [impoundTestResult, setImpoundTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Vault & Weekly Audit Webhook State
+  const [vaultConfig, setVaultConfig] = useState<WebhookConfig>(() => getSavedVaultWebhookConfig());
+  const [isTestingVault, setIsTestingVault] = useState(false);
+  const [vaultTestResult, setVaultTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Destruction / Smelting Webhook State
+  const [destructionConfig, setDestructionConfig] = useState<WebhookConfig>(() => getSavedDestructionWebhookConfig());
+  const [isTestingDestruction, setIsTestingDestruction] = useState(false);
+  const [destructionTestResult, setDestructionTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<string>('');
 
@@ -171,6 +219,125 @@ export const WebhookSettingsModal: React.FC<Props> = ({
     }
   };
 
+  // Test PIN Reset Webhook
+  const handleTestPinResetWebhook = async () => {
+    setIsTestingPinReset(true);
+    setPinResetTestResult(null);
+    try {
+      const res = await testPinResetDiscordWebhook(pinResetConfig);
+      setPinResetTestResult(res);
+    } catch (err: any) {
+      setPinResetTestResult({
+        success: false,
+        message: err.message || 'Gagal terhubung ke Webhook Reset PIN'
+      });
+    } finally {
+      setIsTestingPinReset(false);
+    }
+  };
+
+  // Test Roster & Member Webhook
+  const handleTestRosterWebhook = async () => {
+    setIsTestingRoster(true);
+    setRosterTestResult(null);
+    try {
+      const res = await testRosterDiscordWebhook(rosterConfig);
+      setRosterTestResult(res);
+    } catch (err: any) {
+      setRosterTestResult({
+        success: false,
+        message: err.message || 'Gagal terhubung ke Webhook Roster'
+      });
+    } finally {
+      setIsTestingRoster(false);
+    }
+  };
+
+  // Test Detective / CID Webhook
+  const handleTestDetectiveWebhook = async () => {
+    setIsTestingDetective(true);
+    setDetectiveTestResult(null);
+    try {
+      const res = await testDetectiveDiscordWebhook(detectiveConfig);
+      setDetectiveTestResult(res);
+    } catch (err: any) {
+      setDetectiveTestResult({
+        success: false,
+        message: err.message || 'Gagal terhubung ke Webhook Kasus Detektif'
+      });
+    } finally {
+      setIsTestingDetective(false);
+    }
+  };
+
+  // Test BOLO Alert Webhook
+  const handleTestBoloWebhook = async () => {
+    setIsTestingBolo(true);
+    setBoloTestResult(null);
+    try {
+      const res = await testBoloDiscordWebhook(boloConfig);
+      setBoloTestResult(res);
+    } catch (err: any) {
+      setBoloTestResult({
+        success: false,
+        message: err.message || 'Gagal terhubung ke Webhook BOLO'
+      });
+    } finally {
+      setIsTestingBolo(false);
+    }
+  };
+
+  // Test Impound Lot Webhook
+  const handleTestImpoundWebhook = async () => {
+    setIsTestingImpound(true);
+    setImpoundTestResult(null);
+    try {
+      const res = await testImpoundDiscordWebhook(impoundConfig);
+      setImpoundTestResult(res);
+    } catch (err: any) {
+      setImpoundTestResult({
+        success: false,
+        message: err.message || 'Gagal terhubung ke Webhook Sitaan Impound'
+      });
+    } finally {
+      setIsTestingImpound(false);
+    }
+  };
+
+  // Test Vault & Weekly Audit Webhook
+  const handleTestVaultWebhook = async () => {
+    setIsTestingVault(true);
+    setVaultTestResult(null);
+    try {
+      const res = await testVaultDiscordWebhook(vaultConfig);
+      setVaultTestResult(res);
+    } catch (err: any) {
+      setVaultTestResult({
+        success: false,
+        message: err.message || 'Gagal terhubung ke Webhook Brankas & Audit Mingguan'
+      });
+    } finally {
+      setIsTestingVault(false);
+    }
+  };
+
+  // Test Destruction / Smelting Webhook
+  const handleTestDestructionWebhook = async () => {
+    setIsTestingDestruction(true);
+    setDestructionTestResult(null);
+    try {
+      const res = await testDestructionDiscordWebhook(destructionConfig);
+      setDestructionTestResult(res);
+    } catch (err: any) {
+      setDestructionTestResult({
+        success: false,
+        message: err.message || 'Gagal terhubung ke Webhook Peleburan Kendaraan & Senjata'
+      });
+    } finally {
+      setIsTestingDestruction(false);
+    }
+  };
+
   // Save All Settings
   const handleSaveAll = (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,7 +346,14 @@ export const WebhookSettingsModal: React.FC<Props> = ({
     savePromotionWebhookConfig(promotionConfig);
     saveWarningWebhookConfig(warningConfig);
     saveDischargeWebhookConfig(dischargeConfig);
-    setSaveSuccessNotice('✅ Seluruh konfigurasi Discord Webhook berhasil disimpan!');
+    savePinResetWebhookConfig(pinResetConfig);
+    saveRosterWebhookConfig(rosterConfig);
+    saveDetectiveWebhookConfig(detectiveConfig);
+    saveBoloWebhookConfig(boloConfig);
+    saveImpoundWebhookConfig(impoundConfig);
+    saveVaultWebhookConfig(vaultConfig);
+    saveDestructionWebhookConfig(destructionConfig);
+    setSaveSuccessNotice('✅ Seluruh konfigurasi Discord Webhook (12 Saluran Lengkap) berhasil disimpan!');
     if (onSaved) onSaved();
     setTimeout(() => {
       setSaveSuccessNotice('');
@@ -189,7 +363,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150 font-mono text-xs">
-      <div className="bg-[#161B22] border border-blue-800/80 rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-[#161B22] border border-blue-800/80 rounded-xl max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header Modal */}
         <div className="bg-[#0F1319] border-b border-gray-800 px-5 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
@@ -211,7 +385,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
                 </span>
               </div>
               <p className="text-[11px] text-gray-400">
-                Pengaturan server channel laporan kasus, log dinas, kenaikan pangkat, SP warning, dan pemecatan
+                Pengaturan server channel laporan kasus, dinas, pangkat, SP, pemecatan, PIN, roster, detektif, BOLO, impound, brankas 1x seminggu, dan peleburan sitaan
               </p>
             </div>
           </div>
@@ -223,71 +397,174 @@ export const WebhookSettingsModal: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* Tab Switcher - 5 Channels */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 border-b border-gray-800 bg-[#0D1117] text-[11px]">
+        {/* Tab Switcher - 12 Channels */}
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 border-b border-gray-800 bg-[#0D1117] text-[10px]">
           <button
             type="button"
             onClick={() => setActiveTab('case')}
-            className={`py-2.5 px-2 flex items-center justify-center gap-1.5 font-bold transition border-b-2 ${
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
               activeTab === 'case'
                 ? 'border-blue-500 text-blue-400 bg-[#161B22]'
                 : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
             }`}
+            title="Laporan Kasus & Tilang"
           >
-            <Send className="w-3.5 h-3.5 shrink-0" />
+            <Send className="w-3 h-3 shrink-0" />
             <span className="truncate">1. Kasus</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('duty')}
-            className={`py-2.5 px-2 flex items-center justify-center gap-1.5 font-bold transition border-b-2 ${
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
               activeTab === 'duty'
                 ? 'border-emerald-500 text-emerald-400 bg-[#161B22]'
                 : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
             }`}
+            title="Log Dinas & Dispatch"
           >
-            <Radio className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">2. Log Dinas</span>
+            <Radio className="w-3 h-3 shrink-0" />
+            <span className="truncate">2. Dinas</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('promotion')}
-            className={`py-2.5 px-2 flex items-center justify-center gap-1.5 font-bold transition border-b-2 ${
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
               activeTab === 'promotion'
                 ? 'border-amber-500 text-amber-400 bg-[#161B22]'
                 : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
             }`}
+            title="Kenaikan Pangkat"
           >
-            <Award className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">3. Kenaikan Pangkat</span>
+            <Award className="w-3 h-3 shrink-0" />
+            <span className="truncate">3. Pangkat</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('warning')}
-            className={`py-2.5 px-2 flex items-center justify-center gap-1.5 font-bold transition border-b-2 ${
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
               activeTab === 'warning'
                 ? 'border-yellow-500 text-yellow-400 bg-[#161B22]'
                 : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
             }`}
+            title="Surat Peringatan / SP"
           >
-            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">4. SP / Warning</span>
+            <AlertTriangle className="w-3 h-3 shrink-0" />
+            <span className="truncate">4. SP</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('discharge')}
-            className={`py-2.5 px-2 flex items-center justify-center gap-1.5 font-bold transition border-b-2 ${
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
               activeTab === 'discharge'
                 ? 'border-rose-500 text-rose-400 bg-[#161B22]'
                 : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
             }`}
+            title="Pemberhentian / Pemecatan"
           >
-            <UserX className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">5. Pemecatan</span>
+            <UserX className="w-3 h-3 shrink-0" />
+            <span className="truncate">5. Pecat</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('pinReset')}
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
+              activeTab === 'pinReset'
+                ? 'border-teal-500 text-teal-400 bg-[#161B22]'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+            }`}
+            title="Reset PIN & Keamanan"
+          >
+            <KeyRound className="w-3 h-3 shrink-0" />
+            <span className="truncate">6. PIN</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('roster')}
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
+              activeTab === 'roster'
+                ? 'border-indigo-500 text-indigo-400 bg-[#161B22]'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+            }`}
+            title="Data & Pengumuman Anggota"
+          >
+            <Users className="w-3 h-3 shrink-0" />
+            <span className="truncate">7. Anggota</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('detective')}
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
+              activeTab === 'detective'
+                ? 'border-purple-500 text-purple-400 bg-[#161B22]'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+            }`}
+            title="Kasus Detektif / CID Case Board"
+          >
+            <Search className="w-3 h-3 shrink-0 text-purple-400" />
+            <span className="truncate">8. Detektif</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('bolo')}
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
+              activeTab === 'bolo'
+                ? 'border-red-500 text-red-400 bg-[#161B22]'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+            }`}
+            title="Peringatan BOLO (Be On Look Out)"
+          >
+            <ShieldAlert className="w-3 h-3 shrink-0 text-red-400" />
+            <span className="truncate">9. BOLO</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('impound')}
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
+              activeTab === 'impound'
+                ? 'border-emerald-500 text-emerald-400 bg-[#161B22]'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+            }`}
+            title="Sita Kendaraan & Impound Lot"
+          >
+            <Car className="w-3 h-3 shrink-0 text-emerald-400" />
+            <span className="truncate">10. Impound</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('vault')}
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
+              activeTab === 'vault'
+                ? 'border-amber-500 text-amber-400 bg-[#161B22]'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+            }`}
+            title="Brankas & Audit Log Mingguan (1x Seminggu)"
+          >
+            <Landmark className="w-3 h-3 shrink-0 text-amber-400" />
+            <span className="truncate">11. Brankas</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('destruction')}
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
+              activeTab === 'destruction'
+                ? 'border-orange-500 text-orange-400 bg-[#161B22]'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+            }`}
+            title="Peleburan & Pemusnahan Kendaraan / Senjata"
+          >
+            <Flame className="w-3 h-3 shrink-0 text-orange-400" />
+            <span className="truncate">12. Peleburan</span>
           </button>
         </div>
 
@@ -914,6 +1191,845 @@ export const WebhookSettingsModal: React.FC<Props> = ({
                       <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
                     )}
                     <span>{dischargeTestResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: RESET PIN & OTORISASI KREDENSIAL WEBHOOK */}
+          {activeTab === 'pinReset' && (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              <div className="p-3 bg-teal-950/40 border border-teal-800/80 rounded-lg flex items-start gap-3">
+                <KeyRound className="w-5 h-5 text-teal-400 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-bold text-gray-200 text-xs">Integrasi Webhook Reset PIN & Otorisasi Kredensial MDT</h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Menerima notifikasi seketika saat petugas mengajukan <strong>Lupa / Reset Password</strong> di halaman Login MDT, serta menerbitkan log konfirmasi saat permohonan disetujui & PIN baru diperbarui oleh High Command.
+                  </p>
+                </div>
+              </div>
+
+              {/* Webhook URL Input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-gray-300">
+                  URL Discord Webhook Channel Reset PIN <span className="text-teal-400">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    value={pinResetConfig.webhookUrl}
+                    onChange={(e) => setPinResetConfig({ ...pinResetConfig, webhookUrl: e.target.value })}
+                    placeholder="https://discord.com/api/webhooks/..."
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-teal-500 rounded text-xs text-gray-200 font-mono outline-none"
+                  />
+                  {pinResetConfig.webhookUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setPinResetConfig({ ...pinResetConfig, webhookUrl: '' })}
+                      className="absolute right-2.5 top-2 text-gray-500 hover:text-gray-300"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-gray-400">
+                  Contoh channel: <code className="text-teal-400 bg-black/40 px-1 rounded">#mdt-pin-reset</code> atau <code className="text-teal-400 bg-black/40 px-1 rounded">#high-command-security-logs</code>
+                </p>
+              </div>
+
+              {/* Bot Customization */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    Nama Bot Discord (Custom)
+                  </label>
+                  <input
+                    type="text"
+                    value={pinResetConfig.botName}
+                    onChange={(e) => setPinResetConfig({ ...pinResetConfig, botName: e.target.value })}
+                    placeholder="HSPD Security & Credentials HQ"
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-teal-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    URL Avatar Bot (Opsional)
+                  </label>
+                  <input
+                    type="url"
+                    value={pinResetConfig.botAvatar}
+                    onChange={(e) => setPinResetConfig({ ...pinResetConfig, botAvatar: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-teal-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Auto Send Toggle */}
+              <div className="p-3 bg-[#0D1117] border border-gray-800 rounded-lg flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-gray-200 text-xs">Kirim Otomatis saat Permohonan & Otorisasi PIN</div>
+                  <div className="text-[10px] text-gray-400">Otomatis mengirimkan embed ke Discord ketika permohonan diajukan atau disetujui oleh Atasan</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={pinResetConfig.autoSendOnSave}
+                  onChange={(e) => setPinResetConfig({ ...pinResetConfig, autoSendOnSave: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-700 text-teal-600 focus:ring-0 cursor-pointer"
+                />
+              </div>
+
+              {/* Test Connection Button & Result */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestPinResetWebhook}
+                  disabled={isTestingPinReset || !pinResetConfig.webhookUrl.trim()}
+                  className="w-full py-2 bg-gray-800 hover:bg-teal-900/40 text-teal-300 border border-teal-700/50 hover:border-teal-500 rounded font-bold transition flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {isTestingPinReset ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menguji Koneksi Webhook Reset PIN...</span>
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound className="w-3.5 h-3.5" />
+                      <span>UJI COBA PING WEBHOOK RESET PIN (TEST EMBED)</span>
+                    </>
+                  )}
+                </button>
+
+                {pinResetTestResult && (
+                  <div className={`p-2.5 rounded border text-xs flex items-center gap-2 ${
+                    pinResetTestResult.success 
+                      ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' 
+                      : 'bg-rose-950/60 border-rose-700 text-rose-300'
+                  }`}>
+                    {pinResetTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    )}
+                    <span>{pinResetTestResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 7: DATA & INFORMASI ANGGOTA WEBHOOK */}
+          {activeTab === 'roster' && (
+            <div className="space-y-4 animate-in fade-in duration-150">
+              <div className="p-3 bg-indigo-950/40 border border-indigo-800/80 rounded-lg flex items-start gap-3">
+                <Users className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-bold text-gray-200 text-xs">Integrasi Webhook Data & Informasi Anggota</h4>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
+                    Mempublikasikan pengumuman pelantikan anggota baru saat ditambahkan oleh High Command lewat tombol <strong>+ Tambah Anggota</strong>, serta log audit pembaruan data/divisi anggota.
+                  </p>
+                </div>
+              </div>
+
+              {/* Webhook URL Input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-gray-300">
+                  URL Discord Webhook Channel Data Anggota <span className="text-indigo-400">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    value={rosterConfig.webhookUrl}
+                    onChange={(e) => setRosterConfig({ ...rosterConfig, webhookUrl: e.target.value })}
+                    placeholder="https://discord.com/api/webhooks/..."
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-indigo-500 rounded text-xs text-gray-200 font-mono outline-none"
+                  />
+                  {rosterConfig.webhookUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setRosterConfig({ ...rosterConfig, webhookUrl: '' })}
+                      className="absolute right-2.5 top-2 text-gray-500 hover:text-gray-300"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-gray-400">
+                  Contoh channel: <code className="text-indigo-400 bg-black/40 px-1 rounded">#hspd-announcements</code>, <code className="text-indigo-400 bg-black/40 px-1 rounded">#anggota-updates</code>, atau <code className="text-indigo-400 bg-black/40 px-1 rounded">#database-personel</code>
+                </p>
+              </div>
+
+              {/* Bot Customization */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    Nama Bot Discord (Custom)
+                  </label>
+                  <input
+                    type="text"
+                    value={rosterConfig.botName}
+                    onChange={(e) => setRosterConfig({ ...rosterConfig, botName: e.target.value })}
+                    placeholder="HSPD Personnel & Anggota Bureau"
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-indigo-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    URL Avatar Bot (Opsional)
+                  </label>
+                  <input
+                    type="url"
+                    value={rosterConfig.botAvatar}
+                    onChange={(e) => setRosterConfig({ ...rosterConfig, botAvatar: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-indigo-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Auto Send Toggle */}
+              <div className="p-3 bg-[#0D1117] border border-gray-800 rounded-lg flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-gray-200 text-xs">Kirim Otomatis saat Registrasi & Update Anggota</div>
+                  <div className="text-[10px] text-gray-400">Otomatis mengirim pengumuman anggota baru dan log perubahan data ke channel Discord</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={rosterConfig.autoSendOnSave}
+                  onChange={(e) => setRosterConfig({ ...rosterConfig, autoSendOnSave: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-700 text-indigo-600 focus:ring-0 cursor-pointer"
+                />
+              </div>
+
+              {/* Test Connection Button & Result */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestRosterWebhook}
+                  disabled={isTestingRoster || !rosterConfig.webhookUrl.trim()}
+                  className="w-full py-2 bg-gray-800 hover:bg-indigo-900/40 text-indigo-300 border border-indigo-700/50 hover:border-indigo-500 rounded font-bold transition flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {isTestingRoster ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menguji Koneksi Webhook Data Anggota...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5" />
+                      <span>UJI COBA PING WEBHOOK DATA ANGGOTA (TEST EMBED)</span>
+                    </>
+                  )}
+                </button>
+
+                {rosterTestResult && (
+                  <div className={`p-2.5 rounded border text-xs flex items-center gap-2 ${
+                    rosterTestResult.success 
+                      ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' 
+                      : 'bg-rose-950/60 border-rose-700 text-rose-300'
+                  }`}>
+                    {rosterTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    )}
+                    <span>{rosterTestResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 8: DETECTIVE / CID CASE BOARD WEBHOOK */}
+          {activeTab === 'detective' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-purple-950/30 border border-purple-900/60 rounded-lg text-[11px] text-purple-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-purple-200">
+                  <Search className="w-3.5 h-3.5" />
+                  <span>Channel Berkas Kasus Detektif (Detective Bureau / CID)</span>
+                </div>
+                <p className="text-gray-400">
+                  Notifikasi pembukaan kasus baru, surat perintah penggeledahan/penangkapan (Warrant Issued), pengamanan barang bukti forensik, dan pembaruan berkas investigasi kejahatan terorganisir.
+                </p>
+              </div>
+
+              {/* Webhook URL Input */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-300 uppercase block">
+                  URL Discord Webhook Kasus Detektif (CID):
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    value={detectiveConfig.webhookUrl}
+                    onChange={(e) => setDetectiveConfig({ ...detectiveConfig, webhookUrl: e.target.value })}
+                    placeholder="https://discord.com/api/webhooks/..."
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-purple-500 rounded text-xs text-purple-300 font-mono outline-none"
+                  />
+                  {detectiveConfig.webhookUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setDetectiveConfig({ ...detectiveConfig, webhookUrl: '' })}
+                      className="absolute right-2.5 top-2 text-gray-500 hover:text-gray-300"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-gray-400">
+                  Contoh channel: <code className="text-purple-400 bg-black/40 px-1 rounded">#cid-caseboard</code>, <code className="text-purple-400 bg-black/40 px-1 rounded">#detective-bureau</code>, atau <code className="text-purple-400 bg-black/40 px-1 rounded">#investigasi-kasus</code>
+                </p>
+              </div>
+
+              {/* Bot Customization */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    Nama Bot Discord (Custom)
+                  </label>
+                  <input
+                    type="text"
+                    value={detectiveConfig.botName}
+                    onChange={(e) => setDetectiveConfig({ ...detectiveConfig, botName: e.target.value })}
+                    placeholder="HSPD Detective Bureau & CID"
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-purple-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    URL Avatar Bot (Opsional)
+                  </label>
+                  <input
+                    type="url"
+                    value={detectiveConfig.botAvatar}
+                    onChange={(e) => setDetectiveConfig({ ...detectiveConfig, botAvatar: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-purple-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Auto Send Toggle */}
+              <div className="p-3 bg-[#0D1117] border border-gray-800 rounded-lg flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-gray-200 text-xs">Kirim Otomatis saat Buka Kasus & Update Berkas</div>
+                  <div className="text-[10px] text-gray-400">Otomatis kirim berkas ke Discord saat kasus baru dibuat, warrant diterbitkan, atau bukti ditambahkan</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={detectiveConfig.autoSendOnSave}
+                  onChange={(e) => setDetectiveConfig({ ...detectiveConfig, autoSendOnSave: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-700 text-purple-600 focus:ring-0 cursor-pointer"
+                />
+              </div>
+
+              {/* Test Connection Button & Result */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestDetectiveWebhook}
+                  disabled={isTestingDetective || !detectiveConfig.webhookUrl.trim()}
+                  className="w-full py-2 bg-gray-800 hover:bg-purple-900/40 text-purple-300 border border-purple-700/50 hover:border-purple-500 rounded font-bold transition flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {isTestingDetective ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menguji Koneksi Webhook Kasus Detektif...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-3.5 h-3.5" />
+                      <span>UJI COBA PING WEBHOOK DETEKTIF / CID (TEST EMBED)</span>
+                    </>
+                  )}
+                </button>
+
+                {detectiveTestResult && (
+                  <div className={`p-2.5 rounded border text-xs flex items-center gap-2 ${
+                    detectiveTestResult.success 
+                      ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' 
+                      : 'bg-rose-950/60 border-rose-700 text-rose-300'
+                  }`}>
+                    {detectiveTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    )}
+                    <span>{detectiveTestResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 9: BOLO (BE ON LOOK OUT) DISPATCH WEBHOOK */}
+          {activeTab === 'bolo' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-red-950/30 border border-red-900/60 rounded-lg text-[11px] text-red-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-red-200">
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span>Channel Siaga Peringatan BOLO (Be On Look Out / APB)</span>
+                </div>
+                <p className="text-gray-400">
+                  Siaran taktis buronan kendaraan, tersangka berbahaya, dan target pencarian aktif ke seluruh unit patroli lapangan kepolisian.
+                </p>
+              </div>
+
+              {/* Webhook URL Input */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-300 uppercase block">
+                  URL Discord Webhook Siaga BOLO:
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    value={boloConfig.webhookUrl}
+                    onChange={(e) => setBoloConfig({ ...boloConfig, webhookUrl: e.target.value })}
+                    placeholder="https://discord.com/api/webhooks/..."
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-red-500 rounded text-xs text-red-300 font-mono outline-none"
+                  />
+                  {boloConfig.webhookUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setBoloConfig({ ...boloConfig, webhookUrl: '' })}
+                      className="absolute right-2.5 top-2 text-gray-500 hover:text-gray-300"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-gray-400">
+                  Contoh channel: <code className="text-red-400 bg-black/40 px-1 rounded">#bolo-alerts</code>, <code className="text-red-400 bg-black/40 px-1 rounded">#dispatch-darurat</code>, atau <code className="text-red-400 bg-black/40 px-1 rounded">#apb-broadcast</code>
+                </p>
+              </div>
+
+              {/* Bot Customization */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    Nama Bot Discord (Custom)
+                  </label>
+                  <input
+                    type="text"
+                    value={boloConfig.botName}
+                    onChange={(e) => setBoloConfig({ ...boloConfig, botName: e.target.value })}
+                    placeholder="HSPD BOLO & Dispatch HQ"
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-red-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    URL Avatar Bot (Opsional)
+                  </label>
+                  <input
+                    type="url"
+                    value={boloConfig.botAvatar}
+                    onChange={(e) => setBoloConfig({ ...boloConfig, botAvatar: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-red-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Auto Send Toggle */}
+              <div className="p-3 bg-[#0D1117] border border-gray-800 rounded-lg flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-gray-200 text-xs">Kirim Otomatis saat Terbitkan Siaga BOLO</div>
+                  <div className="text-[10px] text-gray-400">Otomatis mengirim siaran darurat ke Discord saat petugas menerbitkan peringatan BOLO baru</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={boloConfig.autoSendOnSave}
+                  onChange={(e) => setBoloConfig({ ...boloConfig, autoSendOnSave: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-700 text-red-600 focus:ring-0 cursor-pointer"
+                />
+              </div>
+
+              {/* Test Connection Button & Result */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestBoloWebhook}
+                  disabled={isTestingBolo || !boloConfig.webhookUrl.trim()}
+                  className="w-full py-2 bg-gray-800 hover:bg-red-900/40 text-red-300 border border-red-700/50 hover:border-red-500 rounded font-bold transition flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {isTestingBolo ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menguji Koneksi Webhook BOLO...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      <span>UJI COBA PING WEBHOOK SIAGA BOLO (TEST EMBED)</span>
+                    </>
+                  )}
+                </button>
+
+                {boloTestResult && (
+                  <div className={`p-2.5 rounded border text-xs flex items-center gap-2 ${
+                    boloTestResult.success 
+                      ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' 
+                      : 'bg-rose-950/60 border-rose-700 text-rose-300'
+                  }`}>
+                    {boloTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    )}
+                    <span>{boloTestResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 10: IMPOUND LOT WEBHOOK */}
+          {activeTab === 'impound' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-emerald-950/30 border border-emerald-900/60 rounded-lg text-[11px] text-emerald-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-emerald-200">
+                  <Car className="w-3.5 h-3.5" />
+                  <span>Channel Rekor Penyitaan Kendaraan (Traffic Impound Lot)</span>
+                </div>
+                <p className="text-gray-400">
+                  Pencatatan sitaan kendaraan karena pelanggaran lalu lintas berat, durasi sita, nominal biaya tebusan denda in-game, serta status serah terima kendaraan.
+                </p>
+              </div>
+
+              {/* Webhook URL Input */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-300 uppercase block">
+                  URL Discord Webhook Sita Kendaraan (Impound):
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    value={impoundConfig.webhookUrl}
+                    onChange={(e) => setImpoundConfig({ ...impoundConfig, webhookUrl: e.target.value })}
+                    placeholder="https://discord.com/api/webhooks/..."
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-emerald-500 rounded text-xs text-emerald-300 font-mono outline-none"
+                  />
+                  {impoundConfig.webhookUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setImpoundConfig({ ...impoundConfig, webhookUrl: '' })}
+                      className="absolute right-2.5 top-2 text-gray-500 hover:text-gray-300"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-gray-400">
+                  Contoh channel: <code className="text-emerald-400 bg-black/40 px-1 rounded">#impound-lot</code>, <code className="text-emerald-400 bg-black/40 px-1 rounded">#sitaan-kendaraan</code>, atau <code className="text-emerald-400 bg-black/40 px-1 rounded">#traffic-enforcement</code>
+                </p>
+              </div>
+
+              {/* Bot Customization */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    Nama Bot Discord (Custom)
+                  </label>
+                  <input
+                    type="text"
+                    value={impoundConfig.botName}
+                    onChange={(e) => setImpoundConfig({ ...impoundConfig, botName: e.target.value })}
+                    placeholder="HSPD Traffic Enforcement & Impound Lot"
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-emerald-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    URL Avatar Bot (Opsional)
+                  </label>
+                  <input
+                    type="url"
+                    value={impoundConfig.botAvatar}
+                    onChange={(e) => setImpoundConfig({ ...impoundConfig, botAvatar: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-emerald-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Auto Send Toggle */}
+              <div className="p-3 bg-[#0D1117] border border-gray-800 rounded-lg flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-gray-200 text-xs">Kirim Otomatis saat Sita Kendaraan & Tebus</div>
+                  <div className="text-[10px] text-gray-400">Otomatis mengirim data kendaraan yang disita dan status pelunasan tebusan ke channel Discord</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={impoundConfig.autoSendOnSave}
+                  onChange={(e) => setImpoundConfig({ ...impoundConfig, autoSendOnSave: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-700 text-emerald-600 focus:ring-0 cursor-pointer"
+                />
+              </div>
+
+              {/* Test Connection Button & Result */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestImpoundWebhook}
+                  disabled={isTestingImpound || !impoundConfig.webhookUrl.trim()}
+                  className="w-full py-2 bg-gray-800 hover:bg-emerald-900/40 text-emerald-300 border border-emerald-700/50 hover:border-emerald-500 rounded font-bold transition flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {isTestingImpound ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menguji Koneksi Webhook Impound...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Car className="w-3.5 h-3.5" />
+                      <span>UJI COBA PING WEBHOOK SITAAN IMPOUND (TEST EMBED)</span>
+                    </>
+                  )}
+                </button>
+
+                {impoundTestResult && (
+                  <div className={`p-2.5 rounded border text-xs flex items-center gap-2 ${
+                    impoundTestResult.success 
+                      ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' 
+                      : 'bg-rose-950/60 border-rose-700 text-rose-300'
+                  }`}>
+                    {impoundTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    )}
+                    <span>{impoundTestResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 11: VAULT & WEEKLY AUDIT WEBHOOK */}
+          {activeTab === 'vault' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-amber-950/30 border border-amber-900/60 rounded-lg text-[11px] text-amber-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-amber-200">
+                  <Landmark className="w-3.5 h-3.5" />
+                  <span>Channel Audit & Brankas Kepolisian (Update Rutin 1x Seminggu)</span>
+                </div>
+                <p className="text-gray-400">
+                  Notifikasi laporan opname brankas, upload bukti berkas/dokumen mingguan, inventaris sitaan narkotika, senjata, peluru, dan kas operasional HSPD dikirim ke channel ini.
+                </p>
+              </div>
+
+              {/* Webhook URL Input */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-300 uppercase block">
+                  URL Discord Webhook Brankas & Audit Mingguan:
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    value={vaultConfig.webhookUrl}
+                    onChange={(e) => setVaultConfig({ ...vaultConfig, webhookUrl: e.target.value })}
+                    placeholder="https://discord.com/api/webhooks/..."
+                    className="w-full pl-8 pr-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                  <Globe className="w-4 h-4 text-gray-500 absolute left-2.5 top-2.5" />
+                </div>
+              </div>
+
+              {/* Bot Customization */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    Nama Bot / Webhook Sender
+                  </label>
+                  <input
+                    type="text"
+                    value={vaultConfig.botName}
+                    onChange={(e) => setVaultConfig({ ...vaultConfig, botName: e.target.value })}
+                    placeholder="HSPD Vault & Armory Audit"
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    URL Avatar Bot (Opsional)
+                  </label>
+                  <input
+                    type="url"
+                    value={vaultConfig.botAvatar}
+                    onChange={(e) => setVaultConfig({ ...vaultConfig, botAvatar: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Auto Send Toggle */}
+              <div className="p-3 bg-[#0D1117] border border-gray-800 rounded-lg flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-gray-200 text-xs">Kirim Otomatis saat Audit Brankas Disimpan</div>
+                  <div className="text-[10px] text-gray-400">Otomatis mengirim rekap saldo kas, daftar sitaan obat/senjata, dan link dokumen audit mingguan</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={vaultConfig.autoSendOnSave}
+                  onChange={(e) => setVaultConfig({ ...vaultConfig, autoSendOnSave: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-700 text-amber-600 focus:ring-0 cursor-pointer"
+                />
+              </div>
+
+              {/* Test Connection Button & Result */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestVaultWebhook}
+                  disabled={isTestingVault || !vaultConfig.webhookUrl.trim()}
+                  className="w-full py-2 bg-gray-800 hover:bg-amber-900/40 text-amber-300 border border-amber-700/50 hover:border-amber-500 rounded font-bold transition flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {isTestingVault ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menguji Koneksi Webhook Brankas...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Landmark className="w-3.5 h-3.5" />
+                      <span>UJI COBA PING WEBHOOK BRANKAS AUDIT (TEST EMBED)</span>
+                    </>
+                  )}
+                </button>
+
+                {vaultTestResult && (
+                  <div className={`p-2.5 rounded border text-xs flex items-center gap-2 ${
+                    vaultTestResult.success 
+                      ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' 
+                      : 'bg-rose-950/60 border-rose-700 text-rose-300'
+                  }`}>
+                    {vaultTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    )}
+                    <span>{vaultTestResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 12: DESTRUCTION / SMELTING REGISTRY WEBHOOK */}
+          {activeTab === 'destruction' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-orange-950/30 border border-orange-900/60 rounded-lg text-[11px] text-orange-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-orange-200">
+                  <Flame className="w-3.5 h-3.5" />
+                  <span>Channel Berita Acara Peleburan & Pemusnahan Sitaan</span>
+                </div>
+                <p className="text-gray-400">
+                  Setiap kendaraan sitaan yang dilebur / di-scrap atau senjata api & barang bukti ilegal yang dimusnahkan akan dicatat dan dikirimkan Berita Acara resminya ke channel ini.
+                </p>
+              </div>
+
+              {/* Webhook URL Input */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-300 uppercase block">
+                  URL Discord Webhook Berita Acara Peleburan:
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    value={destructionConfig.webhookUrl}
+                    onChange={(e) => setDestructionConfig({ ...destructionConfig, webhookUrl: e.target.value })}
+                    placeholder="https://discord.com/api/webhooks/..."
+                    className="w-full pl-8 pr-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-orange-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                  <Globe className="w-4 h-4 text-gray-500 absolute left-2.5 top-2.5" />
+                </div>
+              </div>
+
+              {/* Bot Customization */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    Nama Bot / Webhook Sender
+                  </label>
+                  <input
+                    type="text"
+                    value={destructionConfig.botName}
+                    onChange={(e) => setDestructionConfig({ ...destructionConfig, botName: e.target.value })}
+                    placeholder="HSPD Smelting & Destruction Registry"
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-orange-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    URL Avatar Bot (Opsional)
+                  </label>
+                  <input
+                    type="url"
+                    value={destructionConfig.botAvatar}
+                    onChange={(e) => setDestructionConfig({ ...destructionConfig, botAvatar: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-orange-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Auto Send Toggle */}
+              <div className="p-3 bg-[#0D1117] border border-gray-800 rounded-lg flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-gray-200 text-xs">Kirim Otomatis saat Pemusnahan / Peleburan Dilakukan</div>
+                  <div className="text-[10px] text-gray-400">Otomatis mengirim rincian item, nomor registrasi, saksi, alasan pemusnahan, dan foto dokumentasi</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={destructionConfig.autoSendOnSave}
+                  onChange={(e) => setDestructionConfig({ ...destructionConfig, autoSendOnSave: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-700 text-orange-600 focus:ring-0 cursor-pointer"
+                />
+              </div>
+
+              {/* Test Connection Button & Result */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestDestructionWebhook}
+                  disabled={isTestingDestruction || !destructionConfig.webhookUrl.trim()}
+                  className="w-full py-2 bg-gray-800 hover:bg-orange-900/40 text-orange-300 border border-orange-700/50 hover:border-orange-500 rounded font-bold transition flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {isTestingDestruction ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menguji Koneksi Webhook Peleburan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Flame className="w-3.5 h-3.5" />
+                      <span>UJI COBA PING WEBHOOK PELEBURAN (TEST EMBED)</span>
+                    </>
+                  )}
+                </button>
+
+                {destructionTestResult && (
+                  <div className={`p-2.5 rounded border text-xs flex items-center gap-2 ${
+                    destructionTestResult.success 
+                      ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' 
+                      : 'bg-rose-950/60 border-rose-700 text-rose-300'
+                  }`}>
+                    {destructionTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    )}
+                    <span>{destructionTestResult.message}</span>
                   </div>
                 )}
               </div>

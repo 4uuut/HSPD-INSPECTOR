@@ -64,7 +64,7 @@ export const OfficerLogin: React.FC<Props> = ({
     );
 
     if (!matched) {
-      setLoginError(`Petugas "${loginIdentifier}" tidak terdaftar di database roster kepolisian! Silakan hubungi Atasan di Discord jika Anda anggota baru.`);
+      setLoginError(`Petugas "${loginIdentifier}" tidak terdaftar di database anggota kepolisian! Silakan hubungi Atasan di Discord jika Anda anggota baru.`);
       return;
     }
 
@@ -309,7 +309,7 @@ export const OfficerLogin: React.FC<Props> = ({
                 <div className="pt-2 border-t border-gray-800/80 flex items-start gap-2 text-[10px] text-gray-500 leading-relaxed">
                   <ShieldAlert className="w-3.5 h-3.5 text-amber-500/70 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Catatan Registrasi:</strong> Pendaftaran akun anggota baru dilakukan secara resmi oleh High Command / Supervisor melalui konsol Roster Management.
+                    <strong>Catatan Registrasi:</strong> Pendaftaran akun anggota baru dilakukan secara resmi oleh High Command / Supervisor melalui menu Manajemen Anggota.
                   </span>
                 </div>
               </div>

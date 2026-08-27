@@ -6,16 +6,19 @@ import {
   Shield, User, Award, ArrowUpRight, ArrowDownRight, Edit3, 
   Search, CheckCircle2, AlertTriangle, KeyRound, 
   Sparkles, ShieldAlert, X, Plus, ShieldCheck, Clock, Lock,
-  UserX, Trash2, AlertOctagon, Send, RotateCcw, AlertCircle, FileText, RefreshCw
+  UserX, Trash2, AlertOctagon, Send, RotateCcw, AlertCircle, FileText, RefreshCw,
+  UserPlus, Phone, Sliders, Eye, EyeOff, Radio, Activity
 } from 'lucide-react';
 import { 
   sendOfficerWarningToDiscord, 
   sendOfficerDischargeToDiscord,
   sendPromotionAnnouncementToDiscord,
+  sendNewOfficerRegistrationToDiscord,
   getSavedWarningWebhookConfig,
   getSavedDischargeWebhookConfig,
   getSavedPromotionWebhookConfig
 } from '../utils/discordWebhook';
+import { getOfficerDutyState, formatDutyDuration } from '../utils/officerDutyStorage';
 import { HSPD_LOGO_URL } from '../assets/logo';
 
 interface Props {
@@ -24,9 +27,24 @@ interface Props {
   currentOfficerName?: string;
   currentOfficerBadge?: string;
   onUpdateOfficer: (updated: OfficerAccount) => void;
+  onRegisterOfficer?: (newAccount: OfficerAccount) => void;
   onDeleteOfficer?: (officerId: string, reason?: string) => void;
+  onOpenPinResetAudit?: () => void;
+  pendingPinResetCount?: number;
   onClose?: () => void;
 }
+
+const PRESET_DIVISIONS = [
+  'Field Training Bureau / Patrol',
+  'Traffic Enforcement Unit (TEU)',
+  'Detective Bureau / CID',
+  'Special Weapons and Tactics (SWAT)',
+  'K-9 Canine Division',
+  'Air Support Division (ASD)',
+  'Internal Affairs Division (IAD)',
+  'High Command Staff / Executive Office',
+  'Police Academy Division',
+];
 
 const PRESET_WARNING_REASONS = [
   'Pelanggaran SOP Operasional & Radio Code Lapangan',
@@ -67,11 +85,14 @@ export const RosterManagement: React.FC<Props> = ({
   currentOfficerName,
   currentOfficerBadge,
   onUpdateOfficer,
+  onRegisterOfficer,
   onDeleteOfficer,
+  onOpenPinResetAudit,
+  pendingPinResetCount,
   onClose
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterRank, setFilterRank] = useState<'ALL' | 'COMMAND' | 'PATROL' | 'WARNED'>('ALL');
+  const [filterRank, setFilterRank] = useState<'ALL' | 'DUTY' | 'COMMAND' | 'PATROL' | 'WARNED'>('ALL');
   const [editingOfficer, setEditingOfficer] = useState<OfficerAccount | null>(null);
   
   // Warning Management Modal State
@@ -93,14 +114,153 @@ export const RosterManagement: React.FC<Props> = ({
   const [newRank, setNewRank] = useState<OfficerRankLevel>('POLICE OFFICER II [PO II]');
   const [newDivision, setNewDivision] = useState('');
   const [newPin, setNewPin] = useState('');
+  const [showEditPin, setShowEditPin] = useState(false);
+  const [showTablePins, setShowTablePins] = useState(false);
+  const [revealedPins, setRevealedPins] = useState<Record<string, boolean>>({});
   const [promotionPresetReason, setPromotionPresetReason] = useState(PRESET_PROMOTION_REASONS[0]);
   const [promotionDetailReason, setPromotionDetailReason] = useState('');
   const [promotionSendWebhook, setPromotionSendWebhook] = useState(true);
   const [isSubmittingRankUpdate, setIsSubmittingRankUpdate] = useState(false);
   const [successNotice, setSuccessNotice] = useState('');
 
+  // Add Officer Modal State (High Command Full Access)
+  const [isAddOfficerModalOpen, setIsAddOfficerModalOpen] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [addBadge, setAddBadge] = useState('#');
+  const [addRank, setAddRank] = useState<OfficerRankLevel>('CADET [CDT]');
+  const [addDivision, setAddDivision] = useState(PRESET_DIVISIONS[0]);
+  const [addCustomDivision, setAddCustomDivision] = useState('');
+  const [addPin, setAddPin] = useState('10-4');
+  const [addPhone, setAddPhone] = useState('');
+  const [addPromotedBy, setAddPromotedBy] = useState(() => 
+    `SK Pengangkatan oleh ${currentOfficerRank || 'High Command'} ${currentOfficerName || ''}`
+  );
+  const [addSendWebhook, setAddSendWebhook] = useState(true);
+  const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
+  const [addFormError, setAddFormError] = useState('');
+  const [showAddPin, setShowAddPin] = useState(false);
+
   // Check if current officer holds one of the 4 High Command ranks
   const isCurrentOfficerCommand = isOfficerHighRank(currentOfficerRank);
+
+  const handleOpenAddModal = () => {
+    if (!isCurrentOfficerCommand) {
+      alert('Akses Ditolak: Hanya jajaran High Command (Chief of Police, Assistant Chief, Deputy Chief, Commander) yang memiliki hak akses pendaftaran anggota baru.');
+      return;
+    }
+    setAddName('');
+    // Auto suggest next badge number
+    const maxBadgeNum = roster.reduce((max, o) => {
+      const match = o.badge.replace('#', '').match(/\d+/);
+      if (match) {
+        const num = parseInt(match[0], 10);
+        return num > max ? num : max;
+      }
+      return max;
+    }, 100);
+    setAddBadge(`#${maxBadgeNum + 1}`);
+    setAddRank('CADET [CDT]');
+    setAddDivision(PRESET_DIVISIONS[0]);
+    setAddCustomDivision('');
+    setAddPin('10-4');
+    setAddPhone('');
+    setAddPromotedBy(`SK Pengangkatan oleh ${currentOfficerRank || 'High Command'} ${currentOfficerName || ''}`);
+    setAddSendWebhook(true);
+    setAddFormError('');
+    setIsAddOfficerModalOpen(true);
+  };
+
+  const handleSaveNewOfficer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isCurrentOfficerCommand) return;
+
+    const trimmedName = addName.trim();
+    let trimmedBadge = addBadge.trim();
+    if (!trimmedBadge.startsWith('#')) {
+      trimmedBadge = `#${trimmedBadge}`;
+    }
+    const trimmedPin = addPin.trim();
+    const finalDivision = addDivision === 'CUSTOM' ? (addCustomDivision.trim() || 'Field Patrol') : addDivision;
+
+    if (!trimmedName) {
+      setAddFormError('Nama lengkap anggota kepolisian wajib diisi!');
+      return;
+    }
+    if (!trimmedBadge || trimmedBadge === '#') {
+      setAddFormError('Nomor badge / lencana wajib diisi!');
+      return;
+    }
+    if (!trimmedPin) {
+      setAddFormError('PIN Login awal wajib ditentukan!');
+      return;
+    }
+
+    // Check duplicate badge
+    const duplicateBadge = roster.find(o => o.badge.toLowerCase() === trimmedBadge.toLowerCase());
+    if (duplicateBadge) {
+      setAddFormError(`Nomor Badge "${trimmedBadge}" sudah digunakan oleh petugas ${duplicateBadge.name}! Gunakan nomor badge lain.`);
+      return;
+    }
+
+    // Check duplicate name
+    const duplicateName = roster.find(o => o.name.toLowerCase() === trimmedName.toLowerCase());
+    if (duplicateName) {
+      setAddFormError(`Nama "${trimmedName}" sudah terdaftar di Roster (Badge ${duplicateName.badge})!`);
+      return;
+    }
+
+    setIsSubmittingAdd(true);
+    setAddFormError('');
+
+    const newAccount: OfficerAccount = {
+      id: `roster-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name: trimmedName,
+      badge: trimmedBadge,
+      rank: addRank,
+      division: finalDivision,
+      phone: addPhone.trim() || undefined,
+      pin: trimmedPin,
+      registeredAt: Date.now(),
+      promotedBy: addPromotedBy.trim() || `SK Pengangkatan oleh ${currentOfficerRank || 'High Command'} ${currentOfficerName || ''}`,
+      warnings: []
+    };
+
+    try {
+      // 1. Send Discord Webhook Announcement if enabled
+      if (addSendWebhook) {
+        await sendNewOfficerRegistrationToDiscord({
+          officerName: trimmedName,
+          officerBadge: trimmedBadge,
+          officerRank: addRank,
+          officerDivision: finalDivision,
+          officerPhone: addPhone.trim() || undefined,
+          initialPin: trimmedPin,
+          registeredBy: currentOfficerName || 'High Command',
+          registeredByBadge: currentOfficerBadge || '#001',
+          registeredByRank: currentOfficerRank || 'HIGH COMMAND',
+        });
+      }
+
+      // 2. Call handler or update roster
+      if (onRegisterOfficer) {
+        onRegisterOfficer(newAccount);
+      } else {
+        onUpdateOfficer(newAccount);
+      }
+
+      setIsAddOfficerModalOpen(false);
+      setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) pangkat ${addRank} berhasil ditambahkan ke Roster dan disahkan!`);
+      setTimeout(() => setSuccessNotice(''), 6000);
+    } catch (err: any) {
+      console.error('Failed to register new officer:', err);
+      if (onRegisterOfficer) onRegisterOfficer(newAccount);
+      setIsAddOfficerModalOpen(false);
+      setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) berhasil ditambahkan ke database roster!`);
+      setTimeout(() => setSuccessNotice(''), 6000);
+    } finally {
+      setIsSubmittingAdd(false);
+    }
+  };
 
   const filteredRoster = roster.filter(officer => {
     const matchesSearch = 
@@ -111,6 +271,10 @@ export const RosterManagement: React.FC<Props> = ({
       (officer.pin && officer.pin.includes(searchQuery));
     
     if (!matchesSearch) return false;
+    if (filterRank === 'DUTY') {
+      const duty = getOfficerDutyState(officer.badge, roster);
+      return duty.isDuty;
+    }
     if (filterRank === 'COMMAND') return isOfficerHighRank(officer.rank);
     if (filterRank === 'PATROL') return !isOfficerHighRank(officer.rank);
     if (filterRank === 'WARNED') return (officer.warnings?.length || 0) > 0;
@@ -126,6 +290,7 @@ export const RosterManagement: React.FC<Props> = ({
     setNewRank(officer.rank);
     setNewDivision(officer.division);
     setNewPin(officer.pin || '10-4');
+    setShowEditPin(false);
     setPromotionPresetReason(PRESET_PROMOTION_REASONS[0]);
     setPromotionDetailReason('');
     setPromotionSendWebhook(true);
@@ -374,14 +539,14 @@ export const RosterManagement: React.FC<Props> = ({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-sm sm:text-base font-bold text-gray-100 uppercase tracking-tight font-mono">
-                Manajemen Roster & Disiplin Personel Kepolisian
+                Manajemen Anggota & Disiplin Personel Kepolisian
               </h2>
               <span className="text-[10px] font-mono font-bold bg-amber-950/80 text-amber-300 border border-amber-800/80 px-2 py-0.5 rounded">
                 HIGH COMMAND ONLY
               </span>
             </div>
             <p className="text-[11px] text-gray-400 font-mono">
-              Promosi Pangkat, PIN Login, Surat Peringatan (Maks 3 SP), & Pemecatan Anggota
+              Status Dinas Tiap Petugas, Promosi Pangkat, PIN Login, Surat Peringatan (Maks 3 SP), & Pemecatan
             </p>
           </div>
         </div>
@@ -424,28 +589,61 @@ export const RosterManagement: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Passcode Info Banner for Supervisors */}
+      {/* Command Actions Bar & Passcode Info Banner */}
       <div className="bg-[#0D1117] border border-amber-900/40 rounded-lg p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-mono">
-        <div className="flex items-center gap-2.5">
-          <KeyRound className="w-4 h-4 text-amber-400 shrink-0" />
-          <div>
-            <span className="text-gray-400">Passcode Pendaftaran Anggota Baru: </span>
-            <span className="text-amber-400 font-bold bg-black/60 px-2 py-0.5 rounded border border-amber-800/50">
-              10-4
-            </span>
-            <span className="text-gray-500 mx-1.5">atau</span>
-            <span className="text-amber-400 font-bold bg-black/60 px-2 py-0.5 rounded border border-amber-800/50">
-              911
-            </span>
-            <span className="text-gray-500 mx-1.5">atau</span>
-            <span className="text-amber-400 font-bold bg-black/60 px-2 py-0.5 rounded border border-amber-800/50">
-              HSPD-HQ
+        <div className="flex flex-wrap items-center gap-2">
+          {/* HIGH COMMAND ONLY: ADD OFFICER BUTTON */}
+          <button
+            id="btn-add-officer-modal"
+            type="button"
+            onClick={handleOpenAddModal}
+            className={`px-3.5 py-2 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-md ${
+              isCurrentOfficerCommand
+                ? 'bg-amber-500 hover:bg-amber-400 text-black shadow-amber-500/20'
+                : 'bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700'
+            }`}
+            title={
+              isCurrentOfficerCommand
+                ? 'Daftarkan & tambahkan personel baru ke database anggota (Akses Penuh High Command)'
+                : 'Hanya jajaran High Command yang dapat mendaftarkan personel baru'
+            }
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>+ TAMBAH ANGGOTA BARU</span>
+          </button>
+
+          {/* HIGH COMMAND ONLY: PIN RESET AUDIT & WEBHOOK LOG BUTTON */}
+          {onOpenPinResetAudit && (
+            <button
+              id="btn-open-pin-reset-audit"
+              type="button"
+              onClick={onOpenPinResetAudit}
+              className="px-3 py-2 bg-amber-950/70 hover:bg-amber-900 border border-amber-600/70 hover:border-amber-400 text-amber-300 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
+              title="Audit & Otorisasi Pengajuan Lupa PIN Login via Discord Webhook"
+            >
+              <KeyRound className="w-4 h-4 text-amber-400" />
+              <span>👑 LOG RESET PIN & WEBHOOK</span>
+              {typeof pendingPinResetCount === 'number' && pendingPinResetCount > 0 && (
+                <span className="px-1.5 py-0.2 bg-amber-500 text-black text-[10px] rounded-full font-bold animate-pulse">
+                  {pendingPinResetCount}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex items-center gap-2 text-[11px]">
+            <KeyRound className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="text-gray-400">Passcode Pendaftaran:</span>
+            <span className="text-amber-400 font-bold bg-black/60 px-1.5 py-0.5 rounded border border-amber-800/50">
+              10-4 / 911
             </span>
           </div>
-        </div>
-        <div className="text-[11px] text-gray-400 flex items-center gap-2">
-          <span className="text-amber-300 font-bold">⚠️ Sistem SP (Max 3):</span>
-          <span>Setiap anggota dapat diberi maksimal 3 SP sebelum diberhentikan dari dinas.</span>
+          <div className="text-[11px] text-gray-400 flex items-center gap-1.5">
+            <span className="text-amber-300 font-bold">⚠️ Max 3 SP</span>
+            <span>sebelum pemecatan dinas</span>
+          </div>
         </div>
       </div>
 
@@ -470,6 +668,13 @@ export const RosterManagement: React.FC<Props> = ({
             Semua ({roster.length})
           </button>
           <button
+            onClick={() => setFilterRank('DUTY')}
+            className={`px-2.5 py-1 rounded transition whitespace-nowrap flex items-center gap-1 ${filterRank === 'DUTY' ? 'bg-emerald-600 text-white font-bold' : 'text-emerald-400 hover:text-emerald-200'}`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>On Duty ({roster.filter(r => getOfficerDutyState(r.badge, roster).isDuty).length})</span>
+          </button>
+          <button
             onClick={() => setFilterRank('PATROL')}
             className={`px-2.5 py-1 rounded transition whitespace-nowrap ${filterRank === 'PATROL' ? 'bg-blue-600 text-white font-bold' : 'text-gray-400 hover:text-gray-200'}`}
           >
@@ -490,16 +695,29 @@ export const RosterManagement: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Roster Table / Grid */}
+      {/* Anggota Table / Grid */}
       <div className="border border-gray-800 rounded-lg overflow-hidden bg-[#0D1117]">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-mono">
             <thead className="bg-[#161B22] border-b border-gray-800 text-gray-400 uppercase text-[10px]">
               <tr>
                 <th className="py-2.5 px-3">Petugas & Lencana</th>
+                <th className="py-2.5 px-3">Status Dinas</th>
                 <th className="py-2.5 px-3">Pangkat / Rank</th>
                 <th className="py-2.5 px-3">Divisi Operasional</th>
-                <th className="py-2.5 px-3">PIN Anggota</th>
+                <th className="py-2.5 px-3">
+                  <div className="flex items-center gap-1.5">
+                    <span>PIN Anggota</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowTablePins(!showTablePins)}
+                      className="p-0.5 text-gray-400 hover:text-amber-300 rounded transition"
+                      title={showTablePins ? "Sembunyikan semua PIN di tabel" : "Tampilkan semua PIN di tabel"}
+                    >
+                      {showTablePins ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </th>
                 <th className="py-2.5 px-3">Status Disiplin (SP)</th>
                 <th className="py-2.5 px-3">Riwayat Promosi</th>
                 <th className="py-2.5 px-3 text-right">Tindakan High Command</th>
@@ -508,7 +726,7 @@ export const RosterManagement: React.FC<Props> = ({
             <tbody className="divide-y divide-gray-800 text-gray-300">
               {filteredRoster.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-gray-500 font-mono">
+                  <td colSpan={8} className="py-8 text-center text-gray-500 font-mono">
                     Tidak ada data personel yang cocok dengan pencarian.
                   </td>
                 </tr>
@@ -517,6 +735,8 @@ export const RosterManagement: React.FC<Props> = ({
                   const isHigh = isOfficerHighRank(officer.rank);
                   const isSelf = currentOfficerName && officer.name.toLowerCase() === currentOfficerName.toLowerCase();
                   const warningsCount = officer.warnings?.length || 0;
+                  const dutyState = getOfficerDutyState(officer.badge, roster);
+                  const dutyDuration = formatDutyDuration(dutyState.isDuty, dutyState.dutyStartTime);
 
                   return (
                     <tr key={officer.id || officer.name} className="hover:bg-gray-800/30 transition">
@@ -541,6 +761,26 @@ export const RosterManagement: React.FC<Props> = ({
                         </div>
                       </td>
 
+                      {/* Live Individual Officer Duty Status Badge */}
+                      <td className="py-2.5 px-3">
+                        {dutyState.isDuty ? (
+                          <div className="inline-flex flex-col gap-0.5">
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-950/80 text-emerald-300 border border-emerald-700 px-2 py-0.5 rounded font-bold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                              <span>{dutyState.dutyStatus || '10-8'} ON DUTY</span>
+                            </span>
+                            <span className="text-[9px] text-emerald-400/80 font-mono pl-0.5">
+                              ⏱️ {dutyDuration.shortStr}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] bg-rose-950/50 text-rose-300 border border-rose-800/60 px-2 py-0.5 rounded">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                            <span>10-7 OFF DUTY</span>
+                          </span>
+                        )}
+                      </td>
+
                       <td className="py-2.5 px-3">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
                           isHigh 
@@ -556,9 +796,26 @@ export const RosterManagement: React.FC<Props> = ({
                       </td>
 
                       <td className="py-2.5 px-3">
-                        <code className="text-amber-300 font-bold bg-black/60 px-1.5 py-0.5 rounded border border-amber-800/40">
-                          {officer.pin || '10-4'}
-                        </code>
+                        <div className="flex items-center gap-1.5">
+                          <code className="text-amber-300 font-bold bg-black/60 px-1.5 py-0.5 rounded border border-amber-800/40 min-w-[54px] text-center inline-block">
+                            {(showTablePins || revealedPins[officer.id || officer.name]) ? (officer.pin || '10-4') : '••••••'}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const key = officer.id || officer.name;
+                              setRevealedPins(prev => ({ ...prev, [key]: !prev[key] }));
+                            }}
+                            className="p-1 text-gray-500 hover:text-amber-300 rounded transition"
+                            title={revealedPins[officer.id || officer.name] ? "Sembunyikan PIN" : "Tampilkan PIN"}
+                          >
+                            {revealedPins[officer.id || officer.name] ? (
+                              <EyeOff className="w-3 h-3 text-amber-400" />
+                            ) : (
+                              <Eye className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
                       </td>
 
                       {/* Warnings / Strikes Badge */}
@@ -1137,16 +1394,38 @@ export const RosterManagement: React.FC<Props> = ({
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-bold text-amber-300 uppercase block mb-1.5">
-                    PIN Anggota (Diberikan Atasan):
-                  </label>
-                  <input
-                    type="text"
-                    value={newPin}
-                    onChange={(e) => setNewPin(e.target.value)}
-                    placeholder="Contoh: 8462100 / 30210"
-                    className="w-full px-3 py-2 bg-[#0D1117] border border-amber-700/60 focus:border-amber-500 rounded text-xs text-amber-200 outline-none font-mono font-bold"
-                  />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-bold text-amber-300 uppercase flex items-center gap-1">
+                      <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                      <span>PIN Anggota (Diberikan Atasan):</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPin(!showEditPin)}
+                      className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1 font-bold bg-amber-950/70 hover:bg-amber-900/70 px-1.5 py-0.5 rounded border border-amber-800/60 transition"
+                      title={showEditPin ? "Sembunyikan PIN" : "Tampilkan PIN"}
+                    >
+                      {showEditPin ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      <span>{showEditPin ? 'Hide' : 'Show'}</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showEditPin ? 'text' : 'password'}
+                      value={newPin}
+                      onChange={(e) => setNewPin(e.target.value)}
+                      placeholder="Contoh: 8462100 / 30210"
+                      className="w-full px-3 py-2 pr-9 bg-[#0D1117] border border-amber-700/60 focus:border-amber-500 rounded text-xs text-amber-200 outline-none font-mono font-bold"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPin(!showEditPin)}
+                      className="absolute right-2.5 top-2.5 text-gray-400 hover:text-amber-300 transition"
+                      title={showEditPin ? "Sembunyikan PIN" : "Tampilkan PIN"}
+                    >
+                      {showEditPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1233,6 +1512,235 @@ export const RosterManagement: React.FC<Props> = ({
                     <>
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>SIMPAN PERUBAHAN PANGKAT & PIN</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL TAMBAH ANGGOTA BARU (HIGH COMMAND FULL ACCESS) ================= */}
+      {isAddOfficerModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3 sm:p-4 backdrop-blur-xs font-mono text-xs animate-in fade-in duration-150">
+          <div className="bg-[#161B22] border border-amber-500/80 rounded-xl max-w-lg w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            {/* Modal Header */}
+            <div className="bg-[#0F1319] border-b border-gray-800 px-5 py-3.5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 bg-amber-950/80 border border-amber-600 rounded-lg text-amber-300">
+                  <UserPlus className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-gray-100 uppercase tracking-tight flex items-center gap-2 font-sans">
+                    <span>TAMBAH ANGGOTA BARU</span>
+                    <span className="text-[9px] font-mono bg-amber-950 text-amber-300 border border-amber-700 px-1.5 py-0.2 rounded font-bold">
+                      HIGH COMMAND
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-gray-400 font-mono">
+                    Registrasi personel baru ke Data Anggota & Broadcast Webhook Discord
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddOfficerModalOpen(false)}
+                className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Error Notification */}
+            {addFormError && (
+              <div className="bg-rose-950/90 border-b border-rose-600 px-4 py-2 text-rose-200 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{addFormError}</span>
+              </div>
+            )}
+
+            {/* Modal Form Body */}
+            <form onSubmit={handleSaveNewOfficer} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
+              {/* Nama & Badge Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                <div className="sm:col-span-8 space-y-1">
+                  <label className="text-[10px] font-bold text-gray-300 uppercase block">
+                    Nama Lengkap Petugas <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={addName}
+                    onChange={(e) => setAddName(e.target.value)}
+                    placeholder="Contoh: Marcus Vance"
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-100 outline-none font-mono font-bold"
+                    required
+                  />
+                </div>
+
+                <div className="sm:col-span-4 space-y-1">
+                  <label className="text-[10px] font-bold text-gray-300 uppercase block">
+                    No. Badge <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={addBadge}
+                    onChange={(e) => setAddBadge(e.target.value)}
+                    placeholder="#105"
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-amber-300 outline-none font-mono font-bold"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Pangkat / Rank */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-300 uppercase flex items-center gap-1">
+                  <Award className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Pangkat Dilantik <span className="text-rose-400">*</span></span>
+                </label>
+                <select
+                  value={addRank}
+                  onChange={(e) => setAddRank(e.target.value as OfficerRankLevel)}
+                  className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-100 outline-none font-mono"
+                  required
+                >
+                  {ALL_RANKS.map((r) => (
+                    <option key={r} value={r}>
+                      {isOfficerHighRank(r) ? `★ ${r} [HIGH COMMAND]` : r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Divisi Penugasan */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-300 uppercase flex items-center gap-1">
+                  <Shield className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Divisi Penugasan Kepolisian</span>
+                </label>
+                <select
+                  value={addDivision}
+                  onChange={(e) => setAddDivision(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-100 outline-none font-mono"
+                >
+                  {PRESET_DIVISIONS.map((div) => (
+                    <option key={div} value={div}>{div}</option>
+                  ))}
+                  <option value="CUSTOM">+ Divisi Kustom (Input Manual)...</option>
+                </select>
+
+                {addDivision === 'CUSTOM' && (
+                  <input
+                    type="text"
+                    value={addCustomDivision}
+                    onChange={(e) => setAddCustomDivision(e.target.value)}
+                    placeholder="Tuliskan nama divisi kustom..."
+                    className="w-full mt-1.5 px-3 py-1.5 bg-[#0D1117] border border-amber-600 focus:border-amber-400 rounded-lg text-xs text-gray-100 outline-none font-mono"
+                    required
+                  />
+                )}
+              </div>
+
+              {/* PIN Login Awal & No. Telepon / Radio */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                <div className="sm:col-span-6 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold text-gray-300 uppercase flex items-center gap-1">
+                      <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                      <span>PIN Login Terminal MDT <span className="text-rose-400">*</span></span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddPin(!showAddPin)}
+                      className="text-[10px] text-amber-400 hover:underline flex items-center gap-0.5"
+                    >
+                      {showAddPin ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      <span>{showAddPin ? 'Hide' : 'Show'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type={showAddPin ? 'text' : 'password'}
+                    value={addPin}
+                    onChange={(e) => setAddPin(e.target.value)}
+                    placeholder="10-4"
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-amber-600/70 focus:border-amber-400 rounded-lg text-xs text-amber-200 outline-none font-mono font-bold"
+                    required
+                  />
+                  <span className="text-[9px] text-gray-500 block">
+                    Default awal: 10-4 (dapat diubah nanti)
+                  </span>
+                </div>
+
+                <div className="sm:col-span-6 space-y-1">
+                  <label className="text-[10px] font-bold text-gray-300 uppercase flex items-center gap-1">
+                    <Phone className="w-3.5 h-3.5 text-gray-400" />
+                    <span>No. Kontak / Radio (Opsional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={addPhone}
+                    onChange={(e) => setAddPhone(e.target.value)}
+                    placeholder="Contoh: 555-0199 / Freq 1111"
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-200 outline-none font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Diresmikan Oleh / Dasar SK */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-gray-300 uppercase block">
+                  Dasar SK Pengangkatan / Diresmikan Oleh:
+                </label>
+                <input
+                  type="text"
+                  value={addPromotedBy}
+                  onChange={(e) => setAddPromotedBy(e.target.value)}
+                  placeholder="SK Pengangkatan Markas Besar HSPD..."
+                  className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-200 outline-none font-mono"
+                />
+              </div>
+
+              {/* Discord Webhook Toggle Box */}
+              <div className="p-3 bg-blue-950/30 border border-blue-800/60 rounded-lg space-y-1">
+                <label className="flex items-center gap-2 text-xs text-blue-200 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={addSendWebhook}
+                    onChange={(e) => setAddSendWebhook(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-700 text-blue-600 focus:ring-0 cursor-pointer"
+                  />
+                  <span className="font-bold">📢 Kirim Pengumuman Personel Baru ke Webhook Discord</span>
+                </label>
+                <p className="text-[10px] text-gray-400 pl-6">
+                  Broadcast induction resmi ke channel Discord Roster / Personel Markas Besar.
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-gray-800 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddOfficerModalOpen(false)}
+                  disabled={isSubmittingAdd}
+                  className="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingAdd}
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-800 text-black font-bold rounded-lg transition text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20"
+                >
+                  {isSubmittingAdd ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Mendaftarkan & Broadcast...</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4 h-4" />
+                      <span>DAFTARKAN PERSONEL SEKARANG</span>
                     </>
                   )}
                 </button>

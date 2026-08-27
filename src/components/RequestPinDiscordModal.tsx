@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   Send, X, AlertTriangle, CheckCircle2, Shield, User, 
-  KeyRound, MessageSquare, ExternalLink, HelpCircle, Copy, Check
+  KeyRound, MessageSquare, HelpCircle,
+  Sparkles, CheckCircle
 } from 'lucide-react';
 import { OfficerAccount } from '../types';
 import { HSPD_LOGO_URL } from '../assets/logo';
-import { sendPinResetRequestToDiscord, getSavedWebhookConfig } from '../utils/discordWebhook';
+import { sendPinResetRequestToDiscord, getSavedPinResetWebhookConfig } from '../utils/discordWebhook';
 import { addPinResetRequest } from '../utils/pinResetStorage';
 
 interface Props {
@@ -21,36 +22,114 @@ export const RequestPinDiscordModal: React.FC<Props> = ({
   initialIdentifier = '',
   roster
 }) => {
-  const [officerName, setOfficerName] = useState(initialIdentifier);
+  const [officerName, setOfficerName] = useState('');
   const [officerBadge, setOfficerBadge] = useState('');
   const [discordTag, setDiscordTag] = useState('');
-  const [reason, setReason] = useState('Lupa PIN login MDT');
+  const [reason, setReason] = useState('Lupa PIN login MDT CAD');
   const [requestedPin, setRequestedPin] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [copiedFormat, setCopiedFormat] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Initialize values when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setErrorMessage('');
+      setSuccessMessage('');
+      setShowSuggestions(false);
+      
+      const initId = initialIdentifier.trim();
+      if (initId) {
+        setOfficerName(initId);
+        // Look up in roster
+        const clean = initId.toLowerCase();
+        const cleanBadge = clean.startsWith('#') ? clean : `#${clean}`;
+        const found = roster.find(r => 
+          r.name.toLowerCase() === clean || 
+          r.badge.toLowerCase() === clean || 
+          r.badge.toLowerCase() === cleanBadge
+        );
+        if (found) {
+          setOfficerName(found.name);
+          setOfficerBadge(found.badge);
+        } else {
+          setOfficerBadge('');
+        }
+      } else {
+        setOfficerName('');
+        setOfficerBadge('');
+      }
+    }
+  }, [isOpen, initialIdentifier, roster]);
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filter roster suggestions based on user input
+  const matchingOfficers = useMemo(() => {
+    const q = officerName.trim().toLowerCase();
+    if (!q) return [];
+    return roster.filter(r => 
+      r.name.toLowerCase().includes(q) || 
+      r.badge.toLowerCase().includes(q) ||
+      r.rank.toLowerCase().includes(q)
+    ).slice(0, 6);
+  }, [officerName, roster]);
+
+  // Check if current name exactly matches any officer in roster
+  const matchedOfficer = useMemo(() => {
+    const q = officerName.trim().toLowerCase();
+    if (!q) return null;
+    return roster.find(r => 
+      r.name.toLowerCase() === q || 
+      r.badge.toLowerCase() === q ||
+      r.badge.toLowerCase() === (q.startsWith('#') ? q : `#${q}`)
+    ) || null;
+  }, [officerName, roster]);
+
+  // Handle manual typing in Name field
+  const handleNameInputChange = (val: string) => {
+    setOfficerName(val);
+    setShowSuggestions(true);
+
+    const clean = val.trim().toLowerCase();
+    const cleanBadge = clean.startsWith('#') ? clean : `#${clean}`;
+    
+    // Check if there is an exact name or badge match
+    const exactMatch = roster.find(r => 
+      r.name.toLowerCase() === clean || 
+      r.badge.toLowerCase() === clean ||
+      r.badge.toLowerCase() === cleanBadge
+    );
+
+    if (exactMatch) {
+      // Auto-fill badge from database
+      setOfficerBadge(exactMatch.badge);
+    }
+  };
+
+  // Handle selecting an officer from suggestions list
+  const handleSelectOfficer = (officer: OfficerAccount) => {
+    setOfficerName(officer.name);
+    setOfficerBadge(officer.badge);
+    setShowSuggestions(false);
+  };
 
   if (!isOpen) return null;
 
-  const webhookConfig = getSavedWebhookConfig();
+  const webhookConfig = getSavedPinResetWebhookConfig();
   const hasWebhook = Boolean(webhookConfig.webhookUrl && webhookConfig.webhookUrl.trim().startsWith('http'));
-
-  const handleOfficerSelect = (val: string) => {
-    setOfficerName(val);
-    const clean = val.trim().toLowerCase();
-    const cleanBadge = clean.startsWith('#') ? clean : `#${clean}`;
-    const found = roster.find(r => 
-      r.name.toLowerCase() === clean || 
-      r.badge.toLowerCase() === clean || 
-      r.badge.toLowerCase() === cleanBadge ||
-      r.name.toLowerCase().includes(clean)
-    );
-    if (found) {
-      setOfficerName(found.name);
-      setOfficerBadge(found.badge);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,7 +137,7 @@ export const RequestPinDiscordModal: React.FC<Props> = ({
     setSuccessMessage('');
 
     const trimmedName = officerName.trim();
-    const trimmedBadge = officerBadge.trim() || 'Cadet / Unassigned';
+    const trimmedBadge = officerBadge.trim() || (matchedOfficer ? matchedOfficer.badge : '-');
     const trimmedReason = reason.trim();
 
     if (!trimmedName) {
@@ -72,9 +151,9 @@ export const RequestPinDiscordModal: React.FC<Props> = ({
     }
 
     // Try finding rank from roster
-    const matched = roster.find(r => 
+    const matched = matchedOfficer || roster.find(r => 
       r.name.toLowerCase() === trimmedName.toLowerCase() ||
-      r.badge.toLowerCase() === trimmedBadge.toLowerCase()
+      (trimmedBadge !== '-' && r.badge.toLowerCase() === trimmedBadge.toLowerCase())
     );
 
     setIsSubmitting(true);
@@ -83,7 +162,7 @@ export const RequestPinDiscordModal: React.FC<Props> = ({
       // Save locally to Superiors' Audit Log as well
       addPinResetRequest({
         officerName: trimmedName,
-        officerBadge: matched ? matched.badge : trimmedBadge,
+        officerBadge: matched ? matched.badge : (trimmedBadge !== '-' ? trimmedBadge : '-'),
         officerRank: matched ? matched.rank : undefined,
         discordTag: discordTag.trim() || undefined,
         reason: trimmedReason,
@@ -93,7 +172,7 @@ export const RequestPinDiscordModal: React.FC<Props> = ({
 
       const res = await sendPinResetRequestToDiscord({
         officerName: trimmedName,
-        officerBadge: matched ? matched.badge : trimmedBadge,
+        officerBadge: matched ? matched.badge : (trimmedBadge !== '-' ? trimmedBadge : '-'),
         rank: matched ? matched.rank : undefined,
         reason: trimmedReason,
         requestedNewPin: requestedPin.trim() || undefined,
@@ -114,20 +193,6 @@ export const RequestPinDiscordModal: React.FC<Props> = ({
       setErrorMessage(`Terjadi kesalahan pengiriman: ${err.message || 'Cek koneksi'}`);
       setIsSubmitting(false);
     }
-  };
-
-  const formatCopyText = `🚨 **PERMINTAAN RESET / PENGUBAHAN PIN MDT**
-👤 **Nama Petugas**: ${officerName || '[Nama In-Game]'}
-👮 **Nomor Badge**: ${officerBadge || '[Badge #]'}
-💬 **Discord**: ${discordTag || '[Discord Tag]'}
-🔒 **PIN Baru yang Diajukan**: ${requestedPin || '[PIN Baru]'}
-📝 **Alasan**: ${reason || 'Lupa PIN login MDT'}
-Waktu: ${new Date().toLocaleString('id-ID')}`;
-
-  const handleCopyDiscordFormat = () => {
-    navigator.clipboard.writeText(formatCopyText);
-    setCopiedFormat(true);
-    setTimeout(() => setCopiedFormat(false), 2500);
   };
 
   return (
@@ -172,7 +237,7 @@ Waktu: ${new Date().toLocaleString('id-ID')}`;
               <span>Sistem Keamanan & Otorisasi PIN Terpusat</span>
             </div>
             <p className="text-gray-300">
-              Demi keamanan data MDT, pengubahan kode PIN login diproses melalui pengesahan <strong>High Command / Supervisor</strong> via notifikasi Webhook Discord.
+              Ketik nama Anda di bawah. Jika nama sudah terdaftar di database Roster, <strong>nomor badge & pangkat akan terisi otomatis</strong>. Anda juga bebas mengetik manual jika data belum tercatat.
             </p>
           </div>
 
@@ -196,7 +261,7 @@ Waktu: ${new Date().toLocaleString('id-ID')}`;
                 <div className="text-emerald-400 font-bold">Langkah Selanjutnya:</div>
                 <div>1. Buka server Discord Kepolisian HighState.</div>
                 <div>2. Cek channel tiket / command atau hubungi Atasan yang sedang On-Duty.</div>
-                <div>3. Atasan akan memperbarui PIN Anda melalui menu Roster Management.</div>
+                <div>3. Atasan akan memverifikasi permohonan dan memperbarui PIN akun Anda.</div>
               </div>
               <div className="pt-2 flex justify-end gap-2">
                 <button
@@ -210,36 +275,113 @@ Waktu: ${new Date().toLocaleString('id-ID')}`;
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3.5">
-              {/* Field 1: Nama Petugas */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold uppercase text-gray-300 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-blue-400" />
-                  Nama Petugas In-Game <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={officerName}
-                  onChange={(e) => handleOfficerSelect(e.target.value)}
-                  placeholder="Contoh: Leoarnd Neave, Marcus Vance..."
-                  className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-blue-500 rounded-lg text-xs text-gray-100 placeholder:text-gray-600 outline-none font-mono transition"
-                  required
-                />
+              {/* Field 1: Nama Petugas (Manual input + live smart suggestions & auto-fill) */}
+              <div className="space-y-1 relative" ref={suggestionsRef}>
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold uppercase text-gray-300 flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-blue-400" />
+                    Nama Petugas In-Game <span className="text-rose-400">*</span>
+                  </label>
+                  {matchedOfficer ? (
+                    <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/80">
+                      <CheckCircle className="w-3 h-3 text-emerald-400" />
+                      {matchedOfficer.rank} ({matchedOfficer.badge})
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-gray-500">
+                      Ketik bebas / pilih dari roster
+                    </span>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={officerName}
+                    onChange={(e) => handleNameInputChange(e.target.value)}
+                    onFocus={() => {
+                      if (officerName.trim().length > 0) setShowSuggestions(true);
+                    }}
+                    placeholder="Ketik nama petugas (Contoh: Leoarnd Neave)..."
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-blue-500 rounded-lg text-xs text-gray-100 placeholder:text-gray-600 outline-none font-mono transition"
+                    required
+                  />
+                  {officerName && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOfficerName('');
+                        setOfficerBadge('');
+                        setShowSuggestions(false);
+                      }}
+                      className="absolute right-2.5 top-2.5 text-gray-500 hover:text-gray-300"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown Suggestions List */}
+                {showSuggestions && matchingOfficers.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-[#161B22] border border-blue-600/60 rounded-lg shadow-2xl z-50 overflow-hidden max-h-48 overflow-y-auto">
+                    <div className="px-2.5 py-1.5 bg-[#0D1117] text-[10px] font-bold text-gray-400 border-b border-gray-800 flex items-center justify-between">
+                      <span className="flex items-center gap-1 text-blue-400">
+                        <Sparkles className="w-3 h-3" />
+                        Saran Anggota dari Database Roster:
+                      </span>
+                      <span>Klik untuk pilih</span>
+                    </div>
+                    {matchingOfficers.map((officer) => (
+                      <button
+                        key={officer.id}
+                        type="button"
+                        onClick={() => handleSelectOfficer(officer)}
+                        className="w-full text-left px-3 py-2 hover:bg-blue-900/30 border-b border-gray-800/50 last:border-0 flex items-center justify-between transition group"
+                      >
+                        <div>
+                          <div className="font-bold text-gray-200 group-hover:text-blue-300 flex items-center gap-1.5">
+                            <span>{officer.name}</span>
+                            <span className="text-[10px] text-amber-400 font-normal">({officer.rank})</span>
+                          </div>
+                          <div className="text-[10px] text-gray-500 font-mono">
+                            Divisi: {officer.division || 'Patrol'}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] font-mono bg-blue-950 text-blue-300 px-1.5 py-0.5 rounded border border-blue-800/60 font-bold">
+                            {officer.badge}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Field 2: Badge & Discord Tag */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold uppercase text-gray-300 flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5 text-amber-400" />
-                    Nomor Badge (Lencana)
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold uppercase text-gray-300 flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-amber-400" />
+                      Nomor Badge / Lencana
+                    </label>
+                    <span className="text-[9px] text-gray-500">
+                      {matchedOfficer ? 'Otomatis Terisi' : 'Bebas / Opsional'}
+                    </span>
+                  </div>
                   <input
                     type="text"
                     value={officerBadge}
                     onChange={(e) => setOfficerBadge(e.target.value)}
-                    placeholder="Contoh: #001 atau #101"
+                    placeholder="Contoh: #001 atau 101"
                     className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-blue-500 rounded-lg text-xs text-gray-100 placeholder:text-gray-600 outline-none font-mono transition"
                   />
+                  <span className="text-[9px] text-gray-500 block">
+                    {matchedOfficer 
+                      ? '✅ Terisi otomatis dari database. Bisa disesuaikan jika perlu.' 
+                      : 'Bebas ketik nomor lencana atau kosongkan jika belum punya.'}
+                  </span>
                 </div>
 
                 <div className="space-y-1">
@@ -307,34 +449,22 @@ Waktu: ${new Date().toLocaleString('id-ID')}`;
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-3 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-2">
+              <div className="pt-3 border-t border-gray-800 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={handleCopyDiscordFormat}
-                  className="w-full sm:w-auto px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition flex items-center justify-center gap-1.5 text-xs font-mono"
-                  title="Salin format teks untuk ditempel manual di Discord"
+                  onClick={onClose}
+                  className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition text-xs font-mono"
                 >
-                  {copiedFormat ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedFormat ? 'Format Tersalin!' : 'Salin Format Teks'}</span>
+                  Batal
                 </button>
-
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    className="w-full sm:w-auto px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg transition text-xs"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full sm:w-auto px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white font-bold rounded-lg transition flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/30 text-xs"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>{isSubmitting ? 'Mengirim...' : 'KIRIM KE DISCORD WEBHOOK'}</span>
-                  </button>
-                </div>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white font-bold rounded-lg transition flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/30 text-xs font-mono"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>{isSubmitting ? 'Mengirim...' : 'KIRIM KE DISCORD WEBHOOK'}</span>
+                </button>
               </div>
             </form>
           )}
@@ -349,3 +479,4 @@ Waktu: ${new Date().toLocaleString('id-ID')}`;
     </div>
   );
 };
+

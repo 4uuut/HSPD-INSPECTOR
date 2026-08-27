@@ -58,20 +58,6 @@ export const PinResetAuditModal: React.FC<Props> = ({
   const [manualNewPin, setManualNewPin] = useState('');
   const [manualReason, setManualReason] = useState('Pembaruan Kredensial Langsung oleh High Command');
 
-  if (!isOpen) return null;
-
-  const isHighRank = isOfficerHighRank(currentOfficer.rank);
-
-  const refreshRequests = () => {
-    setRequests(getPinResetRequests());
-  };
-
-  // Stats calculation
-  const totalCount = requests.length;
-  const pendingCount = requests.filter(r => r.status === 'PENDING').length;
-  const resolvedCount = requests.filter(r => r.status === 'RESOLVED').length;
-  const rejectedCount = requests.filter(r => r.status === 'REJECTED').length;
-
   // Filtered list
   const filteredRequests = useMemo(() => {
     return requests.filter(r => {
@@ -87,6 +73,27 @@ export const PinResetAuditModal: React.FC<Props> = ({
       return matchStatus && matchQuery;
     });
   }, [requests, statusFilter, searchQuery]);
+
+  // Sync requests when modal opens
+  React.useEffect(() => {
+    if (isOpen) {
+      setRequests(getPinResetRequests());
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const isHighRank = isOfficerHighRank(currentOfficer.rank);
+
+  const refreshRequests = () => {
+    setRequests(getPinResetRequests());
+  };
+
+  // Stats calculation
+  const totalCount = requests.length;
+  const pendingCount = requests.filter(r => r.status === 'PENDING').length;
+  const resolvedCount = requests.filter(r => r.status === 'RESOLVED').length;
+  const rejectedCount = requests.filter(r => r.status === 'REJECTED').length;
 
   // Open resolve dialog for a specific ticket
   const handleOpenResolve = (req: PinResetRequest) => {

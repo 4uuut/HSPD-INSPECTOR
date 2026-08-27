@@ -343,31 +343,31 @@ export const EvidenceUploader: React.FC<Props> = ({
 
               <div>
                 <p className="text-xs font-bold text-gray-200">
-                  {currentImages.length === 0 ? 'Pilih atau Tarik Foto Bukti (Maks. 10 Foto)' : `Tambah Foto Bukti (${currentImages.length}/10)`}
+                  {currentImages.length === 0 ? 'Pilih Berkas Bukti Dari Folder Device (Maks. 10 Foto)' : `Tambah Foto Bukti (${currentImages.length}/10)`}
                 </p>
                 <p className="text-[10px] text-gray-400 mt-0.5">
-                  Bisa pilih multi-foto sekaligus, drag & drop, atau paste (<kbd className="font-mono bg-black/50 px-1 rounded border border-gray-700 text-gray-300">Ctrl+V</kbd>)
+                  Buka folder komputer/HP, drag & drop foto bukti, atau paste (<kbd className="font-mono bg-black/50 px-1 rounded border border-gray-700 text-gray-300">Ctrl+V</kbd>)
                 </p>
               </div>
 
               {/* Action Buttons inside Dropzone */}
-              <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-mono font-bold flex items-center gap-1.5 transition shadow-sm"
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-mono font-bold flex items-center gap-1.5 transition shadow-md shadow-blue-600/30"
                 >
-                  <Upload className="w-3 h-3" />
-                  <span>PILIH MULTI-FOTO DARI GALERI</span>
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>PILIH DARI FOLDER DEVICE / FILE EXPLORER</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => cameraInputRef.current?.click()}
-                  className="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-black rounded text-[10px] font-mono font-bold flex items-center gap-1.5 transition shadow-sm"
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-black rounded text-[10px] font-mono font-bold flex items-center gap-1.5 transition shadow-sm"
                 >
-                  <Camera className="w-3 h-3" />
-                  <span>AMBIL KAMERA</span>
+                  <Camera className="w-3.5 h-3.5" />
+                  <span>KAMERA LANGSUNG</span>
                 </button>
               </div>
             </>

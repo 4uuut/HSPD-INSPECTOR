@@ -1,4 +1,4 @@
-import officialBadgeImg from './images/hspd_official_badge_1787525545140.jpg';
+import officialBadgeImg from './images/hspd_official_seal_badge_1787696082793.jpg';
 
 export const HSPD_LOGO_URL = officialBadgeImg;
 

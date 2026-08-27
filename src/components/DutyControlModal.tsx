@@ -17,7 +17,7 @@ interface Props {
   currentOfficer: OfficerProfile;
   isDuty: boolean;
   dutyStartTime: number;
-  onDutyStatusChanged: (newDutyState: boolean, newDutyStartTime: number) => void;
+  onDutyStatusChanged: (newDutyState: boolean, newDutyStartTime: number, statusCode?: DutyStatusCode) => void;
 }
 
 export const DutyControlModal: React.FC<Props> = ({
@@ -134,19 +134,23 @@ export const DutyControlModal: React.FC<Props> = ({
       webhookMsg = res.message;
     }
 
-    // Determine new isDuty state
+    // Determine new isDuty state & start time cleanly
     let newDutyState = isDuty;
     let newDutyStartTime = dutyStartTime;
 
     if (selectedStatus === '10-8') {
       newDutyState = true;
-      newDutyStartTime = now;
+      // If already on duty with valid timer, preserve it; otherwise start fresh timer now
+      newDutyStartTime = (isDuty && dutyStartTime > 0) ? dutyStartTime : now;
     } else if (selectedStatus === '10-7') {
       newDutyState = false;
       newDutyStartTime = 0;
+    } else if (selectedStatus === '10-6' || selectedStatus === '10-97') {
+      newDutyState = true;
+      newDutyStartTime = (isDuty && dutyStartTime > 0) ? dutyStartTime : now;
     }
 
-    onDutyStatusChanged(newDutyState, newDutyStartTime);
+    onDutyStatusChanged(newDutyState, newDutyStartTime, selectedStatus);
     setIsSubmitting(false);
 
     if (dutyWebhookConfig.webhookUrl.trim() && !webhookSuccess) {

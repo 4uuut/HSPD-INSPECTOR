@@ -9,14 +9,44 @@ import { RosterManagement } from './components/RosterManagement';
 import { DutyControlModal } from './components/DutyControlModal';
 import { WebhookSettingsModal } from './components/WebhookSettingsModal';
 import { AuthorityPinModal } from './components/AuthorityPinModal';
+import { PinResetAuditModal } from './components/PinResetAuditModal';
+import { DetectiveCaseBoard } from './components/DetectiveCaseBoard';
+import { BoloAndTrafficHub } from './components/BoloAndTrafficHub';
+import { VaultAuditBoard } from './components/VaultAuditBoard';
+import { DestructionRegistryBoard } from './components/DestructionRegistryBoard';
+import { OfficialDocumentStudio } from './components/OfficialDocumentStudio';
+import { DivisionBadgeHero } from './components/DivisionBadgeHero';
+import { ModuleClearanceGuard } from './components/ModuleClearanceGuard';
+import { OtpGeneratorModal } from './components/OtpGeneratorModal';
+import { CadDispatchBoard } from './components/CadDispatchBoard';
+import { SpecializedDivisionsHub } from './components/SpecializedDivisionsHub';
+import { CitizenDmvDatabase } from './components/CitizenDmvDatabase';
+import { ForensicsLabBoard } from './components/ForensicsLabBoard';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
-import { ArrestRecord, OfficerProfile, OfficerAccount, isOfficerHighRank } from './types';
+import { getPendingPinResetCount } from './utils/pinResetStorage';
+import { getSavedDetectiveCases, saveDetectiveCases } from './utils/detectiveCaseStorage';
+import { getSavedBoloAlerts, saveBoloAlerts, getSavedImpounds, saveImpounds } from './utils/boloImpoundStorage';
+import { getOfficerDutyState, saveOfficerDutyState, formatDutyDuration } from './utils/officerDutyStorage';
+import { getDiscordWebhookConfig } from './utils/discordWebhook';
+import { 
+  ArrestRecord, OfficerProfile, OfficerAccount, isOfficerHighRank, isSupervisorOrAbove,
+  DetectiveCase, BoloAlert, ImpoundRecord, getDivisionArchetype, ModuleAccessKey 
+} from './types';
 import { 
   Shield, Calculator, Megaphone, BookOpen, FileText, 
   Radio, Award, User, LogOut, Lock, Sparkles, BadgeCheck,
-  Users, ShieldAlert, KeyRound, Power, Clock, CheckCircle2, Sliders
+  Users, ShieldAlert, KeyRound, Power, Clock, CheckCircle2, Sliders,
+  Search, Car, Crosshair, Landmark, Flame, Stamp as StampIcon,
+  UserCheck, Microscope, Cloud, Database
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from './assets/logo';
+import { 
+  initRealtimeFirebaseSync, 
+  subscribeToSyncStatus, 
+  pushAllToFirestore, 
+  syncCollectionWithFirestore,
+  FirebaseSyncStatus 
+} from './services/firebaseRealtimeSync';
 
 const STORAGE_KEY = 'hspd_arrest_records_v1';
 const OFFICER_STORAGE_KEY = 'hspd_active_officer_v1';
@@ -139,29 +169,63 @@ export default function App() {
     }
   });
 
-  // Duty State
+  // Duty State per logged in officer
   const [isDuty, setIsDuty] = useState<boolean>(() => {
     try {
-      return localStorage.getItem(DUTY_STATUS_STORAGE_KEY) === 'true';
+      const saved = localStorage.getItem(OFFICER_STORAGE_KEY);
+      const officer: OfficerProfile | null = saved ? JSON.parse(saved) : null;
+      if (officer?.badge) {
+        return getOfficerDutyState(officer.badge).isDuty;
+      }
+      return false;
     } catch {
-      return true;
+      return false;
     }
   });
 
   const [dutyStartTime, setDutyStartTime] = useState<number>(() => {
     try {
-      const val = localStorage.getItem(DUTY_START_TIME_KEY);
-      return val ? parseInt(val, 10) : Date.now();
+      const saved = localStorage.getItem(OFFICER_STORAGE_KEY);
+      const officer: OfficerProfile | null = saved ? JSON.parse(saved) : null;
+      if (officer?.badge) {
+        return getOfficerDutyState(officer.badge).dutyStartTime;
+      }
+      return 0;
     } catch {
-      return Date.now();
+      return 0;
     }
   });
+
+  // Ticker for real-time duty duration and auto-sync
+  const [, setTimeTicker] = useState<number>(Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setTimeTicker(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const [isDutyModalOpen, setIsDutyModalOpen] = useState(false);
   const [isWebhookModalOpen, setIsWebhookModalOpen] = useState(false);
   const [isAuthorityPinModalOpen, setIsAuthorityPinModalOpen] = useState(false);
+  const [isPinResetAuditModalOpen, setIsPinResetAuditModalOpen] = useState(false);
+  const [isOtpGeneratorModalOpen, setIsOtpGeneratorModalOpen] = useState(false);
+  const [otpModalDefaultModule, setOtpModalDefaultModule] = useState<ModuleAccessKey>('VAULT');
+  const [pendingPinCount, setPendingPinCount] = useState<number>(() => getPendingPinResetCount());
   const [authorityPinConfig, setAuthorityPinConfig] = useState<AuthorityPinConfig>(() => getAuthorityPinConfig());
   const [pinTimeRemaining, setPinTimeRemaining] = useState(() => formatRemainingTime(authorityPinConfig.expiresAt));
+
+  // Sync pending PIN reset requests count
+  useEffect(() => {
+    const updateCount = () => {
+      setPendingPinCount(getPendingPinResetCount());
+    };
+    updateCount();
+    const interval = setInterval(updateCount, 2500);
+    window.addEventListener('storage', updateCount);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', updateCount);
+    };
+  }, []);
 
   // Sync authority PIN config on timer tick
   useEffect(() => {
@@ -178,7 +242,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const [activeNav, setActiveNav] = useState<'calc' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster'>('calc');
+  const [activeNav, setActiveNav] = useState<'calc' | 'dispatch' | 'dmv' | 'divisions' | 'forensics' | 'documents' | 'detective' | 'traffic' | 'vault' | 'destruction' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster'>('calc');
   const [records, setRecords] = useState<ArrestRecord[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -188,41 +252,230 @@ export default function App() {
     }
   });
 
-  // Persist roster
+  // Detective Cases State
+  const [detectiveCases, setDetectiveCases] = useState<DetectiveCase[]>(() => getSavedDetectiveCases());
+
+  // BOLO Alerts State
+  const [boloList, setBoloList] = useState<BoloAlert[]>(() => getSavedBoloAlerts());
+
+  // Impound Records State
+  const [impoundList, setImpoundList] = useState<ImpoundRecord[]>(() => getSavedImpounds());
+
+  // Persist detective cases
+  const handleSaveDetectiveCase = (updatedCase: DetectiveCase) => {
+    setDetectiveCases(prev => {
+      const updated = prev.map(c => c.id === updatedCase.id ? updatedCase : c);
+      saveDetectiveCases(updated);
+      return updated;
+    });
+  };
+
+  const handleCreateDetectiveCase = (newCase: DetectiveCase) => {
+    setDetectiveCases(prev => {
+      const updated = [newCase, ...prev];
+      saveDetectiveCases(updated);
+      return updated;
+    });
+  };
+
+  const handleDeleteDetectiveCase = (caseId: string) => {
+    setDetectiveCases(prev => {
+      const updated = prev.filter(c => c.id !== caseId);
+      saveDetectiveCases(updated);
+      return updated;
+    });
+  };
+
+  // Persist BOLO alerts
+  const handleSaveBoloAlerts = (newList: BoloAlert[]) => {
+    setBoloList(newList);
+    saveBoloAlerts(newList);
+  };
+
+  // Persist Impound records
+  const handleSaveImpoundRecords = (newList: ImpoundRecord[]) => {
+    setImpoundList(newList);
+    saveImpounds(newList);
+  };
+
+  // Persist roster and sync to Firestore
   useEffect(() => {
     try {
       localStorage.setItem(ROSTER_STORAGE_KEY, JSON.stringify(roster));
+      localStorage.setItem('hspd_roster_database_v3', JSON.stringify(roster));
+      localStorage.setItem('hspd_roster_database_v2', JSON.stringify(roster));
+      if (roster && roster.length > 0) {
+        syncCollectionWithFirestore('ROSTER', roster).catch(console.error);
+      }
     } catch (e) {
       console.error('Failed to persist roster database', e);
     }
   }, [roster]);
 
-  // Persist arrest records
+  // Firebase Cloud Database live sync status
+  const [firebaseSync, setFirebaseSync] = useState<FirebaseSyncStatus>({
+    connected: false,
+    lastSyncTime: null,
+    pendingCount: 0,
+    error: null
+  });
+
+  // Init Firebase Realtime Engine on app load
+  useEffect(() => {
+    initRealtimeFirebaseSync();
+    const unsub = subscribeToSyncStatus((status) => {
+      setFirebaseSync(status);
+    });
+
+    // Listen to real-time events triggered by Firestore sync
+    const handleRemoteRoster = (e: any) => {
+      try {
+        if (e && e.detail && Array.isArray(e.detail) && e.detail.length > 0) {
+          const detailStr = JSON.stringify(e.detail);
+          setRoster(prev => (JSON.stringify(prev) === detailStr ? prev : e.detail));
+        } else {
+          const raw = localStorage.getItem(ROSTER_STORAGE_KEY) || localStorage.getItem('hspd_roster_database_v3');
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setRoster(prev => (JSON.stringify(prev) === raw ? prev : parsed));
+            }
+          }
+        }
+      } catch (e) {}
+    };
+
+    const handleRemoteRecords = (e: any) => {
+      try {
+        if (e && e.detail && Array.isArray(e.detail)) {
+          const detailStr = JSON.stringify(e.detail);
+          setRecords(prev => (JSON.stringify(prev) === detailStr ? prev : e.detail));
+        } else {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              setRecords(prev => (JSON.stringify(prev) === raw ? prev : parsed));
+            }
+          }
+        }
+      } catch (e) {}
+    };
+
+    const handleRemoteCases = () => {
+      const fresh = getSavedDetectiveCases();
+      setDetectiveCases(prev => (JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh));
+    };
+
+    const handleRemoteBolo = () => {
+      const fresh = getSavedBoloAlerts();
+      setBoloList(prev => (JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh));
+    };
+
+    const handleRemoteImpound = () => {
+      const fresh = getSavedImpounds();
+      setImpoundList(prev => (JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh));
+    };
+
+    window.addEventListener('hspd-roster-updated', handleRemoteRoster);
+    window.addEventListener('hspd-records-updated', handleRemoteRecords);
+    window.addEventListener('hspd-detective-cases-updated', handleRemoteCases);
+    window.addEventListener('hspd-bolo-updated', handleRemoteBolo);
+    window.addEventListener('hspd-impound-updated', handleRemoteImpound);
+
+    return () => {
+      unsub();
+      window.removeEventListener('hspd-roster-updated', handleRemoteRoster);
+      window.removeEventListener('hspd-records-updated', handleRemoteRecords);
+      window.removeEventListener('hspd-detective-cases-updated', handleRemoteCases);
+      window.removeEventListener('hspd-bolo-updated', handleRemoteBolo);
+      window.removeEventListener('hspd-impound-updated', handleRemoteImpound);
+    };
+  }, []);
+
+  // Persist arrest records and sync to Firestore
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+      if (records && records.length > 0) {
+        syncCollectionWithFirestore('ARREST_RECORDS', records).catch(console.error);
+      }
     } catch (e) {
       console.error('Failed to persist arrest records', e);
     }
   }, [records]);
 
-  // Save duty state
-  const handleDutyStatusChanged = (newDutyState: boolean, newDutyStartTime: number) => {
+  // Live synchronizer for multi-officer duty changes
+  useEffect(() => {
+    const handleDutyEvent = () => {
+      if (currentOfficer) {
+        const fresh = getOfficerDutyState(currentOfficer.badge, roster, currentOfficer.name);
+        setIsDuty(fresh.isDuty);
+        setDutyStartTime(fresh.dutyStartTime);
+      }
+    };
+    window.addEventListener('hspd-officer-duty-changed', handleDutyEvent);
+    window.addEventListener('storage', handleDutyEvent);
+    return () => {
+      window.removeEventListener('hspd-officer-duty-changed', handleDutyEvent);
+      window.removeEventListener('storage', handleDutyEvent);
+    };
+  }, [currentOfficer, roster]);
+
+  // Save duty state strictly isolated per officer (other officers remain unaffected)
+  const handleDutyStatusChanged = (newDutyState: boolean, newDutyStartTime: number, statusCode?: string) => {
     setIsDuty(newDutyState);
     setDutyStartTime(newDutyStartTime);
-    try {
-      localStorage.setItem(DUTY_STATUS_STORAGE_KEY, String(newDutyState));
-      localStorage.setItem(DUTY_START_TIME_KEY, String(newDutyStartTime));
-    } catch (e) {
-      console.error(e);
+    if (currentOfficer) {
+      saveOfficerDutyState(
+        currentOfficer.badge, 
+        newDutyState, 
+        newDutyStartTime, 
+        statusCode,
+        currentOfficer.name
+      );
+      const updatedOfficer: OfficerProfile = {
+        ...currentOfficer,
+        isDuty: newDutyState,
+        dutyStartTime: newDutyStartTime,
+        dutyStatus: statusCode || (newDutyState ? '10-8' : '10-7')
+      };
+      setCurrentOfficer(updatedOfficer);
+      try {
+        localStorage.setItem(OFFICER_STORAGE_KEY, JSON.stringify(updatedOfficer));
+      } catch (e) {
+        console.error(e);
+      }
+
+      // Also update in-memory roster for THIS officer only
+      setRoster(prev => prev.map(a => {
+        if (a.badge.toLowerCase() === currentOfficer.badge.toLowerCase() || a.name.toLowerCase() === currentOfficer.name.toLowerCase()) {
+          return {
+            ...a,
+            isDuty: newDutyState,
+            dutyStartTime: newDutyStartTime,
+            dutyStatus: statusCode || (newDutyState ? '10-8' : '10-7')
+          };
+        }
+        return a;
+      }));
     }
   };
 
-  // Save officer to localStorage
+  // Save officer to localStorage and load their individual duty state
   const handleLogin = (officer: OfficerProfile) => {
-    setCurrentOfficer(officer);
+    const dutyState = getOfficerDutyState(officer.badge, roster, officer.name);
+    setIsDuty(dutyState.isDuty);
+    setDutyStartTime(dutyState.dutyStartTime);
+    const enrichedOfficer: OfficerProfile = {
+      ...officer,
+      isDuty: dutyState.isDuty,
+      dutyStartTime: dutyState.dutyStartTime,
+      dutyStatus: dutyState.dutyStatus
+    };
+    setCurrentOfficer(enrichedOfficer);
     try {
-      localStorage.setItem(OFFICER_STORAGE_KEY, JSON.stringify(officer));
+      localStorage.setItem(OFFICER_STORAGE_KEY, JSON.stringify(enrichedOfficer));
     } catch (e) {
       console.error(e);
     }
@@ -230,6 +483,8 @@ export default function App() {
 
   const handleLogout = () => {
     setCurrentOfficer(null);
+    setIsDuty(false);
+    setDutyStartTime(0);
     try {
       localStorage.removeItem(OFFICER_STORAGE_KEY);
     } catch (e) {
@@ -375,6 +630,34 @@ export default function App() {
 
         {/* Header Right Actions: Duty Toggle Button & Officer Badge */}
         <div className="flex items-center gap-2 text-xs">
+          {/* REALTIME FIREBASE CLOUD DATABASE STATUS BADGE */}
+          <div 
+            className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-[#0A0D12] border border-cyan-500/40 rounded-lg text-[10px] font-mono text-cyan-300 shadow-sm"
+            title="Database Firestore Cloud Terkoneksi Real-time: Setiap input data baru otomatis tersinkronisasi"
+          >
+            <Cloud className={`w-3.5 h-3.5 ${firebaseSync.connected ? 'text-cyan-400' : 'text-gray-500'}`} />
+            <span className="font-bold">DATABASE CLOUD</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+            <span className="text-[9px] text-emerald-400 font-bold">AUTO-SYNC</span>
+          </div>
+
+          {/* SUPERVISOR & HIGH COMMAND: OTP CLEARANCE DISPOSITION BUTTON */}
+          {isSupervisorOrAbove(currentOfficer.rank) && (
+            <button
+              id="btn-open-otp-disposition-header"
+              onClick={() => {
+                setOtpModalDefaultModule('VAULT');
+                setIsOtpGeneratorModalOpen(true);
+              }}
+              className="px-2.5 py-1.5 bg-gradient-to-r from-amber-950/80 to-amber-900/80 hover:from-amber-900 hover:to-amber-800 text-amber-300 border border-amber-500/70 hover:border-amber-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/50"
+              title="Disposisi Kode Akses Sekali Pakai (OTP) untuk Petugas Lapangan membuka modul sensitif"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <span className="hidden md:inline">🔑 DISPOSISI OTP</span>
+              <span className="md:hidden">OTP</span>
+            </button>
+          )}
+
           {/* HIGH RANK ONLY: AUTHORITY PIN MANAGEMENT BUTTON */}
           {isHighRank && (
             <button
@@ -403,6 +686,25 @@ export default function App() {
               <Sliders className="w-3.5 h-3.5 text-amber-400" />
               <span className="hidden sm:inline">👑 WEBHOOK</span>
               <span className="sm:hidden">DC</span>
+            </button>
+          )}
+
+          {/* HIGH RANK ONLY: PIN RESET AUDIT & WEBHOOK LOG BUTTON */}
+          {isHighRank && (
+            <button
+              id="btn-open-pin-reset-audit-header"
+              onClick={() => setIsPinResetAuditModalOpen(true)}
+              className="px-2.5 py-1.5 bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 hover:border-amber-500 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
+              title="Audit Log Permohonan Reset PIN & Otorisasi Webhook Discord (High Command)"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">👑 LOG PIN</span>
+              <span className="sm:hidden">PIN</span>
+              {pendingPinCount > 0 && (
+                <span className="px-1.5 py-0.2 bg-amber-500 text-black text-[9px] rounded-full font-bold animate-pulse">
+                  {pendingPinCount}
+                </span>
+              )}
             </button>
           )}
 
@@ -477,6 +779,15 @@ export default function App() {
         <nav className="flex items-center gap-1 text-[11px] font-medium">
           {[
             { id: 'calc', label: 'Kalkulator Pasal', icon: Calculator, code: 'CALC' },
+            { id: 'dispatch', label: '📻 CAD 911 & Panic', icon: Radio, code: 'CAD' },
+            { id: 'dmv', label: '👤 Sipil & DMV', icon: UserCheck, code: 'DMV' },
+            { id: 'divisions', label: '🎖️ Divisi Khusus', icon: Award, code: 'DIV' },
+            { id: 'forensics', label: '🔬 Lab Forensik', icon: Microscope, code: 'LAB' },
+            { id: 'documents', label: '📄 Surat & Dokumen Resmi', icon: StampIcon, code: 'DOC' },
+            { id: 'detective', label: `🔍 Kasus Detektif (${detectiveCases.length})`, icon: Search, code: 'DB' },
+            { id: 'traffic', label: `🚗 BOLO & Sitaan (${boloList.length})`, icon: Car, code: 'BOLO' },
+            { id: 'vault', label: '🏦 Brankas & Audit (1x/Mgg)', icon: Landmark, code: 'VAULT' },
+            { id: 'destruction', label: '💥 Peleburan Sitaan', icon: Flame, code: 'LEBUR' },
             { id: 'megaphone', label: 'Megaphone Studio', icon: Megaphone, code: '/M' },
             { id: 'rp', label: 'Hak Miranda & RP', icon: BookOpen, code: 'RP' },
             { id: 'sop', label: 'SOP & Ten-Codes', icon: Radio, code: 'SOP' },
@@ -528,11 +839,111 @@ export default function App() {
 
       {/* Main Content Body */}
       <main className="max-w-7xl mx-auto px-3 sm:px-5 py-4 flex-1 w-full">
+        {/* Dynamic Division & Rank Badge Hero Banner */}
+        <DivisionBadgeHero
+          currentOfficer={currentOfficer}
+          totalCases={detectiveCases.length}
+          totalRecords={records.length}
+          totalRoster={roster.length}
+          activeBoloCount={boloList.filter(b => b.active).length}
+        />
+
         {activeNav === 'calc' && (
           <PasalCalculator 
             onSaveRecord={handleSaveRecord} 
             currentOfficer={currentOfficer}
           />
+        )}
+        {activeNav === 'dispatch' && (
+          <ModuleClearanceGuard
+            moduleKey="DISPATCH"
+            currentOfficer={currentOfficer}
+            roster={roster}
+          >
+            <CadDispatchBoard
+              currentOfficer={currentOfficer}
+            />
+          </ModuleClearanceGuard>
+        )}
+        {activeNav === 'dmv' && (
+          <ModuleClearanceGuard
+            moduleKey="DMV_CITIZEN"
+            currentOfficer={currentOfficer}
+            roster={roster}
+          >
+            <CitizenDmvDatabase
+              currentOfficer={currentOfficer}
+            />
+          </ModuleClearanceGuard>
+        )}
+        {activeNav === 'divisions' && (
+          <ModuleClearanceGuard
+            moduleKey="SPECIAL_DIVISIONS"
+            currentOfficer={currentOfficer}
+            roster={roster}
+          >
+            <SpecializedDivisionsHub
+              currentOfficer={currentOfficer}
+              roster={roster}
+            />
+          </ModuleClearanceGuard>
+        )}
+        {activeNav === 'forensics' && (
+          <ModuleClearanceGuard
+            moduleKey="FORENSICS"
+            currentOfficer={currentOfficer}
+            roster={roster}
+          >
+            <ForensicsLabBoard
+              currentOfficer={currentOfficer}
+            />
+          </ModuleClearanceGuard>
+        )}
+        {activeNav === 'documents' && (
+          <OfficialDocumentStudio
+            currentOfficer={currentOfficer}
+            webhookConfig={getDiscordWebhookConfig()}
+          />
+        )}
+        {activeNav === 'detective' && (
+          <DetectiveCaseBoard
+            cases={detectiveCases}
+            currentOfficer={currentOfficer}
+            onSaveCase={handleSaveDetectiveCase}
+            onCreateCase={handleCreateDetectiveCase}
+            onDeleteCase={handleDeleteDetectiveCase}
+          />
+        )}
+        {activeNav === 'traffic' && (
+          <BoloAndTrafficHub
+            boloList={boloList}
+            impoundList={impoundList}
+            currentOfficer={currentOfficer}
+            onSaveBolo={handleSaveBoloAlerts}
+            onSaveImpound={handleSaveImpoundRecords}
+          />
+        )}
+        {activeNav === 'vault' && (
+          <ModuleClearanceGuard
+            moduleKey="VAULT"
+            currentOfficer={currentOfficer}
+            roster={roster}
+          >
+            <VaultAuditBoard
+              currentOfficer={currentOfficer}
+            />
+          </ModuleClearanceGuard>
+        )}
+        {activeNav === 'destruction' && (
+          <ModuleClearanceGuard
+            moduleKey="DESTRUCTION"
+            currentOfficer={currentOfficer}
+            roster={roster}
+          >
+            <DestructionRegistryBoard
+              currentOfficer={currentOfficer}
+            />
+          </ModuleClearanceGuard>
         )}
         {activeNav === 'megaphone' && <MegaphoneStudio />}
         {activeNav === 'rp' && <RoleplayActions />}
@@ -554,7 +965,10 @@ export default function App() {
             currentOfficerName={currentOfficer.name}
             currentOfficerBadge={currentOfficer.badge}
             onUpdateOfficer={handleUpdateOfficer}
+            onRegisterOfficer={handleRegisterOfficer}
             onDeleteOfficer={handleDeleteOfficer}
+            onOpenPinResetAudit={() => setIsPinResetAuditModalOpen(true)}
+            pendingPinResetCount={pendingPinCount}
           />
         )}
       </main>
@@ -585,6 +999,27 @@ export default function App() {
           setAuthorityPinConfig(newConf);
           setPinTimeRemaining(formatRemainingTime(newConf.expiresAt));
         }}
+      />
+
+      {/* PIN Reset Request Audit & Authorization Modal (High Command Only) */}
+      <PinResetAuditModal
+        isOpen={isPinResetAuditModalOpen}
+        onClose={() => {
+          setIsPinResetAuditModalOpen(false);
+          setPendingPinCount(getPendingPinResetCount());
+        }}
+        currentOfficer={currentOfficer}
+        roster={roster}
+        onUpdateOfficerPin={handleUpdateOfficerPin}
+      />
+
+      {/* OTP Clearance & Disposition Generator Modal (Supervisor & High Command) */}
+      <OtpGeneratorModal
+        isOpen={isOtpGeneratorModalOpen}
+        onClose={() => setIsOtpGeneratorModalOpen(false)}
+        currentOfficer={currentOfficer}
+        roster={roster}
+        defaultModule={otpModalDefaultModule}
       />
 
       {/* High Density Footer Status Line */}
