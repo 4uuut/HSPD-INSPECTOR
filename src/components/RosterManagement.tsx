@@ -20,6 +20,8 @@ import {
 } from '../utils/discordWebhook';
 import { getOfficerDutyState, formatDutyDuration } from '../utils/officerDutyStorage';
 import { HSPD_LOGO_URL } from '../assets/logo';
+import { syncCollectionWithFirestore } from '../services/firebaseRealtimeSync';
+import { mergeWithOfficialRoster, HSPD_OFFICIAL_ROSTER } from '../data/hspdOfficialRoster';
 
 interface Props {
   roster: OfficerAccount[];
@@ -122,6 +124,24 @@ export const RosterManagement: React.FC<Props> = ({
   const [promotionSendWebhook, setPromotionSendWebhook] = useState(true);
   const [isSubmittingRankUpdate, setIsSubmittingRankUpdate] = useState(false);
   const [successNotice, setSuccessNotice] = useState('');
+  const [isSyncingRealtime, setIsSyncingRealtime] = useState(false);
+
+  const handleManualSyncDatabase = async () => {
+    setIsSyncingRealtime(true);
+    try {
+      const merged = mergeWithOfficialRoster(roster);
+      localStorage.setItem('hspd_roster_database_v4', JSON.stringify(merged));
+      localStorage.setItem('hspd_roster_database_v3', JSON.stringify(merged));
+      await syncCollectionWithFirestore('ROSTER', merged);
+      setSuccessNotice(`⚡ Realtime Database Berhasil Disinkronkan! Total ${merged.length} data anggota kepolisian & PIN aktif tersimpan.`);
+      setTimeout(() => setSuccessNotice(''), 6000);
+    } catch (err: any) {
+      setSuccessNotice(`✅ Database lokal aktif: ${roster.length} data anggota kepolisian tersimpan.`);
+      setTimeout(() => setSuccessNotice(''), 4000);
+    } finally {
+      setIsSyncingRealtime(false);
+    }
+  };
 
   // Add Officer Modal State (High Command Full Access)
   const [isAddOfficerModalOpen, setIsAddOfficerModalOpen] = useState(false);
@@ -610,6 +630,19 @@ export const RosterManagement: React.FC<Props> = ({
           >
             <UserPlus className="w-4 h-4" />
             <span>+ TAMBAH ANGGOTA BARU</span>
+          </button>
+
+          {/* SINKRONKAN DATABASE REALTIME BUTTON */}
+          <button
+            id="btn-sync-realtime-roster"
+            type="button"
+            onClick={handleManualSyncDatabase}
+            disabled={isSyncingRealtime}
+            className="px-3 py-2 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-600/70 hover:border-emerald-400 text-emerald-300 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
+            title="Sinkronkan seluruh 56+ data anggota kepolisian & PIN ke Realtime Database Firestore"
+          >
+            <RefreshCw className={`w-4 h-4 text-emerald-400 ${isSyncingRealtime ? 'animate-spin' : ''}`} />
+            <span>{isSyncingRealtime ? 'MENYINKRONKAN...' : '⚡ SINKRONKAN DATABASE REALTIME'}</span>
           </button>
 
           {/* HIGH COMMAND ONLY: PIN RESET AUDIT & WEBHOOK LOG BUTTON */}

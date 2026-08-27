@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PasalCalculator } from './components/PasalCalculator';
 import { MegaphoneStudio } from './components/MegaphoneStudio';
 import { RoleplayActions } from './components/RoleplayActions';
@@ -48,115 +48,37 @@ import {
   FirebaseSyncStatus 
 } from './services/firebaseRealtimeSync';
 
+import { HSPD_OFFICIAL_ROSTER, mergeWithOfficialRoster } from './data/hspdOfficialRoster';
+
 const STORAGE_KEY = 'hspd_arrest_records_v1';
 const OFFICER_STORAGE_KEY = 'hspd_active_officer_v1';
 const ROSTER_STORAGE_KEY = 'hspd_roster_database_v4';
 const DUTY_STATUS_STORAGE_KEY = 'hspd_is_duty_v1';
 const DUTY_START_TIME_KEY = 'hspd_duty_start_time_v1';
 
-const INITIAL_ROSTER: OfficerAccount[] = [
-  {
-    id: 'roster-leoarnd-neave-001',
-    name: 'Leoarnd Neave',
-    badge: '#001',
-    rank: 'CHIEF OF POLICE [COP]',
-    division: 'Executive Office / High Command',
-    pin: '8462100',
-    registeredAt: Date.now() - 86400000 * 60,
-    promotedBy: 'SK Pengangkatan Markas Besar Kepolisian HSPD',
-  },
-  {
-    id: 'roster-holt-401',
-    name: 'Raymond Holt',
-    badge: '#401',
-    rank: 'CAPTAIN [CPT]',
-    division: 'High Command Staff',
-    pin: '40100',
-    registeredAt: Date.now() - 86400000 * 30,
-    promotedBy: 'SK Kepolisian HighState / HQ Command',
-  },
-  {
-    id: 'roster-jeffords-302',
-    name: 'Terry Jeffords',
-    badge: '#302',
-    rank: 'SERGEANT [SGT]',
-    division: 'Patrol Supervisory',
-    pin: '30210',
-    registeredAt: Date.now() - 86400000 * 20,
-    promotedBy: 'Promosi Lapangan oleh Atasan',
-  },
-  {
-    id: 'roster-peralta-204',
-    name: 'Jake Peralta',
-    badge: '#204',
-    rank: 'POLICE OFFICER III [PO III]',
-    division: 'Detective Bureau / CID',
-    pin: '20499',
-    registeredAt: Date.now() - 86400000 * 14,
-    promotedBy: 'Promosi oleh Sergeant Jeffords',
-  },
-  {
-    id: 'roster-santiago-215',
-    name: 'Amy Santiago',
-    badge: '#215',
-    rank: 'POLICE OFFICER II [PO II]',
-    division: 'Patrol Division',
-    pin: '21588',
-    registeredAt: Date.now() - 86400000 * 10,
-    promotedBy: 'Selesai Masa Probation PO I',
-  },
-  {
-    id: 'roster-boyle-220',
-    name: 'Charles Boyle',
-    badge: '#220',
-    rank: 'POLICE OFFICER II [PO II]',
-    division: 'Patrol Division',
-    pin: '22077',
-    registeredAt: Date.now() - 86400000 * 8,
-    promotedBy: 'Selesai Masa Probation PO I',
-  },
-  {
-    id: 'roster-miller-105',
-    name: 'John Miller',
-    badge: '#105',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '10501',
-    registeredAt: Date.now() - 86400000 * 2,
-    promotedBy: 'Lulus Akademi Kepolisian',
-  }
-];
-
 export default function App() {
-  // Active Roster Database
+  // Active Roster Database with all 56+ department officers
   const [roster, setRoster] = useState<OfficerAccount[]>(() => {
     try {
-      let saved = localStorage.getItem(ROSTER_STORAGE_KEY);
-      if (!saved) {
-        saved = localStorage.getItem('hspd_roster_database_v3') || localStorage.getItem('hspd_roster_database_v2');
-      }
+      let saved = localStorage.getItem(ROSTER_STORAGE_KEY) || 
+                  localStorage.getItem('hspd_roster_database_v3') || 
+                  localStorage.getItem('hspd_roster_database_v2');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const hasLeoarnd = parsed.some((p: OfficerAccount) => 
-            p.name.toLowerCase().includes('leoarnd') || p.badge === '#001'
-          );
-          if (!hasLeoarnd) {
-            return [INITIAL_ROSTER[0], ...parsed];
-          } else {
-            return parsed.map((p: OfficerAccount) => {
-              if (p.name.toLowerCase().includes('leoarnd') || p.badge === '#001') {
-                return { ...p, name: 'Leoarnd Neave', pin: '8462100', rank: 'CHIEF OF POLICE [COP]' };
-              }
-              return p;
-            });
-          }
+          const merged = mergeWithOfficialRoster(parsed);
+          localStorage.setItem(ROSTER_STORAGE_KEY, JSON.stringify(merged));
+          return merged;
         }
       }
     } catch (e) {
       console.error(e);
     }
-    return INITIAL_ROSTER;
+    const initial = mergeWithOfficialRoster(HSPD_OFFICIAL_ROSTER);
+    try {
+      localStorage.setItem(ROSTER_STORAGE_KEY, JSON.stringify(initial));
+    } catch {}
+    return initial;
   });
 
   // Current logged in officer
@@ -298,14 +220,23 @@ export default function App() {
     saveImpounds(newList);
   };
 
+  // Track initial mount to avoid spamming Firestore writes on page load
+  const isRosterFirstMount = useRef(true);
+  const isRecordsFirstMount = useRef(true);
+
   // Persist roster and sync to Firestore
   useEffect(() => {
     try {
       localStorage.setItem(ROSTER_STORAGE_KEY, JSON.stringify(roster));
       localStorage.setItem('hspd_roster_database_v3', JSON.stringify(roster));
       localStorage.setItem('hspd_roster_database_v2', JSON.stringify(roster));
+      
       if (roster && roster.length > 0) {
-        syncCollectionWithFirestore('ROSTER', roster).catch(console.error);
+        const timeout = setTimeout(() => {
+          syncCollectionWithFirestore('ROSTER', roster).catch(() => {});
+        }, isRosterFirstMount.current ? 1200 : 500);
+        isRosterFirstMount.current = false;
+        return () => clearTimeout(timeout);
       }
     } catch (e) {
       console.error('Failed to persist roster database', e);
@@ -331,14 +262,16 @@ export default function App() {
     const handleRemoteRoster = (e: any) => {
       try {
         if (e && e.detail && Array.isArray(e.detail) && e.detail.length > 0) {
-          const detailStr = JSON.stringify(e.detail);
-          setRoster(prev => (JSON.stringify(prev) === detailStr ? prev : e.detail));
+          const merged = mergeWithOfficialRoster(e.detail);
+          const detailStr = JSON.stringify(merged);
+          setRoster(prev => (JSON.stringify(prev) === detailStr ? prev : merged));
         } else {
           const raw = localStorage.getItem(ROSTER_STORAGE_KEY) || localStorage.getItem('hspd_roster_database_v3');
           if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed) && parsed.length > 0) {
-              setRoster(prev => (JSON.stringify(prev) === raw ? prev : parsed));
+              const merged = mergeWithOfficialRoster(parsed);
+              setRoster(prev => (JSON.stringify(prev) === JSON.stringify(merged) ? prev : merged));
             }
           }
         }
@@ -397,8 +330,15 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+      if (isRecordsFirstMount.current) {
+        isRecordsFirstMount.current = false;
+        return;
+      }
       if (records && records.length > 0) {
-        syncCollectionWithFirestore('ARREST_RECORDS', records).catch(console.error);
+        const timeout = setTimeout(() => {
+          syncCollectionWithFirestore('ARREST_RECORDS', records).catch(() => {});
+        }, 500);
+        return () => clearTimeout(timeout);
       }
     } catch (e) {
       console.error('Failed to persist arrest records', e);

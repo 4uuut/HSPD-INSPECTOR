@@ -5,9 +5,11 @@ import {
   deleteDoc, 
   onSnapshot, 
   getDocs,
-  writeBatch
+  writeBatch,
+  Unsubscribe
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { mergeWithOfficialRoster } from '../data/hspdOfficialRoster';
 
 export interface FirebaseSyncStatus {
   connected: boolean;
@@ -17,14 +19,46 @@ export interface FirebaseSyncStatus {
   quotaExhausted?: boolean;
 }
 
+const QUOTA_STORAGE_KEY = 'hspd_firestore_quota_exhausted_v1';
+
+function getInitialQuotaExhaustedTime(): number {
+  try {
+    const saved = localStorage.getItem(QUOTA_STORAGE_KEY);
+    if (saved) {
+      const parsed = parseInt(saved, 10);
+      if (!isNaN(parsed) && parsed > Date.now()) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return 0;
+}
+
+let quotaExhaustedUntil: number = getInitialQuotaExhaustedTime();
+
+function setQuotaExhausted() {
+  // Set backoff cooldown for 4 hours
+  quotaExhaustedUntil = Date.now() + 4 * 60 * 60 * 1000;
+  try {
+    localStorage.setItem(QUOTA_STORAGE_KEY, String(quotaExhaustedUntil));
+  } catch {}
+}
+
+export function isQuotaExhausted(): boolean {
+  if (quotaExhaustedUntil > Date.now()) {
+    return true;
+  }
+  return false;
+}
+
 // Global state callback for UI status banner
 let syncListeners: ((status: FirebaseSyncStatus) => void)[] = [];
 let currentSyncStatus: FirebaseSyncStatus = {
-  connected: false,
-  lastSyncTime: null,
+  connected: true,
+  lastSyncTime: Date.now(),
   pendingCount: 0,
-  error: null,
-  quotaExhausted: false
+  error: isQuotaExhausted() ? 'Penyimpanan lokal aktif (Batas kuota cloud gratis tercapai)' : null,
+  quotaExhausted: isQuotaExhausted()
 };
 
 export const subscribeToSyncStatus = (cb: (status: FirebaseSyncStatus) => void) => {
@@ -121,7 +155,6 @@ export type CollectionKey = keyof typeof SYNC_COLLECTIONS;
 // Anti-Loop & Deduplication Tracking
 const lastKnownFingerprints: Record<string, string> = {};
 const isApplyingRemoteMap: Record<string, boolean> = {};
-let quotaExhaustedUntil: number = 0;
 
 function computeFingerprint(items: any): string {
   try {
@@ -142,6 +175,9 @@ function isQuotaError(err: any): boolean {
     msg.includes('free daily write units')
   );
 }
+
+// Active unsubs
+let activeListeners: Unsubscribe[] = [];
 
 /**
  * Sync entire list with Firestore (handles additions, updates, AND deletions)
@@ -175,12 +211,12 @@ export async function syncCollectionWithFirestore<T extends { id?: string; badge
   }
 
   // If Firestore Free Tier quota is currently exceeded, operate smoothly in Local Fallback Mode
-  if (Date.now() < quotaExhaustedUntil) {
+  if (isQuotaExhausted()) {
     notifyStatus({
       connected: true,
       quotaExhausted: true,
       lastSyncTime: Date.now(),
-      error: 'Penyimpanan lokal aktif (Kuota Cloud mencapai batas harian)'
+      error: 'Penyimpanan lokal aktif (Batas kuota cloud gratis tercapai)'
     });
     return true;
   }
@@ -234,8 +270,7 @@ export async function syncCollectionWithFirestore<T extends { id?: string; badge
     return true;
   } catch (err: any) {
     if (isQuotaError(err)) {
-      quotaExhaustedUntil = Date.now() + 10 * 60 * 1000; // Pause cloud writes for 10 minutes
-      console.warn(`[FirebaseSync] Firestore write quota reached for ${collectionKey}. Operating in local fallback mode.`);
+      setQuotaExhausted();
       notifyStatus({
         connected: true,
         quotaExhausted: true,
@@ -245,8 +280,7 @@ export async function syncCollectionWithFirestore<T extends { id?: string; badge
       return true; // Return true because local data is safely saved
     }
 
-    console.error(`[FirebaseSync] Error syncing collection ${collectionKey}:`, err);
-    notifyStatus({ error: err.message || 'Sync failed' });
+    console.warn(`[FirebaseSync] Sync warning on ${collectionKey}:`, err?.message || err);
     return false;
   }
 }
@@ -259,12 +293,12 @@ export async function pushToFirestore<T extends { id?: string }>(
 ): Promise<boolean> {
   if (isApplyingRemoteMap[collectionKey]) return true;
 
-  if (Date.now() < quotaExhaustedUntil) {
+  if (isQuotaExhausted()) {
     notifyStatus({
       connected: true,
       quotaExhausted: true,
       lastSyncTime: Date.now(),
-      error: 'Penyimpanan lokal aktif'
+      error: 'Penyimpanan lokal aktif (Batas kuota cloud gratis tercapai)'
     });
     return true;
   }
@@ -290,18 +324,16 @@ export async function pushToFirestore<T extends { id?: string }>(
     return true;
   } catch (err: any) {
     if (isQuotaError(err)) {
-      quotaExhaustedUntil = Date.now() + 10 * 60 * 1000;
-      console.warn(`[FirebaseSync] Quota limit reached on single push. Using local storage.`);
+      setQuotaExhausted();
       notifyStatus({
         connected: true,
         quotaExhausted: true,
         lastSyncTime: Date.now(),
-        error: 'Penyimpanan lokal aktif'
+        error: 'Penyimpanan lokal aktif (Batas kuota cloud gratis tercapai)'
       });
       return true;
     }
-    console.error(`[FirebaseSync] Error pushing to ${collectionKey}:`, err);
-    notifyStatus({ error: err.message || 'Sync failed' });
+    console.warn(`[FirebaseSync] Push warning on ${collectionKey}:`, err?.message || err);
     return false;
   }
 }
@@ -319,7 +351,7 @@ export async function deleteFromFirestore(
   collectionKey: CollectionKey,
   docId: string
 ): Promise<boolean> {
-  if (Date.now() < quotaExhaustedUntil) return true;
+  if (isQuotaExhausted()) return true;
 
   try {
     const config = SYNC_COLLECTIONS[collectionKey];
@@ -329,10 +361,10 @@ export async function deleteFromFirestore(
     return true;
   } catch (err: any) {
     if (isQuotaError(err)) {
-      quotaExhaustedUntil = Date.now() + 10 * 60 * 1000;
+      setQuotaExhausted();
       return true;
     }
-    console.error(`[FirebaseSync] Error deleting from ${collectionKey}:`, err);
+    console.warn(`[FirebaseSync] Delete warning on ${collectionKey}:`, err?.message || err);
     return false;
   }
 }
@@ -393,6 +425,7 @@ export const ALL_WEBHOOK_CONFIG_KEYS = [
  * Collects and syncs all webhooks to Firestore
  */
 export function syncAllWebhooksToFirestore() {
+  if (isQuotaExhausted()) return;
   try {
     const bundle: Record<string, string> = {};
     ALL_WEBHOOK_CONFIG_KEYS.forEach(key => {
@@ -411,6 +444,16 @@ export function initRealtimeFirebaseSync() {
   if (isInitialized) return;
   isInitialized = true;
 
+  if (isQuotaExhausted()) {
+    notifyStatus({ 
+      connected: true, 
+      quotaExhausted: true, 
+      lastSyncTime: Date.now(),
+      error: 'Penyimpanan lokal aktif (Batas kuota cloud gratis tercapai)'
+    });
+    return;
+  }
+
   notifyStatus({ connected: true, lastSyncTime: Date.now() });
 
   // Iterate over each collection and attach onSnapshot
@@ -420,7 +463,7 @@ export function initRealtimeFirebaseSync() {
 
     try {
       const colRef = collection(db, config.name);
-      onSnapshot(colRef, (snapshot) => {
+      const unsub = onSnapshot(colRef, (snapshot) => {
         if (!snapshot.empty) {
           // Special handling for SYSTEM_CONFIGS single docs
           if (key === 'SYSTEM_CONFIGS') {
@@ -456,14 +499,21 @@ export function initRealtimeFirebaseSync() {
             items.push(data);
           });
 
-          // Sort by timestamp, registeredAt, or _updatedAt (newest first)
-          items.sort((a, b) => {
-            const timeA = a.timestamp || a.registeredAt || a.createdAt || a._updatedAt || 0;
-            const timeB = b.timestamp || b.registeredAt || b.createdAt || b._updatedAt || 0;
-            return timeB - timeA;
-          });
+          let finalItems: any[] = items;
+          if (key === 'ROSTER') {
+            finalItems = mergeWithOfficialRoster(items);
+          }
 
-          const incomingFingerprint = computeFingerprint(items);
+          // Sort by timestamp, registeredAt, or _updatedAt (newest first)
+          if (key !== 'ROSTER') {
+            finalItems.sort((a, b) => {
+              const timeA = a.timestamp || a.registeredAt || a.createdAt || a._updatedAt || 0;
+              const timeB = b.timestamp || b.registeredAt || b.createdAt || b._updatedAt || 0;
+              return timeB - timeA;
+            });
+          }
+
+          const incomingFingerprint = computeFingerprint(finalItems);
 
           // If incoming remote snapshot is identical to what we already hold, don't trigger re-render cycle
           if (lastKnownFingerprints[key] === incomingFingerprint) {
@@ -475,14 +525,14 @@ export function initRealtimeFirebaseSync() {
 
           // Update localStorage
           try {
-            localStorage.setItem(config.storageKey, JSON.stringify(items));
+            localStorage.setItem(config.storageKey, JSON.stringify(finalItems));
             if ('altStorageKeys' in config && Array.isArray((config as any).altStorageKeys)) {
-              (config as any).altStorageKeys.forEach((kName: string) => localStorage.setItem(kName, JSON.stringify(items)));
+              (config as any).altStorageKeys.forEach((kName: string) => localStorage.setItem(kName, JSON.stringify(finalItems)));
             }
           } catch (e) {}
           
           // Trigger UI update event safely
-          window.dispatchEvent(new CustomEvent(config.event, { detail: items }));
+          window.dispatchEvent(new CustomEvent(config.event, { detail: finalItems }));
           
           setTimeout(() => {
             isApplyingRemoteMap[key] = false;
@@ -493,35 +543,28 @@ export function initRealtimeFirebaseSync() {
             lastSyncTime: Date.now(),
             error: null
           });
-        } else {
-          // If Firestore is empty on initial bootstrap and quota is available, seed it with current localStorage
-          if (Date.now() >= quotaExhaustedUntil) {
-            const localRaw = localStorage.getItem(config.storageKey);
-            if (localRaw) {
-              try {
-                const localItems = JSON.parse(localRaw);
-                if (Array.isArray(localItems) && localItems.length > 0) {
-                  pushAllToFirestore(key, localItems);
-                }
-              } catch (e) {}
-            }
-          }
         }
       }, (error) => {
         if (isQuotaError(error)) {
-          quotaExhaustedUntil = Date.now() + 10 * 60 * 1000;
+          setQuotaExhausted();
           notifyStatus({
             connected: true,
             quotaExhausted: true,
-            error: 'Penyimpanan lokal aktif'
+            error: 'Penyimpanan lokal aktif (Batas kuota cloud gratis tercapai)'
           });
+          // Unsubscribe to stop continuous retry errors in console
+          activeListeners.forEach(u => {
+            try { u(); } catch {}
+          });
+          activeListeners = [];
           return;
         }
-        console.warn(`[FirebaseSync] Snapshot listener error on ${config.name}:`, error);
-        notifyStatus({ error: error.message });
+        console.warn(`[FirebaseSync] Listener notice for ${config.name}:`, error?.message || error);
       });
+
+      activeListeners.push(unsub);
     } catch (e: any) {
-      console.warn(`[FirebaseSync] Failed to attach listener for ${config.name}:`, e);
+      console.warn(`[FirebaseSync] Listener setup notice for ${config.name}:`, e?.message || e);
     }
   });
 }

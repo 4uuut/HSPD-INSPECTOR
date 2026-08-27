@@ -51,12 +51,18 @@ export type OfficerRankLevel =
   | 'DEPUTY CHIEF [D/C]'
   | 'COMMANDER [CDR]'
   | 'CAPTAIN [CPT]'
+  | 'CAPTAIN [CPT ]'
+  | 'LIEUTENANT II [LT II]'
+  | 'LIEUTENANT I [LT I]'
   | 'LIEUTENANT [LT]'
+  | 'SERGEANT II [SGT II]'
+  | 'SERGEANT I [SGT I]'
   | 'SERGEANT [SGT]'
   | 'SENIOR LEAD OFFICER [SLO]'
   | 'POLICE OFFICER III [PO III]'
   | 'POLICE OFFICER II [PO II]'
   | 'POLICE OFFICER I [PO I]'
+  | 'CADET POLICE'
   | 'CADET [CDT]'
   // Backward compatibility alias:
   | 'Chief of Police'
@@ -167,12 +173,17 @@ export const ALL_RANKS: OfficerRankLevel[] = [
   'DEPUTY CHIEF [D/C]',
   'COMMANDER [CDR]',
   'CAPTAIN [CPT]',
+  'LIEUTENANT II [LT II]',
+  'LIEUTENANT I [LT I]',
   'LIEUTENANT [LT]',
+  'SERGEANT II [SGT II]',
+  'SERGEANT I [SGT I]',
   'SERGEANT [SGT]',
   'SENIOR LEAD OFFICER [SLO]',
   'POLICE OFFICER III [PO III]',
   'POLICE OFFICER II [PO II]',
   'POLICE OFFICER I [PO I]',
+  'CADET POLICE',
   'CADET [CDT]'
 ];
 
@@ -201,12 +212,17 @@ export const HIGH_RANKS: OfficerRankLevel[] = [
 
 export const PATROL_RANKS: OfficerRankLevel[] = [
   'CAPTAIN [CPT]',
+  'LIEUTENANT II [LT II]',
+  'LIEUTENANT I [LT I]',
   'LIEUTENANT [LT]',
+  'SERGEANT II [SGT II]',
+  'SERGEANT I [SGT I]',
   'SERGEANT [SGT]',
   'SENIOR LEAD OFFICER [SLO]',
   'POLICE OFFICER III [PO III]',
   'POLICE OFFICER II [PO II]',
   'POLICE OFFICER I [PO I]',
+  'CADET POLICE',
   'CADET [CDT]'
 ];
 
