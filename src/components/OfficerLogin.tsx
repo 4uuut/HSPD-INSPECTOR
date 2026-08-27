@@ -1,27 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   OfficerProfile, OfficerAccount, isOfficerHighRank 
 } from '../types';
 import { 
   Shield, Lock, User, KeyRound, CheckCircle2, 
   AlertTriangle, ArrowRight, Eye, EyeOff, HelpCircle, 
-  LogIn, BookOpen, MessageSquare, Send, ShieldAlert
+  LogIn, BookOpen, MessageSquare, Send, ShieldAlert,
+  Palette, Upload, Sparkles
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from '../assets/logo';
 import { RecruitmentInfoPanel } from './RecruitmentInfoPanel';
 import { RequestPinDiscordModal } from './RequestPinDiscordModal';
+import { CustomBrandingModal } from './CustomBrandingModal';
+import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from '../utils/brandingStorage';
 
 interface Props {
   onLogin: (officer: OfficerProfile) => void;
   roster: OfficerAccount[];
   onRegisterOfficer?: (account: OfficerAccount) => void;
   onUpdateOfficerPin?: (badgeOrName: string, newPin: string) => boolean;
+  onOpenBrandingModal?: () => void;
 }
 
 export const OfficerLogin: React.FC<Props> = ({ 
   onLogin, 
-  roster
+  roster,
+  onOpenBrandingModal
 }) => {
+  // Dynamic Branding State
+  const [branding, setBranding] = useState<DepartmentBrandingConfig>(getCustomBranding());
+  const [isBrandingModalOpen, setIsBrandingModalOpen] = useState(false);
+
+  useEffect(() => {
+    return subscribeToBranding(cfg => setBranding(cfg));
+  }, []);
+
   // Mobile / layout navigation: 'auth' (right side) or 'recruitment' (left side on mobile)
   const [mobileView, setMobileView] = useState<'auth' | 'recruitment'>('auth');
   
@@ -98,34 +111,53 @@ export const OfficerLogin: React.FC<Props> = ({
         {/* Top Navbar Header Bar */}
         <div className="bg-[#161B22] border border-gray-800 rounded-xl px-4 sm:px-6 py-3 flex items-center justify-between shadow-xl">
           <div className="flex items-center gap-3.5">
-            <div className="relative group shrink-0">
-              <div className="absolute -inset-1 bg-amber-500/20 rounded-full blur-sm group-hover:bg-amber-500/30 transition"></div>
+            <div className="relative group shrink-0 cursor-pointer" onClick={() => onOpenBrandingModal ? onOpenBrandingModal() : setIsBrandingModalOpen(true)} title="Klik untuk mengubah / upload logo website">
+              <div className="absolute -inset-1 bg-amber-500/20 rounded-full blur-sm group-hover:bg-amber-500/40 transition"></div>
               <img
-                src={HSPD_LOGO_URL}
-                alt="State of High State Police Department Official Crest"
+                src={branding.logoUrl || HSPD_LOGO_URL}
+                alt={`${branding.departmentName} Official Crest`}
                 referrerPolicy="no-referrer"
-                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-contain relative z-10 drop-shadow-md border border-amber-500/40 bg-black/60 p-0.5"
+                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-contain relative z-10 drop-shadow-md border border-amber-500/40 bg-black/60 p-0.5 group-hover:scale-105 transition"
+                onError={e => {
+                  (e.target as HTMLImageElement).src = HSPD_LOGO_URL;
+                }}
               />
+              <div className="absolute -bottom-1 -right-1 z-20 bg-amber-500 text-black p-0.5 rounded-full border border-black text-[9px] group-hover:block transition">
+                <Palette className="w-2.5 h-2.5" />
+              </div>
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="font-bold text-sm sm:text-base text-gray-100 tracking-tight flex items-center gap-1.5 font-sans">
-                  <span>HIGHSTATE POLICE DEPARTMENT</span>
+                  <span>{branding.departmentName}</span>
                 </h1>
                 <span className="text-[10px] font-mono bg-amber-950/80 text-amber-300 border border-amber-700/60 px-1.5 py-0.5 rounded font-bold">
-                  MDT-CAD
+                  {branding.cadBadgeText}
                 </span>
               </div>
               <p className="text-[11px] text-gray-400 font-mono hidden sm:flex items-center gap-1.5">
-                <span>Integrated Police CAD & Recruitment Portal</span>
+                <span>{branding.agencyJurisdiction}</span>
                 <span className="text-gray-600">•</span>
-                <span className="text-amber-400/90 font-medium">To Protect & Serve HighState</span>
+                <span className="text-emerald-400/90 font-medium">FREQ: {branding.radioFreq}</span>
               </p>
             </div>
           </div>
 
-          {/* Right Status Badge */}
-          <div className="flex items-center gap-2 font-mono text-xs">
+          {/* Right Status Badge & Custom Logo Button */}
+          <div className="flex items-center gap-2.5 font-mono text-xs">
+            {/* Direct Branding / Logo Customizer Button */}
+            <button
+              id="btn-open-branding-login"
+              type="button"
+              onClick={() => onOpenBrandingModal ? onOpenBrandingModal() : setIsBrandingModalOpen(true)}
+              className="px-2.5 py-1.5 bg-gradient-to-r from-amber-950/80 to-amber-900/80 hover:from-amber-900 hover:to-amber-800 text-amber-300 border border-amber-500/60 hover:border-amber-400 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+              title="Kustomisasi & Upload Logo dari Device / Web"
+            >
+              <Palette className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">UBAH LOGO</span>
+              <span className="sm:hidden">LOGO</span>
+            </button>
+
             <div className="hidden md:flex flex-col items-end text-right">
               <span className="text-[10px] text-green-400 flex items-center gap-1 font-bold">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
@@ -330,6 +362,13 @@ export const OfficerLogin: React.FC<Props> = ({
         onClose={() => setIsDiscordModalOpen(false)}
         initialIdentifier={loginIdentifier}
         roster={roster}
+      />
+
+      {/* CUSTOM LOGO & BRANDING MODAL */}
+      <CustomBrandingModal
+        isOpen={isBrandingModalOpen}
+        onClose={() => setIsBrandingModalOpen(false)}
+        onBrandingUpdated={cfg => setBranding(cfg)}
       />
     </div>
   );

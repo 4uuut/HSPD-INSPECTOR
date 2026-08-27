@@ -22,12 +22,18 @@ import { CadDispatchBoard } from './components/CadDispatchBoard';
 import { SpecializedDivisionsHub } from './components/SpecializedDivisionsHub';
 import { CitizenDmvDatabase } from './components/CitizenDmvDatabase';
 import { ForensicsLabBoard } from './components/ForensicsLabBoard';
+import { CustomBrandingModal } from './components/CustomBrandingModal';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
 import { getPendingPinResetCount } from './utils/pinResetStorage';
 import { getSavedDetectiveCases, saveDetectiveCases } from './utils/detectiveCaseStorage';
 import { getSavedBoloAlerts, saveBoloAlerts, getSavedImpounds, saveImpounds } from './utils/boloImpoundStorage';
 import { getOfficerDutyState, saveOfficerDutyState, formatDutyDuration } from './utils/officerDutyStorage';
 import { getDiscordWebhookConfig } from './utils/discordWebhook';
+import { 
+  getCustomBranding, 
+  subscribeToBranding, 
+  DepartmentBrandingConfig 
+} from './utils/brandingStorage';
 import { 
   ArrestRecord, OfficerProfile, OfficerAccount, isOfficerHighRank, isSupervisorOrAbove,
   DetectiveCase, BoloAlert, ImpoundRecord, getDivisionArchetype, ModuleAccessKey 
@@ -37,7 +43,7 @@ import {
   Radio, Award, User, LogOut, Lock, Sparkles, BadgeCheck,
   Users, ShieldAlert, KeyRound, Power, Clock, CheckCircle2, Sliders,
   Search, Car, Crosshair, Landmark, Flame, Stamp as StampIcon,
-  UserCheck, Microscope, Cloud, Database
+  UserCheck, Microscope, Cloud, Database, Palette
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from './assets/logo';
 import { 
@@ -134,6 +140,14 @@ export default function App() {
   const [pendingPinCount, setPendingPinCount] = useState<number>(() => getPendingPinResetCount());
   const [authorityPinConfig, setAuthorityPinConfig] = useState<AuthorityPinConfig>(() => getAuthorityPinConfig());
   const [pinTimeRemaining, setPinTimeRemaining] = useState(() => formatRemainingTime(authorityPinConfig.expiresAt));
+
+  // Dynamic Website Logo & Department Identity Branding
+  const [branding, setBranding] = useState<DepartmentBrandingConfig>(() => getCustomBranding());
+  const [isBrandingModalOpen, setIsBrandingModalOpen] = useState(false);
+
+  useEffect(() => {
+    return subscribeToBranding(cfg => setBranding(cfg));
+  }, []);
 
   // Sync pending PIN reset requests count
   useEffect(() => {
@@ -522,6 +536,7 @@ export default function App() {
         roster={roster}
         onRegisterOfficer={handleRegisterOfficer}
         onUpdateOfficerPin={handleUpdateOfficerPin}
+        onOpenBrandingModal={() => setIsBrandingModalOpen(true)}
       />
     );
   }
@@ -539,22 +554,32 @@ export default function App() {
       {/* Top High-Density Police Header Bar */}
       <header id="main-header" className="h-14 border-b border-gray-800 flex items-center px-4 justify-between bg-[#161B22] sticky top-0 z-40 shadow-xl">
         <div className="flex items-center gap-3">
-          <div className="relative group shrink-0">
+          <div 
+            className="relative group shrink-0 cursor-pointer" 
+            onClick={() => setIsBrandingModalOpen(true)} 
+            title="Klik untuk mengubah / upload logo website dari folder device"
+          >
             <img
-              src={HSPD_LOGO_URL}
-              alt="HSPD Official Crest"
+              src={branding.logoUrl || HSPD_LOGO_URL}
+              alt={`${branding.departmentName} Official Crest`}
               referrerPolicy="no-referrer"
-              className="w-9 h-9 rounded-full object-contain drop-shadow-md border border-amber-500/40 bg-black/60 p-0.5"
+              className="w-9 h-9 rounded-full object-contain drop-shadow-md border border-amber-500/40 bg-black/60 p-0.5 group-hover:scale-105 transition"
+              onError={e => {
+                (e.target as HTMLImageElement).src = HSPD_LOGO_URL;
+              }}
             />
+            <div className="absolute -bottom-1 -right-1 z-20 bg-amber-500 text-black p-0.5 rounded-full border border-black text-[9px] group-hover:block transition">
+              <Palette className="w-2 h-2" />
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-bold text-gray-100 text-sm tracking-tight">HSPD <span className="text-amber-400">INSPECTOR</span></span>
-                <span className="text-[9px] text-amber-300 font-mono bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/60 font-bold">MDC-CAD</span>
+                <span className="font-bold text-gray-100 text-sm tracking-tight">{branding.departmentCode} <span className="text-amber-400">{branding.subTitle}</span></span>
+                <span className="text-[9px] text-amber-300 font-mono bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/60 font-bold">{branding.cadBadgeText}</span>
               </div>
               <div className="text-[9px] text-gray-400 font-mono hidden sm:block">
-                STATE OF HIGH STATE POLICE DEPARTMENT
+                {branding.agencyJurisdiction}
               </div>
             </div>
           </div>
@@ -562,7 +587,7 @@ export default function App() {
           <div className="hidden lg:flex h-6 w-[1px] bg-gray-800 mx-1"></div>
 
           <div className="hidden xl:flex gap-2 text-[10px] uppercase tracking-wider font-semibold text-gray-500 items-center font-mono">
-            <span>FREQ: <strong className="text-green-400">1111</strong></span>
+            <span>FREQ: <strong className="text-green-400">{branding.radioFreq}</strong></span>
             <span className="text-gray-700">•</span>
             <span>ROSTER: <strong className="text-amber-400">{roster.length} Personel</strong></span>
           </div>
@@ -580,6 +605,19 @@ export default function App() {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
             <span className="text-[9px] text-emerald-400 font-bold">AUTO-SYNC</span>
           </div>
+
+          {/* CUSTOM LOGO & BRANDING BUTTON */}
+          <button
+            id="btn-open-branding-header"
+            type="button"
+            onClick={() => setIsBrandingModalOpen(true)}
+            className="px-2.5 py-1.5 bg-amber-950/70 hover:bg-amber-900/90 text-amber-300 border border-amber-600/70 hover:border-amber-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
+            title="Kustomisasi & Upload Logo Website dari Folder Device / Web URL"
+          >
+            <Palette className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden md:inline">🎨 UBAH LOGO</span>
+            <span className="md:hidden">LOGO</span>
+          </button>
 
           {/* SUPERVISOR & HIGH COMMAND: OTP CLEARANCE DISPOSITION BUTTON */}
           {isSupervisorOrAbove(currentOfficer.rank) && (
@@ -960,6 +998,14 @@ export default function App() {
         currentOfficer={currentOfficer}
         roster={roster}
         defaultModule={otpModalDefaultModule}
+      />
+
+      {/* Custom Website Logo & Department Branding Modal */}
+      <CustomBrandingModal
+        isOpen={isBrandingModalOpen}
+        onClose={() => setIsBrandingModalOpen(false)}
+        currentOfficer={currentOfficer}
+        onBrandingUpdated={cfg => setBranding(cfg)}
       />
 
       {/* High Density Footer Status Line */}

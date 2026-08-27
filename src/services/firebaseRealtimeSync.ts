@@ -147,6 +147,11 @@ export const SYNC_COLLECTIONS = {
     name: 'system_configs',
     storageKey: 'hspd_system_configs_v1',
     event: 'hspd-configs-updated'
+  },
+  BRANDING: {
+    name: 'branding',
+    storageKey: 'hspd_custom_branding_v1',
+    event: 'hspd-branding-updated'
   }
 } as const;
 
@@ -182,7 +187,7 @@ let activeListeners: Unsubscribe[] = [];
 /**
  * Sync entire list with Firestore (handles additions, updates, AND deletions)
  */
-export async function syncCollectionWithFirestore<T extends { id?: string; badge?: string; citizenId?: string; plate?: string; labNumber?: string; callNumber?: string }>(
+export async function syncCollectionWithFirestore<T extends Record<string, any>>(
   collectionKey: CollectionKey,
   items: T[]
 ): Promise<boolean> {

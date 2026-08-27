@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Award, Shield, FileCheck, CheckCircle2, Users, Target, Car, 
   BookOpen, AlertCircle, Sparkles, MessageSquare, Clock, PhoneCall, 
@@ -6,10 +6,16 @@ import {
   FileSpreadsheet, Flame, Radio, Building2, Search
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from '../assets/logo';
+import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from '../utils/brandingStorage';
 
 export const RecruitmentInfoPanel: React.FC = () => {
+  const [branding, setBranding] = useState<DepartmentBrandingConfig>(getCustomBranding());
   const [activeTab, setActiveTab] = useState<'overview' | 'requirements' | 'phases' | 'divisions'>('overview');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+
+  useEffect(() => {
+    return subscribeToBranding(cfg => setBranding(cfg));
+  }, []);
 
   const toggleFaq = (idx: number) => {
     setExpandedFaq(expandedFaq === idx ? null : idx);
@@ -24,10 +30,13 @@ export const RecruitmentInfoPanel: React.FC = () => {
         <div className="relative shrink-0">
           <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/80 p-1 border-2 border-amber-500/60 shadow-lg shadow-amber-500/20 flex items-center justify-center">
             <img
-              src={HSPD_LOGO_URL}
-              alt="HSPD Police Academy"
+              src={branding.logoUrl || HSPD_LOGO_URL}
+              alt={`${branding.departmentName} Police Academy`}
               referrerPolicy="no-referrer"
               className="w-full h-full object-contain rounded-full"
+              onError={e => {
+                (e.target as HTMLImageElement).src = HSPD_LOGO_URL;
+              }}
             />
           </div>
         </div>
@@ -44,11 +53,11 @@ export const RecruitmentInfoPanel: React.FC = () => {
           </div>
 
           <h2 className="text-base sm:text-lg font-bold text-gray-100 font-sans tracking-wide">
-            PORTAL INFORMASI & PENERIMAAN ANGGOTA HSPD
+            PORTAL INFORMASI & PENERIMAAN ANGGOTA {branding.departmentCode || 'HSPD'}
           </h2>
 
           <p className="text-[11px] text-gray-400 leading-relaxed font-sans">
-            Bergabunglah dengan jajaran penegak hukum terdepan State of HighState. Mengabdi dengan integritas, keberanian, dan profesionalisme tinggi.
+            Bergabunglah dengan jajaran penegak hukum terdepan {branding.agencyJurisdiction}. Mengabdi dengan integritas, keberanian, dan profesionalisme tinggi.
           </p>
         </div>
       </div>

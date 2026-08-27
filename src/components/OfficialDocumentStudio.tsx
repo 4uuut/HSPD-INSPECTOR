@@ -56,7 +56,7 @@ import { exportElementAsImage } from '../utils/exportDocumentAsImage';
 import { OfficialSeal, CustomUploadedSeal } from './OfficialSeals';
 import { SignaturePadModal } from './SignaturePadModal';
 import { DiscordWebhookConfig } from '../utils/discordWebhook';
-import { HSPD_LOGO_URL, HSPD_LOGO_FALLBACK } from '../assets/logo';
+import { HSPD_LOGO_URL, HSPD_LOGO_FALLBACK, getActiveLogoUrl } from '../assets/logo';
 
 interface OfficialDocumentStudioProps {
   currentOfficer: OfficerProfile | null;
@@ -1662,9 +1662,9 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                   }}
                 >
                   <img
-                    src={activeDoc.customWatermarkImage || HSPD_LOGO_URL}
+                    src={activeDoc.customWatermarkImage || getActiveLogoUrl()}
                     onError={(e) => { (e.target as HTMLImageElement).src = HSPD_LOGO_FALLBACK; }}
-                    alt="Official HSPD Watermark"
+                    alt="Official Watermark"
                     style={{
                       width: activeDoc.watermarkSize ? `${activeDoc.watermarkSize}px` : '450px',
                       height: activeDoc.watermarkSize ? `${activeDoc.watermarkSize}px` : '450px',
@@ -1682,9 +1682,9 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                   {/* Left: Official HSPD Badge Logo (High-Res Round Emblem) */}
                   <div className="w-24 h-24 shrink-0 flex items-center justify-center">
                     <img
-                      src={activeDoc.customHeaderLogo || HSPD_LOGO_URL}
+                      src={activeDoc.customHeaderLogo || getActiveLogoUrl()}
                       onError={(e) => { (e.target as HTMLImageElement).src = HSPD_LOGO_FALLBACK; }}
-                      alt="HSPD Official Emblem"
+                      alt="Official Department Emblem"
                       className="w-20 h-20 object-contain drop-shadow-md rounded-full"
                     />
                   </div>
