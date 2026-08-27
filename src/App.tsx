@@ -10,6 +10,7 @@ import { DutyControlModal } from './components/DutyControlModal';
 import { WebhookSettingsModal } from './components/WebhookSettingsModal';
 import { AuthorityPinModal } from './components/AuthorityPinModal';
 import { PinResetAuditModal } from './components/PinResetAuditModal';
+import { PinResetRealtimeNotifier } from './components/PinResetRealtimeNotifier';
 import { DetectiveCaseBoard } from './components/DetectiveCaseBoard';
 import { BoloAndTrafficHub } from './components/BoloAndTrafficHub';
 import { VaultAuditBoard } from './components/VaultAuditBoard';
@@ -24,16 +25,13 @@ import { CitizenDmvDatabase } from './components/CitizenDmvDatabase';
 import { ForensicsLabBoard } from './components/ForensicsLabBoard';
 import { CustomBrandingModal } from './components/CustomBrandingModal';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
-import { getPendingPinResetCount } from './utils/pinResetStorage';
+import { getPendingPinResetCount, touchSuperiorHeartbeat } from './utils/pinResetStorage';
 import { getSavedDetectiveCases, saveDetectiveCases } from './utils/detectiveCaseStorage';
 import { getSavedBoloAlerts, saveBoloAlerts, getSavedImpounds, saveImpounds } from './utils/boloImpoundStorage';
 import { getOfficerDutyState, saveOfficerDutyState, formatDutyDuration } from './utils/officerDutyStorage';
 import { getDiscordWebhookConfig } from './utils/discordWebhook';
-import { 
-  getCustomBranding, 
-  subscribeToBranding, 
-  DepartmentBrandingConfig 
-} from './utils/brandingStorage';
+import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from './utils/brandingStorage';
+import { checkDirectRankClearance, hasActiveUnlockedSession } from './utils/otpClearanceStorage';
 import { 
   ArrestRecord, OfficerProfile, OfficerAccount, isOfficerHighRank, isSupervisorOrAbove,
   DetectiveCase, BoloAlert, ImpoundRecord, getDivisionArchetype, ModuleAccessKey 
@@ -148,6 +146,17 @@ export default function App() {
   useEffect(() => {
     return subscribeToBranding(cfg => setBranding(cfg));
   }, []);
+
+  // Keep superior heartbeat active so other sessions / requests know superior is online
+  useEffect(() => {
+    if (currentOfficer && isSupervisorOrAbove(currentOfficer.rank)) {
+      touchSuperiorHeartbeat(currentOfficer);
+      const interval = setInterval(() => {
+        touchSuperiorHeartbeat(currentOfficer);
+      }, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [currentOfficer]);
 
   // Sync pending PIN reset requests count
   useEffect(() => {
@@ -536,12 +545,13 @@ export default function App() {
         roster={roster}
         onRegisterOfficer={handleRegisterOfficer}
         onUpdateOfficerPin={handleUpdateOfficerPin}
-        onOpenBrandingModal={() => setIsBrandingModalOpen(true)}
       />
     );
   }
 
   const isHighRank = isOfficerHighRank(currentOfficer.rank);
+  const isSupervisor = isSupervisorOrAbove(currentOfficer.rank);
+  const hasFullAccess = isHighRank || isSupervisor;
 
   // Time on duty formatted
   const elapsedDutyMinutes = (isDuty && dutyStartTime > 0) ? Math.floor((Date.now() - dutyStartTime) / 60000) : 0;
@@ -550,27 +560,49 @@ export default function App() {
   const dutyDurationStr = `${elapsedDutyHours > 0 ? `${elapsedDutyHours}j ` : ''}${remMinutes}m`;
 
   return (
-    <div className="min-h-screen bg-[#0D0F14] text-gray-300 font-sans text-xs flex flex-col antialiased selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#0D0F14] text-gray-300 font-sans text-xs flex flex-col antialiased selection:bg-blue-600 selection:text-white relative">
+      {/* Dynamic Background Wallpaper with Custom Opacity and Blur */}
+      {branding.backgroundWallpaper && (
+        <div
+          id="app-dynamic-wallpaper"
+          className="fixed inset-0 pointer-events-none z-0 transition-all duration-300"
+          style={{
+            backgroundImage: `url(${branding.backgroundWallpaper})`,
+            backgroundSize: branding.backgroundStyle === 'tile' ? 'auto' : (branding.backgroundStyle || 'cover'),
+            backgroundRepeat: branding.backgroundStyle === 'tile' ? 'repeat' : 'no-repeat',
+            backgroundPosition: 'center',
+            opacity: branding.backgroundOpacity ?? 0.25,
+            filter: branding.backgroundBlur ? `blur(${branding.backgroundBlur}px)` : 'none'
+          }}
+        />
+      )}
+
       {/* Top High-Density Police Header Bar */}
-      <header id="main-header" className="h-14 border-b border-gray-800 flex items-center px-4 justify-between bg-[#161B22] sticky top-0 z-40 shadow-xl">
+      <header id="main-header" className="h-14 border-b border-gray-800 flex items-center px-4 justify-between bg-[#161B22]/95 backdrop-blur-md sticky top-0 z-40 shadow-xl">
         <div className="flex items-center gap-3">
           <div 
-            className="relative group shrink-0 cursor-pointer" 
-            onClick={() => setIsBrandingModalOpen(true)} 
-            title="Klik untuk mengubah / upload logo website dari folder device"
+            className={`relative shrink-0 ${hasFullAccess ? 'cursor-pointer group' : ''}`}
+            onClick={() => {
+              if (hasFullAccess) {
+                setIsBrandingModalOpen(true);
+              }
+            }} 
+            title={hasFullAccess ? "Pengaturan Logo & Background (Full Access)" : `${branding.departmentName} Official Crest`}
           >
             <img
               src={branding.logoUrl || HSPD_LOGO_URL}
               alt={`${branding.departmentName} Official Crest`}
               referrerPolicy="no-referrer"
-              className="w-9 h-9 rounded-full object-contain drop-shadow-md border border-amber-500/40 bg-black/60 p-0.5 group-hover:scale-105 transition"
+              className={`w-9 h-9 rounded-full object-contain drop-shadow-md border border-amber-500/40 bg-black/60 p-0.5 ${hasFullAccess ? 'group-hover:scale-105 transition' : ''}`}
               onError={e => {
                 (e.target as HTMLImageElement).src = HSPD_LOGO_URL;
               }}
             />
-            <div className="absolute -bottom-1 -right-1 z-20 bg-amber-500 text-black p-0.5 rounded-full border border-black text-[9px] group-hover:block transition">
-              <Palette className="w-2 h-2" />
-            </div>
+            {hasFullAccess && (
+              <div className="absolute -bottom-1 -right-1 z-20 bg-amber-500 text-black p-0.5 rounded-full border border-black text-[9px] group-hover:block transition">
+                <Palette className="w-2 h-2" />
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <div>
@@ -606,18 +638,20 @@ export default function App() {
             <span className="text-[9px] text-emerald-400 font-bold">AUTO-SYNC</span>
           </div>
 
-          {/* CUSTOM LOGO & BRANDING BUTTON */}
-          <button
-            id="btn-open-branding-header"
-            type="button"
-            onClick={() => setIsBrandingModalOpen(true)}
-            className="px-2.5 py-1.5 bg-amber-950/70 hover:bg-amber-900/90 text-amber-300 border border-amber-600/70 hover:border-amber-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
-            title="Kustomisasi & Upload Logo Website dari Folder Device / Web URL"
-          >
-            <Palette className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden md:inline">🎨 UBAH LOGO</span>
-            <span className="md:hidden">LOGO</span>
-          </button>
+          {/* HIGH RANK / SUPERVISOR ONLY: CUSTOM LOGO & BRANDING SETTINGS BUTTON */}
+          {hasFullAccess && (
+            <button
+              id="btn-open-branding-header"
+              type="button"
+              onClick={() => setIsBrandingModalOpen(true)}
+              className="px-2.5 py-1.5 bg-amber-950/70 hover:bg-amber-900/90 text-amber-300 border border-amber-600/70 hover:border-amber-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
+              title="Pengaturan Logo & Background Wallpaper Website (Full Access)"
+            >
+              <Palette className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden md:inline">👑 LOGO & BG</span>
+              <span className="md:hidden">LOGO</span>
+            </button>
+          )}
 
           {/* SUPERVISOR & HIGH COMMAND: OTP CLEARANCE DISPOSITION BUTTON */}
           {isSupervisorOrAbove(currentOfficer.rank) && (
@@ -756,53 +790,78 @@ export default function App() {
       <div className="bg-[#11141A] border-b border-gray-800 px-4 py-1.5 flex items-center justify-between overflow-x-auto no-scrollbar">
         <nav className="flex items-center gap-1 text-[11px] font-medium">
           {[
-            { id: 'calc', label: 'Kalkulator Pasal', icon: Calculator, code: 'CALC' },
-            { id: 'dispatch', label: '📻 CAD 911 & Panic', icon: Radio, code: 'CAD' },
-            { id: 'dmv', label: '👤 Sipil & DMV', icon: UserCheck, code: 'DMV' },
-            { id: 'divisions', label: '🎖️ Divisi Khusus', icon: Award, code: 'DIV' },
-            { id: 'forensics', label: '🔬 Lab Forensik', icon: Microscope, code: 'LAB' },
-            { id: 'documents', label: '📄 Surat & Dokumen Resmi', icon: StampIcon, code: 'DOC' },
-            { id: 'detective', label: `🔍 Kasus Detektif (${detectiveCases.length})`, icon: Search, code: 'DB' },
-            { id: 'traffic', label: `🚗 BOLO & Sitaan (${boloList.length})`, icon: Car, code: 'BOLO' },
-            { id: 'vault', label: '🏦 Brankas & Audit (1x/Mgg)', icon: Landmark, code: 'VAULT' },
-            { id: 'destruction', label: '💥 Peleburan Sitaan', icon: Flame, code: 'LEBUR' },
-            { id: 'megaphone', label: 'Megaphone Studio', icon: Megaphone, code: '/M' },
-            { id: 'rp', label: 'Hak Miranda & RP', icon: BookOpen, code: 'RP' },
-            { id: 'sop', label: 'SOP & Ten-Codes', icon: Radio, code: 'SOP' },
+            { id: 'calc', label: 'Kalkulator Pasal', icon: Calculator, code: 'CALC', moduleKey: undefined },
+            { id: 'dispatch', label: '📻 CAD 911 & Panic', icon: Radio, code: 'CAD', moduleKey: 'DISPATCH' as ModuleAccessKey },
+            { id: 'dmv', label: '👤 Sipil & DMV', icon: UserCheck, code: 'DMV', moduleKey: 'DMV_CITIZEN' as ModuleAccessKey },
+            { id: 'divisions', label: '🎖️ Divisi Khusus', icon: Award, code: 'DIV', moduleKey: 'SPECIAL_DIVISIONS' as ModuleAccessKey },
+            { id: 'forensics', label: '🔬 Lab Forensik', icon: Microscope, code: 'LAB', moduleKey: 'FORENSICS' as ModuleAccessKey },
+            { id: 'documents', label: '📄 Surat & Dokumen', icon: StampIcon, code: 'DOC', moduleKey: 'OFFICIAL_DOCS' as ModuleAccessKey },
+            { id: 'detective', label: `🔍 Kasus Detektif (${detectiveCases.length})`, icon: Search, code: 'DB', moduleKey: 'DETECTIVE' as ModuleAccessKey },
+            { id: 'traffic', label: `🚗 BOLO & Sitaan (${boloList.length})`, icon: Car, code: 'BOLO', moduleKey: 'BOLO' as ModuleAccessKey },
+            { id: 'vault', label: '🏦 Brankas & Audit', icon: Landmark, code: 'VAULT', moduleKey: 'VAULT' as ModuleAccessKey },
+            { id: 'destruction', label: '💥 Peleburan Sitaan', icon: Flame, code: 'LEBUR', moduleKey: 'DESTRUCTION' as ModuleAccessKey },
+            { id: 'megaphone', label: 'Megaphone Studio', icon: Megaphone, code: '/M', moduleKey: undefined },
+            { id: 'rp', label: 'Hak Miranda & RP', icon: BookOpen, code: 'RP', moduleKey: undefined },
+            { id: 'sop', label: 'SOP & Ten-Codes', icon: Radio, code: 'SOP', moduleKey: undefined },
             { 
               id: 'history', 
-              label: isHighRank ? `👑 Riwayat Kasus (${records.length})` : `🔒 Riwayat Kasus (${records.length})`, 
+              label: `📁 Riwayat Kasus (${records.length})`, 
               icon: FileText, 
               code: 'LOG',
+              moduleKey: 'CASE_HISTORY' as ModuleAccessKey,
               isHighRankOnly: true
             },
             ...(isHighRank ? [
               {
                 id: 'roster',
-                label: `👑 Manajemen Roster (${roster.length})`,
+                label: `👑 Roster Anggota (${roster.length})`,
                 icon: Users,
                 code: 'ROSTER',
+                moduleKey: undefined,
                 isHighRankOnly: true
               }
             ] : []),
           ].map(tab => {
             const Icon = tab.icon;
             const isActive = activeNav === tab.id;
+            
+            // Calculate real-time clearance status
+            let isLocked = false;
+            let hasOtpActive = false;
+            if (tab.moduleKey) {
+              const clearance = checkDirectRankClearance(tab.moduleKey, currentOfficer);
+              hasOtpActive = Boolean(hasActiveUnlockedSession(tab.moduleKey, currentOfficer?.badge));
+              isLocked = !clearance.hasClearance && !hasOtpActive;
+            }
+
             return (
               <button
                 key={tab.id}
                 id={`nav-btn-${tab.id}`}
                 onClick={() => setActiveNav(tab.id as any)}
-                className={`px-3 py-1.5 rounded flex items-center gap-1.5 transition whitespace-nowrap text-xs ${
+                className={`px-2.5 py-1.5 rounded flex items-center gap-1.5 transition whitespace-nowrap text-xs ${
                   isActive
-                    ? 'bg-blue-600 text-white font-bold shadow-sm shadow-blue-600/30'
-                    : tab.isHighRankOnly && !isHighRank
-                      ? 'text-amber-400/80 hover:text-amber-200 hover:bg-amber-950/20'
-                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60'
+                    ? 'bg-blue-600 text-white font-bold shadow-sm shadow-blue-600/30 ring-1 ring-blue-400/40'
+                    : isLocked
+                      ? 'text-gray-400 hover:text-amber-300 hover:bg-amber-950/20 border border-transparent hover:border-amber-700/40'
+                      : hasOtpActive
+                        ? 'text-emerald-300 hover:text-emerald-200 hover:bg-emerald-950/30'
+                        : 'text-gray-300 hover:text-gray-100 hover:bg-gray-800/60'
                 }`}
+                title={isLocked ? 'Memerlukan Otorisasi Pangkat / Divisi atau Kode OTP Atasan' : undefined}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className={`w-3.5 h-3.5 ${isLocked ? 'text-gray-500' : hasOtpActive ? 'text-emerald-400' : ''}`} />
                 <span>{tab.label}</span>
+                {isLocked && (
+                  <span className="text-[9px] bg-gray-800/90 text-amber-400 px-1 py-0.2 rounded border border-amber-800/50 flex items-center gap-0.5">
+                    <Lock className="w-2.5 h-2.5 inline" />
+                  </span>
+                )}
+                {hasOtpActive && !isLocked && (
+                  <span className="text-[9px] bg-emerald-950 text-emerald-300 px-1 py-0.2 rounded border border-emerald-700/60 font-mono">
+                    OTP
+                  </span>
+                )}
               </button>
             );
           })}
@@ -878,28 +937,46 @@ export default function App() {
           </ModuleClearanceGuard>
         )}
         {activeNav === 'documents' && (
-          <OfficialDocumentStudio
+          <ModuleClearanceGuard
+            moduleKey="OFFICIAL_DOCS"
             currentOfficer={currentOfficer}
-            webhookConfig={getDiscordWebhookConfig()}
-          />
+            roster={roster}
+          >
+            <OfficialDocumentStudio
+              currentOfficer={currentOfficer}
+              webhookConfig={getDiscordWebhookConfig()}
+            />
+          </ModuleClearanceGuard>
         )}
         {activeNav === 'detective' && (
-          <DetectiveCaseBoard
-            cases={detectiveCases}
+          <ModuleClearanceGuard
+            moduleKey="DETECTIVE"
             currentOfficer={currentOfficer}
-            onSaveCase={handleSaveDetectiveCase}
-            onCreateCase={handleCreateDetectiveCase}
-            onDeleteCase={handleDeleteDetectiveCase}
-          />
+            roster={roster}
+          >
+            <DetectiveCaseBoard
+              cases={detectiveCases}
+              currentOfficer={currentOfficer}
+              onSaveCase={handleSaveDetectiveCase}
+              onCreateCase={handleCreateDetectiveCase}
+              onDeleteCase={handleDeleteDetectiveCase}
+            />
+          </ModuleClearanceGuard>
         )}
         {activeNav === 'traffic' && (
-          <BoloAndTrafficHub
-            boloList={boloList}
-            impoundList={impoundList}
+          <ModuleClearanceGuard
+            moduleKey="BOLO"
             currentOfficer={currentOfficer}
-            onSaveBolo={handleSaveBoloAlerts}
-            onSaveImpound={handleSaveImpoundRecords}
-          />
+            roster={roster}
+          >
+            <BoloAndTrafficHub
+              boloList={boloList}
+              impoundList={impoundList}
+              currentOfficer={currentOfficer}
+              onSaveBolo={handleSaveBoloAlerts}
+              onSaveImpound={handleSaveImpoundRecords}
+            />
+          </ModuleClearanceGuard>
         )}
         {activeNav === 'vault' && (
           <ModuleClearanceGuard
@@ -927,14 +1004,20 @@ export default function App() {
         {activeNav === 'rp' && <RoleplayActions />}
         {activeNav === 'sop' && <SopLibrary />}
         {activeNav === 'history' && (
-          <ArrestHistory
-            records={records}
-            onDeleteRecord={handleDeleteRecord}
-            onClearAll={handleClearAllRecords}
-            onImportRecords={handleImportRecords}
+          <ModuleClearanceGuard
+            moduleKey="CASE_HISTORY"
             currentOfficer={currentOfficer}
-            onSwitchOfficer={handleLogout}
-          />
+            roster={roster}
+          >
+            <ArrestHistory
+              records={records}
+              onDeleteRecord={handleDeleteRecord}
+              onClearAll={handleClearAllRecords}
+              onImportRecords={handleImportRecords}
+              currentOfficer={currentOfficer}
+              onSwitchOfficer={handleLogout}
+            />
+          </ModuleClearanceGuard>
         )}
         {activeNav === 'roster' && isHighRank && (
           <RosterManagement
@@ -966,6 +1049,7 @@ export default function App() {
         isOpen={isWebhookModalOpen}
         onClose={() => setIsWebhookModalOpen(false)}
         currentOfficer={currentOfficer}
+        onOpenBrandingModal={() => setIsBrandingModalOpen(true)}
       />
 
       {/* Authority PIN Modal (High Command & Hourly Auto-Rotation) */}
@@ -989,6 +1073,15 @@ export default function App() {
         currentOfficer={currentOfficer}
         roster={roster}
         onUpdateOfficerPin={handleUpdateOfficerPin}
+        onOpenWebhookSettings={() => setIsWebhookModalOpen(true)}
+      />
+
+      {/* Realtime Alert & Quick-Accept Banner for Online Supervisors */}
+      <PinResetRealtimeNotifier
+        currentOfficer={currentOfficer}
+        roster={roster}
+        onUpdateOfficerPin={handleUpdateOfficerPin}
+        onOpenAuditModal={() => setIsPinResetAuditModalOpen(true)}
       />
 
       {/* OTP Clearance & Disposition Generator Modal (Supervisor & High Command) */}

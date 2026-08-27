@@ -93,6 +93,27 @@ export const MODULE_CLEARANCE_RULES: Record<ModuleAccessKey, ModuleClearanceRule
     allowOtpBypass: true,
     iconName: 'Search'
   },
+  BOLO: {
+    key: 'BOLO',
+    title: 'Sistem BOLO & Sitaan Lalu Lintas (Patrol Unit Hub)',
+    description: 'Daftar Pencarian Orang (DPO), Kendaraan Buronan (BOLO), Denda Pelanggaran, dan Repositori Sitaan (Impound).',
+    minimumRankTier: 4, // PO I and above in Patrol Unit or Supervisor
+    directAccessRanks: [
+      'CHIEF OF POLICE [COP]',
+      'ASSISTANT CHIEF [A/C]',
+      'DEPUTY CHIEF [D/C]',
+      'COMMANDER [CDR]',
+      'CAPTAIN [CPT]',
+      'LIEUTENANT [LT]',
+      'SERGEANT [SGT]',
+      'SENIOR LEAD OFFICER [SLO]',
+      'POLICE OFFICER III [PO III]',
+      'POLICE OFFICER II [PO II]',
+      'POLICE OFFICER I [PO I]'
+    ],
+    allowOtpBypass: true,
+    iconName: 'Car'
+  },
   IAD: {
     key: 'IAD',
     title: 'Divisi Propam & Disiplin Internal (Internal Affairs Bureau)',
@@ -211,7 +232,7 @@ export const MODULE_CLEARANCE_RULES: Record<ModuleAccessKey, ModuleClearanceRule
 };
 
 /**
- * Check whether an officer has direct rank-based clearance for a given module
+ * Check whether an officer has direct rank-based or division-based clearance for a given module
  */
 export const checkDirectRankClearance = (
   moduleKey: ModuleAccessKey,
@@ -227,23 +248,187 @@ export const checkDirectRankClearance = (
     };
   }
 
-  // Detective module special rule: Detective division members have clearance
+  const isSupervisor = isSupervisorOrAbove(officer.rank);
+  const tierInfo = getRankHierarchyTier(officer.rank);
+  const divLower = (officer.division || '').toLowerCase().trim();
+
+  // 1. 👑 SUPERVISOR & HIGH COMMAND: FULL ACCESS TO ALL MODULES
+  if (isSupervisor) {
+    return {
+      hasClearance: true,
+      reason: `Akses Penuh Komando: Pangkat Anda (${officer.rank}) memiliki hak akses penuh ke seluruh modul & berkas Kepolisian.`,
+      requiredRanks: rule.directAccessRanks
+    };
+  }
+
+  // 2. 🔍 DETECTIVE CASE BOARD (CID): Detective Division or Supervisor ONLY
   if (moduleKey === 'DETECTIVE') {
-    const isDetectiveDiv = (officer.division || '').toLowerCase().includes('detective') || 
-                           (officer.division || '').toLowerCase().includes('cid') ||
-                           (officer.division || '').toLowerCase().includes('internal affairs') ||
-                           (officer.division || '').toLowerCase().includes('ia');
+    const isDetectiveDiv = 
+      divLower.includes('detective') || 
+      divLower.includes('cid') || 
+      divLower.includes('investigasi') || 
+      divLower.includes('reserse') ||
+      divLower.includes('intel') ||
+      divLower.includes('ia') || 
+      divLower.includes('internal affairs');
+
     if (isDetectiveDiv) {
       return {
         hasClearance: true,
-        reason: 'Akses Diberikan: Divisi Investigasi Kriminal (Detective Bureau / CID / IA).',
+        reason: 'Akses Diberikan: Personel Resmi Divisi Investigasi Kriminal (Detective Bureau / CID).',
         requiredRanks: rule.directAccessRanks
       };
     }
+
+    return {
+      hasClearance: false,
+      reason: `Akses Terkunci: Modul Kasus Detektif (CID) dikhususkan untuk Personel Divisi Detektif atau Pangkat Atasan (Lieutenant+). Pangkat Anda (${officer.rank} - Divisi: ${officer.division || 'Umum'}) memerlukan Kode Akses Sekali Pakai (OTP) dari Atasan.`,
+      requiredRanks: rule.directAccessRanks
+    };
   }
 
-  // Direct rank check
-  const tierInfo = getRankHierarchyTier(officer.rank);
+  // 3. 🚗 BOLO & TRAFFIC HUB (PU): Patrol Unit (PU) / Traffic or Supervisor ONLY
+  if (moduleKey === 'BOLO') {
+    const isPatrolDiv = 
+      divLower.includes('patrol') || 
+      divLower.includes('pu') || 
+      divLower.includes('patroli') || 
+      divLower.includes('traffic') || 
+      divLower.includes('lantas') || 
+      divLower.includes('lalu lintas') || 
+      divLower.includes('highway') || 
+      divLower.includes('field') || 
+      divLower.includes('sabara') ||
+      divLower === '' || 
+      divLower === 'umum';
+
+    // Patrol Officers with Patrol Unit or general division
+    if (tierInfo.tier <= 4 && isPatrolDiv) {
+      return {
+        hasClearance: true,
+        reason: 'Akses Diberikan: Personel Divisi Patroli / Patrol Unit (PU) & Lalu Lintas.',
+        requiredRanks: rule.directAccessRanks
+      };
+    }
+
+    return {
+      hasClearance: false,
+      reason: `Akses Terkunci: Sistem BOLO & Sitaan Lalu Lintas dikhususkan untuk Personel Patrol Unit (PU) / Patroli atau Pangkat Atasan (Lieutenant+). Divisi Anda (${officer.division || 'Non-Patrol'}) memerlukan Kode Akses Sekali Pakai (OTP) dari Atasan.`,
+      requiredRanks: rule.directAccessRanks
+    };
+  }
+
+  // 4. 🔬 FORENSICS LAB (Lab Forensik & Balistik)
+  if (moduleKey === 'FORENSICS') {
+    const isForensicsDiv = 
+      divLower.includes('forensic') || 
+      divLower.includes('forensik') || 
+      divLower.includes('lab') || 
+      divLower.includes('crime lab') || 
+      divLower.includes('inafis') || 
+      divLower.includes('cid') || 
+      divLower.includes('detective');
+
+    if (isForensicsDiv) {
+      return {
+        hasClearance: true,
+        reason: 'Akses Diberikan: Personel Laboratorium Forensik & Identifikasi Balistik.',
+        requiredRanks: rule.directAccessRanks
+      };
+    }
+
+    // Direct rank check tier 4
+    if (tierInfo.tier <= 4) {
+      return {
+        hasClearance: true,
+        reason: `Akses Terbuka: Personel Aktif Pangkat ${officer.rank} (${tierInfo.label}).`,
+        requiredRanks: rule.directAccessRanks
+      };
+    }
+
+    return {
+      hasClearance: false,
+      reason: `Laboratorium Forensik memerlukan otorisasi Personel Pangkat PO I ke atas atau Kode OTP dari Atasan.`,
+      requiredRanks: rule.directAccessRanks
+    };
+  }
+
+  // 5. 🛡️ INTERNAL AFFAIRS DIVISION (IAD)
+  if (moduleKey === 'IAD') {
+    const isIadDiv = 
+      divLower.includes('iad') || 
+      divLower.includes('internal affairs') || 
+      divLower.includes('propam') || 
+      divLower.includes('provost') || 
+      divLower.includes('paminal');
+
+    if (isIadDiv) {
+      return {
+        hasClearance: true,
+        reason: 'Akses Diberikan: Personel Resmi Divisi Propam & Disiplin Internal (IAD).',
+        requiredRanks: rule.directAccessRanks
+      };
+    }
+
+    return {
+      hasClearance: false,
+      reason: 'Akses Terkunci: Modul Investigasi Internal (IAD) bersifat sangat rahasia. Memerlukan izin Atasan atau Kode OTP.',
+      requiredRanks: rule.directAccessRanks
+    };
+  }
+
+  // 6. 🏦 VAULT & EVIDENCE AUDIT
+  if (moduleKey === 'VAULT') {
+    const isArmoryDiv = 
+      divLower.includes('armory') || 
+      divLower.includes('logistik') || 
+      divLower.includes('sarpras') || 
+      divLower.includes('quartermaster') || 
+      divLower.includes('gudang');
+
+    if (isArmoryDiv) {
+      return {
+        hasClearance: true,
+        reason: 'Akses Diberikan: Petugas Divisi Logistik & Persenjataan Markas.',
+        requiredRanks: rule.directAccessRanks
+      };
+    }
+
+    return {
+      hasClearance: false,
+      reason: `Akses Terkunci: Brankas Barang Bukti & Kas Sitaan hanya dapat diakses Atasan (Lieutenant+) atau dengan Kode OTP Disposisi Audit Mingguan.`,
+      requiredRanks: rule.directAccessRanks
+    };
+  }
+
+  // 7. 💥 DESTRUCTION REGISTRY
+  if (moduleKey === 'DESTRUCTION') {
+    return {
+      hasClearance: false,
+      reason: `Akses Terkunci: Pemusnahan Narkoba & Peleburan Kendaraan Sitaan membutuhkan otorisasi Atasan (Lieutenant+) atau Kode OTP Mandat Eksekusi.`,
+      requiredRanks: rule.directAccessRanks
+    };
+  }
+
+  // 8. 📄 OFFICIAL DOCS & WCL
+  if (moduleKey === 'OFFICIAL_DOCS') {
+    return {
+      hasClearance: false,
+      reason: `Akses Terkunci: Penerbitan Surat Perintah & Izin Senjata (WCL) memerlukan otorisasi Atasan (Lieutenant+) atau Kode OTP Disposisi Dokumen.`,
+      requiredRanks: rule.directAccessRanks
+    };
+  }
+
+  // 9. 📁 CASE HISTORY ARREST LOG
+  if (moduleKey === 'CASE_HISTORY') {
+    return {
+      hasClearance: false,
+      reason: `Akses Terkunci: Arsip Riwayat Kasus & Hapus Log Penindakan memerlukan hak akses Atasan atau Kode OTP.`,
+      requiredRanks: rule.directAccessRanks
+    };
+  }
+
+  // Direct rank check for general modules (DISPATCH, DMV, SPECIAL_DIVISIONS)
   if (tierInfo.tier <= rule.minimumRankTier) {
     return {
       hasClearance: true,
@@ -254,14 +439,14 @@ export const checkDirectRankClearance = (
 
   return {
     hasClearance: false,
-    reason: `Pangkat Anda (${officer.rank}) berada di ${tierInfo.label}. Modul ini membutuhkan otorisasi minimal Tier ${rule.minimumRankTier} (Lieutenant / Captain / High Command) atau Kode Akses Sekali Pakai (OTP) dari Atasan.`,
+    reason: `Pangkat Anda (${officer.rank}) berada di ${tierInfo.label}. Modul ini membutuhkan otorisasi minimal Tier ${rule.minimumRankTier} atau Kode Akses Sekali Pakai (OTP) dari Atasan.`,
     requiredRanks: rule.directAccessRanks
   };
 };
 
 /**
  * Generate a clean, realistic OTP code string
- * e.g., "OTP-BRK-7492", "OTP-LBR-1823", "OTP-DOC-9041", "OTP-ALL-5510"
+ * e.g., "OTP-BRK-7492", "OTP-LBR-1823", "OTP-DOC-9041", "OTP-CID-5510", "OTP-BLO-3312"
  */
 export const generateOtpCode = (module: ModuleAccessKey): string => {
   const prefixMap: Record<ModuleAccessKey, string> = {
@@ -270,6 +455,7 @@ export const generateOtpCode = (module: ModuleAccessKey): string => {
     OFFICIAL_DOCS: 'OTP-DOC',
     CASE_HISTORY: 'OTP-CAS',
     DETECTIVE: 'OTP-CID',
+    BOLO: 'OTP-BLO',
     IAD: 'OTP-IAD',
     FORENSICS: 'OTP-LAB',
     DISPATCH: 'OTP-CAD',

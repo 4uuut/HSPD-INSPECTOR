@@ -4,7 +4,8 @@ import {
   K9DeploymentLog, 
   SwatOperation, 
   IadComplaint, 
-  CadetEvaluation 
+  CadetEvaluation,
+  TedTrafficRecord
 } from '../types';
 
 export const ASD_KEY = 'hspd_asd_helicopters_v1';
@@ -13,6 +14,7 @@ export const K9_LOGS_KEY = 'hspd_k9_deployment_logs_v1';
 export const SWAT_KEY = 'hspd_swat_operations_v1';
 export const IAD_KEY = 'hspd_iad_complaints_v1';
 export const ACADEMY_KEY = 'hspd_academy_evaluations_v1';
+export const TED_KEY = 'hspd_ted_records_v1';
 
 export const INITIAL_ASD_HELIS: AsdHelicopter[] = [
   {
@@ -204,6 +206,43 @@ export const INITIAL_CADET_EVALS: CadetEvaluation[] = [
   }
 ];
 
+export const INITIAL_TED_RECORDS: TedTrafficRecord[] = [
+  {
+    id: 'ted-1',
+    driverName: 'Franklin Clinton',
+    driverLicense: 'DL-89021',
+    vehiclePlate: 'LS-889-BB',
+    vehicleModel: 'Bravado Buffalo STX (Hitam)',
+    clockedSpeedMph: 115,
+    speedLimitMph: 65,
+    bacLevel: 0.00,
+    violations: ['Pasal 104: Pelanggaran Batas Kecepatan Berat (+50 MPH)', 'Pasal 108: Mengemudi Ugal-Ugalan (Reckless Driving)'],
+    totalFine: 2500,
+    officerName: 'Alex Mercer',
+    officerBadge: '#199',
+    actionTaken: 'CITATION_ISSUED',
+    location: 'Del Perro Freeway, Exit 4',
+    timestamp: Date.now() - 1000 * 60 * 60 * 3
+  },
+  {
+    id: 'ted-2',
+    driverName: 'Trevor Philips',
+    driverLicense: 'DL-33412',
+    vehiclePlate: 'BC-991-TP',
+    vehicleModel: 'Canis Bodhi (Merah Karat)',
+    clockedSpeedMph: 75,
+    speedLimitMph: 45,
+    bacLevel: 0.14,
+    violations: ['Pasal 112: Mengemudi Bawah Pengaruh Alkohol (DUI BAC > 0.08%)', 'Pasal 105: Melanggar Lampu Merah'],
+    totalFine: 4500,
+    officerName: 'Frank Sinatra',
+    officerBadge: '#210',
+    actionTaken: 'DUI_ARREST',
+    location: 'Route 68, Senora Desert',
+    timestamp: Date.now() - 1000 * 60 * 60 * 22
+  }
+];
+
 export const getSavedAsdHelis = (): AsdHelicopter[] => {
   try {
     const raw = localStorage.getItem(ASD_KEY);
@@ -298,4 +337,20 @@ export const getSavedCadetEvals = (): CadetEvaluation[] => {
 export const saveCadetEvals = (evals: CadetEvaluation[]) => {
   localStorage.setItem(ACADEMY_KEY, JSON.stringify(evals));
   window.dispatchEvent(new Event('hspd-academy-updated'));
+};
+
+export const getSavedTedRecords = (): TedTrafficRecord[] => {
+  try {
+    const raw = localStorage.getItem(TED_KEY);
+    if (!raw) return INITIAL_TED_RECORDS;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_TED_RECORDS;
+  } catch (e) {
+    return INITIAL_TED_RECORDS;
+  }
+};
+
+export const saveTedRecords = (records: TedTrafficRecord[]) => {
+  localStorage.setItem(TED_KEY, JSON.stringify(records));
+  window.dispatchEvent(new Event('hspd-ted-updated'));
 };

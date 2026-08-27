@@ -1,21 +1,25 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Shield, KeyRound, CheckCircle2, AlertTriangle, X, Search, 
   Send, User, Clock, MessageSquare, Check, Filter, Trash2, 
   Edit3, UserCheck, Lock, ExternalLink, RefreshCw, PlusCircle, 
-  Sliders, ShieldCheck, ChevronRight, Eye, EyeOff
+  Sliders, ShieldCheck, ChevronRight, Eye, EyeOff, Zap, 
+  Volume2, ToggleLeft, ToggleRight, Radio, ShieldAlert
 } from 'lucide-react';
 import { 
   PinResetRequest, PinResetStatus, OfficerProfile, 
-  OfficerAccount, isOfficerHighRank 
+  OfficerAccount, isOfficerHighRank, isSupervisorOrAbove 
 } from '../types';
 import { HSPD_LOGO_URL } from '../assets/logo';
 import { 
   getPinResetRequests, resolvePinResetRequest, 
   rejectPinResetRequest, deletePinResetRequest, 
-  addPinResetRequest, savePinResetRequests 
+  addPinResetRequest, savePinResetRequests,
+  getPinResetAutoGrantConfig, savePinResetAutoGrantConfig,
+  getOnlineSuperiorsList, isAnySuperiorOnline,
+  playPoliceChime, PinResetAutoGrantConfig
 } from '../utils/pinResetStorage';
-import { sendPinResetResolvedWebhookToDiscord, getSavedWebhookConfig } from '../utils/discordWebhook';
+import { sendPinResetResolvedWebhookToDiscord } from '../utils/discordWebhook';
 
 interface Props {
   isOpen: boolean;
@@ -35,8 +39,12 @@ export const PinResetAuditModal: React.FC<Props> = ({
   onOpenWebhookSettings
 }) => {
   const [requests, setRequests] = useState<PinResetRequest[]>(() => getPinResetRequests());
-  const [statusFilter, setStatusFilter] = useState<'ALL' | PinResetStatus>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'MANUAL_RESOLVED' | 'AUTO_GRANTED' | 'REJECTED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Auto-grant configuration state
+  const [autoGrantConfig, setAutoGrantConfig] = useState<PinResetAutoGrantConfig>(() => getPinResetAutoGrantConfig());
+  const [showConfigPanel, setShowConfigPanel] = useState(false);
 
   // Resolution Dialog State
   const [resolvingRequest, setResolvingRequest] = useState<PinResetRequest | null>(null);
@@ -58,10 +66,46 @@ export const PinResetAuditModal: React.FC<Props> = ({
   const [manualNewPin, setManualNewPin] = useState('');
   const [manualReason, setManualReason] = useState('Pembaruan Kredensial Langsung oleh High Command');
 
+  // Online Superiors List
+  const onlineSuperiors = useMemo(() => getOnlineSuperiorsList(roster), [roster, isOpen]);
+
+  // Sync requests when modal opens & on realtime events
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const sync = () => {
+      setRequests(getPinResetRequests());
+      setAutoGrantConfig(getPinResetAutoGrantConfig());
+    };
+
+    sync();
+
+    const handleReqUpdate = () => sync();
+    window.addEventListener('hspd-pin-requests-updated', handleReqUpdate);
+    window.addEventListener('hspd-pin-reset-requested', handleReqUpdate);
+    window.addEventListener('storage', handleReqUpdate);
+
+    return () => {
+      window.removeEventListener('hspd-pin-requests-updated', handleReqUpdate);
+      window.removeEventListener('hspd-pin-reset-requested', handleReqUpdate);
+      window.removeEventListener('storage', handleReqUpdate);
+    };
+  }, [isOpen]);
+
   // Filtered list
   const filteredRequests = useMemo(() => {
     return requests.filter(r => {
-      const matchStatus = statusFilter === 'ALL' || r.status === statusFilter;
+      let matchStatus = true;
+      if (statusFilter === 'PENDING') {
+        matchStatus = r.status === 'PENDING';
+      } else if (statusFilter === 'MANUAL_RESOLVED') {
+        matchStatus = r.status === 'RESOLVED' && !r.autoGranted;
+      } else if (statusFilter === 'AUTO_GRANTED') {
+        matchStatus = r.status === 'RESOLVED' && Boolean(r.autoGranted);
+      } else if (statusFilter === 'REJECTED') {
+        matchStatus = r.status === 'REJECTED';
+      }
+
       const q = searchQuery.toLowerCase().trim();
       const matchQuery = !q || (
         r.officerName.toLowerCase().includes(q) ||
@@ -74,16 +118,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
     });
   }, [requests, statusFilter, searchQuery]);
 
-  // Sync requests when modal opens
-  React.useEffect(() => {
-    if (isOpen) {
-      setRequests(getPinResetRequests());
-    }
-  }, [isOpen]);
-
   if (!isOpen) return null;
-
-  const isHighRank = isOfficerHighRank(currentOfficer.rank);
 
   const refreshRequests = () => {
     setRequests(getPinResetRequests());
@@ -92,13 +127,64 @@ export const PinResetAuditModal: React.FC<Props> = ({
   // Stats calculation
   const totalCount = requests.length;
   const pendingCount = requests.filter(r => r.status === 'PENDING').length;
-  const resolvedCount = requests.filter(r => r.status === 'RESOLVED').length;
+  const autoGrantedCount = requests.filter(r => r.status === 'RESOLVED' && r.autoGranted).length;
+  const manualResolvedCount = requests.filter(r => r.status === 'RESOLVED' && !r.autoGranted).length;
   const rejectedCount = requests.filter(r => r.status === 'REJECTED').length;
+
+  // Toggle Auto-Grant Setting
+  const handleToggleAutoGrant = (val: boolean) => {
+    const updated = { autoGrantWhenSuperiorOffline: val };
+    savePinResetAutoGrantConfig(updated);
+    setAutoGrantConfig(prev => ({ ...prev, ...updated }));
+    setActionSuccessNotice(val 
+      ? '✅ Sistem Akses Otomatis (Auto-Grant saat Atasan Offline) telah DIAKTIFKAN.' 
+      : '⚠️ Sistem Akses Otomatis dinonaktifkan. Semua tiket wajib diotorisasi manual oleh Atasan.');
+    setTimeout(() => setActionSuccessNotice(''), 4000);
+  };
+
+  // Quick 1-Click Accept
+  const handleQuickAccept = async (req: PinResetRequest) => {
+    const assignedPin = req.requestedPin?.trim() || '10-4';
+    setIsProcessingResolve(true);
+    setActionErrorNotice('');
+
+    try {
+      // 1. Update in roster
+      onUpdateOfficerPin(req.officerBadge || req.officerName, assignedPin);
+
+      // 2. Resolve request
+      resolvePinResetRequest(
+        req.id,
+        assignedPin,
+        currentOfficer,
+        `Disetujui langsung oleh ${currentOfficer.rank} ${currentOfficer.name} (Quick 1-Click Accept).`
+      );
+
+      // 3. Webhook
+      await sendPinResetResolvedWebhookToDiscord({
+        officerName: req.officerName,
+        officerBadge: req.officerBadge,
+        officerRank: req.officerRank,
+        newPin: assignedPin,
+        resolvedBy: currentOfficer.name,
+        resolvedByBadge: currentOfficer.badge,
+        resolvedByRank: currentOfficer.rank,
+        notes: `Disetujui langsung via Quick 1-Click Accept di Dashboard Atasan.`
+      });
+
+      refreshRequests();
+      setActionSuccessNotice(`✅ Permintaan ${req.officerName} (${req.officerBadge}) langsung disetujui dengan PIN "${assignedPin}"!`);
+      setTimeout(() => setActionSuccessNotice(''), 4000);
+    } catch (err: any) {
+      setActionErrorNotice(`Gagal memproses persetujuan: ${err.message || 'Error'}`);
+    } finally {
+      setIsProcessingResolve(false);
+    }
+  };
 
   // Open resolve dialog for a specific ticket
   const handleOpenResolve = (req: PinResetRequest) => {
     setResolvingRequest(req);
-    // Find current officer PIN from roster
     const cleanIdent = req.officerName.trim().toLowerCase();
     const cleanBadge = req.officerBadge.trim().toLowerCase();
     const found = roster.find(o => 
@@ -106,7 +192,6 @@ export const PinResetAuditModal: React.FC<Props> = ({
       o.badge.toLowerCase() === cleanBadge ||
       o.name.toLowerCase().includes(cleanIdent)
     );
-    // Prefer requested PIN, or random / suggested PIN
     setNewPinInput(req.requestedPin || (found ? found.pin : '10-4'));
     setSupervisorNotes('Kredensial identitas telah diverifikasi & PIN login MDT telah diperbarui.');
     setActionErrorNotice('');
@@ -128,18 +213,15 @@ export const PinResetAuditModal: React.FC<Props> = ({
     setActionErrorNotice('');
 
     try {
-      // 1. Update Officer PIN in Roster live state
-      const updatedInRoster = onUpdateOfficerPin(resolvingRequest.officerBadge || resolvingRequest.officerName, trimmedPin);
+      onUpdateOfficerPin(resolvingRequest.officerBadge || resolvingRequest.officerName, trimmedPin);
 
-      // 2. Mark request as RESOLVED in storage
-      const result = resolvePinResetRequest(
+      resolvePinResetRequest(
         resolvingRequest.id,
         trimmedPin,
         currentOfficer,
         supervisorNotes
       );
 
-      // 3. Send Discord Webhook Confirmation if toggled
       if (sendWebhookOnResolve) {
         await sendPinResetResolvedWebhookToDiscord({
           officerName: resolvingRequest.officerName,
@@ -201,10 +283,8 @@ export const PinResetAuditModal: React.FC<Props> = ({
       return;
     }
 
-    // 1. Update in roster
     onUpdateOfficerPin(targetOfficer.badge, trimmedPin);
 
-    // 2. Add and immediately resolve log
     const createdReq = addPinResetRequest({
       officerName: targetOfficer.name,
       officerBadge: targetOfficer.badge,
@@ -221,7 +301,6 @@ export const PinResetAuditModal: React.FC<Props> = ({
       `Reset manual langsung oleh ${currentOfficer.rank} ${currentOfficer.name}: ${manualReason}`
     );
 
-    // 3. Send Discord Webhook
     await sendPinResetResolvedWebhookToDiscord({
       officerName: targetOfficer.name,
       officerBadge: targetOfficer.badge,
@@ -241,7 +320,6 @@ export const PinResetAuditModal: React.FC<Props> = ({
     setTimeout(() => setActionSuccessNotice(''), 4000);
   };
 
-  // Format date
   const formatDate = (timestamp: number) => {
     return new Date(timestamp).toLocaleString('id-ID', {
       dateStyle: 'medium',
@@ -281,16 +359,25 @@ export const PinResetAuditModal: React.FC<Props> = ({
                   <span>LOG TIKET WEBHOOK & RESET PIN (HIGH COMMAND)</span>
                 </h3>
                 <span className="text-[10px] font-mono bg-amber-950 text-amber-300 border border-amber-700/60 px-1.5 py-0.5 rounded font-bold">
-                  SUPER ADMIN
+                  HIGH COMMAND
                 </span>
               </div>
               <p className="text-[11px] text-gray-400 font-mono">
-                Audit pengajuan lupa password via Discord & otorisasi pengubahan PIN login anggota
+                Audit pengajuan lupa PIN, sistem auto-grant saat atasan offline, & otorisasi manual
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => playPoliceChime()}
+              className="p-1.5 bg-gray-800 hover:bg-gray-700 text-amber-400 hover:text-amber-300 rounded-lg transition"
+              title="Uji Suara Notifikasi Alarm"
+            >
+              <Volume2 className="w-4 h-4" />
+            </button>
+
             {onOpenWebhookSettings && (
               <button
                 type="button"
@@ -305,7 +392,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition"
+              className="p-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition cursor-pointer"
               title="Tutup Modal"
             >
               <X className="w-4 h-4" />
@@ -313,16 +400,61 @@ export const PinResetAuditModal: React.FC<Props> = ({
           </div>
         </div>
 
+        {/* HIGH COMMAND ONLINE STATUS & AUTO-GRANT CONTROL BAR */}
+        <div className="bg-[#111622] border-b border-gray-800 px-4 sm:px-6 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <span className="font-bold text-gray-200 text-xs">STATUS ATASAN (WEBSITE):</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1">
+              {onlineSuperiors.length > 0 ? (
+                onlineSuperiors.map((s, idx) => (
+                  <span 
+                    key={idx}
+                    className="bg-emerald-950/80 border border-emerald-700/60 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1"
+                  >
+                    <User className="w-3 h-3 text-emerald-400" />
+                    <span>{s.name} ({s.badge})</span>
+                  </span>
+                ))
+              ) : (
+                <span className="bg-amber-950/60 border border-amber-700/60 text-amber-300 px-2 py-0.5 rounded text-[10px]">
+                  Tidak ada Atasan lain yang login
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+            <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] text-gray-300 hover:text-white">
+              <input
+                type="checkbox"
+                checked={autoGrantConfig.autoGrantWhenSuperiorOffline}
+                onChange={(e) => handleToggleAutoGrant(e.target.checked)}
+                className="rounded border-gray-700 text-amber-500 focus:ring-amber-500 w-3.5 h-3.5"
+              />
+              <span className="flex items-center gap-1">
+                <Zap className="w-3.5 h-3.5 text-amber-400" />
+                <span>Auto-Grant Akses Saat Atasan Offline</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
         {/* NOTIFICATION NOTICES */}
         {actionSuccessNotice && (
-          <div className="bg-emerald-950/90 border-b border-emerald-600 px-4 py-2 text-emerald-200 text-xs flex items-center gap-2">
+          <div className="bg-emerald-950/90 border-b border-emerald-600 px-4 py-2 text-emerald-200 text-xs flex items-center gap-2 animate-in fade-in">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>{actionSuccessNotice}</span>
           </div>
         )}
 
         {actionErrorNotice && (
-          <div className="bg-rose-950/90 border-b border-rose-600 px-4 py-2 text-rose-200 text-xs flex items-center gap-2">
+          <div className="bg-rose-950/90 border-b border-rose-600 px-4 py-2 text-rose-200 text-xs flex items-center gap-2 animate-in fade-in">
             <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
             <span>{actionErrorNotice}</span>
           </div>
@@ -331,7 +463,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
         {/* MAIN BODY CONTAINER */}
         <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
           {/* STATS TILES BAR */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
             <div className="p-3 bg-[#0D1117] border border-gray-800 rounded-lg">
               <div className="text-[10px] text-gray-400 uppercase font-bold">Total Pengajuan</div>
               <div className="text-xl font-bold text-gray-100 font-sans mt-0.5">{totalCount}</div>
@@ -345,9 +477,17 @@ export const PinResetAuditModal: React.FC<Props> = ({
               <div className="text-xl font-bold text-amber-300 font-sans mt-0.5">{pendingCount}</div>
             </div>
 
+            <div className="p-3 bg-[#0D1117] border border-blue-800/60 rounded-lg">
+              <div className="text-[10px] text-blue-400 uppercase font-bold">Disetujui Manual</div>
+              <div className="text-xl font-bold text-blue-300 font-sans mt-0.5">{manualResolvedCount}</div>
+            </div>
+
             <div className="p-3 bg-[#0D1117] border border-emerald-800/60 rounded-lg">
-              <div className="text-[10px] text-emerald-400 uppercase font-bold">Disetujui / Selesai</div>
-              <div className="text-xl font-bold text-emerald-300 font-sans mt-0.5">{resolvedCount}</div>
+              <div className="text-[10px] text-emerald-400 uppercase font-bold flex items-center gap-1">
+                <Zap className="w-3 h-3 text-emerald-400" />
+                Otomatis Diberikan
+              </div>
+              <div className="text-xl font-bold text-emerald-300 font-sans mt-0.5">{autoGrantedCount}</div>
             </div>
 
             <div className="p-3 bg-[#0D1117] border border-rose-800/60 rounded-lg">
@@ -363,7 +503,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setStatusFilter('ALL')}
-                className={`px-2.5 py-1 rounded text-xs transition font-bold ${
+                className={`px-2.5 py-1 rounded text-xs transition font-bold cursor-pointer ${
                   statusFilter === 'ALL'
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-800/80 text-gray-400 hover:text-gray-200'
@@ -374,9 +514,9 @@ export const PinResetAuditModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setStatusFilter('PENDING')}
-                className={`px-2.5 py-1 rounded text-xs transition font-bold flex items-center gap-1 ${
+                className={`px-2.5 py-1 rounded text-xs transition font-bold flex items-center gap-1 cursor-pointer ${
                   statusFilter === 'PENDING'
-                    ? 'bg-amber-600 text-black'
+                    ? 'bg-amber-600 text-black font-extrabold'
                     : 'bg-amber-950/40 text-amber-400 border border-amber-800/60 hover:bg-amber-900/40'
                 }`}
               >
@@ -384,19 +524,30 @@ export const PinResetAuditModal: React.FC<Props> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setStatusFilter('RESOLVED')}
-                className={`px-2.5 py-1 rounded text-xs transition font-bold flex items-center gap-1 ${
-                  statusFilter === 'RESOLVED'
-                    ? 'bg-emerald-600 text-black'
+                onClick={() => setStatusFilter('MANUAL_RESOLVED')}
+                className={`px-2.5 py-1 rounded text-xs transition font-bold flex items-center gap-1 cursor-pointer ${
+                  statusFilter === 'MANUAL_RESOLVED'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-blue-950/40 text-blue-400 border border-blue-800/60 hover:bg-blue-900/40'
+                }`}
+              >
+                <span>👑 Manual ({manualResolvedCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusFilter('AUTO_GRANTED')}
+                className={`px-2.5 py-1 rounded text-xs transition font-bold flex items-center gap-1 cursor-pointer ${
+                  statusFilter === 'AUTO_GRANTED'
+                    ? 'bg-emerald-600 text-black font-extrabold'
                     : 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/60 hover:bg-emerald-900/40'
                 }`}
               >
-                <span>🟢 Selesai ({resolvedCount})</span>
+                <span>⚡ Auto-Grant ({autoGrantedCount})</span>
               </button>
               <button
                 type="button"
                 onClick={() => setStatusFilter('REJECTED')}
-                className={`px-2.5 py-1 rounded text-xs transition font-bold flex items-center gap-1 ${
+                className={`px-2.5 py-1 rounded text-xs transition font-bold flex items-center gap-1 cursor-pointer ${
                   statusFilter === 'REJECTED'
                     ? 'bg-rose-600 text-white'
                     : 'bg-rose-950/40 text-rose-400 border border-rose-800/60 hover:bg-rose-900/40'
@@ -422,7 +573,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setIsManualModalOpen(true)}
-                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-black font-bold rounded transition flex items-center gap-1 text-xs shrink-0 shadow-sm"
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-black font-bold rounded transition flex items-center gap-1 text-xs shrink-0 shadow-sm cursor-pointer"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
                 <span>+ Reset Manual</span>
@@ -437,16 +588,16 @@ export const PinResetAuditModal: React.FC<Props> = ({
                 <KeyRound className="w-8 h-8 text-gray-600 mx-auto" />
                 <div className="text-gray-300 font-bold">Tidak Ada Catatan Pengajuan Reset PIN</div>
                 <p className="text-gray-500 text-xs max-w-sm mx-auto">
-                  Semua tiket pengajuan dari petugas yang lupa password akan tampil di sini untuk diotorisasi oleh High Command.
+                  Semua tiket pengajuan dari petugas yang lupa password akan tampil di sini untuk diotorisasi oleh High Command atau sistem otomatis.
                 </p>
               </div>
             ) : (
               filteredRequests.map((req) => {
                 const isPending = req.status === 'PENDING';
-                const isResolved = req.status === 'RESOLVED';
+                const isAutoGranted = req.status === 'RESOLVED' && Boolean(req.autoGranted);
+                const isManualResolved = req.status === 'RESOLVED' && !req.autoGranted;
                 const isRejected = req.status === 'REJECTED';
 
-                // Find matching roster account
                 const matchedOfficer = roster.find(o => 
                   o.name.toLowerCase() === req.officerName.toLowerCase() ||
                   o.badge.toLowerCase() === req.officerBadge.toLowerCase()
@@ -458,9 +609,11 @@ export const PinResetAuditModal: React.FC<Props> = ({
                     className={`p-3.5 sm:p-4 rounded-xl border transition space-y-3 ${
                       isPending
                         ? 'bg-amber-950/20 border-amber-600/70 hover:border-amber-500 shadow-md shadow-amber-950/20'
-                        : isResolved
-                          ? 'bg-[#0D1117] border-gray-800 hover:border-gray-700'
-                          : 'bg-rose-950/20 border-rose-900/60'
+                        : isAutoGranted
+                          ? 'bg-emerald-950/15 border-emerald-600/50 hover:border-emerald-500'
+                          : isManualResolved
+                            ? 'bg-[#0D1117] border-gray-800 hover:border-gray-700'
+                            : 'bg-rose-950/20 border-rose-900/60'
                     }`}
                   >
                     {/* Top Row: Officer Identity + Status Badge */}
@@ -469,11 +622,13 @@ export const PinResetAuditModal: React.FC<Props> = ({
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold shrink-0 ${
                           isPending 
                             ? 'bg-amber-900/60 border border-amber-600 text-amber-300' 
-                            : isResolved 
-                              ? 'bg-emerald-900/60 border border-emerald-600 text-emerald-300'
-                              : 'bg-rose-900/60 border border-rose-600 text-rose-300'
+                            : isAutoGranted
+                              ? 'bg-emerald-900/60 border border-emerald-500 text-emerald-300'
+                              : isManualResolved
+                                ? 'bg-blue-900/60 border border-blue-600 text-blue-300'
+                                : 'bg-rose-900/60 border border-rose-600 text-rose-300'
                         }`}>
-                          <User className="w-4 h-4" />
+                          {isAutoGranted ? <Zap className="w-4 h-4 text-emerald-400" /> : <User className="w-4 h-4" />}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
@@ -510,10 +665,16 @@ export const PinResetAuditModal: React.FC<Props> = ({
                             MENUNGGU OTORISASI ATASAN
                           </span>
                         )}
-                        {isResolved && (
-                          <span className="px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-700 rounded-full font-bold text-[10px] flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            DISETUJUI & SELESAI
+                        {isAutoGranted && (
+                          <span className="px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-500 rounded-full font-bold text-[10px] flex items-center gap-1">
+                            <Zap className="w-3.5 h-3.5 text-emerald-400" />
+                            OTOMATIS DIBERIKAN (ATASAN OFFLINE)
+                          </span>
+                        )}
+                        {isManualResolved && (
+                          <span className="px-2.5 py-1 bg-blue-950 text-blue-300 border border-blue-700 rounded-full font-bold text-[10px] flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-blue-400" />
+                            DISETUJUI MANUAL ATASAN
                           </span>
                         )}
                         {isRejected && (
@@ -553,17 +714,23 @@ export const PinResetAuditModal: React.FC<Props> = ({
                       </div>
                     </div>
 
-                    {/* Resolution Summary (If Resolved/Rejected) */}
-                    {(isResolved || isRejected) && (
+                    {/* Resolution Summary */}
+                    {(isAutoGranted || isManualResolved || isRejected) && (
                       <div className={`p-2.5 rounded-lg border text-xs space-y-1 ${
-                        isResolved 
-                          ? 'bg-emerald-950/30 border-emerald-800/60 text-emerald-200' 
-                          : 'bg-rose-950/30 border-rose-800/60 text-rose-200'
+                        isAutoGranted
+                          ? 'bg-emerald-950/30 border-emerald-800/60 text-emerald-200'
+                          : isManualResolved 
+                            ? 'bg-blue-950/30 border-blue-800/60 text-blue-200' 
+                            : 'bg-rose-950/30 border-rose-800/60 text-rose-200'
                       }`}>
                         <div className="flex flex-wrap items-center justify-between gap-1 text-[11px]">
                           <span className="font-bold flex items-center gap-1">
-                            <ShieldCheck className="w-3.5 h-3.5" />
-                            {isResolved ? 'Disahkan oleh:' : 'Ditolak oleh:'} {req.resolvedByRank} {req.resolvedBy} ({req.resolvedByBadge})
+                            {isAutoGranted ? <Zap className="w-3.5 h-3.5 text-emerald-400" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                            {isAutoGranted 
+                              ? 'Disahkan oleh Sistem Otomatis (High Command Offline)' 
+                              : isManualResolved 
+                                ? `Disahkan oleh: ${req.resolvedByRank || 'Supervisor'} ${req.resolvedBy} (${req.resolvedByBadge || '-'})`
+                                : `Ditolak oleh: ${req.resolvedByRank || 'Supervisor'} ${req.resolvedBy} (${req.resolvedByBadge || '-'})`}
                           </span>
                           {req.resolvedAt && (
                             <span className="text-[10px] text-gray-400">
@@ -571,7 +738,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
                             </span>
                           )}
                         </div>
-                        {isResolved && req.resolvedNewPin && (
+                        {(isAutoGranted || isManualResolved) && req.resolvedNewPin && (
                           <div className="text-xs">
                             PIN Baru Ditetapkan: <strong className="text-white bg-black/50 px-1.5 py-0.5 rounded font-mono">{req.resolvedNewPin}</strong>
                           </div>
@@ -599,7 +766,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
                                 setRejectingRequest(req);
                                 setRejectReason('Identitas tidak dapat diverifikasi atau nomor badge tidak valid.');
                               }}
-                              className="px-2.5 py-1.5 bg-rose-950/60 hover:bg-rose-900 border border-rose-700/60 text-rose-300 rounded font-bold transition text-xs flex items-center gap-1"
+                              className="px-2.5 py-1.5 bg-rose-950/60 hover:bg-rose-900 border border-rose-700/60 text-rose-300 rounded font-bold transition text-xs flex items-center gap-1 cursor-pointer"
                             >
                               <X className="w-3.5 h-3.5" />
                               <span>Tolak</span>
@@ -607,20 +774,31 @@ export const PinResetAuditModal: React.FC<Props> = ({
 
                             <button
                               type="button"
+                              onClick={() => handleQuickAccept(req)}
+                              disabled={isProcessingResolve}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded transition text-xs flex items-center gap-1 shadow-md cursor-pointer disabled:opacity-50"
+                              title="Setujui langsung menggunakan PIN yang diajukan atau default"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>⚡ 1-Click Setujui</span>
+                            </button>
+
+                            <button
+                              type="button"
                               onClick={() => handleOpenResolve(req)}
-                              className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded font-mono transition text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20"
+                              className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded font-mono transition text-xs flex items-center gap-1.5 shadow-md shadow-amber-500/20 cursor-pointer"
                             >
                               <KeyRound className="w-3.5 h-3.5" />
-                              <span>👑 OTORISASI & UBAH PIN</span>
+                              <span>👑 OTORISASI & PIN KUSTOM</span>
                             </button>
                           </>
                         )}
 
-                        {isResolved && (
+                        {(isAutoGranted || isManualResolved) && (
                           <button
                             type="button"
                             onClick={() => handleOpenResolve(req)}
-                            className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded transition text-xs flex items-center gap-1"
+                            className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded transition text-xs flex items-center gap-1 cursor-pointer"
                             title="Perbarui PIN lagi jika diperlukan"
                           >
                             <Edit3 className="w-3.5 h-3.5 text-amber-400" />
@@ -631,7 +809,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
                         <button
                           type="button"
                           onClick={() => handleDelete(req.id, req.officerName)}
-                          className="p-1.5 text-gray-500 hover:text-rose-400 transition"
+                          className="p-1.5 text-gray-500 hover:text-rose-400 transition cursor-pointer"
                           title="Hapus Tiket Log Ini"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -647,11 +825,11 @@ export const PinResetAuditModal: React.FC<Props> = ({
 
         {/* MODAL FOOTER */}
         <div className="bg-[#0F1319] border-t border-gray-800 px-4 py-2.5 flex items-center justify-between text-[11px] text-gray-400 font-mono">
-          <span>HighState PD MDT CAD Security Control</span>
+          <span>HighState PD MDT CAD Security Control • Auto-Grant & Notification Active</span>
           <button
             type="button"
             onClick={onClose}
-            className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded transition font-bold"
+            className="px-3 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded transition font-bold cursor-pointer"
           >
             Tutup
           </button>
@@ -692,7 +870,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
                 {resolvingRequest.requestedPin && (
                   <div className="flex justify-between text-gray-400">
                     <span>PIN yang Diajukan:</span>
-                    <strong className="text-emerald-400">{resolvingRequest.requestedPin}</strong>
+                    <strong className="text-emerald-400 font-mono">{resolvingRequest.requestedPin}</strong>
                   </div>
                 )}
               </div>
@@ -704,7 +882,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={() => setShowNewPin(!showNewPin)}
-                    className="text-[10px] text-amber-400 hover:underline flex items-center gap-1"
+                    className="text-[10px] text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
                   >
                     {showNewPin ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                     <span>{showNewPin ? 'Sembunyikan' : 'Lihat'}</span>
@@ -753,14 +931,14 @@ export const PinResetAuditModal: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => setResolvingRequest(null)}
-                  className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs"
+                  className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isProcessingResolve}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-800 text-black font-bold rounded-lg transition text-xs flex items-center gap-1.5 shadow-md"
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 disabled:bg-amber-800 text-black font-bold rounded-lg transition text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
                 >
                   <KeyRound className="w-3.5 h-3.5" />
                   <span>{isProcessingResolve ? 'Memproses...' : 'SIMPAN PIN & SAHKAN'}</span>
@@ -784,7 +962,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
               </div>
               <button
                 onClick={() => setRejectingRequest(null)}
-                className="text-gray-400 hover:text-gray-200"
+                className="text-gray-400 hover:text-gray-200 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -809,13 +987,13 @@ export const PinResetAuditModal: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => setRejectingRequest(null)}
-                  className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs"
+                  className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg transition text-xs"
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg transition text-xs cursor-pointer"
                 >
                   Konfirmasi Tolak
                 </button>
@@ -838,7 +1016,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
               </div>
               <button
                 onClick={() => setIsManualModalOpen(false)}
-                className="text-gray-400 hover:text-gray-200"
+                className="text-gray-400 hover:text-gray-200 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -902,13 +1080,13 @@ export const PinResetAuditModal: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => setIsManualModalOpen(false)}
-                  className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs"
+                  className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg transition text-xs flex items-center gap-1.5"
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg transition text-xs flex items-center gap-1.5 cursor-pointer"
                 >
                   <KeyRound className="w-3.5 h-3.5" />
                   <span>Simpan & Broadcast Discord</span>

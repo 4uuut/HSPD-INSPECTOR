@@ -5,13 +5,13 @@ import {
 import { 
   Shield, Lock, User, KeyRound, CheckCircle2, 
   AlertTriangle, ArrowRight, Eye, EyeOff, HelpCircle, 
-  LogIn, BookOpen, MessageSquare, Send, ShieldAlert,
-  Palette, Upload, Sparkles
+  LogIn, BookOpen, MessageSquare, ShieldAlert,
+  Sparkles
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from '../assets/logo';
 import { RecruitmentInfoPanel } from './RecruitmentInfoPanel';
 import { RequestPinDiscordModal } from './RequestPinDiscordModal';
-import { CustomBrandingModal } from './CustomBrandingModal';
+import { CaptchaVerification } from './CaptchaVerification';
 import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from '../utils/brandingStorage';
 
 interface Props {
@@ -19,17 +19,15 @@ interface Props {
   roster: OfficerAccount[];
   onRegisterOfficer?: (account: OfficerAccount) => void;
   onUpdateOfficerPin?: (badgeOrName: string, newPin: string) => boolean;
-  onOpenBrandingModal?: () => void;
 }
 
 export const OfficerLogin: React.FC<Props> = ({ 
   onLogin, 
   roster,
-  onOpenBrandingModal
+  onUpdateOfficerPin
 }) => {
   // Dynamic Branding State
   const [branding, setBranding] = useState<DepartmentBrandingConfig>(getCustomBranding());
-  const [isBrandingModalOpen, setIsBrandingModalOpen] = useState(false);
 
   useEffect(() => {
     return subscribeToBranding(cfg => setBranding(cfg));
@@ -42,6 +40,7 @@ export const OfficerLogin: React.FC<Props> = ({
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPin, setLoginPin] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [isCaptchaVerified, setIsCaptchaVerified] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [loginSuccess, setLoginSuccess] = useState('');
 
@@ -65,6 +64,11 @@ export const OfficerLogin: React.FC<Props> = ({
 
     if (!trimmedPin) {
       setLoginError('Silakan masukkan PIN pribadi akun Anda!');
+      return;
+    }
+
+    if (!isCaptchaVerified) {
+      setLoginError('⚠️ Harap selesaikan verifikasi "Saya bukan robot" di bawah sebelum masuk terminal!');
       return;
     }
 
@@ -104,27 +108,40 @@ export const OfficerLogin: React.FC<Props> = ({
 
   return (
     <div className="min-h-screen bg-[#090B10] text-gray-200 flex flex-col justify-center items-center p-3 sm:p-4 lg:p-6 selection:bg-blue-600 selection:text-white relative">
+      {/* Dynamic Background Wallpaper with Custom Opacity and Blur */}
+      {branding.backgroundWallpaper && (
+        <div
+          id="login-dynamic-wallpaper"
+          className="fixed inset-0 pointer-events-none z-0 transition-all duration-300"
+          style={{
+            backgroundImage: `url(${branding.backgroundWallpaper})`,
+            backgroundSize: branding.backgroundStyle === 'tile' ? 'auto' : (branding.backgroundStyle || 'cover'),
+            backgroundRepeat: branding.backgroundStyle === 'tile' ? 'repeat' : 'no-repeat',
+            backgroundPosition: 'center',
+            opacity: branding.backgroundOpacity ?? 0.25,
+            filter: branding.backgroundBlur ? `blur(${branding.backgroundBlur}px)` : 'none'
+          }}
+        />
+      )}
+
       {/* Background Graphic Grid */}
-      <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-25 pointer-events-none"></div>
+      <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-25 pointer-events-none z-0"></div>
 
       <div className="w-full max-w-7xl relative z-10 space-y-4">
         {/* Top Navbar Header Bar */}
-        <div className="bg-[#161B22] border border-gray-800 rounded-xl px-4 sm:px-6 py-3 flex items-center justify-between shadow-xl">
+        <div className="bg-[#161B22]/95 backdrop-blur-md border border-gray-800 rounded-xl px-4 sm:px-6 py-3 flex items-center justify-between shadow-xl">
           <div className="flex items-center gap-3.5">
-            <div className="relative group shrink-0 cursor-pointer" onClick={() => onOpenBrandingModal ? onOpenBrandingModal() : setIsBrandingModalOpen(true)} title="Klik untuk mengubah / upload logo website">
-              <div className="absolute -inset-1 bg-amber-500/20 rounded-full blur-sm group-hover:bg-amber-500/40 transition"></div>
+            <div className="relative shrink-0">
+              <div className="absolute -inset-1 bg-amber-500/10 rounded-full blur-sm"></div>
               <img
                 src={branding.logoUrl || HSPD_LOGO_URL}
                 alt={`${branding.departmentName} Official Crest`}
                 referrerPolicy="no-referrer"
-                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-contain relative z-10 drop-shadow-md border border-amber-500/40 bg-black/60 p-0.5 group-hover:scale-105 transition"
+                className="w-10 h-10 sm:w-11 sm:h-11 rounded-full object-contain relative z-10 drop-shadow-md border border-amber-500/40 bg-black/60 p-0.5"
                 onError={e => {
                   (e.target as HTMLImageElement).src = HSPD_LOGO_URL;
                 }}
               />
-              <div className="absolute -bottom-1 -right-1 z-20 bg-amber-500 text-black p-0.5 rounded-full border border-black text-[9px] group-hover:block transition">
-                <Palette className="w-2.5 h-2.5" />
-              </div>
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -143,21 +160,8 @@ export const OfficerLogin: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Right Status Badge & Custom Logo Button */}
+          {/* Right Status Badge */}
           <div className="flex items-center gap-2.5 font-mono text-xs">
-            {/* Direct Branding / Logo Customizer Button */}
-            <button
-              id="btn-open-branding-login"
-              type="button"
-              onClick={() => onOpenBrandingModal ? onOpenBrandingModal() : setIsBrandingModalOpen(true)}
-              className="px-2.5 py-1.5 bg-gradient-to-r from-amber-950/80 to-amber-900/80 hover:from-amber-900 hover:to-amber-800 text-amber-300 border border-amber-500/60 hover:border-amber-400 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-              title="Kustomisasi & Upload Logo dari Device / Web"
-            >
-              <Palette className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">UBAH LOGO</span>
-              <span className="sm:hidden">LOGO</span>
-            </button>
-
             <div className="hidden md:flex flex-col items-end text-right">
               <span className="text-[10px] text-green-400 flex items-center gap-1 font-bold">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
@@ -300,42 +304,34 @@ export const OfficerLogin: React.FC<Props> = ({
                     </div>
                   </div>
 
+                  {/* CAPTCHA "Saya Bukan Robot" Verification Box */}
+                  <div className="pt-1">
+                    <CaptchaVerification
+                      isVerified={isCaptchaVerified}
+                      onVerify={(verified) => {
+                        setIsCaptchaVerified(verified);
+                        if (verified) setLoginError('');
+                      }}
+                    />
+                  </div>
+
                   {/* Submit Login Button */}
                   <div className="pt-2">
                     <button
                       type="submit"
                       id="btn-login-terminal"
-                      className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 font-mono"
+                      disabled={!isCaptchaVerified}
+                      className={`w-full py-2.5 font-bold text-xs rounded-lg transition shadow-lg flex items-center justify-center gap-2 font-mono ${
+                        isCaptchaVerified
+                          ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30 cursor-pointer'
+                          : 'bg-gray-800 text-gray-400 border border-gray-700 cursor-not-allowed opacity-80'
+                      }`}
                     >
                       <LogIn className="w-4 h-4" />
-                      <span>MASUK TERMINAL (10-8 ON DUTY)</span>
+                      <span>{isCaptchaVerified ? 'MASUK TERMINAL (10-8 ON DUTY)' : 'LENGKAPI CAPTCHA UNTUK MASUK'}</span>
                     </button>
                   </div>
                 </form>
-
-                {/* DISCORD WEBHOOK PIN RESET DIRECT HELPER */}
-                <div className="p-3 bg-gradient-to-r from-blue-950/40 to-indigo-950/40 border border-blue-800/40 rounded-xl space-y-2 text-[11px]">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 font-bold text-blue-300">
-                      <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>Pengubahan & Reset PIN via Discord</span>
-                    </div>
-                    <span className="text-[9px] font-mono bg-indigo-950 text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-800/60 font-bold">
-                      DISCORD WEBHOOK
-                    </span>
-                  </div>
-                  <p className="text-gray-300 leading-relaxed">
-                    Pengubahan PIN login dipusatkan melalui pengesahan Atasan. Jika Anda lupa PIN atau ingin mengganti PIN akun, kirim tiket permohonan langsung ke Webhook Discord.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setIsDiscordModalOpen(true)}
-                    className="w-full py-2 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/50 text-indigo-200 hover:text-white font-bold rounded-lg transition flex items-center justify-center gap-1.5 font-mono"
-                  >
-                    <Send className="w-3.5 h-3.5 text-indigo-300" />
-                    <span>Ajukan Permintaan Reset / Ganti PIN ke Discord</span>
-                  </button>
-                </div>
 
                 {/* Information Policy */}
                 <div className="pt-2 border-t border-gray-800/80 flex items-start gap-2 text-[10px] text-gray-500 leading-relaxed">
@@ -362,13 +358,14 @@ export const OfficerLogin: React.FC<Props> = ({
         onClose={() => setIsDiscordModalOpen(false)}
         initialIdentifier={loginIdentifier}
         roster={roster}
-      />
-
-      {/* CUSTOM LOGO & BRANDING MODAL */}
-      <CustomBrandingModal
-        isOpen={isBrandingModalOpen}
-        onClose={() => setIsBrandingModalOpen(false)}
-        onBrandingUpdated={cfg => setBranding(cfg)}
+        onUpdateOfficerPin={onUpdateOfficerPin}
+        onPinAutoApplied={(appliedPin, identifier) => {
+          setLoginPin(appliedPin);
+          if (identifier && !loginIdentifier) {
+            setLoginIdentifier(identifier);
+          }
+          setLoginSuccess(`✅ PIN baru (${appliedPin}) berhasil diterapkan secara otomatis! Silakan klik Masuk Terminal.`);
+        }}
       />
     </div>
   );

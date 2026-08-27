@@ -55,7 +55,11 @@ import {
 import { exportElementAsImage } from '../utils/exportDocumentAsImage';
 import { OfficialSeal, CustomUploadedSeal } from './OfficialSeals';
 import { SignaturePadModal } from './SignaturePadModal';
-import { DiscordWebhookConfig } from '../utils/discordWebhook';
+import { 
+  DiscordWebhookConfig, 
+  getSavedDocumentWebhookConfig, 
+  sendOfficialDocumentToDiscord 
+} from '../utils/discordWebhook';
 import { HSPD_LOGO_URL, HSPD_LOGO_FALLBACK, getActiveLogoUrl } from '../assets/logo';
 
 interface OfficialDocumentStudioProps {
@@ -103,7 +107,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
   // UI Feedback States
   const [isExporting, setIsExporting] = useState<boolean>(false);
-  const [exportFormat, setExportFormat] = useState<'png' | 'jpeg'>('png');
+  const [exportingFormat, setExportingFormat] = useState<'png' | 'jpeg' | null>(null);
   const [copiedText, setCopiedText] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
   const [webhookStatus, setWebhookStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
@@ -124,30 +128,28 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
   // Handle template selection
   const handleApplyPreset = (preset: DocumentTemplatePreset) => {
-    if (window.confirm(`Muat template "${preset.name}"? Perubahan yang belum disimpan pada dokumen aktif akan digantikan.`)) {
-      setActiveDoc({
-        ...preset.defaultDoc,
-        id: `doc-${Date.now()}`,
-        issuerName: currentOfficer?.name || preset.defaultDoc.issuerName,
-        issuerBadge: currentOfficer?.badge || preset.defaultDoc.issuerBadge,
-        issuerRank: currentOfficer?.rank || preset.defaultDoc.issuerRank,
-        showWatermark: true,
-        watermarkOpacity: activeDoc.watermarkOpacity ?? 0.11,
-        watermarkSize: activeDoc.watermarkSize ?? 450,
-        paperTexture: activeDoc.paperTexture ?? 'security_parchment',
-        paperBorderType: activeDoc.paperBorderType ?? 'official_guilloche',
-        sealDisplayMode: activeDoc.sealDisplayMode ?? 'preset',
-        customSealImage: activeDoc.customSealImage,
-        customSealRotation: activeDoc.customSealRotation ?? -7,
-        customSealOpacity: activeDoc.customSealOpacity ?? 0.88,
-        customSealScale: activeDoc.customSealScale ?? 1.0,
-        customSealColorFilter: activeDoc.customSealColorFilter ?? 'red',
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      });
-      setSaveSuccessMsg(`Template "${preset.name}" berhasil dimuat.`);
-      setTimeout(() => setSaveSuccessMsg(null), 3000);
-    }
+    setActiveDoc({
+      ...preset.defaultDoc,
+      id: `doc-${Date.now()}`,
+      issuerName: currentOfficer?.name || preset.defaultDoc.issuerName,
+      issuerBadge: currentOfficer?.badge || preset.defaultDoc.issuerBadge,
+      issuerRank: currentOfficer?.rank || preset.defaultDoc.issuerRank,
+      showWatermark: true,
+      watermarkOpacity: activeDoc.watermarkOpacity ?? 0.11,
+      watermarkSize: activeDoc.watermarkSize ?? 450,
+      paperTexture: activeDoc.paperTexture ?? 'security_parchment',
+      paperBorderType: activeDoc.paperBorderType ?? 'official_guilloche',
+      sealDisplayMode: activeDoc.sealDisplayMode ?? 'preset',
+      customSealImage: activeDoc.customSealImage,
+      customSealRotation: activeDoc.customSealRotation ?? -7,
+      customSealOpacity: activeDoc.customSealOpacity ?? 0.88,
+      customSealScale: activeDoc.customSealScale ?? 1.0,
+      customSealColorFilter: activeDoc.customSealColorFilter ?? 'red',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+    setSaveSuccessMsg(`Template "${preset.name}" berhasil diterapkan.`);
+    setTimeout(() => setSaveSuccessMsg(null), 3000);
   };
 
   // Add new clause
@@ -168,7 +170,8 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
   // Remove clause
   const handleRemoveClause = (id: string) => {
     if (activeDoc.clauses.length <= 1) {
-      alert('Dokumen harus memiliki minimal 1 klausul atau poin ketentuan.');
+      setSaveSuccessMsg('⚠️ Dokumen harus memiliki minimal 1 klausul atau poin ketentuan.');
+      setTimeout(() => setSaveSuccessMsg(null), 3000);
       return;
     }
     setActiveDoc(prev => ({
@@ -194,34 +197,41 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
     const newSavedList = saveOfficialDocument(updated);
     setSavedDocs(newSavedList);
     setActiveDoc(updated);
+    
+    // Auto send to document webhook if enabled
+    const docWebhookCfg = getSavedDocumentWebhookConfig();
+    if (docWebhookCfg.webhookUrl && docWebhookCfg.autoSendOnSave) {
+      sendOfficialDocumentToDiscord(updated).catch(err => {
+        console.warn('Auto send document webhook warning:', err);
+      });
+    }
+
     setSaveSuccessMsg('Dokumen resmi berhasil disimpan ke Arsip Markas Besar HSPD!');
     setTimeout(() => setSaveSuccessMsg(null), 3500);
   };
 
   // Create new blank document
   const handleCreateNewBlank = () => {
-    if (window.confirm('Buat dokumen baru dari awal?')) {
-      const defaultTemplate = DOCUMENT_PRESET_TEMPLATES[0].defaultDoc;
-      setActiveDoc({
-        ...defaultTemplate,
-        id: `doc-${Date.now()}`,
-        docNumber: `DOC/HSPD-GEN/${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
-        title: 'SURAT DOKUMEN RESMI KEPOLISIAN',
-        subject: 'Perihal Pelaksanaan Tugas / Administrasi Kepolisian',
-        issuerName: currentOfficer?.name || 'Petugas HSPD',
-        issuerBadge: currentOfficer?.badge || '000',
-        issuerRank: currentOfficer?.rank || 'POLICE OFFICER',
-        showWatermark: true,
-        watermarkOpacity: 0.11,
-        watermarkSize: 450,
-        paperTexture: 'security_parchment',
-        paperBorderType: 'official_guilloche',
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      });
-      setSaveSuccessMsg('Dokumen baru berhasil dibuat.');
-      setTimeout(() => setSaveSuccessMsg(null), 2500);
-    }
+    const defaultTemplate = DOCUMENT_PRESET_TEMPLATES[0].defaultDoc;
+    setActiveDoc({
+      ...defaultTemplate,
+      id: `doc-${Date.now()}`,
+      docNumber: `DOC/HSPD-GEN/${new Date().getFullYear()}/${Math.floor(100 + Math.random() * 900)}`,
+      title: 'SURAT DOKUMEN RESMI KEPOLISIAN',
+      subject: 'Perihal Pelaksanaan Tugas / Administrasi Kepolisian',
+      issuerName: currentOfficer?.name || 'Petugas HSPD',
+      issuerBadge: currentOfficer?.badge || '000',
+      issuerRank: currentOfficer?.rank || 'POLICE OFFICER',
+      showWatermark: true,
+      watermarkOpacity: 0.11,
+      watermarkSize: 450,
+      paperTexture: 'security_parchment',
+      paperBorderType: 'official_guilloche',
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    });
+    setSaveSuccessMsg('Dokumen baru berhasil dibuat.');
+    setTimeout(() => setSaveSuccessMsg(null), 2500);
   };
 
   // Load from archive
@@ -235,13 +245,13 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
   // Delete document
   const handleDeleteDoc = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm('Hapus dokumen ini dari arsip? Tindakan ini tidak dapat dibatalkan.')) {
-      const updated = deleteOfficialDocument(id);
-      setSavedDocs(updated);
-      if (activeDoc.id === id) {
-        handleCreateNewBlank();
-      }
+    const updated = deleteOfficialDocument(id);
+    setSavedDocs(updated);
+    if (activeDoc.id === id) {
+      handleCreateNewBlank();
     }
+    setSaveSuccessMsg('Dokumen berhasil dihapus dari arsip.');
+    setTimeout(() => setSaveSuccessMsg(null), 3000);
   };
 
   // Duplicate document
@@ -280,95 +290,71 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
   // Export as Image (PNG / JPEG HD)
   const handleExportImage = async (format: 'png' | 'jpeg') => {
-    if (!paperRef.current) return;
+    if (!paperRef.current) {
+      alert('Elemen dokumen tidak ditemukan untuk dicetak.');
+      return;
+    }
     setIsExporting(true);
+    setExportingFormat(format);
     try {
-      const sanitizedDocNumber = activeDoc.docNumber.replace(/[\/\\]/g, '-');
-      const filename = `${sanitizedDocNumber}_${activeDoc.category}`;
-      await exportElementAsImage(paperRef.current, {
+      const sanitizedDocNumber = (activeDoc.docNumber || 'DOC-HSPD').replace(/[\/\\:*?"<>|]/g, '-').trim();
+      const sanitizedTitle = (activeDoc.title || 'DOKUMEN_RESMI').replace(/[\/\\:*?"<>|\s]/g, '_').trim().slice(0, 35);
+      const filename = `SURAT_${sanitizedDocNumber}_${sanitizedTitle}`;
+      
+      const result = await exportElementAsImage(paperRef.current, {
         fileName: filename,
         format,
-        scale: 2.2,
-        quality: 0.95
+        scale: 2.5,
+        quality: 0.95,
+        backgroundColor: format === 'jpeg' ? '#FAF8F3' : null
       });
-      setSaveSuccessMsg(`Dokumen berhasil dicetak & diekspor ke file ${format.toUpperCase()} Resolusi Tinggi!`);
-      setTimeout(() => setSaveSuccessMsg(null), 4000);
-    } catch (error) {
+
+      if (result.success) {
+        setSaveSuccessMsg(`✅ Dokumen berhasil diproses & diunduh sebagai file ${format.toUpperCase()} (Resolusi Tinggi)!`);
+        setTimeout(() => setSaveSuccessMsg(null), 4500);
+      } else {
+        throw new Error(result.error || 'Gagal merender file gambar');
+      }
+    } catch (error: any) {
       console.error('Export image error:', error);
-      alert('Gagal mengekspor gambar dokumen. Pastikan browser mendukung Canvas Export.');
+      alert(`Gagal mengekspor gambar dokumen: ${error.message || 'Pastikan browser mendukung Canvas Export.'}`);
     } finally {
       setIsExporting(false);
+      setExportingFormat(null);
     }
   };
 
   // Send to Discord Webhook
   const handleSendToDiscord = async () => {
-    const targetWebhookUrl = webhookConfig?.webhookUrl || (webhookConfig as any)?.url;
+    const docConfig = getSavedDocumentWebhookConfig();
+    const targetWebhookUrl = docConfig.webhookUrl || 
+      webhookConfig?.webhookUrl || 
+      (webhookConfig as any)?.url || 
+      localStorage.getItem('hspd_discord_webhook_url') || 
+      localStorage.getItem('hspd_roster_webhook_url');
+
     if (!targetWebhookUrl) {
-      alert('Discord Webhook belum dikonfigurasi. Silakan atur Webhook di menu 👑 WEBHOOK (High Command).');
+      alert('⚠️ Discord Webhook Arsip Dokumen belum dikonfigurasi. Silakan atur URL Webhook di menu 👑 WEBHOOK (Header Bar) pada Tab 13. Dokumen terlebih dahulu.');
       return;
     }
 
     setWebhookStatus('sending');
     try {
-      const payload = {
-        username: 'HSPD Document Archives',
-        avatar_url: HSPD_LOGO_FALLBACK,
-        embeds: [
-          {
-            title: `📄 [ARSIP SURAT RESMI] ${activeDoc.title}`,
-            description: `**Nomor Berkas:** \`${activeDoc.docNumber}\`\n**Perihal:** ${activeDoc.subject}\n**Klasifikasi:** \`${activeDoc.classification}\``,
-            color: activeDoc.classification === 'RAHASIA' || activeDoc.classification === 'SANGAT RAHASIA' ? 0x991b1b : 0x1e3a8a,
-            fields: [
-              {
-                name: '👮 Pejabat Penerbit',
-                value: `${activeDoc.issuerName}\nBadge: \`${activeDoc.issuerBadge}\` | Pangkat: ${activeDoc.issuerRank}`,
-                inline: true
-              },
-              {
-                name: '👤 Pihak Penerima / Subjek',
-                value: `${activeDoc.recipientName}\nID/Status: \`${activeDoc.recipientId || activeDoc.recipientRoleOrStatus || '-'}\``,
-                inline: true
-              },
-              {
-                name: '📅 Tanggal & Tempat',
-                value: `${activeDoc.date} | ${activeDoc.location}`,
-                inline: false
-              },
-              {
-                name: '📜 Poin / Ketentuan Utama',
-                value: activeDoc.clauses.slice(0, 3).map(c => `• **${c.clauseNumber || 'Poin'}:** ${c.title || ''} - ${c.content.slice(0, 100)}...`).join('\n') || 'Tertera pada lampiran dokumen.',
-                inline: false
-              }
-            ],
-            footer: {
-              text: `HSPD Official Legal Document System • Otorisasi: ${activeDoc.acknowledgedByName || 'Chief of Police'}`
-            },
-            timestamp: new Date().toISOString()
-          }
-        ]
-      };
-
-      const res = await fetch(targetWebhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
+      const res = await sendOfficialDocumentToDiscord(activeDoc, { webhookUrl: targetWebhookUrl });
+      if (res.success) {
         setWebhookStatus('success');
-        setSaveSuccessMsg('Laporan dokumen berhasil dikirim ke arsip Discord Webhook!');
+        setSaveSuccessMsg(`✅ ${res.message}`);
         setTimeout(() => {
           setWebhookStatus('idle');
           setSaveSuccessMsg(null);
-        }, 3500);
+        }, 4000);
       } else {
-        throw new Error(`HTTP error ${res.status}`);
+        throw new Error(res.message);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
       setWebhookStatus('error');
-      alert('Gagal mengirim dokumen ke Discord. Periksa URL webhook Anda.');
+      alert(`Gagal mengirim dokumen ke Discord: ${e.message || 'Periksa URL Webhook Anda.'}`);
       setTimeout(() => setWebhookStatus('idle'), 3000);
     }
   };
@@ -434,6 +420,34 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
   return (
     <div className="space-y-4 pb-16 animate-fadeIn">
+      {/* Scoped Print Styles for A4 Paper Layout */}
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden !important;
+          }
+          #hspd-official-paper-sheet, #hspd-official-paper-sheet * {
+            visibility: visible !important;
+          }
+          #hspd-official-paper-sheet {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            min-height: 100% !important;
+            margin: 0 !important;
+            padding: 28px !important;
+            box-shadow: none !important;
+            border: none !important;
+            background-color: white !important;
+          }
+          @page {
+            size: A4 portrait;
+            margin: 10mm;
+          }
+        }
+      `}</style>
+
       {/* Top Header & Quick Action Bar */}
       <div className="bg-[#11141A] border border-gray-800 rounded-xl p-4 shadow-lg">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -458,28 +472,34 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
           {/* Top Main Action Buttons */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* Archive Button */}
             <button
               id="btn-doc-archive-open"
               onClick={() => setIsArchiveModalOpen(true)}
-              className="px-3 py-1.5 bg-[#161B22] hover:bg-[#1F242C] border border-gray-700 text-gray-200 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5"
+              className="px-3 py-1.5 bg-[#161B22] hover:bg-[#1F242C] border border-gray-700 text-gray-200 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5 active:scale-95"
+              title="Buka daftar berkas dokumen yang tersimpan"
             >
               <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
               <span>Arsip Berkas ({savedDocs.length})</span>
             </button>
 
+            {/* Blank Document Button */}
             <button
               id="btn-doc-new-blank"
               onClick={handleCreateNewBlank}
-              className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-200 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5"
+              className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-200 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5 active:scale-95"
+              title="Buat dokumen baru dari awal"
             >
               <FilePlus2 className="w-3.5 h-3.5 text-blue-400" />
               <span>Dokumen Baru</span>
             </button>
 
+            {/* Save to Database */}
             <button
               id="btn-doc-save-db"
               onClick={handleSaveDocument}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-900/30"
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-900/30 active:scale-95"
+              title="Simpan dokumen ini ke penyimpanan arsip lokal"
             >
               <Save className="w-3.5 h-3.5" />
               <span>Simpan ke Database</span>
@@ -490,11 +510,15 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
               id="btn-export-doc-png"
               disabled={isExporting}
               onClick={() => handleExportImage('png')}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-900/30 disabled:opacity-50"
-              title="Cetak dan unduh gambar PNG Resolusi Tinggi siap upload/report"
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-900/30 disabled:opacity-50 active:scale-95"
+              title="Cetak dan unduh lembar surat sebagai file PNG resolusi tinggi (HD)"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>{isExporting ? 'Mencetak HD...' : 'Cetak PNG (HD)'}</span>
+              {exportingFormat === 'png' ? (
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              <span>{exportingFormat === 'png' ? 'Memproses PNG...' : 'Cetak PNG (HD)'}</span>
             </button>
 
             {/* Export JPG */}
@@ -502,19 +526,23 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
               id="btn-export-doc-jpg"
               disabled={isExporting}
               onClick={() => handleExportImage('jpeg')}
-              className="px-3 py-1.5 bg-teal-700 hover:bg-teal-600 text-white rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-md disabled:opacity-50"
-              title="Cetak dan unduh gambar JPG"
+              className="px-3 py-1.5 bg-teal-700 hover:bg-teal-600 text-white rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-md shadow-teal-900/30 disabled:opacity-50 active:scale-95"
+              title="Cetak dan unduh lembar surat sebagai file JPG berkualitas tinggi"
             >
-              <ImageIcon className="w-3.5 h-3.5" />
-              <span>Cetak JPG</span>
+              {exportingFormat === 'jpeg' ? (
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <ImageIcon className="w-3.5 h-3.5" />
+              )}
+              <span>{exportingFormat === 'jpeg' ? 'Memproses JPG...' : 'Cetak JPG'}</span>
             </button>
 
             {/* Print / PDF */}
             <button
               id="btn-print-doc-pdf"
               onClick={handlePrint}
-              className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1"
-              title="Cetak Lembar Dokumen via Browser / PDF Printer"
+              className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1 active:scale-95"
+              title="Cetak Lembar Dokumen via Browser / Simpan PDF"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>PDF / Print</span>
@@ -524,26 +552,28 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
             <button
               id="btn-copy-doc-plain-text"
               onClick={handleCopyText}
-              className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1"
+              className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1 active:scale-95"
               title="Salin isi dokumen dalam format Plain Text / Roleplay Chat"
             >
               {copiedText ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copiedText ? 'Tersalin!' : 'Salin Teks'}</span>
             </button>
 
-            {/* Discord Webhook */}
-            {webhookConfig && (webhookConfig.webhookUrl || (webhookConfig as any).url) && (
-              <button
-                id="btn-send-doc-discord"
-                disabled={webhookStatus === 'sending'}
-                onClick={handleSendToDiscord}
-                className="px-2.5 py-1.5 bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1 disabled:opacity-50"
-                title="Kirim notifikasi berkas ke Discord Webhook"
-              >
+            {/* Discord Webhook Button */}
+            <button
+              id="btn-send-doc-discord"
+              disabled={webhookStatus === 'sending'}
+              onClick={handleSendToDiscord}
+              className="px-2.5 py-1.5 bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1 disabled:opacity-50 active:scale-95"
+              title="Kirim arsip dokumen resmi ke Discord Webhook"
+            >
+              {webhookStatus === 'sending' ? (
+                <div className="w-3.5 h-3.5 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin" />
+              ) : (
                 <Send className="w-3.5 h-3.5" />
-                <span>{webhookStatus === 'sending' ? 'Mengirim...' : 'Discord'}</span>
-              </button>
-            )}
+              )}
+              <span>{webhookStatus === 'sending' ? 'Mengirim...' : 'Discord'}</span>
+            </button>
           </div>
         </div>
 
@@ -572,27 +602,37 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
             return (
               <button
                 key={preset.id}
+                type="button"
                 onClick={() => handleApplyPreset(preset)}
-                className={`text-left p-2 rounded-lg border transition flex flex-col justify-between h-[76px] ${
+                className={`text-left p-2.5 rounded-lg border transition-all flex flex-col justify-between h-[82px] cursor-pointer active:scale-95 ${
                   isCurrent
-                    ? 'bg-blue-950/60 border-blue-500 text-blue-200 shadow-sm shadow-blue-950'
-                    : 'bg-[#161B22] border-gray-800 hover:border-gray-600 text-gray-300 hover:bg-[#1C2128]'
+                    ? 'bg-blue-950/70 border-blue-400 text-blue-100 shadow-md shadow-blue-950/50 ring-1 ring-blue-400/50'
+                    : 'bg-[#161B22] border-gray-800 hover:border-blue-500/70 text-gray-300 hover:bg-[#1C2128]'
                 }`}
+                title={`Terapkan template ${preset.name}`}
               >
                 <div>
-                  <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border ${
-                    isCurrent 
-                      ? 'bg-blue-500 text-black border-blue-400' 
-                      : 'bg-black/50 text-gray-400 border-gray-700'
-                  }`}>
-                    {preset.badgeLabel}
-                  </span>
+                  <div className="flex items-center justify-between gap-1">
+                    <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                      isCurrent 
+                        ? 'bg-blue-500 text-black border-blue-400 font-black' 
+                        : 'bg-black/60 text-gray-300 border-gray-700'
+                    }`}>
+                      {preset.badgeLabel}
+                    </span>
+                    {isCurrent && (
+                      <span className="text-[9px] text-blue-300 font-bold flex items-center gap-0.5">
+                        <Check className="w-2.5 h-2.5" /> Aktif
+                      </span>
+                    )}
+                  </div>
                   <div className="text-[11px] font-semibold text-gray-100 line-clamp-1 mt-1 font-mono">
                     {preset.name}
                   </div>
                 </div>
-                <div className="text-[9px] text-gray-500 truncate font-mono">
-                  {preset.defaultDoc.classification} • {preset.defaultDoc.clauses.length} Poin
+                <div className="text-[9px] text-gray-400 truncate font-mono flex items-center justify-between">
+                  <span>{preset.defaultDoc.classification}</span>
+                  <span>{preset.defaultDoc.clauses.length} Poin</span>
                 </div>
               </button>
             );
@@ -2101,11 +2141,22 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
                     <div className="flex items-center gap-2 shrink-0">
                       <button
+                        type="button"
+                        onClick={() => handleLoadFromArchive(doc)}
+                        className="px-2.5 py-1.5 bg-blue-600/30 hover:bg-blue-600 border border-blue-500/50 text-blue-200 hover:text-white rounded-lg text-xs flex items-center gap-1 font-bold transition active:scale-95"
+                        title="Buka dan muat dokumen ini ke editor"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Buka / Edit</span>
+                      </button>
+
+                      <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDuplicateDoc(doc);
                         }}
-                        className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-xs flex items-center gap-1 font-bold"
+                        className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs flex items-center gap-1 font-bold transition active:scale-95"
                         title="Gandakan sebagai dokumen baru"
                       >
                         <Copy className="w-3.5 h-3.5" />
@@ -2113,11 +2164,13 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                       </button>
 
                       <button
+                        type="button"
                         onClick={(e) => handleDeleteDoc(doc.id, e)}
-                        className="p-1.5 text-gray-500 hover:text-rose-400 hover:bg-rose-950/40 rounded transition"
-                        title="Hapus dari arsip"
+                        className="px-2.5 py-1.5 bg-rose-950/40 hover:bg-rose-900 border border-rose-800/60 text-rose-300 hover:text-white rounded-lg text-xs flex items-center gap-1 font-bold transition active:scale-95"
+                        title="Hapus berkas ini dari arsip"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Hapus</span>
                       </button>
                     </div>
                   </div>

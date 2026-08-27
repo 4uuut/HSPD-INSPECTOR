@@ -12,6 +12,11 @@ export interface DepartmentBrandingConfig {
   watermarkText?: string;       // e.g. "CONFIDENTIAL • LAW ENFORCEMENT SENSITIVE"
   accentColor?: string;         // 'amber' | 'blue' | 'emerald' | 'cyan' | 'red' | 'purple'
   customSealUrl?: string;       // Optional custom stamp/seal for official letters
+  // Background & Wallpaper Customization
+  backgroundWallpaper?: string; // Image URL or Base64 or 'none' / gradient
+  backgroundOpacity?: number;   // 0.05 to 0.95 (default 0.25)
+  backgroundBlur?: number;      // 0 to 16px (default 0)
+  backgroundStyle?: 'cover' | 'tile' | 'contain' | 'center';
   updatedAt: number;
   updatedBy?: string;
 }
@@ -30,9 +35,66 @@ export const DEFAULT_BRANDING: DepartmentBrandingConfig = {
   radioFreq: '1111',
   watermarkText: 'CONFIDENTIAL • LAW ENFORCEMENT SENSITIVE',
   accentColor: 'amber',
+  backgroundWallpaper: '',
+  backgroundOpacity: 0.25,
+  backgroundBlur: 0,
+  backgroundStyle: 'cover',
   updatedAt: 1700000000000,
   updatedBy: 'Sistem Pusat Kepolisian'
 };
+
+export interface PresetWallpaperItem {
+  id: string;
+  name: string;
+  category: string;
+  url: string;
+  description: string;
+}
+
+export const PRESET_WALLPAPERS: PresetWallpaperItem[] = [
+  {
+    id: 'wp_police_hq',
+    name: 'Police HQ Command Center',
+    category: 'Markas Polisi',
+    url: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=1600&auto=format&fit=crop&q=80',
+    description: 'Suasana markas besar kepolisian modern & pusat kendali operasional'
+  },
+  {
+    id: 'wp_patrol_cruiser',
+    name: 'Night Patrol Cruiser & Sirens',
+    category: 'Patroli Malam',
+    url: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1600&auto=format&fit=crop&q=80',
+    description: 'Armada mobil patroli polisi dengan sirine biru-merah di jalanan kota'
+  },
+  {
+    id: 'wp_tactical_swat',
+    name: 'Tactical Unit Operations',
+    category: 'Taktis & SWAT',
+    url: 'https://images.unsplash.com/photo-1563245372-f21724e3856d?w=1600&auto=format&fit=crop&q=80',
+    description: 'Persiapan regu taktis bersenjata lengkap divisi operasi khusus'
+  },
+  {
+    id: 'wp_city_skyline',
+    name: 'Metropolis Night Skyline',
+    category: 'Kota Metropolitan',
+    url: 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=1600&auto=format&fit=crop&q=80',
+    description: 'Pemandangan panorama gedung pencakar langit kota metropolitan di malam hari'
+  },
+  {
+    id: 'wp_forensic_detective',
+    name: 'Detective Investigation Board',
+    category: 'Investigasi',
+    url: 'https://images.unsplash.com/photo-1453728013993-6d66e9c9123a?w=1600&auto=format&fit=crop&q=80',
+    description: 'Suasana investigasi berkas dan forensik detektif kriminal'
+  },
+  {
+    id: 'wp_tactical_grid',
+    name: 'High-Tech Tactical Grid Radar',
+    category: 'Cyber & Radar',
+    url: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=1600&auto=format&fit=crop&q=80',
+    description: 'Matriks digital terminal keamanan cyber dan grid radar kepolisian'
+  }
+];
 
 export interface PresetLogoItem {
   id: string;
@@ -126,7 +188,11 @@ export function getCustomBranding(): DepartmentBrandingConfig {
           subTitle: parsed.subTitle || DEFAULT_BRANDING.subTitle,
           cadBadgeText: parsed.cadBadgeText || DEFAULT_BRANDING.cadBadgeText,
           agencyJurisdiction: parsed.agencyJurisdiction || DEFAULT_BRANDING.agencyJurisdiction,
-          radioFreq: parsed.radioFreq || DEFAULT_BRANDING.radioFreq
+          radioFreq: parsed.radioFreq || DEFAULT_BRANDING.radioFreq,
+          backgroundWallpaper: parsed.backgroundWallpaper !== undefined ? parsed.backgroundWallpaper : DEFAULT_BRANDING.backgroundWallpaper,
+          backgroundOpacity: typeof parsed.backgroundOpacity === 'number' ? parsed.backgroundOpacity : DEFAULT_BRANDING.backgroundOpacity,
+          backgroundBlur: typeof parsed.backgroundBlur === 'number' ? parsed.backgroundBlur : DEFAULT_BRANDING.backgroundBlur,
+          backgroundStyle: parsed.backgroundStyle || DEFAULT_BRANDING.backgroundStyle
         };
       }
     }

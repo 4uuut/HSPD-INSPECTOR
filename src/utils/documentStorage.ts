@@ -7,9 +7,9 @@ export const DOCUMENTS_STORAGE_KEY = 'hspd_official_documents_archive_v1';
 export function getSavedOfficialDocuments(): OfficialDocument[] {
   try {
     const raw = localStorage.getItem(DOCUMENTS_STORAGE_KEY);
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
@@ -17,7 +17,7 @@ export function getSavedOfficialDocuments(): OfficialDocument[] {
     console.error('Failed to load official documents from storage', e);
   }
 
-  // Seed with 3 realistic initial archived documents
+  // Seed with 3 realistic initial archived documents only on first launch
   const initialDocs: OfficialDocument[] = [
     {
       ...DOCUMENT_PRESET_TEMPLATES[0].defaultDoc,

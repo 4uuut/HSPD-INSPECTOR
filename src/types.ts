@@ -302,6 +302,7 @@ export type ModuleAccessKey =
   | 'OFFICIAL_DOCS'     // Dokumen Resmi & Surat Rahasia / WCL / SP
   | 'CASE_HISTORY'      // Riwayat Kasus & Berkas Penindakan
   | 'DETECTIVE'         // Kasus Detektif & CID Board
+  | 'BOLO'              // Sistem BOLO & Sitaan Lalu Lintas (Patrol / PU Hub)
   | 'IAD'               // Internal Affairs & Disiplin Anggota
   | 'FORENSICS'         // Laboratorium Forensik & Balistik
   | 'DISPATCH'          // CAD 911 & Panic Emergency
@@ -395,6 +396,8 @@ export interface PinResetRequest {
   resolvedNewPin?: string;
   resolutionNotes?: string;
   webhookSent?: boolean;
+  autoGranted?: boolean;
+  autoGrantReason?: string;
 }
 
 // ==========================================
@@ -942,6 +945,25 @@ export interface CadetEvaluation {
   notes: string;
   recommendation: 'PASS_TO_NEXT_PHASE' | 'GRADUATE_TO_PO1' | 'RE_EVALUATE' | 'ACADEMY_DISMISSAL';
   evaluatedAt: number;
+}
+
+// 6. TED (Traffic Enforcement Division / Satlantas)
+export interface TedTrafficRecord {
+  id: string;
+  driverName: string;
+  driverLicense: string;
+  vehiclePlate: string;
+  vehicleModel: string;
+  clockedSpeedMph: number;
+  speedLimitMph: number;
+  bacLevel: number;                 // Blood Alcohol Content, e.g. 0.08
+  violations: string[];
+  totalFine: number;
+  officerName: string;
+  officerBadge: string;
+  actionTaken: 'WARNING' | 'CITATION_ISSUED' | 'DUI_ARREST' | 'VEHICLE_IMPOUNDED';
+  location: string;
+  timestamp: number;
 }
 
 // ========================================================

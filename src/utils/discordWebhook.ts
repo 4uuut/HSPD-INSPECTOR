@@ -1,6 +1,7 @@
 import { 
   ArrestRecord, DutyLog, OfficerAccount, OfficerWarning, DischargeRecord, PromotionRecord,
-  DetectiveCase, BoloAlert, ImpoundRecord, OfficerProfile, VaultAuditLog, DestructionRegistryItem
+  DetectiveCase, BoloAlert, ImpoundRecord, OfficerProfile, VaultAuditLog, DestructionRegistryItem,
+  OfficialDocument
 } from '../types';
 import { dataURLtoBlob } from './imageCompressor';
 import { pushToFirestore, syncAllWebhooksToFirestore } from '../services/firebaseRealtimeSync';
@@ -77,6 +78,12 @@ export const DESTRUCTION_WEBHOOK_STORAGE_KEY = 'hspd_destruction_webhook_url';
 export const DESTRUCTION_BOT_NAME_KEY = 'hspd_destruction_bot_name';
 export const DESTRUCTION_BOT_AVATAR_KEY = 'hspd_destruction_bot_avatar';
 export const DESTRUCTION_AUTO_SEND_KEY = 'hspd_destruction_auto_send';
+
+// Dedicated Official Document & Archival Webhook Keys
+export const DOCUMENT_WEBHOOK_STORAGE_KEY = 'hspd_document_webhook_url';
+export const DOCUMENT_BOT_NAME_KEY = 'hspd_document_bot_name';
+export const DOCUMENT_BOT_AVATAR_KEY = 'hspd_document_bot_avatar';
+export const DOCUMENT_AUTO_SEND_KEY = 'hspd_document_auto_send';
 
 export interface WebhookConfig {
   webhookUrl: string;
@@ -450,6 +457,36 @@ export function saveDestructionWebhookConfig(config: Partial<WebhookConfig>) {
     syncAllWebhooksToFirestore();
   } catch (e) {
     console.error('Failed to save destruction webhook settings', e);
+  }
+}
+
+export function getSavedDocumentWebhookConfig(): WebhookConfig {
+  try {
+    return {
+      webhookUrl: localStorage.getItem(DOCUMENT_WEBHOOK_STORAGE_KEY) || localStorage.getItem(ROSTER_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
+      botName: localStorage.getItem(DOCUMENT_BOT_NAME_KEY) || 'HSPD Document Archives & Legal Bureau',
+      botAvatar: localStorage.getItem(DOCUMENT_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: localStorage.getItem(DOCUMENT_AUTO_SEND_KEY) !== 'false'
+    };
+  } catch {
+    return {
+      webhookUrl: '',
+      botName: 'HSPD Document Archives & Legal Bureau',
+      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: true
+    };
+  }
+}
+
+export function saveDocumentWebhookConfig(config: Partial<WebhookConfig>) {
+  try {
+    if (config.webhookUrl !== undefined) localStorage.setItem(DOCUMENT_WEBHOOK_STORAGE_KEY, config.webhookUrl);
+    if (config.botName !== undefined) localStorage.setItem(DOCUMENT_BOT_NAME_KEY, config.botName);
+    if (config.botAvatar !== undefined) localStorage.setItem(DOCUMENT_BOT_AVATAR_KEY, config.botAvatar);
+    if (config.autoSendOnSave !== undefined) localStorage.setItem(DOCUMENT_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
+  } catch (e) {
+    console.error('Failed to save document webhook settings', e);
   }
 }
 
@@ -1735,6 +1772,107 @@ export async function sendPinResetResolvedWebhookToDiscord(params: {
 }
 
 /**
+ * Send Auto-Granted PIN Reset Announcement to Discord Webhook when Superiors are Offline
+ */
+export async function sendPinResetAutoGrantedWebhookToDiscord(params: {
+  officerName: string;
+  officerBadge: string;
+  officerRank?: string;
+  newPin: string;
+  reason?: string;
+  customConfig?: Partial<WebhookConfig>;
+}): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedPinResetWebhookConfig(), ...params.customConfig };
+
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'URL Webhook Discord belum disetting.'
+    };
+  }
+
+  const dateStr = new Date().toLocaleString('id-ID', {
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+
+  const effectiveRank = params.officerRank;
+  const fields = [
+    {
+      name: '👮 PERSONEL KEPOLISIAN',
+      value: `Nama: **${params.officerName}**\nBadge: \`${params.officerBadge}\`${effectiveRank ? `\nPangkat: **${effectiveRank}**` : ''}`,
+      inline: true,
+    },
+    {
+      name: '⚡ STATUS EKSEKUSI SISTEM',
+      value: `🤖 **AUTO-GRANTED (ATASAN OFFLINE)**\n*Diberikan otomatis demi kelancaran tugas patroli*`,
+      inline: true,
+    },
+    {
+      name: '🕒 WAKTU PEMBERIAN AKSES',
+      value: `${dateStr}`,
+      inline: true,
+    },
+    {
+      name: '🔒 PIN BARU YANG DIAKTIFKAN',
+      value: `\`${params.newPin}\` *(Telah aktif di database MDT)*`,
+      inline: true,
+    },
+    {
+      name: '🛡️ KEBIJAKAN OTOMATISASI',
+      value: `✅ **Lolos Verifikasi Identitas Roster**\nSistem mengaktifkan PIN karena seluruh Supervisor/High Command sedang tidak login di website.`,
+      inline: false,
+    },
+    {
+      name: '📝 ALASAN PENGAJUAN AWAL',
+      value: `>>> *${params.reason || 'Permohonan reset/lupa PIN login terminal MDT CAD.'}*`,
+      inline: false,
+    }
+  ];
+
+  const embedObj = {
+    title: `⚡ [SISTEM OTOMATIS] AKSES & RESET PIN DISAHKAN (HIGH COMMAND OFFLINE)`,
+    description: `Pemberitahuan Sistem Keamanan MDT: Personel **${params.officerName} (${params.officerBadge})** telah diberikan akses & PIN login baru secara otomatis oleh sistem karena tidak ada Supervisor/High Command yang sedang aktif/login di website.`,
+    color: 0x06B6D4, // Cyan / Neon
+    fields,
+    footer: {
+      text: `HSPD Automated Access Control • Highstate Roleplay • ${dateStr}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD Auto-Dispatch Security',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [embedObj],
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return {
+      success: true,
+      message: `Notifikasi pemberian akses otomatis untuk ${params.officerName} berhasil dikirim ke Webhook Discord!`
+    };
+  } catch (err: any) {
+    console.error('PIN Auto-Grant Webhook Error:', err);
+    return {
+      success: false,
+      message: `Gagal mengirim notifikasi auto-grant ke Discord: ${err.message || 'Cek koneksi'}`
+    };
+  }
+}
+
+/**
  * Send New Officer Induction / Registration announcement to Discord Webhook
  */
 export async function sendNewOfficerRegistrationToDiscord(params: {
@@ -2924,6 +3062,159 @@ export async function testDestructionDiscordWebhook(config: WebhookConfig): Prom
     return { success: true, message: '✅ Sinyal Webhook Peleburan Kendaraan & Senjata Berhasil Terhubung!' };
   } catch (err: any) {
     return { success: false, message: `❌ Gagal terhubung ke Webhook Peleburan: ${err.message}` };
+  }
+}
+
+/**
+ * Send an Official Document / Police Letter Record to Discord Webhook
+ */
+export async function sendOfficialDocumentToDiscord(
+  docItem: OfficialDocument,
+  customConfig?: Partial<WebhookConfig>
+): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedDocumentWebhookConfig(), ...customConfig };
+
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'URL Discord Webhook Arsip Dokumen belum disetting. Silakan atur di menu Konfigurasi Webhook.'
+    };
+  }
+
+  const isRestricted = docItem.classification === 'RAHASIA' || docItem.classification === 'SANGAT RAHASIA';
+  const embedColor = isRestricted ? 0x991B1B : 0x1E3A8A;
+
+  const fields: any[] = [
+    {
+      name: '👮 Pejabat Penerbit',
+      value: `**${docItem.issuerName}**\nBadge: \`#${docItem.issuerBadge}\` | Pangkat: **${docItem.issuerRank}**\nRole: *${docItem.issuerRole || '-'}*`,
+      inline: true,
+    },
+    {
+      name: '👤 Pihak Penerima / Subjek',
+      value: `**${docItem.recipientName}**\nID/Status: \`${docItem.recipientId || docItem.recipientRoleOrStatus || '-'}\`${docItem.recipientPhone ? `\nTelp: \`${docItem.recipientPhone}\`` : ''}`,
+      inline: true,
+    },
+    {
+      name: '📅 Tanggal & Tempat Terbit',
+      value: `**${docItem.date}**\n*${docItem.location}*`,
+      inline: true,
+    },
+    {
+      name: '🔏 Klasifikasi & Kategori',
+      value: `Klasifikasi: \`${docItem.classification}\`\nKategori: **${docItem.category.replace(/_/g, ' ')}**`,
+      inline: true,
+    },
+    {
+      name: '⌛ Masa Berlaku',
+      value: docItem.validUntil ? `\`${docItem.validUntil}\`` : '*Sesuai Ketentuan Tugas*',
+      inline: true,
+    },
+    {
+      name: '🛡️ Cap Stempel Otoritas',
+      value: `\`${docItem.primarySeal}\``,
+      inline: true,
+    }
+  ];
+
+  if (docItem.clauses && docItem.clauses.length > 0) {
+    const clauseSummary = docItem.clauses.slice(0, 4).map(c => 
+      `• **${c.clauseNumber || 'Poin'}:** ${c.title ? `${c.title} - ` : ''}${c.content.slice(0, 120)}${c.content.length > 120 ? '...' : ''}`
+    ).join('\n');
+
+    fields.push({
+      name: `📜 Ketentuan & Diktum Surat (${docItem.clauses.length} Poin)`,
+      value: clauseSummary,
+      inline: false,
+    });
+  }
+
+  if (docItem.notes && docItem.notes.trim()) {
+    fields.push({
+      name: '📝 Catatan / Klausul Tambahan',
+      value: `>>> ${docItem.notes.trim()}`,
+      inline: false,
+    });
+  }
+
+  const embedObj = {
+    title: `📄 [ARSIP SURAT RESMI] ${docItem.title.toUpperCase()}`,
+    description: `**Nomor Registrasi:** \`${docItem.docNumber}\`\n**Perihal:** ${docItem.subject}\n*Lembar dokumen resmi kepolisian Highstate Roleplay Police Department.*`,
+    color: embedColor,
+    fields,
+    footer: {
+      text: `HSPD Legal & Documentation Bureau • Otorisasi: ${docItem.acknowledgedByName || 'Chief of Police'} • ${docItem.date}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: config.botName.trim() || 'HSPD Document Archives & Legal Bureau',
+        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        embeds: [embedObj],
+      })
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return {
+      success: true,
+      message: `Dokumen resmi [${docItem.docNumber}] berhasil diarsipkan ke Webhook Discord!`
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `Gagal mengirim dokumen ke Discord: ${err.message || 'Cek koneksi atau URL Webhook'}`
+    };
+  }
+}
+
+/**
+ * Test ping for Document Archive Webhook
+ */
+export async function testDocumentDiscordWebhook(config: WebhookConfig): Promise<{ success: boolean; message: string }> {
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'Masukkan URL Discord Webhook Arsip Dokumen yang valid (dimulai dengan https://discord.com/api/webhooks/...)'
+    };
+  }
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD Document Archives & Legal Bureau',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [
+      {
+        title: '📜 UJI COBA INTEGRASI WEBHOOK ARSIP DOKUMEN & SURAT RESMI',
+        description: 'Sistem pengarsipan otomatis berkas surat tugas, SKCK, surat peringatan, izin senjata api, dan berita acara kepolisian HSPD berhasil terhubung.',
+        color: 0x1E3A8A,
+        fields: [
+          { name: 'Channel Target', value: '🟢 **Official Documents & Legal Archive Channel**', inline: true },
+          { name: 'Waktu Pengujian', value: new Date().toLocaleString('id-ID'), inline: true },
+          { name: 'Status Sistem', value: '🟢 **Ready for Official Police Letter Archival**', inline: true },
+        ],
+        footer: {
+          text: 'HSPD Official Document Studio • HighState Roleplay',
+        }
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return { success: true, message: '✅ Sinyal Webhook Arsip Dokumen & Surat Resmi Berhasil Terhubung!' };
+  } catch (err: any) {
+    return { success: false, message: `❌ Gagal terhubung ke Webhook Dokumen: ${err.message || 'Periksa kembali URL Webhook'}` };
   }
 }
 

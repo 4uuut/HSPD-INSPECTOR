@@ -181,6 +181,20 @@ function isQuotaError(err: any): boolean {
   );
 }
 
+function isUnavailableOrNetworkError(err: any): boolean {
+  if (!err) return false;
+  const msg = String(err.message || err.code || err).toLowerCase();
+  return (
+    err.code === 'unavailable' ||
+    err.code === 'failed-precondition' ||
+    err.code === 'cancelled' ||
+    msg.includes('unavailable') ||
+    msg.includes('could not reach cloud firestore') ||
+    msg.includes('offline') ||
+    msg.includes('network')
+  );
+}
+
 // Active unsubs
 let activeListeners: Unsubscribe[] = [];
 
@@ -273,7 +287,7 @@ export async function syncCollectionWithFirestore<T extends Record<string, any>>
       error: null
     });
     return true;
-  } catch (err: any) {
+    } catch (err: any) {
     if (isQuotaError(err)) {
       setQuotaExhausted();
       notifyStatus({
@@ -285,7 +299,17 @@ export async function syncCollectionWithFirestore<T extends Record<string, any>>
       return true; // Return true because local data is safely saved
     }
 
-    console.warn(`[FirebaseSync] Sync warning on ${collectionKey}:`, err?.message || err);
+    if (isUnavailableOrNetworkError(err)) {
+      // Offline fallback: data is stored in localStorage
+      notifyStatus({
+        connected: false,
+        lastSyncTime: Date.now(),
+        error: 'Mode Offline (Data tersimpan di penyimpanan lokal)'
+      });
+      return true;
+    }
+
+    console.warn(`[FirebaseSync] Sync notice on ${collectionKey}:`, err?.message || err);
     return false;
   }
 }
@@ -338,7 +362,15 @@ export async function pushToFirestore<T extends { id?: string }>(
       });
       return true;
     }
-    console.warn(`[FirebaseSync] Push warning on ${collectionKey}:`, err?.message || err);
+    if (isUnavailableOrNetworkError(err)) {
+      notifyStatus({
+        connected: false,
+        lastSyncTime: Date.now(),
+        error: 'Mode Offline (Data tersimpan di penyimpanan lokal)'
+      });
+      return true;
+    }
+    console.warn(`[FirebaseSync] Push notice on ${collectionKey}:`, err?.message || err);
     return false;
   }
 }
@@ -365,11 +397,11 @@ export async function deleteFromFirestore(
     await deleteDoc(docRef);
     return true;
   } catch (err: any) {
-    if (isQuotaError(err)) {
-      setQuotaExhausted();
+    if (isQuotaError(err) || isUnavailableOrNetworkError(err)) {
+      if (isQuotaError(err)) setQuotaExhausted();
       return true;
     }
-    console.warn(`[FirebaseSync] Delete warning on ${collectionKey}:`, err?.message || err);
+    console.warn(`[FirebaseSync] Delete notice on ${collectionKey}:`, err?.message || err);
     return false;
   }
 }
@@ -423,7 +455,11 @@ export const ALL_WEBHOOK_CONFIG_KEYS = [
   'hspd_destruction_webhook_url',
   'hspd_destruction_bot_name',
   'hspd_destruction_bot_avatar',
-  'hspd_destruction_auto_send'
+  'hspd_destruction_auto_send',
+  'hspd_document_webhook_url',
+  'hspd_document_bot_name',
+  'hspd_document_bot_avatar',
+  'hspd_document_auto_send'
 ];
 
 /**
@@ -562,6 +598,13 @@ export function initRealtimeFirebaseSync() {
             try { u(); } catch {}
           });
           activeListeners = [];
+          return;
+        }
+        if (isUnavailableOrNetworkError(error)) {
+          notifyStatus({
+            connected: false,
+            error: 'Mode Offline (Menggunakan data lokal)'
+          });
           return;
         }
         console.warn(`[FirebaseSync] Listener notice for ${config.name}:`, error?.message || error);

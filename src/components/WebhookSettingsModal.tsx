@@ -3,7 +3,7 @@ import {
   Shield, Radio, Send, CheckCircle2, AlertCircle, RefreshCw, 
   X, Globe, Settings, Lock, Check, Copy, ExternalLink, Sparkles, Sliders,
   AlertTriangle, UserX, Award, KeyRound, Users, Search, ShieldAlert, Car,
-  Landmark, Flame, Hammer, Coins
+  Landmark, Flame, Hammer, Coins, Palette, FileText
 } from 'lucide-react';
 import { 
   getSavedWebhookConfig, saveWebhookConfig, 
@@ -18,6 +18,7 @@ import {
   getSavedImpoundWebhookConfig, saveImpoundWebhookConfig,
   getSavedVaultWebhookConfig, saveVaultWebhookConfig,
   getSavedDestructionWebhookConfig, saveDestructionWebhookConfig,
+  getSavedDocumentWebhookConfig, saveDocumentWebhookConfig,
   testDiscordWebhook, testDutyDiscordWebhook, 
   testPromotionDiscordWebhook,
   testWarningDiscordWebhook, testDischargeDiscordWebhook,
@@ -26,6 +27,7 @@ import {
   testImpoundDiscordWebhook,
   testVaultDiscordWebhook,
   testDestructionDiscordWebhook,
+  testDocumentDiscordWebhook,
   WebhookConfig 
 } from '../utils/discordWebhook';
 import { OfficerProfile, isOfficerHighRank } from '../types';
@@ -36,15 +38,17 @@ interface Props {
   onClose: () => void;
   currentOfficer?: OfficerProfile | null;
   onSaved?: () => void;
+  onOpenBrandingModal?: () => void;
 }
 
 export const WebhookSettingsModal: React.FC<Props> = ({
   isOpen,
   onClose,
   currentOfficer,
-  onSaved
+  onSaved,
+  onOpenBrandingModal
 }) => {
-  const [activeTab, setActiveTab] = useState<'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'impound' | 'vault' | 'destruction'>('case');
+  const [activeTab, setActiveTab] = useState<'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'impound' | 'vault' | 'destruction' | 'document'>('case');
   
   // Case / Arrest Webhook State
   const [caseConfig, setCaseConfig] = useState<WebhookConfig>(() => getSavedWebhookConfig());
@@ -105,6 +109,11 @@ export const WebhookSettingsModal: React.FC<Props> = ({
   const [destructionConfig, setDestructionConfig] = useState<WebhookConfig>(() => getSavedDestructionWebhookConfig());
   const [isTestingDestruction, setIsTestingDestruction] = useState(false);
   const [destructionTestResult, setDestructionTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Official Documents Archive Webhook State
+  const [documentConfig, setDocumentConfig] = useState<WebhookConfig>(() => getSavedDocumentWebhookConfig());
+  const [isTestingDocument, setIsTestingDocument] = useState(false);
+  const [documentTestResult, setDocumentTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<string>('');
 
@@ -338,6 +347,23 @@ export const WebhookSettingsModal: React.FC<Props> = ({
     }
   };
 
+  // Test Official Document Archive Webhook
+  const handleTestDocumentWebhook = async () => {
+    setIsTestingDocument(true);
+    setDocumentTestResult(null);
+    try {
+      const res = await testDocumentDiscordWebhook(documentConfig);
+      setDocumentTestResult(res);
+    } catch (err: any) {
+      setDocumentTestResult({
+        success: false,
+        message: err.message || 'Gagal terhubung ke Webhook Arsip Dokumen'
+      });
+    } finally {
+      setIsTestingDocument(false);
+    }
+  };
+
   // Save All Settings
   const handleSaveAll = (e: React.FormEvent) => {
     e.preventDefault();
@@ -353,7 +379,8 @@ export const WebhookSettingsModal: React.FC<Props> = ({
     saveImpoundWebhookConfig(impoundConfig);
     saveVaultWebhookConfig(vaultConfig);
     saveDestructionWebhookConfig(destructionConfig);
-    setSaveSuccessNotice('✅ Seluruh konfigurasi Discord Webhook (12 Saluran Lengkap) berhasil disimpan!');
+    saveDocumentWebhookConfig(documentConfig);
+    setSaveSuccessNotice('✅ Seluruh konfigurasi Discord Webhook (13 Saluran Lengkap) berhasil disimpan!');
     if (onSaved) onSaved();
     setTimeout(() => {
       setSaveSuccessNotice('');
@@ -385,20 +412,37 @@ export const WebhookSettingsModal: React.FC<Props> = ({
                 </span>
               </div>
               <p className="text-[11px] text-gray-400">
-                Pengaturan server channel laporan kasus, dinas, pangkat, SP, pemecatan, PIN, roster, detektif, BOLO, impound, brankas 1x seminggu, dan peleburan sitaan
+                Pengaturan server channel laporan kasus, dinas, pangkat, SP, pemecatan, PIN, roster, detektif, BOLO, impound, brankas 1x seminggu, peleburan, dan arsip dokumen resmi
               </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded transition"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {onOpenBrandingModal && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenBrandingModal();
+                }}
+                className="px-2.5 py-1.5 bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-600/70 hover:border-amber-400 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+                title="Buka Studio Kustomisasi Logo & Background Website"
+              >
+                <Palette className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">🎨 UBAH LOGO & BACKGROUND</span>
+                <span className="sm:hidden">LOGO</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Tab Switcher - 12 Channels */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 border-b border-gray-800 bg-[#0D1117] text-[10px]">
+        {/* Tab Switcher - 13 Channels */}
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 lg:grid-cols-13 border-b border-gray-800 bg-[#0D1117] text-[10px]">
           <button
             type="button"
             onClick={() => setActiveTab('case')}
@@ -565,6 +609,20 @@ export const WebhookSettingsModal: React.FC<Props> = ({
           >
             <Flame className="w-3 h-3 shrink-0 text-orange-400" />
             <span className="truncate">12. Peleburan</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('document')}
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
+              activeTab === 'document'
+                ? 'border-cyan-500 text-cyan-400 bg-[#161B22]'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+            }`}
+            title="Arsip Surat & Dokumen Resmi Kepolisian"
+          >
+            <FileText className="w-3 h-3 shrink-0 text-cyan-400" />
+            <span className="truncate">13. Dokumen</span>
           </button>
         </div>
 
@@ -2030,6 +2088,118 @@ export const WebhookSettingsModal: React.FC<Props> = ({
                       <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
                     )}
                     <span>{destructionTestResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 13: OFFICIAL DOCUMENTS ARCHIVE WEBHOOK */}
+          {activeTab === 'document' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-cyan-950/30 border border-cyan-900/60 rounded-lg text-[11px] text-cyan-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-cyan-200">
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Channel Berkas & Arsip Dokumen Resmi Kepolisian (Studio Surat)</span>
+                </div>
+                <p className="text-gray-400">
+                  Seluruh surat dinas yang diterbitkan melalui Studio Dokumen (seperti Surat Perintah Tugas, SKCK, Izin Senjata Api, Surat Peringatan Disiplin, Izin Keramaian, Surat Penyitaan, Memo Internal, dan Berita Acara Kepolisian) dapat diarsipkan dan dikirimkan otomatis ke channel Discord ini.
+                </p>
+              </div>
+
+              {/* Webhook URL Input */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-300 uppercase block">
+                  URL Discord Webhook Arsip Dokumen & Surat Resmi:
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    value={documentConfig.webhookUrl}
+                    onChange={(e) => setDocumentConfig({ ...documentConfig, webhookUrl: e.target.value })}
+                    placeholder="https://discord.com/api/webhooks/..."
+                    className="w-full pl-8 pr-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-cyan-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                  <Globe className="w-4 h-4 text-gray-500 absolute left-2.5 top-2.5" />
+                </div>
+              </div>
+
+              {/* Bot Customization */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    Nama Bot / Webhook Sender
+                  </label>
+                  <input
+                    type="text"
+                    value={documentConfig.botName}
+                    onChange={(e) => setDocumentConfig({ ...documentConfig, botName: e.target.value })}
+                    placeholder="HSPD Document Archives & Legal Bureau"
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-cyan-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    URL Avatar Bot (Opsional)
+                  </label>
+                  <input
+                    type="url"
+                    value={documentConfig.botAvatar}
+                    onChange={(e) => setDocumentConfig({ ...documentConfig, botAvatar: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-cyan-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Auto Send Toggle */}
+              <div className="p-3 bg-[#0D1117] border border-gray-800 rounded-lg flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-gray-200 text-xs">Kirim Otomatis saat Surat Resmi Diterbitkan & Disimpan</div>
+                  <div className="text-[10px] text-gray-400">Otomatis mengirim nomor registrasi, klasifikasi surat, pejabat penandatangan, subjek penerima, dan ringkasan klausul ke Discord</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={documentConfig.autoSendOnSave}
+                  onChange={(e) => setDocumentConfig({ ...documentConfig, autoSendOnSave: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-700 text-cyan-600 focus:ring-0 cursor-pointer"
+                />
+              </div>
+
+              {/* Test Connection Button & Result */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestDocumentWebhook}
+                  disabled={isTestingDocument || !documentConfig.webhookUrl.trim()}
+                  className="w-full py-2 bg-gray-800 hover:bg-cyan-950 text-cyan-300 border border-cyan-700/50 hover:border-cyan-500 rounded font-bold transition flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {isTestingDocument ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menguji Koneksi Webhook Arsip Dokumen...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>UJI COBA PING WEBHOOK ARSIP DOKUMEN (TEST EMBED)</span>
+                    </>
+                  )}
+                </button>
+
+                {documentTestResult && (
+                  <div className={`p-2.5 rounded border text-xs flex items-center gap-2 ${
+                    documentTestResult.success 
+                      ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' 
+                      : 'bg-rose-950/60 border-rose-700 text-rose-300'
+                  }`}>
+                    {documentTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    )}
+                    <span>{documentTestResult.message}</span>
                   </div>
                 )}
               </div>

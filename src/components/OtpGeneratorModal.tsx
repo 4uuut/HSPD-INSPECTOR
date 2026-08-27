@@ -79,6 +79,9 @@ export const OtpGeneratorModal: React.FC<Props> = ({
     { label: '📄 Otorisasi Surat Rahasia / WCL', module: 'OFFICIAL_DOCS' as ModuleAccessKey, text: 'Otorisasi Penerbitan Izin Senjata Api (WCL) & Surat Perintah Operasi' },
     { label: '📂 Buka Berkas Penindakan', module: 'CASE_HISTORY' as ModuleAccessKey, text: 'Izin Pembukaan dan Pencetakan Riwayat Berkas Penindakan Tersangka' },
     { label: '🔍 Investigasi Kriminal CID', module: 'DETECTIVE' as ModuleAccessKey, text: 'Akses Berkas Khusus Investigasi Intelijen / Pohon Hierarki Sindikat' },
+    { label: '🚗 Akses BOLO & Sitaan PU', module: 'BOLO' as ModuleAccessKey, text: 'Otorisasi Akses Sistem BOLO & Sitaan Kendaraan Impound Patrol Unit' },
+    { label: '🔬 Disposisi Lab Forensik', module: 'FORENSICS' as ModuleAccessKey, text: 'Disposisi Pemeriksaan Laboratorium Forensik, Uji Balistik & Residu Mesiu' },
+    { label: '🛡️ Audit Disiplin Internal IAD', module: 'IAD' as ModuleAccessKey, text: 'Izin Penyelidikan Disiplin Internal & Audit Pelanggaran Etik Personel' },
     { label: '🌐 Universal Master Clearance', module: 'UNIVERSAL' as ModuleAccessKey, text: 'Disposisi Otorisasi Penuh Segala Modul untuk Penugasan Khusus' },
   ];
 
@@ -235,13 +238,16 @@ export const OtpGeneratorModal: React.FC<Props> = ({
                   <label className="block text-xs font-bold text-gray-300 mb-1.5 uppercase tracking-wider">
                     1. Pilih Modul yang Diotorisasi
                   </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {[
+                      { key: 'DETECTIVE' as ModuleAccessKey, label: '🔍 Kasus Detektif', desc: 'Investigasi CID' },
+                      { key: 'BOLO' as ModuleAccessKey, label: '🚗 BOLO & Sitaan', desc: 'Patrol Unit & Tilang' },
                       { key: 'VAULT' as ModuleAccessKey, label: '🏦 Brankas & Audit', desc: 'Uang & Bukti Sitaan' },
                       { key: 'DESTRUCTION' as ModuleAccessKey, label: '💥 Peleburan Sitaan', desc: 'Kendaraan & Narkoba' },
                       { key: 'OFFICIAL_DOCS' as ModuleAccessKey, label: '📄 Surat & Dokumen', desc: 'WCL & Surat Perintah' },
                       { key: 'CASE_HISTORY' as ModuleAccessKey, label: '📁 Riwayat Kasus', desc: 'Arsip Penindakan' },
-                      { key: 'DETECTIVE' as ModuleAccessKey, label: '🔍 Kasus Detektif', desc: 'Investigasi CID' },
+                      { key: 'FORENSICS' as ModuleAccessKey, label: '🔬 Lab Forensik', desc: 'Uji Balistik & GSR' },
+                      { key: 'IAD' as ModuleAccessKey, label: '🛡️ Propam IAD', desc: 'Disiplin Internal' },
                       { key: 'UNIVERSAL' as ModuleAccessKey, label: '🌐 Universal Master', desc: 'Semua Modul Terkunci' },
                     ].map(mod => {
                       const isSelected = targetModule === mod.key;
