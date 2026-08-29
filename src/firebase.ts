@@ -1,16 +1,9 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getFirestore, 
-  initializeFirestore, 
-  setLogLevel,
   Firestore 
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
-
-// Suppress benign connection retry / offline transition warnings in console
-try {
-  setLogLevel('error');
-} catch {}
 
 // Initialize Firebase App singleton
 export const firebaseApp = !getApps().length
@@ -24,24 +17,8 @@ export const firebaseApp = !getApps().length
     })
   : getApp();
 
-// Initialize Firestore with robust auto-detect long polling for web sandboxes and iframes
-function createFirestoreInstance(): Firestore {
-  try {
-    const dbSettings = {
-      experimentalAutoDetectLongPolling: true,
-      useFetchStreams: false
-    };
+// Initialize Firestore instance using databaseId configured in firebase-applet-config
+export const db: Firestore = firebaseConfig.firestoreDatabaseId
+  ? getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId)
+  : getFirestore(firebaseApp);
 
-    if (firebaseConfig.firestoreDatabaseId) {
-      return initializeFirestore(firebaseApp, dbSettings, firebaseConfig.firestoreDatabaseId);
-    }
-    return initializeFirestore(firebaseApp, dbSettings);
-  } catch {
-    // If already initialized, fallback to getFirestore
-    return firebaseConfig.firestoreDatabaseId
-      ? getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId)
-      : getFirestore(firebaseApp);
-  }
-}
-
-export const db: Firestore = createFirestoreInstance();

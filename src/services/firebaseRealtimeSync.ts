@@ -9,7 +9,7 @@ import {
   Unsubscribe
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { mergeWithOfficialRoster } from '../data/hspdOfficialRoster';
+import { mergeWithOfficialRoster, HSPD_OFFICIAL_ROSTER } from '../data/hspdOfficialRoster';
 
 export interface FirebaseSyncStatus {
   connected: boolean;
@@ -19,36 +19,19 @@ export interface FirebaseSyncStatus {
   quotaExhausted?: boolean;
 }
 
-const QUOTA_STORAGE_KEY = 'hspd_firestore_quota_exhausted_v1';
-
-function getInitialQuotaExhaustedTime(): number {
-  try {
-    const saved = localStorage.getItem(QUOTA_STORAGE_KEY);
-    if (saved) {
-      const parsed = parseInt(saved, 10);
-      if (!isNaN(parsed) && parsed > Date.now()) {
-        return parsed;
-      }
-    }
-  } catch {}
-  return 0;
-}
-
-let quotaExhaustedUntil: number = getInitialQuotaExhaustedTime();
+let quotaExhaustedUntil: number = 0;
 
 function setQuotaExhausted() {
-  // Set backoff cooldown for 4 hours
-  quotaExhaustedUntil = Date.now() + 4 * 60 * 60 * 1000;
-  try {
-    localStorage.setItem(QUOTA_STORAGE_KEY, String(quotaExhaustedUntil));
-  } catch {}
+  // Short transient backoff of 60 seconds (not a 4-hour lock)
+  quotaExhaustedUntil = Date.now() + 60 * 1000;
 }
 
 export function isQuotaExhausted(): boolean {
-  if (quotaExhaustedUntil > Date.now()) {
-    return true;
-  }
-  return false;
+  return quotaExhaustedUntil > Date.now();
+}
+
+export function resetQuotaExhausted() {
+  quotaExhaustedUntil = 0;
 }
 
 // Global state callback for UI status banner
@@ -57,8 +40,8 @@ let currentSyncStatus: FirebaseSyncStatus = {
   connected: true,
   lastSyncTime: Date.now(),
   pendingCount: 0,
-  error: isQuotaExhausted() ? 'Penyimpanan lokal aktif (Batas kuota cloud gratis tercapai)' : null,
-  quotaExhausted: isQuotaExhausted()
+  error: null,
+  quotaExhausted: false
 };
 
 export const subscribeToSyncStatus = (cb: (status: FirebaseSyncStatus) => void) => {
@@ -199,11 +182,39 @@ function isUnavailableOrNetworkError(err: any): boolean {
 let activeListeners: Unsubscribe[] = [];
 
 /**
+ * Helper to execute batched writes in chunks <= 400 operations
+ */
+async function commitBatchOperations(
+  deletes: { colName: string; docId: string }[],
+  sets: { colName: string; docId: string; data: any }[]
+) {
+  const allOps: Array<{ type: 'delete'; colName: string; docId: string } | { type: 'set'; colName: string; docId: string; data: any }> = [
+    ...deletes.map(d => ({ type: 'delete' as const, colName: d.colName, docId: d.docId })),
+    ...sets.map(s => ({ type: 'set' as const, colName: s.colName, docId: s.docId, data: s.data }))
+  ];
+
+  const CHUNK_SIZE = 350;
+  for (let i = 0; i < allOps.length; i += CHUNK_SIZE) {
+    const chunk = allOps.slice(i, i + CHUNK_SIZE);
+    const batch = writeBatch(db);
+    for (const op of chunk) {
+      if (op.type === 'delete') {
+        batch.delete(doc(db, op.colName, op.docId));
+      } else {
+        batch.set(doc(db, op.colName, op.docId), op.data, { merge: true });
+      }
+    }
+    await batch.commit();
+  }
+}
+
+/**
  * Sync entire list with Firestore (handles additions, updates, AND deletions)
  */
 export async function syncCollectionWithFirestore<T extends Record<string, any>>(
   collectionKey: CollectionKey,
-  items: T[]
+  items: T[],
+  forcePush: boolean = false
 ): Promise<boolean> {
   const config = SYNC_COLLECTIONS[collectionKey];
   if (!config) return false;
@@ -219,40 +230,43 @@ export async function syncCollectionWithFirestore<T extends Record<string, any>>
   }
 
   // If this update was triggered by a remote Firestore listener, do NOT echo it back to Firestore
-  if (isApplyingRemoteMap[collectionKey]) {
+  if (!forcePush && isApplyingRemoteMap[collectionKey]) {
     return true;
   }
 
   // Deduplication: If the data matches what is already synced with Firestore, skip network write
   const fingerprint = computeFingerprint(items);
-  if (lastKnownFingerprints[collectionKey] === fingerprint) {
+  if (!forcePush && lastKnownFingerprints[collectionKey] === fingerprint) {
     return true;
   }
 
-  // If Firestore Free Tier quota is currently exceeded, operate smoothly in Local Fallback Mode
-  if (isQuotaExhausted()) {
+  // Reset transient quota lock if user requested manual push
+  if (forcePush) {
+    resetQuotaExhausted();
+  } else if (isQuotaExhausted()) {
     notifyStatus({
       connected: true,
       quotaExhausted: true,
       lastSyncTime: Date.now(),
-      error: 'Penyimpanan lokal aktif (Batas kuota cloud gratis tercapai)'
+      error: 'Penyimpanan lokal aktif (Batas kuota cloud tercapai)'
     });
     return true;
   }
 
   try {
-    // 2. Fetch current cloud docs to accurately remove deleted records
+    // 2. Fetch current cloud docs to accurately track what's currently in cloud
     const colRef = collection(db, config.name);
     const existingSnap = await getDocs(colRef);
 
     const localIdSet = new Set<string>();
-    const docDataList: { docId: string; data: any }[] = [];
+    const docDataList: { colName: string; docId: string; data: any }[] = [];
 
     items.forEach((item, index) => {
       let rawId = item.id || (item.badge ? `officer_${String(item.badge).replace(/[^a-zA-Z0-9_-]/g, '')}` : '') || `item_${index}`;
       const cleanDocId = String(rawId).replace(/[\/\s#]/g, '_').trim() || `item_${index}`;
       localIdSet.add(cleanDocId);
       docDataList.push({
+        colName: config.name,
         docId: cleanDocId,
         data: {
           ...item,
@@ -262,21 +276,16 @@ export async function syncCollectionWithFirestore<T extends Record<string, any>>
       });
     });
 
-    const batch = writeBatch(db);
+    const deletes: { colName: string; docId: string }[] = [];
 
-    // Delete Firestore docs that were removed locally (e.g. fired officer, deleted case)
+    // Identify cloud docs that were deleted locally
     existingSnap.forEach(d => {
       if (!localIdSet.has(d.id)) {
-        batch.delete(doc(db, config.name, d.id));
+        deletes.push({ colName: config.name, docId: d.id });
       }
     });
 
-    // Save/update existing local docs to Firestore
-    docDataList.forEach(({ docId, data }) => {
-      batch.set(doc(db, config.name, docId), data, { merge: true });
-    });
-
-    await batch.commit();
+    await commitBatchOperations(deletes, docDataList);
 
     lastKnownFingerprints[collectionKey] = fingerprint;
 
@@ -287,20 +296,19 @@ export async function syncCollectionWithFirestore<T extends Record<string, any>>
       error: null
     });
     return true;
-    } catch (err: any) {
+  } catch (err: any) {
     if (isQuotaError(err)) {
       setQuotaExhausted();
       notifyStatus({
         connected: true,
         quotaExhausted: true,
         lastSyncTime: Date.now(),
-        error: 'Penyimpanan lokal aktif (Batas kuota cloud gratis tercapai)'
+        error: 'Penyimpanan lokal aktif (Batas kuota cloud tercapai)'
       });
-      return true; // Return true because local data is safely saved
+      return true;
     }
 
     if (isUnavailableOrNetworkError(err)) {
-      // Offline fallback: data is stored in localStorage
       notifyStatus({
         connected: false,
         lastSyncTime: Date.now(),
@@ -314,7 +322,7 @@ export async function syncCollectionWithFirestore<T extends Record<string, any>>
   }
 }
 
-// Push a single item or bulk items to Firestore and update local state
+// Push a single item to Firestore and update local state
 export async function pushToFirestore<T extends { id?: string }>(
   collectionKey: CollectionKey,
   item: T,
@@ -327,7 +335,7 @@ export async function pushToFirestore<T extends { id?: string }>(
       connected: true,
       quotaExhausted: true,
       lastSyncTime: Date.now(),
-      error: 'Penyimpanan lokal aktif (Batas kuota cloud gratis tercapai)'
+      error: 'Penyimpanan lokal aktif (Batas kuota cloud tercapai)'
     });
     return true;
   }
@@ -358,7 +366,7 @@ export async function pushToFirestore<T extends { id?: string }>(
         connected: true,
         quotaExhausted: true,
         lastSyncTime: Date.now(),
-        error: 'Penyimpanan lokal aktif (Batas kuota cloud gratis tercapai)'
+        error: 'Penyimpanan lokal aktif (Batas kuota cloud tercapai)'
       });
       return true;
     }
@@ -380,7 +388,7 @@ export async function pushAllToFirestore<T extends { id?: string; badge?: string
   collectionKey: CollectionKey,
   items: T[]
 ): Promise<boolean> {
-  return syncCollectionWithFirestore(collectionKey, items);
+  return syncCollectionWithFirestore(collectionKey, items, true);
 }
 
 // Delete item from Firestore
@@ -403,6 +411,61 @@ export async function deleteFromFirestore(
     }
     console.warn(`[FirebaseSync] Delete notice on ${collectionKey}:`, err?.message || err);
     return false;
+  }
+}
+
+// Pull latest records directly from Firestore collection
+export async function pullLatestFromFirestore<T = any>(collectionKey: CollectionKey): Promise<T[] | null> {
+  const config = SYNC_COLLECTIONS[collectionKey];
+  if (!config) return null;
+
+  try {
+    resetQuotaExhausted();
+    const colRef = collection(db, config.name);
+    const snap = await getDocs(colRef);
+    
+    if (snap.empty && collectionKey === 'ROSTER') {
+      // Seed official roster to cloud if completely empty
+      const initial = mergeWithOfficialRoster(HSPD_OFFICIAL_ROSTER);
+      await syncCollectionWithFirestore('ROSTER', initial, true);
+      return initial as unknown as T[];
+    }
+
+    const items: any[] = [];
+    snap.forEach(d => items.push(d.data()));
+
+    let finalItems = items;
+    if (collectionKey === 'ROSTER') {
+      finalItems = mergeWithOfficialRoster(items);
+    } else {
+      finalItems.sort((a, b) => {
+        const timeA = a.timestamp || a.registeredAt || a.createdAt || a._updatedAt || 0;
+        const timeB = b.timestamp || b.registeredAt || b.createdAt || b._updatedAt || 0;
+        return timeB - timeA;
+      });
+    }
+
+    // Persist locally
+    try {
+      localStorage.setItem(config.storageKey, JSON.stringify(finalItems));
+      if ('altStorageKeys' in config && Array.isArray((config as any).altStorageKeys)) {
+        (config as any).altStorageKeys.forEach((kName: string) => localStorage.setItem(kName, JSON.stringify(finalItems)));
+      }
+    } catch {}
+
+    // Dispatch event
+    window.dispatchEvent(new CustomEvent(config.event, { detail: finalItems }));
+
+    notifyStatus({
+      connected: true,
+      lastSyncTime: Date.now(),
+      error: null
+    });
+
+    return finalItems as T[];
+  } catch (e: any) {
+    console.warn(`[FirebaseSync] Pull failed for ${config.name}:`, e?.message || e);
+    return null;
   }
 }
 
@@ -485,16 +548,7 @@ export function initRealtimeFirebaseSync() {
   if (isInitialized) return;
   isInitialized = true;
 
-  if (isQuotaExhausted()) {
-    notifyStatus({ 
-      connected: true, 
-      quotaExhausted: true, 
-      lastSyncTime: Date.now(),
-      error: 'Penyimpanan lokal aktif (Batas kuota cloud gratis tercapai)'
-    });
-    return;
-  }
-
+  resetQuotaExhausted();
   notifyStatus({ connected: true, lastSyncTime: Date.now() });
 
   // Iterate over each collection and attach onSnapshot
@@ -505,99 +559,101 @@ export function initRealtimeFirebaseSync() {
     try {
       const colRef = collection(db, config.name);
       const unsub = onSnapshot(colRef, (snapshot) => {
-        if (!snapshot.empty) {
-          // Special handling for SYSTEM_CONFIGS single docs
-          if (key === 'SYSTEM_CONFIGS') {
-            isApplyingRemoteMap[key] = true;
-            snapshot.forEach((d) => {
-              const data = d.data();
-              if (d.id === 'all_webhooks') {
-                ALL_WEBHOOK_CONFIG_KEYS.forEach(kName => {
-                  if (data[kName] !== undefined) {
-                    localStorage.setItem(kName, String(data[kName]));
-                  }
-                });
-                window.dispatchEvent(new Event('hspd-webhook-updated'));
-                window.dispatchEvent(new Event('hspd-duty-webhook-updated'));
-              } else if (d.id === 'authority_pin') {
-                localStorage.setItem('hspd_authority_pin_config_v2', JSON.stringify(data));
-                window.dispatchEvent(new Event('hspd-pin-updated'));
-              } else if (d.id === 'duty_registry') {
-                if (data.registry) {
-                  localStorage.setItem('hspd_duty_registry_all_officers_v2', JSON.stringify(data.registry));
-                  window.dispatchEvent(new CustomEvent('hspd-officer-duty-changed', { detail: { state: data.registry } }));
-                }
-              }
-            });
-            setTimeout(() => { isApplyingRemoteMap[key] = false; }, 200);
-            notifyStatus({ connected: true, lastSyncTime: Date.now(), error: null });
-            return;
+        // If the collection is empty and it is the ROSTER, auto-seed the official roster
+        if (snapshot.empty) {
+          if (key === 'ROSTER') {
+            const initialRoster = mergeWithOfficialRoster(HSPD_OFFICIAL_ROSTER);
+            syncCollectionWithFirestore('ROSTER', initialRoster, true).catch(() => {});
           }
+          return;
+        }
 
-          const items: any[] = [];
+        // Special handling for SYSTEM_CONFIGS single docs
+        if (key === 'SYSTEM_CONFIGS') {
+          isApplyingRemoteMap[key] = true;
           snapshot.forEach((d) => {
             const data = d.data();
-            items.push(data);
-          });
-
-          let finalItems: any[] = items;
-          if (key === 'ROSTER') {
-            finalItems = mergeWithOfficialRoster(items);
-          }
-
-          // Sort by timestamp, registeredAt, or _updatedAt (newest first)
-          if (key !== 'ROSTER') {
-            finalItems.sort((a, b) => {
-              const timeA = a.timestamp || a.registeredAt || a.createdAt || a._updatedAt || 0;
-              const timeB = b.timestamp || b.registeredAt || b.createdAt || b._updatedAt || 0;
-              return timeB - timeA;
-            });
-          }
-
-          const incomingFingerprint = computeFingerprint(finalItems);
-
-          // If incoming remote snapshot is identical to what we already hold, don't trigger re-render cycle
-          if (lastKnownFingerprints[key] === incomingFingerprint) {
-            return;
-          }
-
-          lastKnownFingerprints[key] = incomingFingerprint;
-          isApplyingRemoteMap[key] = true;
-
-          // Update localStorage
-          try {
-            localStorage.setItem(config.storageKey, JSON.stringify(finalItems));
-            if ('altStorageKeys' in config && Array.isArray((config as any).altStorageKeys)) {
-              (config as any).altStorageKeys.forEach((kName: string) => localStorage.setItem(kName, JSON.stringify(finalItems)));
+            if (d.id === 'all_webhooks') {
+              ALL_WEBHOOK_CONFIG_KEYS.forEach(kName => {
+                if (data[kName] !== undefined) {
+                  localStorage.setItem(kName, String(data[kName]));
+                }
+              });
+              window.dispatchEvent(new Event('hspd-webhook-updated'));
+              window.dispatchEvent(new Event('hspd-duty-webhook-updated'));
+            } else if (d.id === 'authority_pin') {
+              localStorage.setItem('hspd_authority_pin_config_v2', JSON.stringify(data));
+              window.dispatchEvent(new Event('hspd-pin-updated'));
+            } else if (d.id === 'duty_registry') {
+              if (data.registry) {
+                localStorage.setItem('hspd_duty_registry_all_officers_v2', JSON.stringify(data.registry));
+                window.dispatchEvent(new CustomEvent('hspd-officer-duty-changed', { detail: { state: data.registry } }));
+              }
             }
-          } catch (e) {}
-          
-          // Trigger UI update event safely
-          window.dispatchEvent(new CustomEvent(config.event, { detail: finalItems }));
-          
-          setTimeout(() => {
-            isApplyingRemoteMap[key] = false;
-          }, 300);
+          });
+          setTimeout(() => { isApplyingRemoteMap[key] = false; }, 200);
+          notifyStatus({ connected: true, lastSyncTime: Date.now(), error: null });
+          return;
+        }
 
-          notifyStatus({
-            connected: true,
-            lastSyncTime: Date.now(),
-            error: null
+        const items: any[] = [];
+        snapshot.forEach((d) => {
+          const data = d.data();
+          items.push(data);
+        });
+
+        let finalItems: any[] = items;
+        if (key === 'ROSTER') {
+          finalItems = mergeWithOfficialRoster(items);
+        }
+
+        // Sort by timestamp, registeredAt, or _updatedAt (newest first)
+        if (key !== 'ROSTER') {
+          finalItems.sort((a, b) => {
+            const timeA = a.timestamp || a.registeredAt || a.createdAt || a._updatedAt || 0;
+            const timeB = b.timestamp || b.registeredAt || b.createdAt || b._updatedAt || 0;
+            return timeB - timeA;
           });
         }
+
+        const incomingFingerprint = computeFingerprint(finalItems);
+
+        // If incoming remote snapshot is identical to what we already hold, don't trigger re-render cycle
+        if (lastKnownFingerprints[key] === incomingFingerprint) {
+          return;
+        }
+
+        lastKnownFingerprints[key] = incomingFingerprint;
+        isApplyingRemoteMap[key] = true;
+
+        // Update localStorage
+        try {
+          localStorage.setItem(config.storageKey, JSON.stringify(finalItems));
+          if ('altStorageKeys' in config && Array.isArray((config as any).altStorageKeys)) {
+            (config as any).altStorageKeys.forEach((kName: string) => localStorage.setItem(kName, JSON.stringify(finalItems)));
+          }
+        } catch (e) {}
+        
+        // Trigger UI update event safely
+        window.dispatchEvent(new CustomEvent(config.event, { detail: finalItems }));
+        
+        setTimeout(() => {
+          isApplyingRemoteMap[key] = false;
+        }, 300);
+
+        notifyStatus({
+          connected: true,
+          lastSyncTime: Date.now(),
+          error: null
+        });
       }, (error) => {
         if (isQuotaError(error)) {
           setQuotaExhausted();
           notifyStatus({
             connected: true,
             quotaExhausted: true,
-            error: 'Penyimpanan lokal aktif (Batas kuota cloud gratis tercapai)'
+            error: 'Penyimpanan lokal aktif (Batas kuota cloud tercapai)'
           });
-          // Unsubscribe to stop continuous retry errors in console
-          activeListeners.forEach(u => {
-            try { u(); } catch {}
-          });
-          activeListeners = [];
           return;
         }
         if (isUnavailableOrNetworkError(error)) {

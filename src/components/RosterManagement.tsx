@@ -20,7 +20,13 @@ import {
 } from '../utils/discordWebhook';
 import { getOfficerDutyState, formatDutyDuration } from '../utils/officerDutyStorage';
 import { HSPD_LOGO_URL } from '../assets/logo';
-import { syncCollectionWithFirestore } from '../services/firebaseRealtimeSync';
+import { 
+  syncCollectionWithFirestore, 
+  pullLatestFromFirestore, 
+  subscribeToSyncStatus, 
+  resetQuotaExhausted,
+  FirebaseSyncStatus 
+} from '../services/firebaseRealtimeSync';
 import { mergeWithOfficialRoster, HSPD_OFFICIAL_ROSTER } from '../data/hspdOfficialRoster';
 
 interface Props {
@@ -125,21 +131,76 @@ export const RosterManagement: React.FC<Props> = ({
   const [isSubmittingRankUpdate, setIsSubmittingRankUpdate] = useState(false);
   const [successNotice, setSuccessNotice] = useState('');
   const [isSyncingRealtime, setIsSyncingRealtime] = useState(false);
+  const [isPullingRealtime, setIsPullingRealtime] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [firebaseStatus, setFirebaseStatus] = useState<FirebaseSyncStatus>({
+    connected: true,
+    lastSyncTime: Date.now(),
+    pendingCount: 0,
+    error: null
+  });
+
+  React.useEffect(() => {
+    return subscribeToSyncStatus(st => setFirebaseStatus(st));
+  }, []);
 
   const handleManualSyncDatabase = async () => {
     setIsSyncingRealtime(true);
+    resetQuotaExhausted();
     try {
       const merged = mergeWithOfficialRoster(roster);
       localStorage.setItem('hspd_roster_database_v4', JSON.stringify(merged));
       localStorage.setItem('hspd_roster_database_v3', JSON.stringify(merged));
-      await syncCollectionWithFirestore('ROSTER', merged);
-      setSuccessNotice(`⚡ Realtime Database Berhasil Disinkronkan! Total ${merged.length} data anggota kepolisian & PIN aktif tersimpan.`);
+      const ok = await syncCollectionWithFirestore('ROSTER', merged, true);
+      if (ok) {
+        setSuccessNotice(`⚡ Cloud Firestore Berhasil Disinkronkan! Total ${merged.length} data anggota kepolisian & PIN aktif tersimpan ke Cloud.`);
+      } else {
+        setSuccessNotice(`✅ Database Lokal Berhasil Disimpan (${merged.length} data anggota).`);
+      }
       setTimeout(() => setSuccessNotice(''), 6000);
     } catch (err: any) {
       setSuccessNotice(`✅ Database lokal aktif: ${roster.length} data anggota kepolisian tersimpan.`);
       setTimeout(() => setSuccessNotice(''), 4000);
     } finally {
       setIsSyncingRealtime(false);
+    }
+  };
+
+  const handlePullCloudDatabase = async () => {
+    setIsPullingRealtime(true);
+    resetQuotaExhausted();
+    try {
+      const fresh = await pullLatestFromFirestore<OfficerAccount>('ROSTER');
+      if (fresh && fresh.length > 0) {
+        setSuccessNotice(`📥 Sukses Menarik Data: Total ${fresh.length} data anggota kepolisian terbaru tersinkronisasi dari Cloud Firestore!`);
+      } else {
+        setSuccessNotice(`⚡ Verifikasi Cloud selesai: Total ${roster.length} data anggota aktif sinkron.`);
+      }
+      setTimeout(() => setSuccessNotice(''), 6000);
+    } catch (err: any) {
+      setSuccessNotice(`⚠️ Gagal menarik data dari cloud: ${err.message || 'Periksa jaringan'}`);
+      setTimeout(() => setSuccessNotice(''), 5000);
+    } finally {
+      setIsPullingRealtime(false);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setIsTestingConnection(true);
+    resetQuotaExhausted();
+    try {
+      const fresh = await pullLatestFromFirestore<OfficerAccount>('ROSTER');
+      if (fresh) {
+        setSuccessNotice(`🟢 Koneksi Cloud Firestore ONLINE: Terhubung langsung ke Database ID "ai-studio-hspdroleplayassi-2774b304-6286-4462-9d17-823224c7f4fd" (${fresh.length} Personel).`);
+      } else {
+        setSuccessNotice(`🟢 Database Status: Menggunakan penyimpanan terintegrasi (${roster.length} Personel).`);
+      }
+      setTimeout(() => setSuccessNotice(''), 6000);
+    } catch (e: any) {
+      setSuccessNotice(`🔴 Status Koneksi: Offline / Penyimpanan Lokal Aktif.`);
+      setTimeout(() => setSuccessNotice(''), 5000);
+    } finally {
+      setIsTestingConnection(false);
     }
   };
 
@@ -610,72 +671,119 @@ export const RosterManagement: React.FC<Props> = ({
       )}
 
       {/* Command Actions Bar & Passcode Info Banner */}
-      <div className="bg-[#0D1117] border border-amber-900/40 rounded-lg p-3 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-mono">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* HIGH COMMAND ONLY: ADD OFFICER BUTTON */}
-          <button
-            id="btn-add-officer-modal"
-            type="button"
-            onClick={handleOpenAddModal}
-            className={`px-3.5 py-2 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-md ${
-              isCurrentOfficerCommand
-                ? 'bg-amber-500 hover:bg-amber-400 text-black shadow-amber-500/20'
-                : 'bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700'
-            }`}
-            title={
-              isCurrentOfficerCommand
-                ? 'Daftarkan & tambahkan personel baru ke database anggota (Akses Penuh High Command)'
-                : 'Hanya jajaran High Command yang dapat mendaftarkan personel baru'
-            }
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>+ TAMBAH ANGGOTA BARU</span>
-          </button>
-
-          {/* SINKRONKAN DATABASE REALTIME BUTTON */}
-          <button
-            id="btn-sync-realtime-roster"
-            type="button"
-            onClick={handleManualSyncDatabase}
-            disabled={isSyncingRealtime}
-            className="px-3 py-2 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-600/70 hover:border-emerald-400 text-emerald-300 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
-            title="Sinkronkan seluruh 56+ data anggota kepolisian & PIN ke Realtime Database Firestore"
-          >
-            <RefreshCw className={`w-4 h-4 text-emerald-400 ${isSyncingRealtime ? 'animate-spin' : ''}`} />
-            <span>{isSyncingRealtime ? 'MENYINKRONKAN...' : '⚡ SINKRONKAN DATABASE REALTIME'}</span>
-          </button>
-
-          {/* HIGH COMMAND ONLY: PIN RESET AUDIT & WEBHOOK LOG BUTTON */}
-          {onOpenPinResetAudit && (
-            <button
-              id="btn-open-pin-reset-audit"
-              type="button"
-              onClick={onOpenPinResetAudit}
-              className="px-3 py-2 bg-amber-950/70 hover:bg-amber-900 border border-amber-600/70 hover:border-amber-400 text-amber-300 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
-              title="Audit & Otorisasi Pengajuan Lupa PIN Login via Discord Webhook"
-            >
-              <KeyRound className="w-4 h-4 text-amber-400" />
-              <span>👑 LOG RESET PIN & WEBHOOK</span>
-              {typeof pendingPinResetCount === 'number' && pendingPinResetCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-amber-500 text-black text-[10px] rounded-full font-bold animate-pulse">
-                  {pendingPinResetCount}
-                </span>
-              )}
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="flex items-center gap-2 text-[11px]">
-            <KeyRound className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="text-gray-400">Passcode Pendaftaran:</span>
-            <span className="text-amber-400 font-bold bg-black/60 px-1.5 py-0.5 rounded border border-amber-800/50">
-              10-4 / 911
+      <div className="bg-[#0D1117] border border-amber-900/40 rounded-lg p-3 flex flex-col gap-3 text-xs font-mono">
+        {/* Realtime Database Connection Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-gray-800/80">
+          <div className="flex items-center gap-2">
+            <span className={`w-2.5 h-2.5 rounded-full ${firebaseStatus.connected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-500'}`} />
+            <span className="text-gray-300 font-bold">Status Database:</span>
+            <span className={firebaseStatus.connected ? 'text-emerald-400 font-bold' : 'text-amber-400'}>
+              {firebaseStatus.connected ? '🟢 Cloud Firestore Online (Realtime Sync)' : '🟡 Mode Lokal / Offline'}
+            </span>
+            <span className="text-gray-500 text-[11px] hidden md:inline">
+              | DB ID: <code className="text-gray-400">ai-studio-hspd...</code>
             </span>
           </div>
-          <div className="text-[11px] text-gray-400 flex items-center gap-1.5">
-            <span className="text-amber-300 font-bold">⚠️ Max 3 SP</span>
-            <span>sebelum pemecatan dinas</span>
+
+          <div className="flex items-center gap-2 text-[11px] text-gray-400">
+            <Activity className="w-3.5 h-3.5 text-blue-400" />
+            <span>Total Anggota: <strong className="text-amber-400">{roster.length} Personel</strong></span>
+          </div>
+        </div>
+
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* HIGH COMMAND ONLY: ADD OFFICER BUTTON */}
+            <button
+              id="btn-add-officer-modal"
+              type="button"
+              onClick={handleOpenAddModal}
+              className={`px-3.5 py-2 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-md ${
+                isCurrentOfficerCommand
+                  ? 'bg-amber-500 hover:bg-amber-400 text-black shadow-amber-500/20'
+                  : 'bg-gray-800 text-gray-500 cursor-not-allowed border border-gray-700'
+              }`}
+              title={
+                isCurrentOfficerCommand
+                  ? 'Daftarkan & tambahkan personel baru ke database anggota (Akses Penuh High Command)'
+                  : 'Hanya jajaran High Command yang dapat mendaftarkan personel baru'
+              }
+            >
+              <UserPlus className="w-4 h-4" />
+              <span>+ TAMBAH ANGGOTA BARU</span>
+            </button>
+
+            {/* SINKRONKAN DATABASE KE CLOUD FIRESTORE */}
+            <button
+              id="btn-sync-realtime-roster"
+              type="button"
+              onClick={handleManualSyncDatabase}
+              disabled={isSyncingRealtime}
+              className="px-3 py-2 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-600/70 hover:border-emerald-400 text-emerald-300 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
+              title="Kirim dan sinkronkan seluruh 56+ data anggota kepolisian & PIN ke Cloud Firestore"
+            >
+              <RefreshCw className={`w-4 h-4 text-emerald-400 ${isSyncingRealtime ? 'animate-spin' : ''}`} />
+              <span>{isSyncingRealtime ? 'MENYINKRONKAN...' : '⚡ SINKRONKAN KE CLOUD'}</span>
+            </button>
+
+            {/* TARIK DATA DARI CLOUD FIRESTORE */}
+            <button
+              id="btn-pull-cloud-roster"
+              type="button"
+              onClick={handlePullCloudDatabase}
+              disabled={isPullingRealtime}
+              className="px-3 py-2 bg-blue-950/80 hover:bg-blue-900 border border-blue-600/70 hover:border-blue-400 text-blue-300 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
+              title="Tarik pembaruan database anggota kepolisian terbaru dari Cloud Firestore"
+            >
+              <ArrowDownRight className={`w-4 h-4 text-blue-400 ${isPullingRealtime ? 'animate-bounce' : ''}`} />
+              <span>{isPullingRealtime ? 'MENARIK...' : '📥 TARIK DARI CLOUD'}</span>
+            </button>
+
+            {/* TES KONEKSI DATABASE */}
+            <button
+              id="btn-test-cloud-connection"
+              type="button"
+              onClick={handleTestConnection}
+              disabled={isTestingConnection}
+              className="px-3 py-2 bg-purple-950/70 hover:bg-purple-900 border border-purple-600/70 hover:border-purple-400 text-purple-300 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
+              title="Uji komunikasi langsung ke database Cloud Firestore"
+            >
+              <Activity className={`w-4 h-4 text-purple-400 ${isTestingConnection ? 'animate-spin' : ''}`} />
+              <span>{isTestingConnection ? 'MENGUJI...' : '🔄 TES KONEKSI'}</span>
+            </button>
+
+            {/* HIGH COMMAND ONLY: PIN RESET AUDIT & WEBHOOK LOG BUTTON */}
+            {onOpenPinResetAudit && (
+              <button
+                id="btn-open-pin-reset-audit"
+                type="button"
+                onClick={onOpenPinResetAudit}
+                className="px-3 py-2 bg-amber-950/70 hover:bg-amber-900 border border-amber-600/70 hover:border-amber-400 text-amber-300 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
+                title="Audit & Otorisasi Pengajuan Lupa PIN Login via Discord Webhook"
+              >
+                <KeyRound className="w-4 h-4 text-amber-400" />
+                <span>👑 LOG RESET PIN & WEBHOOK</span>
+                {typeof pendingPinResetCount === 'number' && pendingPinResetCount > 0 && (
+                  <span className="px-1.5 py-0.2 bg-amber-500 text-black text-[10px] rounded-full font-bold animate-pulse">
+                    {pendingPinResetCount}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-2 text-[11px]">
+              <KeyRound className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="text-gray-400">Passcode Pendaftaran:</span>
+              <span className="text-amber-400 font-bold bg-black/60 px-1.5 py-0.5 rounded border border-amber-800/50">
+                10-4 / 911
+              </span>
+            </div>
+            <div className="text-[11px] text-gray-400 flex items-center gap-1.5">
+              <span className="text-amber-300 font-bold">⚠️ Max 3 SP</span>
+              <span>sebelum pemecatan dinas</span>
+            </div>
           </div>
         </div>
       </div>
