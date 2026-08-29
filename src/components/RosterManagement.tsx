@@ -7,8 +7,9 @@ import {
   Search, CheckCircle2, AlertTriangle, KeyRound, 
   Sparkles, ShieldAlert, X, Plus, ShieldCheck, Clock, Lock,
   UserX, Trash2, AlertOctagon, Send, RotateCcw, AlertCircle, FileText, RefreshCw,
-  UserPlus, Phone, Sliders, Eye, EyeOff, Radio, Activity
+  UserPlus, Phone, Sliders, Eye, EyeOff, Radio, Activity, FileSpreadsheet, Download, Archive
 } from 'lucide-react';
+import { ExportAttendanceModal } from './ExportAttendanceModal';
 import { 
   sendOfficerWarningToDiscord, 
   sendOfficerDischargeToDiscord,
@@ -133,6 +134,7 @@ export const RosterManagement: React.FC<Props> = ({
   const [isSyncingRealtime, setIsSyncingRealtime] = useState(false);
   const [isPullingRealtime, setIsPullingRealtime] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [isExportAttendanceModalOpen, setIsExportAttendanceModalOpen] = useState(false);
   const [firebaseStatus, setFirebaseStatus] = useState<FirebaseSyncStatus>({
     connected: true,
     lastSyncTime: Date.now(),
@@ -711,6 +713,18 @@ export const RosterManagement: React.FC<Props> = ({
             >
               <UserPlus className="w-4 h-4" />
               <span>+ TAMBAH ANGGOTA BARU</span>
+            </button>
+
+            {/* EXPORT ABSEN MINGGUAN (EXCEL / ZIP / CSV / PDF) */}
+            <button
+              id="btn-open-export-attendance"
+              type="button"
+              onClick={() => setIsExportAttendanceModalOpen(true)}
+              className="px-3 py-2 bg-gradient-to-r from-emerald-950/90 to-teal-950/90 hover:from-emerald-900 hover:to-teal-900 border border-emerald-500/80 hover:border-emerald-400 text-emerald-200 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-md shadow-emerald-950/30"
+              title="Ekspor Rekapitulasi Absensi & Jam Dinas Mingguan Anggota ke Excel (.xlsx), ZIP Archive, CSV, atau Dokumen Cetak"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <span>📥 EXPORT ABSEN MINGGUAN</span>
             </button>
 
             {/* SINKRONKAN DATABASE KE CLOUD FIRESTORE */}
@@ -1890,6 +1904,13 @@ export const RosterManagement: React.FC<Props> = ({
           </div>
         </div>
       )}
+
+      {/* EXPORT ATTENDANCE MODAL */}
+      <ExportAttendanceModal
+        isOpen={isExportAttendanceModalOpen}
+        onClose={() => setIsExportAttendanceModalOpen(false)}
+        roster={roster}
+      />
     </div>
   );
 };

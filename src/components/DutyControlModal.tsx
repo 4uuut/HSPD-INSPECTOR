@@ -9,6 +9,7 @@ import {
   getSavedDutyWebhookConfig, saveDutyWebhookConfig, 
   sendDutyReportToDiscord, testDutyDiscordWebhook, WebhookConfig 
 } from '../utils/discordWebhook';
+import { recordDutySession } from '../utils/attendanceExport';
 import { HSPD_LOGO_URL } from '../assets/logo';
 
 interface Props {
@@ -148,6 +149,20 @@ export const DutyControlModal: React.FC<Props> = ({
     } else if (selectedStatus === '10-6' || selectedStatus === '10-97') {
       newDutyState = true;
       newDutyStartTime = (isDuty && dutyStartTime > 0) ? dutyStartTime : now;
+    }
+
+    if (selectedStatus === '10-7' && dutyStartTime > 0) {
+      recordDutySession({
+        officerBadge: currentOfficer.badge,
+        officerName: currentOfficer.name,
+        officerRank: currentOfficer.rank,
+        division: currentOfficer.division || 'Patrol Division',
+        startTime: dutyStartTime,
+        endTime: now,
+        durationMinutes: Math.max(1, finalMinutes),
+        durationFormatted: finalDurationFormatted,
+        notes: `Shift Dinas ${currentOfficer.rank}`
+      });
     }
 
     onDutyStatusChanged(newDutyState, newDutyStartTime, selectedStatus);
