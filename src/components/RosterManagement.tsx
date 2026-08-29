@@ -10,6 +10,7 @@ import {
   UserPlus, Phone, Sliders, Eye, EyeOff, Radio, Activity, FileSpreadsheet, Download, Archive
 } from 'lucide-react';
 import { ExportAttendanceModal } from './ExportAttendanceModal';
+import { getNextAvailableBadge } from '../utils/badgeHelper';
 import { 
   sendOfficerWarningToDiscord, 
   sendOfficerDischargeToDiscord,
@@ -210,6 +211,7 @@ export const RosterManagement: React.FC<Props> = ({
   const [isAddOfficerModalOpen, setIsAddOfficerModalOpen] = useState(false);
   const [addName, setAddName] = useState('');
   const [addBadge, setAddBadge] = useState('#');
+  const [isManualBadge, setIsManualBadge] = useState(false);
   const [addRank, setAddRank] = useState<OfficerRankLevel>('CADET [CDT]');
   const [addDivision, setAddDivision] = useState(PRESET_DIVISIONS[0]);
   const [addCustomDivision, setAddCustomDivision] = useState('');
@@ -221,6 +223,7 @@ export const RosterManagement: React.FC<Props> = ({
   const [addSendWebhook, setAddSendWebhook] = useState(true);
   const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
   const [addFormError, setAddFormError] = useState('');
+  const [addOfficerSuccessMsg, setAddOfficerSuccessMsg] = useState('');
   const [showAddPin, setShowAddPin] = useState(false);
 
   // Check if current officer holds one of the 4 High Command ranks
@@ -232,16 +235,9 @@ export const RosterManagement: React.FC<Props> = ({
       return;
     }
     setAddName('');
-    // Auto suggest next badge number
-    const maxBadgeNum = roster.reduce((max, o) => {
-      const match = o.badge.replace('#', '').match(/\d+/);
-      if (match) {
-        const num = parseInt(match[0], 10);
-        return num > max ? num : max;
-      }
-      return max;
-    }, 100);
-    setAddBadge(`#${maxBadgeNum + 1}`);
+    const nextAutoBadge = getNextAvailableBadge(roster, 'CADET [CDT]');
+    setAddBadge(nextAutoBadge);
+    setIsManualBadge(false);
     setAddRank('CADET [CDT]');
     setAddDivision(PRESET_DIVISIONS[0]);
     setAddCustomDivision('');
@@ -250,11 +246,27 @@ export const RosterManagement: React.FC<Props> = ({
     setAddPromotedBy(`SK Pengangkatan oleh ${currentOfficerRank || 'High Command'} ${currentOfficerName || ''}`);
     setAddSendWebhook(true);
     setAddFormError('');
+    setAddOfficerSuccessMsg('');
     setIsAddOfficerModalOpen(true);
   };
 
-  const handleSaveNewOfficer = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleRankChange = (newRank: OfficerRankLevel) => {
+    setAddRank(newRank);
+    if (!isManualBadge) {
+      const nextBadgeForRank = getNextAvailableBadge(roster, newRank);
+      setAddBadge(nextBadgeForRank);
+    }
+  };
+
+  const handleResetToAutoBadge = () => {
+    const nextAutoBadge = getNextAvailableBadge(roster, addRank);
+    setAddBadge(nextAutoBadge);
+    setIsManualBadge(false);
+    setAddFormError('');
+  };
+
+  const handleSaveNewOfficer = async (e?: React.FormEvent, addAnother: boolean = false) => {
+    if (e) e.preventDefault();
     if (!isCurrentOfficerCommand) return;
 
     const trimmedName = addName.trim();
@@ -294,6 +306,7 @@ export const RosterManagement: React.FC<Props> = ({
 
     setIsSubmittingAdd(true);
     setAddFormError('');
+    setAddOfficerSuccessMsg('');
 
     const newAccount: OfficerAccount = {
       id: `roster-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -331,15 +344,38 @@ export const RosterManagement: React.FC<Props> = ({
         onUpdateOfficer(newAccount);
       }
 
-      setIsAddOfficerModalOpen(false);
-      setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) pangkat ${addRank} berhasil ditambahkan ke Roster dan disahkan!`);
-      setTimeout(() => setSuccessNotice(''), 6000);
+      if (addAnother) {
+        // Prepare for the NEXT officer immediately
+        const simulatedRoster = [...roster, newAccount];
+        const nextSequentialBadge = getNextAvailableBadge(simulatedRoster, addRank);
+        setAddBadge(nextSequentialBadge);
+        setIsManualBadge(false);
+        setAddName('');
+        setAddPhone('');
+        setAddOfficerSuccessMsg(`✅ Petugas ${trimmedName} (${trimmedBadge}) sukses didaftarkan! Badge otomatis berlanjut ke ${nextSequentialBadge} untuk anggota berikutnya.`);
+        setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) berhasil ditambahkan ke Roster!`);
+        setTimeout(() => setSuccessNotice(''), 5000);
+      } else {
+        setIsAddOfficerModalOpen(false);
+        setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) pangkat ${addRank} berhasil ditambahkan ke Roster dan disahkan!`);
+        setTimeout(() => setSuccessNotice(''), 6000);
+      }
     } catch (err: any) {
       console.error('Failed to register new officer:', err);
       if (onRegisterOfficer) onRegisterOfficer(newAccount);
-      setIsAddOfficerModalOpen(false);
-      setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) berhasil ditambahkan ke database roster!`);
-      setTimeout(() => setSuccessNotice(''), 6000);
+      if (addAnother) {
+        const simulatedRoster = [...roster, newAccount];
+        const nextSequentialBadge = getNextAvailableBadge(simulatedRoster, addRank);
+        setAddBadge(nextSequentialBadge);
+        setIsManualBadge(false);
+        setAddName('');
+        setAddPhone('');
+        setAddOfficerSuccessMsg(`✅ Personel ${trimmedName} (${trimmedBadge}) tersimpan di database! Badge baru: ${nextSequentialBadge}.`);
+      } else {
+        setIsAddOfficerModalOpen(false);
+        setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) berhasil ditambahkan ke database roster!`);
+        setTimeout(() => setSuccessNotice(''), 6000);
+      }
     } finally {
       setIsSubmittingAdd(false);
     }
@@ -1707,6 +1743,23 @@ export const RosterManagement: React.FC<Props> = ({
               </button>
             </div>
 
+            {/* Success Notification inside Modal (Consecutive Addition) */}
+            {addOfficerSuccessMsg && (
+              <div className="bg-emerald-950/90 border-b border-emerald-500 px-4 py-2.5 text-emerald-200 text-xs flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{addOfficerSuccessMsg}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAddOfficerSuccessMsg('')}
+                  className="text-emerald-400 hover:text-emerald-200 text-[10px] underline"
+                >
+                  Tutup
+                </button>
+              </div>
+            )}
+
             {/* Error Notification */}
             {addFormError && (
               <div className="bg-rose-950/90 border-b border-rose-600 px-4 py-2 text-rose-200 text-xs flex items-center gap-2">
@@ -1716,10 +1769,10 @@ export const RosterManagement: React.FC<Props> = ({
             )}
 
             {/* Modal Form Body */}
-            <form onSubmit={handleSaveNewOfficer} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
+            <form onSubmit={(e) => handleSaveNewOfficer(e, false)} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
               {/* Nama & Badge Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                <div className="sm:col-span-8 space-y-1">
+                <div className="sm:col-span-7 space-y-1">
                   <label className="text-[10px] font-bold text-gray-300 uppercase block">
                     Nama Lengkap Petugas <span className="text-rose-400">*</span>
                   </label>
@@ -1730,21 +1783,42 @@ export const RosterManagement: React.FC<Props> = ({
                     placeholder="Contoh: Marcus Vance"
                     className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-100 outline-none font-mono font-bold"
                     required
+                    autoFocus
                   />
                 </div>
 
-                <div className="sm:col-span-4 space-y-1">
-                  <label className="text-[10px] font-bold text-gray-300 uppercase block">
-                    No. Badge <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={addBadge}
-                    onChange={(e) => setAddBadge(e.target.value)}
-                    placeholder="#105"
-                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-amber-300 outline-none font-mono font-bold"
-                    required
-                  />
+                <div className="sm:col-span-5 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-bold text-gray-300 uppercase block">
+                      No. Badge <span className="text-rose-400">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleResetToAutoBadge}
+                      title="Klik untuk kalkulasi ulang badge otomatis berurutan"
+                      className="text-[9px] text-amber-400 hover:text-amber-300 flex items-center gap-0.5"
+                    >
+                      <RotateCcw className="w-2.5 h-2.5" />
+                      <span>Auto-Next</span>
+                    </button>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={addBadge}
+                      onChange={(e) => {
+                        setAddBadge(e.target.value);
+                        setIsManualBadge(true);
+                      }}
+                      placeholder="#030"
+                      className="w-full px-3 py-2 bg-[#0D1117] border border-amber-500/70 focus:border-amber-400 rounded-lg text-xs text-amber-300 outline-none font-mono font-bold"
+                      required
+                    />
+                  </div>
+                  <span className="text-[9px] text-emerald-400/90 flex items-center gap-1">
+                    <Sparkles className="w-2.5 h-2.5" />
+                    <span>Otomatis berurutan dari badge terakhir</span>
+                  </span>
                 </div>
               </div>
 
@@ -1756,7 +1830,7 @@ export const RosterManagement: React.FC<Props> = ({
                 </label>
                 <select
                   value={addRank}
-                  onChange={(e) => setAddRank(e.target.value as OfficerRankLevel)}
+                  onChange={(e) => handleRankChange(e.target.value as OfficerRankLevel)}
                   className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-100 outline-none font-mono"
                   required
                 >
@@ -1873,14 +1947,23 @@ export const RosterManagement: React.FC<Props> = ({
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-3 border-t border-gray-800 flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-gray-800 flex flex-wrap items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setIsAddOfficerModalOpen(false)}
                   disabled={isSubmittingAdd}
                   className="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs transition"
                 >
-                  Batal
+                  Tutup / Selesai
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSaveNewOfficer(undefined, true)}
+                  disabled={isSubmittingAdd}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white font-bold rounded-lg transition text-xs flex items-center gap-1.5 shadow-md shadow-blue-600/20"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Simpan & Tambah Lagi (+)</span>
                 </button>
                 <button
                   type="submit"
@@ -1894,8 +1977,8 @@ export const RosterManagement: React.FC<Props> = ({
                     </>
                   ) : (
                     <>
-                      <UserPlus className="w-4 h-4" />
-                      <span>DAFTARKAN PERSONEL SEKARANG</span>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Simpan & Selesai</span>
                     </>
                   )}
                 </button>
