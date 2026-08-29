@@ -24,6 +24,8 @@ import { SpecializedDivisionsHub } from './components/SpecializedDivisionsHub';
 import { CitizenDmvDatabase } from './components/CitizenDmvDatabase';
 import { ForensicsLabBoard } from './components/ForensicsLabBoard';
 import { CustomBrandingModal } from './components/CustomBrandingModal';
+import { AndroidMdtView } from './components/AndroidMdtView';
+import { ExportAttendanceModal } from './components/ExportAttendanceModal';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
 import { getPendingPinResetCount, touchSuperiorHeartbeat } from './utils/pinResetStorage';
 import { getSavedDetectiveCases, saveDetectiveCases } from './utils/detectiveCaseStorage';
@@ -41,7 +43,7 @@ import {
   Radio, Award, User, LogOut, Lock, Sparkles, BadgeCheck,
   Users, ShieldAlert, KeyRound, Power, Clock, CheckCircle2, Sliders,
   Search, Car, Crosshair, Landmark, Flame, Stamp as StampIcon,
-  UserCheck, Microscope, Cloud, Database, Palette
+  UserCheck, Microscope, Cloud, Database, Palette, Smartphone, Monitor
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from './assets/logo';
 import { 
@@ -142,6 +144,32 @@ export default function App() {
   // Dynamic Website Logo & Department Identity Branding
   const [branding, setBranding] = useState<DepartmentBrandingConfig>(() => getCustomBranding());
   const [isBrandingModalOpen, setIsBrandingModalOpen] = useState(false);
+  const [isExportAttendanceModalOpen, setIsExportAttendanceModalOpen] = useState(false);
+
+  // Dedicated Android / Mobile View Mode State & Auto-detection
+  const [isAndroidMode, setIsAndroidMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('hspd_preferred_view_mode_v1');
+      if (saved === 'android') return true;
+      if (saved === 'desktop') return false;
+      if (typeof window !== 'undefined') {
+        const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const isNarrow = window.innerWidth <= 768;
+        return isMobileUA || isNarrow;
+      }
+    } catch {}
+    return false;
+  });
+
+  const handleToggleViewMode = () => {
+    setIsAndroidMode(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('hspd_preferred_view_mode_v1', next ? 'android' : 'desktop');
+      } catch {}
+      return next;
+    });
+  };
 
   useEffect(() => {
     return subscribeToBranding(cfg => setBranding(cfg));
@@ -577,305 +605,352 @@ export default function App() {
         />
       )}
 
-      {/* Top High-Density Police Header Bar */}
-      <header id="main-header" className="h-14 border-b border-gray-800 flex items-center px-4 justify-between bg-[#161B22]/95 backdrop-blur-md sticky top-0 z-40 shadow-xl">
-        <div className="flex items-center gap-3">
-          <div 
-            className={`relative shrink-0 ${hasFullAccess ? 'cursor-pointer group' : ''}`}
-            onClick={() => {
-              if (hasFullAccess) {
-                setIsBrandingModalOpen(true);
-              }
-            }} 
-            title={hasFullAccess ? "Pengaturan Logo & Background (Full Access)" : `${branding.departmentName} Official Crest`}
-          >
-            <img
-              src={branding.logoUrl || HSPD_LOGO_URL}
-              alt={`${branding.departmentName} Official Crest`}
-              referrerPolicy="no-referrer"
-              className={`w-9 h-9 rounded-full object-contain drop-shadow-md border border-amber-500/40 bg-black/60 p-0.5 ${hasFullAccess ? 'group-hover:scale-105 transition' : ''}`}
-              onError={e => {
-                (e.target as HTMLImageElement).src = HSPD_LOGO_URL;
-              }}
-            />
-            {hasFullAccess && (
-              <div className="absolute -bottom-1 -right-1 z-20 bg-amber-500 text-black p-0.5 rounded-full border border-black text-[9px] group-hover:block transition">
-                <Palette className="w-2 h-2" />
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-bold text-gray-100 text-sm tracking-tight">{branding.departmentCode} <span className="text-amber-400">{branding.subTitle}</span></span>
-                <span className="text-[9px] text-amber-300 font-mono bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/60 font-bold">{branding.cadBadgeText}</span>
-              </div>
-              <div className="text-[9px] text-gray-400 font-mono hidden sm:block">
-                {branding.agencyJurisdiction}
-              </div>
-            </div>
-          </div>
-
-          <div className="hidden lg:flex h-6 w-[1px] bg-gray-800 mx-1"></div>
-
-          <div className="hidden xl:flex gap-2 text-[10px] uppercase tracking-wider font-semibold text-gray-500 items-center font-mono">
-            <span>FREQ: <strong className="text-green-400">{branding.radioFreq}</strong></span>
-            <span className="text-gray-700">•</span>
-            <span>ROSTER: <strong className="text-amber-400">{roster.length} Personel</strong></span>
-          </div>
-        </div>
-
-        {/* Header Right Actions: Duty Toggle Button & Officer Badge */}
-        <div className="flex items-center gap-2 text-xs">
-          {/* REALTIME FIREBASE CLOUD DATABASE STATUS BADGE */}
-          <div 
-            className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-[#0A0D12] border border-cyan-500/40 rounded-lg text-[10px] font-mono text-cyan-300 shadow-sm"
-            title="Database Firestore Cloud Terkoneksi Real-time: Setiap input data baru otomatis tersinkronisasi"
-          >
-            <Cloud className={`w-3.5 h-3.5 ${firebaseSync.connected ? 'text-cyan-400' : 'text-gray-500'}`} />
-            <span className="font-bold">DATABASE CLOUD</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-            <span className="text-[9px] text-emerald-400 font-bold">AUTO-SYNC</span>
-          </div>
-
-          {/* HIGH RANK / SUPERVISOR ONLY: CUSTOM LOGO & BRANDING SETTINGS BUTTON */}
-          {hasFullAccess && (
-            <button
-              id="btn-open-branding-header"
-              type="button"
-              onClick={() => setIsBrandingModalOpen(true)}
-              className="px-2.5 py-1.5 bg-amber-950/70 hover:bg-amber-900/90 text-amber-300 border border-amber-600/70 hover:border-amber-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
-              title="Pengaturan Logo & Background Wallpaper Website (Full Access)"
-            >
-              <Palette className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden md:inline">👑 LOGO & BG</span>
-              <span className="md:hidden">LOGO</span>
-            </button>
-          )}
-
-          {/* SUPERVISOR & HIGH COMMAND: OTP CLEARANCE DISPOSITION BUTTON */}
-          {isSupervisorOrAbove(currentOfficer.rank) && (
-            <button
-              id="btn-open-otp-disposition-header"
-              onClick={() => {
-                setOtpModalDefaultModule('VAULT');
-                setIsOtpGeneratorModalOpen(true);
-              }}
-              className="px-2.5 py-1.5 bg-gradient-to-r from-amber-950/80 to-amber-900/80 hover:from-amber-900 hover:to-amber-800 text-amber-300 border border-amber-500/70 hover:border-amber-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/50"
-              title="Disposisi Kode Akses Sekali Pakai (OTP) untuk Petugas Lapangan membuka modul sensitif"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-              <span className="hidden md:inline">🔑 DISPOSISI OTP</span>
-              <span className="md:hidden">OTP</span>
-            </button>
-          )}
-
-          {/* HIGH RANK ONLY: AUTHORITY PIN MANAGEMENT BUTTON */}
-          {isHighRank && (
-            <button
-              id="btn-open-authority-pin-settings"
-              onClick={() => setIsAuthorityPinModalOpen(true)}
-              className="px-2.5 py-1.5 bg-amber-950/70 hover:bg-amber-900/90 text-amber-300 border border-amber-600/70 hover:border-amber-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
-              title="Kelola PIN Otoritas Pembuka Berkas (Rotasi Otomatis 1 Jam / Manual)"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden md:inline">👑 PIN OTORITAS: <strong className="text-amber-200">{authorityPinConfig.currentPin}</strong></span>
-              <span className="md:hidden">PIN [{authorityPinConfig.currentPin}]</span>
-              <span className="hidden lg:inline text-[9px] bg-black/40 px-1 py-0.5 rounded text-amber-300/80 border border-amber-800/40 font-normal">
-                {pinTimeRemaining.text}
-              </span>
-            </button>
-          )}
-
-          {/* HIGH RANK ONLY: SETTING WEBHOOK BUTTON */}
-          {isHighRank && (
-            <button
-              id="btn-open-webhook-settings"
-              onClick={() => setIsWebhookModalOpen(true)}
-              className="px-2.5 py-1.5 bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 hover:border-amber-500 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
-              title="Pengaturan Integrasi Discord Webhook (Hanya High Command)"
-            >
-              <Sliders className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">👑 WEBHOOK</span>
-              <span className="sm:hidden">DC</span>
-            </button>
-          )}
-
-          {/* HIGH RANK ONLY: PIN RESET AUDIT & WEBHOOK LOG BUTTON */}
-          {isHighRank && (
-            <button
-              id="btn-open-pin-reset-audit-header"
-              onClick={() => setIsPinResetAuditModalOpen(true)}
-              className="px-2.5 py-1.5 bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 hover:border-amber-500 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
-              title="Audit Log Permohonan Reset PIN & Otorisasi Webhook Discord (High Command)"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-              <span className="hidden sm:inline">👑 LOG PIN</span>
-              <span className="sm:hidden">PIN</span>
-              {pendingPinCount > 0 && (
-                <span className="px-1.5 py-0.2 bg-amber-500 text-black text-[9px] rounded-full font-bold animate-pulse">
-                  {pendingPinCount}
-                </span>
-              )}
-            </button>
-          )}
-
-          {/* ON/OFF DUTY DISPATCH TOGGLE BUTTON */}
-          <button
-            id="duty-dispatch-toggle-btn"
-            onClick={() => setIsDutyModalOpen(true)}
-            className={`px-3 py-1.5 rounded-lg border font-mono text-xs font-bold transition flex items-center gap-1.5 shadow-sm ${
-              isDuty
-                ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 hover:bg-emerald-900/80 ring-1 ring-emerald-500/50'
-                : 'bg-rose-950/80 border-rose-500 text-rose-300 hover:bg-rose-900/80 ring-1 ring-rose-500/50'
-            }`}
-            title="Klik untuk ubah status tugas & kirim report duty ke Discord Webhook"
-          >
-            <Power className="w-3.5 h-3.5" />
-            <span>{isDuty ? '🟢 10-8 ON DUTY' : '🔴 10-7 OFF DUTY'}</span>
-            {isDuty && (
-              <span className="text-[9px] bg-black/50 px-1.5 py-0.2 rounded border border-emerald-700/60 hidden sm:inline text-emerald-200">
-                {dutyDurationStr}
-              </span>
-            )}
-          </button>
-
-          {/* Active Officer Identity Badge & Change PIN Button */}
-          <div className={`hidden sm:flex items-center gap-2 px-2 py-1.5 rounded-lg border font-mono transition ${
-            isHighRank
-              ? 'bg-amber-950/30 border-amber-800/60 text-amber-300'
-              : 'bg-[#0D1117] border-gray-800 text-gray-200'
-          }`}>
-            <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold shrink-0 ${
-              isHighRank ? 'bg-amber-900/60 border border-amber-700/60 text-amber-300' : 'bg-blue-900/60 border border-blue-700/60 text-blue-300'
-            }`}>
-              <User className="w-3.5 h-3.5" />
-            </div>
-            <div className="text-left leading-tight">
-              <div className="flex items-center gap-1.5">
-                <span className="font-bold text-gray-100 text-[11px] truncate max-w-[120px] lg:max-w-[160px]">
-                  {currentOfficer.name}
-                </span>
-                <span className="text-[9px] bg-black/50 px-1.5 py-0.2 rounded border border-gray-700 text-gray-300">
-                  {currentOfficer.badge}
-                </span>
-              </div>
-              <div className="flex items-center gap-1 text-[9px]">
-                {isHighRank ? (
-                  <span className="text-amber-400 font-bold flex items-center gap-0.5">
-                    ★ {currentOfficer.rank}
-                  </span>
-                ) : (
-                  <span className="text-gray-400">
-                    {currentOfficer.rank}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Logout / Switch Button */}
-          <button
-            onClick={handleLogout}
-            className="px-2.5 py-1.5 bg-gray-800 hover:bg-rose-900/60 text-gray-300 hover:text-rose-200 border border-gray-700 hover:border-rose-700 rounded-lg text-[10px] font-bold font-mono transition flex items-center gap-1"
-            title="Keluar / Ganti Akun Petugas"
-          >
-            <LogOut className="w-3.5 h-3.5 text-rose-400" />
-            <span className="hidden sm:inline">GANTI AKUN</span>
-          </button>
-        </div>
-      </header>
-
-      {/* High Density Sub-Navigation Strip */}
-      <div className="bg-[#11141A] border-b border-gray-800 px-4 py-1.5 flex items-center justify-between overflow-x-auto no-scrollbar">
-        <nav className="flex items-center gap-1 text-[11px] font-medium">
-          {[
-            { id: 'calc', label: 'Kalkulator Pasal', icon: Calculator, code: 'CALC', moduleKey: undefined },
-            { id: 'dispatch', label: '📻 CAD 911 & Panic', icon: Radio, code: 'CAD', moduleKey: 'DISPATCH' as ModuleAccessKey },
-            { id: 'dmv', label: '👤 Sipil & DMV', icon: UserCheck, code: 'DMV', moduleKey: 'DMV_CITIZEN' as ModuleAccessKey },
-            { id: 'divisions', label: '🎖️ Divisi Khusus', icon: Award, code: 'DIV', moduleKey: 'SPECIAL_DIVISIONS' as ModuleAccessKey },
-            { id: 'forensics', label: '🔬 Lab Forensik', icon: Microscope, code: 'LAB', moduleKey: 'FORENSICS' as ModuleAccessKey },
-            { id: 'documents', label: '📄 Surat & Dokumen', icon: StampIcon, code: 'DOC', moduleKey: 'OFFICIAL_DOCS' as ModuleAccessKey },
-            { id: 'detective', label: `🔍 Kasus Detektif (${detectiveCases.length})`, icon: Search, code: 'DB', moduleKey: 'DETECTIVE' as ModuleAccessKey },
-            { id: 'traffic', label: `🚗 BOLO & Sitaan (${boloList.length})`, icon: Car, code: 'BOLO', moduleKey: 'BOLO' as ModuleAccessKey },
-            { id: 'vault', label: '🏦 Brankas & Audit', icon: Landmark, code: 'VAULT', moduleKey: 'VAULT' as ModuleAccessKey },
-            { id: 'destruction', label: '💥 Peleburan Sitaan', icon: Flame, code: 'LEBUR', moduleKey: 'DESTRUCTION' as ModuleAccessKey },
-            { id: 'megaphone', label: 'Megaphone Studio', icon: Megaphone, code: '/M', moduleKey: undefined },
-            { id: 'rp', label: 'Hak Miranda & RP', icon: BookOpen, code: 'RP', moduleKey: undefined },
-            { id: 'sop', label: 'SOP & Ten-Codes', icon: Radio, code: 'SOP', moduleKey: undefined },
-            { 
-              id: 'history', 
-              label: `📁 Riwayat Kasus (${records.length})`, 
-              icon: FileText, 
-              code: 'LOG',
-              moduleKey: 'CASE_HISTORY' as ModuleAccessKey,
-              isHighRankOnly: true
-            },
-            ...(isHighRank ? [
-              {
-                id: 'roster',
-                label: `👑 Roster Anggota (${roster.length})`,
-                icon: Users,
-                code: 'ROSTER',
-                moduleKey: undefined,
-                isHighRankOnly: true
-              }
-            ] : []),
-          ].map(tab => {
-            const Icon = tab.icon;
-            const isActive = activeNav === tab.id;
-            
-            // Calculate real-time clearance status
-            let isLocked = false;
-            let hasOtpActive = false;
-            if (tab.moduleKey) {
-              const clearance = checkDirectRankClearance(tab.moduleKey, currentOfficer);
-              hasOtpActive = Boolean(hasActiveUnlockedSession(tab.moduleKey, currentOfficer?.badge));
-              isLocked = !clearance.hasClearance && !hasOtpActive;
-            }
-
-            return (
-              <button
-                key={tab.id}
-                id={`nav-btn-${tab.id}`}
-                onClick={() => setActiveNav(tab.id as any)}
-                className={`px-2.5 py-1.5 rounded flex items-center gap-1.5 transition whitespace-nowrap text-xs ${
-                  isActive
-                    ? 'bg-blue-600 text-white font-bold shadow-sm shadow-blue-600/30 ring-1 ring-blue-400/40'
-                    : isLocked
-                      ? 'text-gray-400 hover:text-amber-300 hover:bg-amber-950/20 border border-transparent hover:border-amber-700/40'
-                      : hasOtpActive
-                        ? 'text-emerald-300 hover:text-emerald-200 hover:bg-emerald-950/30'
-                        : 'text-gray-300 hover:text-gray-100 hover:bg-gray-800/60'
-                }`}
-                title={isLocked ? 'Memerlukan Otorisasi Pangkat / Divisi atau Kode OTP Atasan' : undefined}
+      {/* Top Header & Navigation: Android MDT Mode vs Desktop Mode */}
+      {isAndroidMode ? (
+        <AndroidMdtView
+          currentOfficer={currentOfficer}
+          roster={roster}
+          isDuty={isDuty}
+          dutyStartTime={dutyStartTime}
+          activeNav={activeNav}
+          setActiveNav={setActiveNav}
+          branding={branding}
+          firebaseSync={firebaseSync}
+          pendingPinCount={pendingPinCount}
+          authorityPin={authorityPinConfig.currentPin}
+          onOpenDutyModal={() => setIsDutyModalOpen(true)}
+          onOpenBrandingModal={() => setIsBrandingModalOpen(true)}
+          onOpenOtpModal={() => {
+            setOtpModalDefaultModule('VAULT');
+            setIsOtpGeneratorModalOpen(true);
+          }}
+          onOpenAuthorityPinModal={() => setIsAuthorityPinModalOpen(true)}
+          onOpenWebhookModal={() => setIsWebhookModalOpen(true)}
+          onOpenPinAuditModal={() => setIsPinResetAuditModalOpen(true)}
+          onOpenExportAttendanceModal={() => setIsExportAttendanceModalOpen(true)}
+          onLogout={handleLogout}
+          viewMode={isAndroidMode ? 'android' : 'desktop'}
+          onToggleViewMode={handleToggleViewMode}
+          totalRecordsCount={records.length}
+          totalDetectiveCasesCount={detectiveCases.length}
+          totalBoloCount={boloList.length}
+        />
+      ) : (
+        <>
+          {/* Top High-Density Police Header Bar */}
+          <header id="main-header" className="h-14 border-b border-gray-800 flex items-center px-4 justify-between bg-[#161B22]/95 backdrop-blur-md sticky top-0 z-40 shadow-xl">
+            <div className="flex items-center gap-3">
+              <div 
+                className={`relative shrink-0 ${hasFullAccess ? 'cursor-pointer group' : ''}`}
+                onClick={() => {
+                  if (hasFullAccess) {
+                    setIsBrandingModalOpen(true);
+                  }
+                }} 
+                title={hasFullAccess ? "Pengaturan Logo & Background (Full Access)" : `${branding.departmentName} Official Crest`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isLocked ? 'text-gray-500' : hasOtpActive ? 'text-emerald-400' : ''}`} />
-                <span>{tab.label}</span>
-                {isLocked && (
-                  <span className="text-[9px] bg-gray-800/90 text-amber-400 px-1 py-0.2 rounded border border-amber-800/50 flex items-center gap-0.5">
-                    <Lock className="w-2.5 h-2.5 inline" />
-                  </span>
+                <img
+                  src={branding.logoUrl || HSPD_LOGO_URL}
+                  alt={`${branding.departmentName} Official Crest`}
+                  referrerPolicy="no-referrer"
+                  className={`w-9 h-9 rounded-full object-contain drop-shadow-md border border-amber-500/40 bg-black/60 p-0.5 ${hasFullAccess ? 'group-hover:scale-105 transition' : ''}`}
+                  onError={e => {
+                    (e.target as HTMLImageElement).src = HSPD_LOGO_URL;
+                  }}
+                />
+                {hasFullAccess && (
+                  <div className="absolute -bottom-1 -right-1 z-20 bg-amber-500 text-black p-0.5 rounded-full border border-black text-[9px] group-hover:block transition">
+                    <Palette className="w-2 h-2" />
+                  </div>
                 )}
-                {hasOtpActive && !isLocked && (
-                  <span className="text-[9px] bg-emerald-950 text-emerald-300 px-1 py-0.2 rounded border border-emerald-700/60 font-mono">
-                    OTP
+              </div>
+              <div className="flex items-center gap-2">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-gray-100 text-sm tracking-tight">{branding.departmentCode} <span className="text-amber-400">{branding.subTitle}</span></span>
+                    <span className="text-[9px] text-amber-300 font-mono bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/60 font-bold">{branding.cadBadgeText}</span>
+                  </div>
+                  <div className="text-[9px] text-gray-400 font-mono hidden sm:block">
+                    {branding.agencyJurisdiction}
+                  </div>
+                </div>
+              </div>
+
+              <div className="hidden lg:flex h-6 w-[1px] bg-gray-800 mx-1"></div>
+
+              <div className="hidden xl:flex gap-2 text-[10px] uppercase tracking-wider font-semibold text-gray-500 items-center font-mono">
+                <span>FREQ: <strong className="text-green-400">{branding.radioFreq}</strong></span>
+                <span className="text-gray-700">•</span>
+                <span>ROSTER: <strong className="text-amber-400">{roster.length} Personel</strong></span>
+              </div>
+            </div>
+
+            {/* Header Right Actions: Duty Toggle Button & Officer Badge */}
+            <div className="flex items-center gap-2 text-xs">
+              {/* SWITCH TO ANDROID VIEW MODE BUTTON */}
+              <button
+                id="btn-switch-to-android-mode"
+                type="button"
+                onClick={handleToggleViewMode}
+                className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-950/80 to-teal-950/80 hover:from-emerald-900 hover:to-teal-900 text-emerald-300 border border-emerald-500/70 hover:border-emerald-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-emerald-950/40"
+                title="Beralih ke Tampilan Khusus Android / Mobile Tactical MDT"
+              >
+                <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden md:inline">📱 MODE ANDROID</span>
+                <span className="md:hidden">ANDROID</span>
+              </button>
+
+              {/* REALTIME FIREBASE CLOUD DATABASE STATUS BADGE */}
+              <div 
+                className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-[#0A0D12] border border-cyan-500/40 rounded-lg text-[10px] font-mono text-cyan-300 shadow-sm"
+                title="Database Firestore Cloud Terkoneksi Real-time: Setiap input data baru otomatis tersinkronisasi"
+              >
+                <Cloud className={`w-3.5 h-3.5 ${firebaseSync.connected ? 'text-cyan-400' : 'text-gray-500'}`} />
+                <span className="font-bold">DATABASE CLOUD</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-[9px] text-emerald-400 font-bold">AUTO-SYNC</span>
+              </div>
+
+              {/* HIGH RANK / SUPERVISOR ONLY: CUSTOM LOGO & BRANDING SETTINGS BUTTON */}
+              {hasFullAccess && (
+                <button
+                  id="btn-open-branding-header"
+                  type="button"
+                  onClick={() => setIsBrandingModalOpen(true)}
+                  className="px-2.5 py-1.5 bg-amber-950/70 hover:bg-amber-900/90 text-amber-300 border border-amber-600/70 hover:border-amber-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
+                  title="Pengaturan Logo & Background Wallpaper Website (Full Access)"
+                >
+                  <Palette className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden md:inline">👑 LOGO & BG</span>
+                  <span className="md:hidden">LOGO</span>
+                </button>
+              )}
+
+              {/* SUPERVISOR & HIGH COMMAND: OTP CLEARANCE DISPOSITION BUTTON */}
+              {isSupervisorOrAbove(currentOfficer.rank) && (
+                <button
+                  id="btn-open-otp-disposition-header"
+                  onClick={() => {
+                    setOtpModalDefaultModule('VAULT');
+                    setIsOtpGeneratorModalOpen(true);
+                  }}
+                  className="px-2.5 py-1.5 bg-gradient-to-r from-amber-950/80 to-amber-900/80 hover:from-amber-900 hover:to-amber-800 text-amber-300 border border-amber-500/70 hover:border-amber-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/50"
+                  title="Disposisi Kode Akses Sekali Pakai (OTP) untuk Petugas Lapangan membuka modul sensitif"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                  <span className="hidden md:inline">🔑 DISPOSISI OTP</span>
+                  <span className="md:hidden">OTP</span>
+                </button>
+              )}
+
+              {/* HIGH RANK ONLY: AUTHORITY PIN MANAGEMENT BUTTON */}
+              {isHighRank && (
+                <button
+                  id="btn-open-authority-pin-settings"
+                  onClick={() => setIsAuthorityPinModalOpen(true)}
+                  className="px-2.5 py-1.5 bg-amber-950/70 hover:bg-amber-900/90 text-amber-300 border border-amber-600/70 hover:border-amber-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
+                  title="Kelola PIN Otoritas Pembuka Berkas (Rotasi Otomatis 1 Jam / Manual)"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden md:inline">👑 PIN OTORITAS: <strong className="text-amber-200">{authorityPinConfig.currentPin}</strong></span>
+                  <span className="md:hidden">PIN [{authorityPinConfig.currentPin}]</span>
+                  <span className="hidden lg:inline text-[9px] bg-black/40 px-1 py-0.5 rounded text-amber-300/80 border border-amber-800/40 font-normal">
+                    {pinTimeRemaining.text}
+                  </span>
+                </button>
+              )}
+
+              {/* HIGH RANK ONLY: SETTING WEBHOOK BUTTON */}
+              {isHighRank && (
+                <button
+                  id="btn-open-webhook-settings"
+                  onClick={() => setIsWebhookModalOpen(true)}
+                  className="px-2.5 py-1.5 bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 hover:border-amber-500 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
+                  title="Pengaturan Integrasi Discord Webhook (Hanya High Command)"
+                >
+                  <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">👑 WEBHOOK</span>
+                  <span className="sm:hidden">DC</span>
+                </button>
+              )}
+
+              {/* HIGH RANK ONLY: PIN RESET AUDIT & WEBHOOK LOG BUTTON */}
+              {isHighRank && (
+                <button
+                  id="btn-open-pin-reset-audit-header"
+                  onClick={() => setIsPinResetAuditModalOpen(true)}
+                  className="px-2.5 py-1.5 bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 hover:border-amber-500 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
+                  title="Audit Log Permohonan Reset PIN & Otorisasi Webhook Discord (High Command)"
+                >
+                  <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">👑 LOG PIN</span>
+                  <span className="sm:hidden">PIN</span>
+                  {pendingPinCount > 0 && (
+                    <span className="px-1.5 py-0.2 bg-amber-500 text-black text-[9px] rounded-full font-bold animate-pulse">
+                      {pendingPinCount}
+                    </span>
+                  )}
+                </button>
+              )}
+
+              {/* ON/OFF DUTY DISPATCH TOGGLE BUTTON */}
+              <button
+                id="duty-dispatch-toggle-btn"
+                onClick={() => setIsDutyModalOpen(true)}
+                className={`px-3 py-1.5 rounded-lg border font-mono text-xs font-bold transition flex items-center gap-1.5 shadow-sm ${
+                  isDuty
+                    ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 hover:bg-emerald-900/80 ring-1 ring-emerald-500/50'
+                    : 'bg-rose-950/80 border-rose-500 text-rose-300 hover:bg-rose-900/80 ring-1 ring-rose-500/50'
+                }`}
+                title="Klik untuk ubah status tugas & kirim report duty ke Discord Webhook"
+              >
+                <Power className="w-3.5 h-3.5" />
+                <span>{isDuty ? '🟢 10-8 ON DUTY' : '🔴 10-7 OFF DUTY'}</span>
+                {isDuty && (
+                  <span className="text-[9px] bg-black/50 px-1.5 py-0.2 rounded border border-emerald-700/60 hidden sm:inline text-emerald-200">
+                    {dutyDurationStr}
                   </span>
                 )}
               </button>
-            );
-          })}
-        </nav>
 
-        <div className="hidden md:flex items-center gap-2 text-[10px] font-mono text-gray-500">
-          <span>STATUS: <strong className={isDuty ? 'text-emerald-400' : 'text-rose-400'}>{isDuty ? '10-8 ON DUTY' : '10-7 OFF DUTY'}</strong></span>
-          <span className="text-gray-700">|</span>
-          <span>CLEARANCE: <strong className={isHighRank ? 'text-amber-400' : 'text-blue-400'}>{isHighRank ? 'HIGH COMMAND (AKSES PENUH)' : 'PATROL'}</strong></span>
-        </div>
-      </div>
+              {/* Active Officer Identity Badge & Change PIN Button */}
+              <div className={`hidden sm:flex items-center gap-2 px-2 py-1.5 rounded-lg border font-mono transition ${
+                isHighRank
+                  ? 'bg-amber-950/30 border-amber-800/60 text-amber-300'
+                  : 'bg-[#0D1117] border-gray-800 text-gray-200'
+              }`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold shrink-0 ${
+                  isHighRank ? 'bg-amber-900/60 border border-amber-700/60 text-amber-300' : 'bg-blue-900/60 border border-blue-700/60 text-blue-300'
+                }`}>
+                  <User className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-left leading-tight">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-gray-100 text-[11px] truncate max-w-[120px] lg:max-w-[160px]">
+                      {currentOfficer.name}
+                    </span>
+                    <span className="text-[9px] bg-black/50 px-1.5 py-0.2 rounded border border-gray-700 text-gray-300">
+                      {currentOfficer.badge}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[9px]">
+                    {isHighRank ? (
+                      <span className="text-amber-400 font-bold flex items-center gap-0.5">
+                        ★ {currentOfficer.rank}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">
+                        {currentOfficer.rank}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Logout / Switch Button */}
+              <button
+                onClick={handleLogout}
+                className="px-2.5 py-1.5 bg-gray-800 hover:bg-rose-900/60 text-gray-300 hover:text-rose-200 border border-gray-700 hover:border-rose-700 rounded-lg text-[10px] font-bold font-mono transition flex items-center gap-1"
+                title="Keluar / Ganti Akun Petugas"
+              >
+                <LogOut className="w-3.5 h-3.5 text-rose-400" />
+                <span className="hidden sm:inline">GANTI AKUN</span>
+              </button>
+            </div>
+          </header>
+
+          {/* High Density Sub-Navigation Strip */}
+          <div className="bg-[#11141A] border-b border-gray-800 px-4 py-1.5 flex items-center justify-between overflow-x-auto no-scrollbar">
+            <nav className="flex items-center gap-1 text-[11px] font-medium">
+              {[
+                { id: 'calc', label: 'Kalkulator Pasal', icon: Calculator, code: 'CALC', moduleKey: undefined },
+                { id: 'dispatch', label: '📻 CAD 911 & Panic', icon: Radio, code: 'CAD', moduleKey: 'DISPATCH' as ModuleAccessKey },
+                { id: 'dmv', label: '👤 Sipil & DMV', icon: UserCheck, code: 'DMV', moduleKey: 'DMV_CITIZEN' as ModuleAccessKey },
+                { id: 'divisions', label: '🎖️ Divisi Khusus', icon: Award, code: 'DIV', moduleKey: 'SPECIAL_DIVISIONS' as ModuleAccessKey },
+                { id: 'forensics', label: '🔬 Lab Forensik', icon: Microscope, code: 'LAB', moduleKey: 'FORENSICS' as ModuleAccessKey },
+                { id: 'documents', label: '📄 Surat & Dokumen', icon: StampIcon, code: 'DOC', moduleKey: 'OFFICIAL_DOCS' as ModuleAccessKey },
+                { id: 'detective', label: `🔍 Kasus Detektif (${detectiveCases.length})`, icon: Search, code: 'DB', moduleKey: 'DETECTIVE' as ModuleAccessKey },
+                { id: 'traffic', label: `🚗 BOLO & Sitaan (${boloList.length})`, icon: Car, code: 'BOLO', moduleKey: 'BOLO' as ModuleAccessKey },
+                { id: 'vault', label: '🏦 Brankas & Audit', icon: Landmark, code: 'VAULT', moduleKey: 'VAULT' as ModuleAccessKey },
+                { id: 'destruction', label: '💥 Peleburan Sitaan', icon: Flame, code: 'LEBUR', moduleKey: 'DESTRUCTION' as ModuleAccessKey },
+                { id: 'megaphone', label: 'Megaphone Studio', icon: Megaphone, code: '/M', moduleKey: undefined },
+                { id: 'rp', label: 'Hak Miranda & RP', icon: BookOpen, code: 'RP', moduleKey: undefined },
+                { id: 'sop', label: 'SOP & Ten-Codes', icon: Radio, code: 'SOP', moduleKey: undefined },
+                { 
+                  id: 'history', 
+                  label: `📁 Riwayat Kasus (${records.length})`, 
+                  icon: FileText, 
+                  code: 'LOG',
+                  moduleKey: 'CASE_HISTORY' as ModuleAccessKey,
+                  isHighRankOnly: true
+                },
+                ...(isHighRank ? [
+                  {
+                    id: 'roster',
+                    label: `👑 Roster Anggota (${roster.length})`,
+                    icon: Users,
+                    code: 'ROSTER',
+                    moduleKey: undefined,
+                    isHighRankOnly: true
+                  }
+                ] : []),
+              ].map(tab => {
+                const Icon = tab.icon;
+                const isActive = activeNav === tab.id;
+                
+                // Calculate real-time clearance status
+                let isLocked = false;
+                let hasOtpActive = false;
+                if (tab.moduleKey) {
+                  const clearance = checkDirectRankClearance(tab.moduleKey, currentOfficer);
+                  hasOtpActive = Boolean(hasActiveUnlockedSession(tab.moduleKey, currentOfficer?.badge));
+                  isLocked = !clearance.hasClearance && !hasOtpActive;
+                }
+
+                return (
+                  <button
+                    key={tab.id}
+                    id={`nav-btn-${tab.id}`}
+                    onClick={() => setActiveNav(tab.id as any)}
+                    className={`px-2.5 py-1.5 rounded flex items-center gap-1.5 transition whitespace-nowrap text-xs ${
+                      isActive
+                        ? 'bg-blue-600 text-white font-bold shadow-sm shadow-blue-600/30 ring-1 ring-blue-400/40'
+                        : isLocked
+                          ? 'text-gray-400 hover:text-amber-300 hover:bg-amber-950/20 border border-transparent hover:border-amber-700/40'
+                          : hasOtpActive
+                            ? 'text-emerald-300 hover:text-emerald-200 hover:bg-emerald-950/30'
+                            : 'text-gray-300 hover:text-gray-100 hover:bg-gray-800/60'
+                    }`}
+                    title={isLocked ? 'Memerlukan Otorisasi Pangkat / Divisi atau Kode OTP Atasan' : undefined}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${isLocked ? 'text-gray-500' : hasOtpActive ? 'text-emerald-400' : ''}`} />
+                    <span>{tab.label}</span>
+                    {isLocked && (
+                      <span className="text-[9px] bg-gray-800/90 text-amber-400 px-1 py-0.2 rounded border border-amber-800/50 flex items-center gap-0.5">
+                        <Lock className="w-2.5 h-2.5 inline" />
+                      </span>
+                    )}
+                    {hasOtpActive && !isLocked && (
+                      <span className="text-[9px] bg-emerald-950 text-emerald-300 px-1 py-0.2 rounded border border-emerald-700/60 font-mono">
+                        OTP
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="hidden md:flex items-center gap-2 text-[10px] font-mono text-gray-500">
+              <span>STATUS: <strong className={isDuty ? 'text-emerald-400' : 'text-rose-400'}>{isDuty ? '10-8 ON DUTY' : '10-7 OFF DUTY'}</strong></span>
+              <span className="text-gray-700">|</span>
+              <span>CLEARANCE: <strong className={isHighRank ? 'text-amber-400' : 'text-blue-400'}>{isHighRank ? 'HIGH COMMAND (AKSES PENUH)' : 'PATROL'}</strong></span>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Main Content Body */}
-      <main className="max-w-7xl mx-auto px-3 sm:px-5 py-4 flex-1 w-full">
+      <main className={`max-w-7xl mx-auto px-2.5 sm:px-5 py-3 sm:py-4 flex-1 w-full ${isAndroidMode ? 'pb-24 sm:pb-28' : ''}`}>
         {/* Dynamic Division & Rank Badge Hero Banner */}
         <DivisionBadgeHero
           currentOfficer={currentOfficer}
@@ -1099,6 +1174,14 @@ export default function App() {
         onClose={() => setIsBrandingModalOpen(false)}
         currentOfficer={currentOfficer}
         onBrandingUpdated={cfg => setBranding(cfg)}
+      />
+
+      {/* Export Absen Mingguan Modal (Excel / ZIP / CSV / Print) */}
+      <ExportAttendanceModal
+        isOpen={isExportAttendanceModalOpen}
+        onClose={() => setIsExportAttendanceModalOpen(false)}
+        roster={roster}
+        departmentName={branding.departmentName}
       />
 
       {/* High Density Footer Status Line */}

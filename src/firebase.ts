@@ -1,7 +1,10 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
+  initializeFirestore,
   getFirestore, 
-  Firestore 
+  Firestore,
+  persistentLocalCache,
+  persistentMultipleTabManager
 } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -18,7 +21,27 @@ export const firebaseApp = !getApps().length
   : getApp();
 
 // Initialize Firestore instance using databaseId configured in firebase-applet-config
-export const db: Firestore = firebaseConfig.firestoreDatabaseId
-  ? getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId)
-  : getFirestore(firebaseApp);
+// Auto-detect long polling and resilient cache prevent WebSocket drops in sandboxed iframe previews
+export const db: Firestore = (() => {
+  const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+  try {
+    return initializeFirestore(firebaseApp, {
+      experimentalAutoDetectLongPolling: true,
+      ignoreUndefinedProperties: true,
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
+    }, dbId);
+  } catch {
+    try {
+      return initializeFirestore(firebaseApp, {
+        experimentalAutoDetectLongPolling: true,
+        ignoreUndefinedProperties: true
+      }, dbId);
+    } catch {
+      return getFirestore(firebaseApp, dbId);
+    }
+  }
+})();
+
 
