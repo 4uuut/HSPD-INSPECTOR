@@ -253,10 +253,16 @@ export const isSupervisorOrAbove = (rank?: string): boolean => {
   const r = rank.toUpperCase().trim();
   return (
     isOfficerHighRank(rank) ||
+    r.includes('COMMANDER') ||
+    r.includes('[CDR]') ||
     r.includes('CAPTAIN') ||
     r.includes('[CPT]') ||
     r.includes('LIEUTENANT') ||
-    r.includes('[LT]')
+    r.includes('[LT]') ||
+    r.includes('SERGEANT') ||
+    r.includes('[SGT]') ||
+    r.includes('SENIOR LEAD') ||
+    r.includes('[SLO]')
   );
 };
 

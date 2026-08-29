@@ -19,7 +19,8 @@ import {
   getOnlineSuperiorsList, isAnySuperiorOnline,
   playPoliceChime, PinResetAutoGrantConfig
 } from '../utils/pinResetStorage';
-import { sendPinResetResolvedWebhookToDiscord } from '../utils/discordWebhook';
+import { sendPinResetResolvedWebhookToDiscord, sendPinResetRequestToDiscord } from '../utils/discordWebhook';
+import { pushAllToFirestore } from '../services/firebaseRealtimeSync';
 
 interface Props {
   isOpen: boolean;
@@ -369,6 +370,52 @@ export const PinResetAuditModal: React.FC<Props> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const res = await sendPinResetRequestToDiscord({
+                    officerName: currentOfficer.name,
+                    officerBadge: currentOfficer.badge,
+                    rank: currentOfficer.rank,
+                    reason: '[TEST UJI COBA] Testing Webhook Discord Pengajuan Reset PIN oleh High Command',
+                    requestedNewPin: '10-4',
+                    discordTag: 'HighCommand#0001'
+                  });
+                  if (res.success) {
+                    setActionSuccessNotice('✅ Tes Webhook Discord Pengajuan PIN Berhasil Terkirim!');
+                  } else {
+                    setActionErrorNotice(`⚠️ Webhook gagal: ${res.message || 'Periksa URL Webhook Discord di pengaturan'}`);
+                  }
+                  setTimeout(() => { setActionSuccessNotice(''); setActionErrorNotice(''); }, 5000);
+                } catch (e: any) {
+                  setActionErrorNotice(`⚠️ Error webhook: ${e.message}`);
+                  setTimeout(() => setActionErrorNotice(''), 5000);
+                }
+              }}
+              className="px-2 py-1.5 bg-blue-900/60 hover:bg-blue-800 text-blue-300 rounded-lg transition flex items-center gap-1 text-[11px] border border-blue-700/60"
+              title="Kirim Tes Webhook Tiket Pengajuan ke Discord"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Tes Webhook</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const cur = getPinResetRequests();
+                setRequests(cur);
+                pushAllToFirestore('PIN_RESET_REQUESTS', cur).then(() => {
+                  setActionSuccessNotice('⚡ Data Tiket Reset PIN Berhasil Disinkronkan dengan Cloud Firestore!');
+                  setTimeout(() => setActionSuccessNotice(''), 4000);
+                });
+              }}
+              className="p-1.5 bg-gray-800 hover:bg-gray-700 text-cyan-400 hover:text-cyan-300 rounded-lg transition"
+              title="Sinkronkan Tiket dengan Cloud Firestore"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+
             <button
               type="button"
               onClick={() => playPoliceChime()}

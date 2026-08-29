@@ -408,6 +408,23 @@ export const AndroidMdtView: React.FC<Props> = ({
           </button>
         )}
 
+        {/* Supervisor & High Command: Log Tiket Reset PIN */}
+        {isSupervisor && (
+          <button
+            type="button"
+            onClick={onOpenPinAuditModal}
+            className={`px-2.5 py-1 rounded-full border text-[10px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 transition ${
+              pendingPinCount > 0 
+                ? 'bg-amber-500 text-black border-amber-400 font-extrabold animate-pulse shadow-md shadow-amber-500/40' 
+                : 'bg-amber-950/80 border-amber-700 text-amber-300'
+            }`}
+            title="Log Tiket Lupa PIN & Verifikasi Webhook"
+          >
+            <KeyRound className="w-3 h-3" />
+            <span>LOG PIN {pendingPinCount > 0 ? `(${pendingPinCount} PENDING)` : ''}</span>
+          </button>
+        )}
+
         {/* High Rank Only: Webhook / Export */}
         {isHighRank && onOpenExportAttendanceModal && (
           <button

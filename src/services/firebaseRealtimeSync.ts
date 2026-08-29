@@ -62,7 +62,7 @@ export const SYNC_COLLECTIONS = {
   ROSTER: {
     name: 'roster',
     storageKey: 'hspd_roster_database_v4',
-    altStorageKeys: ['hspd_roster_database_v3', 'hspd_roster_database_v2'],
+    altStorageKeys: ['hspd_roster_database_v3', 'hspd_roster_database_v2', 'hspd_roster_accounts_v1'],
     event: 'hspd-roster-updated'
   },
   ARREST_RECORDS: {
@@ -135,6 +135,11 @@ export const SYNC_COLLECTIONS = {
     name: 'branding',
     storageKey: 'hspd_custom_branding_v1',
     event: 'hspd-branding-updated'
+  },
+  PIN_RESET_REQUESTS: {
+    name: 'pin_reset_requests',
+    storageKey: 'HSPD_PIN_RESET_REQUESTS_V1',
+    event: 'hspd-pin-requests-updated'
   }
 } as const;
 
@@ -636,6 +641,56 @@ export function initRealtimeFirebaseSync() {
         
         // Trigger UI update event safely
         window.dispatchEvent(new CustomEvent(config.event, { detail: finalItems }));
+
+        // If newly updated collection is PIN_RESET_REQUESTS and contains pending items, alert supervisor
+        if (key === 'PIN_RESET_REQUESTS' && Array.isArray(finalItems)) {
+          const pendingItem = finalItems.find(r => r && r.status === 'PENDING');
+          if (pendingItem) {
+            window.dispatchEvent(new CustomEvent('hspd-pin-reset-requested', { detail: pendingItem }));
+          }
+
+          // Auto-reconcile any approved / resolved PIN resets into the local roster storage
+          try {
+            const rawRoster = localStorage.getItem('hspd_roster_database_v4') || localStorage.getItem('hspd_roster_database_v3');
+            if (rawRoster) {
+              const currentRoster: any[] = JSON.parse(rawRoster);
+              let rosterModified = false;
+              finalItems.forEach(req => {
+                if (req && req.status === 'RESOLVED' && req.resolvedNewPin) {
+                  const targetPin = String(req.resolvedNewPin).trim();
+                  const targetBadge = String(req.officerBadge || '').trim().toLowerCase();
+                  const targetName = String(req.officerName || '').trim().toLowerCase();
+
+                  currentRoster.forEach(officer => {
+                    const oBadge = String(officer.badge || '').trim().toLowerCase();
+                    const oName = String(officer.name || '').trim().toLowerCase();
+                    const cleanBadgeId = targetBadge.replace(/[^a-z0-9]/g, '');
+                    const cleanOBadge = oBadge.replace(/[^a-z0-9]/g, '');
+
+                    const isMatch = 
+                      (cleanBadgeId && cleanOBadge && cleanBadgeId === cleanOBadge) ||
+                      oBadge === targetBadge ||
+                      oName === targetName ||
+                      (targetName && oName && (oName.includes(targetName) || targetName.includes(oName)));
+
+                    if (isMatch && officer.pin !== targetPin) {
+                      officer.pin = targetPin;
+                      rosterModified = true;
+                    }
+                  });
+                }
+              });
+
+              if (rosterModified) {
+                const serialized = JSON.stringify(currentRoster);
+                ['hspd_roster_database_v4', 'hspd_roster_database_v3', 'hspd_roster_database_v2', 'hspd_roster_accounts_v1'].forEach(k => {
+                  try { localStorage.setItem(k, serialized); } catch {}
+                });
+                window.dispatchEvent(new CustomEvent('hspd-roster-updated', { detail: currentRoster }));
+              }
+            }
+          } catch {}
+        }
         
         setTimeout(() => {
           isApplyingRemoteMap[key] = false;

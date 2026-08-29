@@ -13,6 +13,7 @@ import { RecruitmentInfoPanel } from './RecruitmentInfoPanel';
 import { RequestPinDiscordModal } from './RequestPinDiscordModal';
 import { CaptchaVerification } from './CaptchaVerification';
 import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from '../utils/brandingStorage';
+import { isOfficerMatch, getPinResetRequests, updateOfficerPinInRoster } from '../utils/pinResetStorage';
 
 interface Props {
   onLogin: (officer: OfficerProfile) => void;
@@ -73,12 +74,7 @@ export const OfficerLogin: React.FC<Props> = ({
     }
 
     // Find officer in roster by exact or partial name, or badge
-    const matched = roster.find(acc => 
-      acc.name.toLowerCase() === trimmedIdentifier ||
-      acc.badge.toLowerCase() === trimmedIdentifier ||
-      acc.badge.toLowerCase() === cleanBadge ||
-      acc.name.toLowerCase().includes(trimmedIdentifier)
-    );
+    const matched = roster.find(acc => isOfficerMatch(acc, loginIdentifier));
 
     if (!matched) {
       setLoginError(`Petugas "${loginIdentifier}" tidak terdaftar di database anggota kepolisian! Silakan hubungi Atasan di Discord jika Anda anggota baru.`);
@@ -86,10 +82,28 @@ export const OfficerLogin: React.FC<Props> = ({
     }
 
     // Verify PIN: check individual pin, or fallback for legacy accounts
-    const accountPin = matched.pin ? matched.pin.trim() : '10-4';
+    let accountPin = matched.pin ? matched.pin.trim() : '10-4';
     if (trimmedPin !== accountPin) {
-      setLoginError(`PIN Keamanan salah untuk petugas ${matched.name} (${matched.badge})! Lupa PIN? Klik tombol pengajuan reset ke Discord di bawah.`);
-      return;
+      // Check if there is an approved reset request with this PIN
+      const allRequests = getPinResetRequests();
+      const approvedReq = allRequests.find(r => 
+        (isOfficerMatch(matched, r.officerBadge) || isOfficerMatch(matched, r.officerName)) &&
+        r.status === 'RESOLVED' &&
+        r.resolvedNewPin &&
+        r.resolvedNewPin.trim() === trimmedPin
+      );
+
+      if (approvedReq) {
+        // Auto-reconcile and update roster PIN
+        updateOfficerPinInRoster(matched.badge, trimmedPin, matched.name);
+        if (onUpdateOfficerPin) {
+          onUpdateOfficerPin(matched.badge, trimmedPin);
+        }
+        accountPin = trimmedPin;
+      } else {
+        setLoginError(`PIN Keamanan salah untuk petugas ${matched.name} (${matched.badge})! Lupa PIN? Klik tombol pengajuan reset ke Discord di bawah.`);
+        return;
+      }
     }
 
     setLoginSuccess(`✅ Otorisasi Berhasil! Selamat bertugas, ${matched.rank} ${matched.name}.`);

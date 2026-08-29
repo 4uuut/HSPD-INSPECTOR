@@ -283,8 +283,13 @@ export const RequestPinDiscordModal: React.FC<Props> = ({
   };
 
   const handleApplyPinAndLogin = () => {
-    if (autoGrantedData && onPinAutoApplied) {
-      onPinAutoApplied(autoGrantedData.pin, autoGrantedData.officerName || autoGrantedData.badge);
+    if (autoGrantedData) {
+      if (onUpdateOfficerPin) {
+        onUpdateOfficerPin(autoGrantedData.badge || autoGrantedData.officerName, autoGrantedData.pin);
+      }
+      if (onPinAutoApplied) {
+        onPinAutoApplied(autoGrantedData.pin, autoGrantedData.officerName || autoGrantedData.badge);
+      }
     }
     onClose();
   };

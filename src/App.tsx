@@ -27,7 +27,7 @@ import { CustomBrandingModal } from './components/CustomBrandingModal';
 import { AndroidMdtView } from './components/AndroidMdtView';
 import { ExportAttendanceModal } from './components/ExportAttendanceModal';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
-import { getPendingPinResetCount, touchSuperiorHeartbeat } from './utils/pinResetStorage';
+import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch } from './utils/pinResetStorage';
 import { getSavedDetectiveCases, saveDetectiveCases } from './utils/detectiveCaseStorage';
 import { getSavedBoloAlerts, saveBoloAlerts, getSavedImpounds, saveImpounds } from './utils/boloImpoundStorage';
 import { getOfficerDutyState, saveOfficerDutyState, formatDutyDuration } from './utils/officerDutyStorage';
@@ -495,23 +495,31 @@ export default function App() {
 
   const handleUpdateOfficerPin = (badgeOrName: string, newPin: string): boolean => {
     let updated = false;
-    const cleanIdent = badgeOrName.trim().toLowerCase();
-    const cleanBadge = cleanIdent.startsWith('#') ? cleanIdent : `#${cleanIdent}`;
+    const trimmedPin = newPin.trim();
+    if (!trimmedPin) return false;
 
     setRoster(prev => {
-      return prev.map(a => {
-        if (
-          a.badge.toLowerCase() === cleanIdent ||
-          a.badge.toLowerCase() === cleanBadge ||
-          a.name.toLowerCase() === cleanIdent ||
-          a.name.toLowerCase().includes(cleanIdent)
-        ) {
+      const nextRoster = prev.map(a => {
+        if (isOfficerMatch(a, badgeOrName)) {
           updated = true;
-          return { ...a, pin: newPin };
+          return { ...a, pin: trimmedPin, _updatedAt: Date.now() };
         }
         return a;
       });
+
+      if (updated) {
+        try {
+          const serialized = JSON.stringify(nextRoster);
+          localStorage.setItem(ROSTER_STORAGE_KEY, serialized);
+          localStorage.setItem('hspd_roster_database_v3', serialized);
+          localStorage.setItem('hspd_roster_database_v2', serialized);
+          localStorage.setItem('hspd_roster_accounts_v1', serialized);
+        } catch (e) {}
+      }
+
+      return nextRoster;
     });
+
     return updated;
   };
 
@@ -774,20 +782,24 @@ export default function App() {
                 </button>
               )}
 
-              {/* HIGH RANK ONLY: PIN RESET AUDIT & WEBHOOK LOG BUTTON */}
-              {isHighRank && (
+              {/* SUPERVISOR & HIGH COMMAND: PIN RESET AUDIT & WEBHOOK LOG BUTTON */}
+              {(isHighRank || isSupervisorOrAbove(currentOfficer.rank)) && (
                 <button
                   id="btn-open-pin-reset-audit-header"
                   onClick={() => setIsPinResetAuditModalOpen(true)}
-                  className="px-2.5 py-1.5 bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 hover:border-amber-500 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
-                  title="Audit Log Permohonan Reset PIN & Otorisasi Webhook Discord (High Command)"
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm ${
+                    pendingPinCount > 0
+                      ? 'bg-amber-500 text-black border border-amber-400 font-extrabold animate-pulse shadow-amber-500/40'
+                      : 'bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 hover:border-amber-500 shadow-amber-950/40'
+                  }`}
+                  title="Audit Log Permohonan Reset PIN & Otorisasi Webhook Discord (High Command & Supervisor)"
                 >
                   <KeyRound className="w-3.5 h-3.5 text-amber-400" />
                   <span className="hidden sm:inline">👑 LOG PIN</span>
                   <span className="sm:hidden">PIN</span>
                   {pendingPinCount > 0 && (
-                    <span className="px-1.5 py-0.2 bg-amber-500 text-black text-[9px] rounded-full font-bold animate-pulse">
-                      {pendingPinCount}
+                    <span className="px-1.5 py-0.2 bg-black text-amber-300 text-[9px] rounded-full font-bold">
+                      {pendingPinCount} PENDING
                     </span>
                   )}
                 </button>

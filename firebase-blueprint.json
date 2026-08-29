@@ -129,6 +129,7 @@
       "evidence_vault": { "entity": "system_configs" },
       "evidence_destruction": { "entity": "system_configs" },
       "official_documents": { "entity": "system_configs" },
+      "pin_reset_requests": { "entity": "system_configs" },
       "roster": { "entity": "system_configs" },
       "system_configs": { "entity": "system_configs" }
     }

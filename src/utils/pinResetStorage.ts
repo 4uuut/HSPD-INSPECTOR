@@ -5,11 +5,122 @@ import {
   sendPinResetRequestToDiscord 
 } from './discordWebhook';
 import { getAllOfficersDutyRegistry } from './officerDutyStorage';
+import { pushAllToFirestore } from '../services/firebaseRealtimeSync';
+import { HSPD_OFFICIAL_ROSTER, mergeWithOfficialRoster } from '../data/hspdOfficialRoster';
 
 const STORAGE_KEY = 'HSPD_PIN_RESET_REQUESTS_V1';
 const AUTO_GRANT_CONFIG_KEY = 'HSPD_PIN_RESET_AUTO_GRANT_CONFIG_V1';
 const SUPERIOR_HEARTBEAT_KEY = 'HSPD_SUPERIOR_HEARTBEAT_TRACKER_V1';
-const ROSTER_KEY = 'hspd_roster_accounts_v1';
+
+export const ROSTER_STORAGE_KEYS = [
+  'hspd_roster_database_v4',
+  'hspd_roster_database_v3',
+  'hspd_roster_database_v2',
+  'hspd_roster_accounts_v1'
+] as const;
+
+export function isOfficerMatch(officer: OfficerAccount, searchIdentifier: string): boolean {
+  if (!officer || !searchIdentifier) return false;
+  const rawId = searchIdentifier.trim().toLowerCase();
+  const rawName = (officer.name || '').trim().toLowerCase();
+  const rawBadge = (officer.badge || '').trim().toLowerCase();
+
+  // Strip non-alphanumerics for badge matching (e.g. '#102', '102', '[102]')
+  const cleanIdDigits = rawId.replace(/[^a-z0-9]/g, '');
+  const cleanBadgeDigits = rawBadge.replace(/[^a-z0-9]/g, '');
+
+  if (cleanIdDigits && cleanBadgeDigits && cleanIdDigits === cleanBadgeDigits) {
+    return true;
+  }
+
+  // Exact matches
+  if (rawName === rawId || rawBadge === rawId) {
+    return true;
+  }
+
+  // Substring matches in both directions
+  if (rawName && rawId && (rawName.includes(rawId) || rawId.includes(rawName))) {
+    return true;
+  }
+
+  // Check with hash prefix
+  const withHash = rawId.startsWith('#') ? rawId : `#${rawId}`;
+  if (rawBadge === withHash) {
+    return true;
+  }
+
+  return false;
+}
+
+export function getRosterFromStorage(): OfficerAccount[] {
+  try {
+    for (const key of ROSTER_STORAGE_KEYS) {
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return mergeWithOfficialRoster(parsed);
+        }
+      }
+    }
+  } catch {}
+  return mergeWithOfficialRoster(HSPD_OFFICIAL_ROSTER);
+}
+
+export function saveRosterToStorage(updatedRoster: OfficerAccount[]): OfficerAccount[] {
+  const merged = mergeWithOfficialRoster(updatedRoster);
+  try {
+    const serialized = JSON.stringify(merged);
+    ROSTER_STORAGE_KEYS.forEach(key => {
+      try {
+        localStorage.setItem(key, serialized);
+      } catch {}
+    });
+    window.dispatchEvent(new CustomEvent('hspd-roster-updated', { detail: merged }));
+    pushAllToFirestore('ROSTER', merged).catch(() => {});
+  } catch (err) {
+    console.error('Failed to save roster database to storage:', err);
+  }
+  return merged;
+}
+
+/**
+ * Centrally updates an officer's PIN in the roster, persists to all localStorage keys,
+ * broadcasts the update event, and pushes the updated roster to Cloud Firestore.
+ */
+export function updateOfficerPinInRoster(
+  badgeOrName: string,
+  newPin: string,
+  officerName?: string
+): { success: boolean; updatedRoster: OfficerAccount[] } {
+  const trimmedPin = newPin.trim();
+  if (!trimmedPin) return { success: false, updatedRoster: [] };
+
+  const currentRoster = getRosterFromStorage();
+  let updated = false;
+
+  const updatedRoster = currentRoster.map(officer => {
+    if (
+      isOfficerMatch(officer, badgeOrName) || 
+      (officerName && isOfficerMatch(officer, officerName))
+    ) {
+      updated = true;
+      return {
+        ...officer,
+        pin: trimmedPin,
+        _updatedAt: Date.now()
+      };
+    }
+    return officer;
+  });
+
+  if (updated) {
+    const saved = saveRosterToStorage(updatedRoster);
+    return { success: true, updatedRoster: saved };
+  }
+
+  return { success: false, updatedRoster: currentRoster };
+}
 
 export interface PinResetAutoGrantConfig {
   autoGrantWhenSuperiorOffline: boolean; // default: true
@@ -223,14 +334,6 @@ export function isAnySuperiorOnline(roster?: OfficerAccount[]): boolean {
   return superiors.length > 0;
 }
 
-function getRosterFromStorage(): OfficerAccount[] {
-  try {
-    const raw = localStorage.getItem(ROSTER_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return [];
-}
-
 export const PIN_RESET_AUTO_ACCEPT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 // ==============================================================
@@ -281,24 +384,10 @@ export function checkAndAutoApprovePendingRequests(
         const targetPin = (req.requestedPin && req.requestedPin.trim()) ? req.requestedPin.trim() : cfg.defaultFallbackPin;
         hasChanges = true;
 
-        // Update roster PIN
-        const cleanName = req.officerName.toLowerCase().trim();
-        const cleanBadge = req.officerBadge.toLowerCase().trim();
+        // 1. Update roster PIN centrally (persists to storage, dispatches event, and syncs Firestore)
+        updateOfficerPinInRoster(req.officerBadge, targetPin, req.officerName);
         if (onUpdateOfficerPin) {
           onUpdateOfficerPin(req.officerBadge || req.officerName, targetPin);
-        } else {
-          try {
-            const storedRoster = getRosterFromStorage();
-            const updatedRoster = storedRoster.map(o => {
-              if (o.badge.toLowerCase() === cleanBadge || o.name.toLowerCase() === cleanName) {
-                return { ...o, pin: targetPin };
-              }
-              return o;
-            });
-            localStorage.setItem(ROSTER_KEY, JSON.stringify(updatedRoster));
-          } catch (e) {
-            console.error('Auto-approve timeout roster update failed', e);
-          }
         }
 
         const resolvedReq: PinResetRequest = {
@@ -372,22 +461,11 @@ export function autoApproveSingleRequestDueToTimeout(
 
   const cfg = getPinResetAutoGrantConfig();
   const targetPin = (target.requestedPin && target.requestedPin.trim()) ? target.requestedPin.trim() : cfg.defaultFallbackPin;
-  const cleanName = target.officerName.toLowerCase().trim();
-  const cleanBadge = target.officerBadge.toLowerCase().trim();
 
+  // 1. Update roster PIN centrally (persists to storage, dispatches event, and syncs Firestore)
+  updateOfficerPinInRoster(target.officerBadge, targetPin, target.officerName);
   if (onUpdateOfficerPin) {
     onUpdateOfficerPin(target.officerBadge || target.officerName, targetPin);
-  } else {
-    try {
-      const storedRoster = getRosterFromStorage();
-      const updatedRoster = storedRoster.map(o => {
-        if (o.badge.toLowerCase() === cleanBadge || o.name.toLowerCase() === cleanName) {
-          return { ...o, pin: targetPin };
-        }
-        return o;
-      });
-      localStorage.setItem(ROSTER_KEY, JSON.stringify(updatedRoster));
-    } catch (e) {}
   }
 
   const resolvedReq: PinResetRequest = {
@@ -428,6 +506,7 @@ export function savePinResetRequests(requests: PinResetRequest[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(requests));
     window.dispatchEvent(new CustomEvent('hspd-pin-requests-updated', { detail: requests }));
+    pushAllToFirestore('PIN_RESET_REQUESTS', requests).catch(() => {});
   } catch (err) {
     console.error('Failed to save PIN reset requests to localStorage:', err);
   }
@@ -489,6 +568,11 @@ export function resolvePinResetRequest(
   }
 
   const target = current[idx];
+  const trimmedPin = newPin.trim();
+
+  // 1. Update PIN in roster database (persists to storage, dispatches event, and syncs Firestore)
+  updateOfficerPinInRoster(target.officerBadge, trimmedPin, target.officerName);
+
   const updatedReq: PinResetRequest = {
     ...target,
     status: 'RESOLVED',
@@ -496,7 +580,7 @@ export function resolvePinResetRequest(
     resolvedBy: superior.name,
     resolvedByBadge: superior.badge,
     resolvedByRank: superior.rank,
-    resolvedNewPin: newPin.trim(),
+    resolvedNewPin: trimmedPin,
     resolutionNotes: notes?.trim() || 'PIN disetujui & diperbarui langsung oleh High Command.'
   };
 
@@ -522,6 +606,11 @@ export function autoGrantPinResetRequest(
   }
 
   const target = current[idx];
+  const trimmedPin = newPin.trim();
+
+  // 1. Update PIN in roster database (persists to storage, dispatches event, and syncs Firestore)
+  updateOfficerPinInRoster(target.officerBadge, trimmedPin, target.officerName);
+
   const updatedReq: PinResetRequest = {
     ...target,
     status: 'RESOLVED',
@@ -529,7 +618,7 @@ export function autoGrantPinResetRequest(
     resolvedBy: 'SISTEM OTOMATIS (HIGH COMMAND OFFLINE)',
     resolvedByBadge: '#SYS-AUTO',
     resolvedByRank: 'SYSTEM AUTOMATION [AI/AUTO-DISPATCH]',
-    resolvedNewPin: newPin.trim(),
+    resolvedNewPin: trimmedPin,
     resolutionNotes: reason?.trim() || 'PIN login disahkan secara otomatis oleh sistem karena seluruh Supervisor/High Command sedang tidak login di website.',
     autoGranted: true,
     autoGrantReason: 'Atasan Tidak Login Website (Offline Fallback Auto-Grant)'
@@ -541,7 +630,7 @@ export function autoGrantPinResetRequest(
   return {
     success: true,
     request: updatedReq,
-    message: `Akses otomatis diberikan! PIN baru "${newPin}" telah aktif untuk ${target.officerName}.`
+    message: `Akses otomatis diberikan! PIN baru "${trimmedPin}" telah aktif untuk ${target.officerName}.`
   };
 }
 
@@ -631,9 +720,8 @@ export async function executePinResetSubmission(params: {
   const cleanName = officerName.trim().toLowerCase();
   const cleanBadge = officerBadge.trim().toLowerCase();
   const matchedOfficer = roster.find(r => 
-    r.name.toLowerCase() === cleanName ||
-    r.badge.toLowerCase() === cleanBadge ||
-    r.badge.toLowerCase() === (cleanBadge.startsWith('#') ? cleanBadge : `#${cleanBadge}`)
+    isOfficerMatch(r, officerBadge) ||
+    isOfficerMatch(r, officerName)
   );
 
   const finalBadge = matchedOfficer ? matchedOfficer.badge : (officerBadge.trim() || '-');
@@ -641,23 +729,10 @@ export async function executePinResetSubmission(params: {
 
   // SCENARIO 1: SUPERIOR IS OFFLINE & AUTO-GRANT IS ENABLED -> AUTO GRANT ACCESS
   if (cfg.autoGrantWhenSuperiorOffline && !superiorOnline) {
-    // 1. Update PIN in roster memory and localStorage
+    // 1. Update PIN in roster centrally (persists to storage, dispatches event, and syncs Firestore)
+    updateOfficerPinInRoster(finalBadge, targetPin, officerName);
     if (onUpdateOfficerPin) {
       onUpdateOfficerPin(finalBadge || officerName, targetPin);
-    } else {
-      // Direct storage update fallback
-      try {
-        const storedRoster = getRosterFromStorage();
-        const updatedRoster = storedRoster.map(o => {
-          if (o.badge.toLowerCase() === finalBadge.toLowerCase() || o.name.toLowerCase() === cleanName) {
-            return { ...o, pin: targetPin };
-          }
-          return o;
-        });
-        localStorage.setItem(ROSTER_KEY, JSON.stringify(updatedRoster));
-      } catch (e) {
-        console.error('Roster pin update failed', e);
-      }
     }
 
     // 2. Create and auto-resolve ticket
