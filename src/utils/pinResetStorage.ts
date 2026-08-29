@@ -19,33 +19,81 @@ export const ROSTER_STORAGE_KEYS = [
   'hspd_roster_accounts_v1'
 ] as const;
 
+function levenshteinDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
 export function isOfficerMatch(officer: OfficerAccount, searchIdentifier: string): boolean {
   if (!officer || !searchIdentifier) return false;
   const rawId = searchIdentifier.trim().toLowerCase();
   const rawName = (officer.name || '').trim().toLowerCase();
   const rawBadge = (officer.badge || '').trim().toLowerCase();
 
-  // Strip non-alphanumerics for badge matching (e.g. '#102', '102', '[102]')
+  // Direct exact matches
+  if (rawName === rawId || rawBadge === rawId) return true;
+
+  // 1. Badge matching (handles '#011', '011', '11', '#11', etc.)
   const cleanIdDigits = rawId.replace(/[^a-z0-9]/g, '');
   const cleanBadgeDigits = rawBadge.replace(/[^a-z0-9]/g, '');
 
-  if (cleanIdDigits && cleanBadgeDigits && cleanIdDigits === cleanBadgeDigits) {
-    return true;
+  if (cleanIdDigits && cleanBadgeDigits) {
+    if (cleanIdDigits === cleanBadgeDigits) return true;
+    
+    // Numeric equivalence: e.g. "011" === "11"
+    const numId = parseInt(cleanIdDigits, 10);
+    const numBadge = parseInt(cleanBadgeDigits, 10);
+    if (!isNaN(numId) && !isNaN(numBadge) && numId === numBadge) {
+      return true;
+    }
   }
 
-  // Exact matches
-  if (rawName === rawId || rawBadge === rawId) {
-    return true;
-  }
+  // 2. Hash prefix check
+  const withHash = rawId.startsWith('#') ? rawId : `#${rawId}`;
+  if (rawBadge === withHash) return true;
 
-  // Substring matches in both directions
+  // 3. Officer ID match
+  if (officer.id && officer.id.toLowerCase().trim() === rawId) return true;
+
+  // 4. Name substring matches
   if (rawName && rawId && (rawName.includes(rawId) || rawId.includes(rawName))) {
     return true;
   }
 
-  // Check with hash prefix
-  const withHash = rawId.startsWith('#') ? rawId : `#${rawId}`;
-  if (rawBadge === withHash) {
+  // 5. Token word match (e.g. searching "Leoarnd Neave" matches "Leonard Neave" via "neave")
+  const idTokens = rawId.split(/\s+/).filter(t => t.length >= 3);
+  const nameTokens = rawName.split(/\s+/).filter(t => t.length >= 3);
+
+  for (const it of idTokens) {
+    for (const nt of nameTokens) {
+      if (it === nt) return true;
+      // Levenshtein typo tolerance on individual name words (e.g. "leoarnd" vs "leonard", "neave" vs "naeve")
+      if (it.length >= 4 && nt.length >= 4 && levenshteinDistance(it, nt) <= 2) {
+        return true;
+      }
+    }
+  }
+
+  // 6. Full string Levenshtein distance for close typos (distance <= 2)
+  if (rawName.length >= 5 && rawId.length >= 5 && levenshteinDistance(rawName, rawId) <= 2) {
     return true;
   }
 

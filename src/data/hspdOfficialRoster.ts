@@ -512,7 +512,7 @@ export const HSPD_OFFICIAL_ROSTER: OfficerAccount[] = [
   // ==========================================
   {
     id: 'roster-leoanrd-neave-011',
-    name: 'Leoanrd Neave',
+    name: 'Leonard Neave',
     badge: '#011',
     rank: 'CADET POLICE',
     division: 'Police Academy Division',
@@ -723,63 +723,110 @@ export const HSPD_OFFICIAL_ROSTER: OfficerAccount[] = [
 
 /**
  * Merges any incoming roster array (from localStorage or Firestore realtime)
- * with the official 56+ department officers so no official roster member is ever lost.
+ * with the official 56+ department officers so no official roster member is ever lost,
+ * and user changes (especially PIN updates and promotions) are completely preserved.
  */
 export function mergeWithOfficialRoster(incoming: OfficerAccount[] = []): OfficerAccount[] {
-  const map = new Map<string, OfficerAccount>();
+  // Canonical registry map: canonicalKey -> OfficerAccount
+  const officersMap = new Map<string, OfficerAccount>();
 
-  // 1. First seed with all official officers
-  HSPD_OFFICIAL_ROSTER.forEach(official => {
-    map.set(official.badge.toLowerCase().trim(), { ...official });
-    map.set(official.name.toLowerCase().trim(), { ...official });
-  });
-
-  // 2. Overlay incoming records (preserving customized PINs, ranks, warnings, duty times)
-  incoming.forEach(item => {
-    if (!item) return;
-    const badgeKey = item.badge ? item.badge.toLowerCase().trim() : '';
-    const nameKey = item.name ? item.name.toLowerCase().trim() : '';
-
-    const existing = map.get(badgeKey) || map.get(nameKey);
-    if (existing) {
-      // Merge with precedence given to newer modifications if available
-      const updated: OfficerAccount = {
-        ...existing,
-        ...item,
-        // Ensure critical fields are never undefined or blank
-        name: item.name || existing.name,
-        badge: item.badge || existing.badge,
-        rank: item.rank || existing.rank,
-        division: item.division || existing.division,
-        pin: item.pin || existing.pin,
-        phone: item.phone || existing.phone,
-        warnings: item.warnings && item.warnings.length > 0 ? item.warnings : (existing.warnings || []),
-      };
-      map.set(badgeKey, updated);
-      map.set(nameKey, updated);
-    } else {
-      // New custom officer registered dynamically in app
-      if (badgeKey) map.set(badgeKey, item);
-      else if (nameKey) map.set(nameKey, item);
+  const getCanonicalKey = (officer: Partial<OfficerAccount>): string => {
+    if (officer.id) return officer.id.toLowerCase().trim();
+    if (officer.badge) {
+      const cleanDigits = officer.badge.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+      if (cleanDigits) return `badge_${cleanDigits}`;
     }
+    if (officer.name) return `name_${officer.name.toLowerCase().trim().replace(/\s+/g, '_')}`;
+    return `item_${Math.random()}`;
+  };
+
+  // 1. Seed with all official officers
+  HSPD_OFFICIAL_ROSTER.forEach(official => {
+    const key = getCanonicalKey(official);
+    officersMap.set(key, { ...official });
   });
 
-  // 3. Return unique set of officers in deterministic order
-  const uniqueOfficers = Array.from(new Set(map.values()));
+  // 2. Helper to find existing officer by ID, Badge, or Name
+  const findExistingKey = (item: OfficerAccount): string | null => {
+    const cleanId = item.id ? item.id.toLowerCase().trim() : '';
+    const cleanBadge = (item.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+    const cleanName = (item.name || '').toLowerCase().trim();
+
+    for (const [key, existing] of officersMap.entries()) {
+      if (cleanId && existing.id && existing.id.toLowerCase().trim() === cleanId) {
+        return key;
+      }
+      const existingBadgeDigits = (existing.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+      if (cleanBadge && existingBadgeDigits && cleanBadge === existingBadgeDigits) {
+        return key;
+      }
+      const existingName = (existing.name || '').toLowerCase().trim();
+      if (cleanName && (cleanName === existingName || cleanName.replace(/\s+/g, '') === existingName.replace(/\s+/g, ''))) {
+        return key;
+      }
+      // Also handle common aliases/typos (e.g. Leoanrd / Leoarnd / Leonard)
+      if (cleanName && (
+        (cleanName.includes('neave') && existingName.includes('neave')) ||
+        (cleanName.includes('leonard') && existingName.includes('neave')) ||
+        (cleanName.includes('leoanrd') && existingName.includes('neave')) ||
+        (cleanName.includes('leoarnd') && existingName.includes('neave'))
+      )) {
+        return key;
+      }
+    }
+    return null;
+  };
+
+  // 3. Overlay incoming records
+  if (Array.isArray(incoming)) {
+    incoming.forEach(item => {
+      if (!item) return;
+      const existingKey = findExistingKey(item);
+
+      if (existingKey && officersMap.has(existingKey)) {
+        const existing = officersMap.get(existingKey)!;
+        const updated: OfficerAccount = {
+          ...existing,
+          ...item,
+          name: item.name || existing.name,
+          badge: existing.badge || item.badge, // preserve official badge format
+          rank: item.rank || existing.rank,
+          division: item.division || existing.division,
+          // CRITICAL: user's PIN modification is strictly preserved
+          pin: (item.pin !== undefined && String(item.pin).trim() !== '') ? String(item.pin).trim() : existing.pin,
+          phone: item.phone || existing.phone,
+          promotedBy: item.promotedBy || existing.promotedBy,
+          warnings: Array.isArray(item.warnings) && item.warnings.length > 0 ? item.warnings : (existing.warnings || []),
+          _updatedAt: item._updatedAt || Date.now()
+        };
+        officersMap.set(existingKey, updated);
+      } else {
+        // New custom officer registered dynamically in app
+        const newKey = getCanonicalKey(item);
+        officersMap.set(newKey, {
+          ...item,
+          pin: item.pin ? String(item.pin).trim() : '10-4',
+          warnings: item.warnings || []
+        });
+      }
+    });
+  }
+
+  // 4. Return unique set of officers in deterministic order
+  const uniqueOfficers = Array.from(officersMap.values());
   
   // Keep official ordering at top, followed by any custom officers
   const officialBadgeOrder = new Map<string, number>();
   HSPD_OFFICIAL_ROSTER.forEach((off, idx) => {
-    officialBadgeOrder.set(off.badge.toLowerCase().trim(), idx);
+    const cleanDigits = off.badge.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+    officialBadgeOrder.set(cleanDigits, idx);
   });
 
   return uniqueOfficers.sort((a, b) => {
-    const idxA = officialBadgeOrder.has(a.badge.toLowerCase().trim()) 
-      ? officialBadgeOrder.get(a.badge.toLowerCase().trim())! 
-      : 9999;
-    const idxB = officialBadgeOrder.has(b.badge.toLowerCase().trim()) 
-      ? officialBadgeOrder.get(b.badge.toLowerCase().trim())! 
-      : 9999;
+    const digitsA = (a.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+    const digitsB = (b.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+    const idxA = officialBadgeOrder.has(digitsA) ? officialBadgeOrder.get(digitsA)! : 9999;
+    const idxB = officialBadgeOrder.has(digitsB) ? officialBadgeOrder.get(digitsB)! : 9999;
     if (idxA !== idxB) return idxA - idxB;
     return (b.registeredAt || 0) - (a.registeredAt || 0);
   });
