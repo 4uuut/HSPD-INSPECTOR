@@ -311,7 +311,7 @@ export const AndroidMdtView: React.FC<Props> = ({
             title="Ubah status tugas 10-8 / 10-7"
           >
             <Power className="w-3 h-3" />
-            <span>{isDuty ? '10-8' : '10-7'}</span>
+            <span>{isDuty ? '8-1-1' : '8-1-0'}</span>
             {isDuty && <span className="text-[9px] text-emerald-200">({dutyDurationStr})</span>}
           </button>
 

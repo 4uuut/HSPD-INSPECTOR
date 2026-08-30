@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Flame, Plus, Search, Filter, Calendar, Car, ShieldAlert,
   FileText, Upload, CheckCircle2, AlertTriangle, AlertCircle, Trash2,
@@ -32,6 +32,13 @@ export const DestructionRegistryBoard: React.FC<Props> = ({ currentOfficer }) =>
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExportingImage, setIsExportingImage] = useState<'png' | 'jpeg' | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Sync listener
+  useEffect(() => {
+    const handleSync = () => setItems(getSavedDestructionList());
+    window.addEventListener('hspd-destruction-updated', handleSync);
+    return () => window.removeEventListener('hspd-destruction-updated', handleSync);
+  }, []);
 
   // Function to export Berita Acara to PNG / JPG
   const handleExportCertificateImage = async (format: 'png' | 'jpeg') => {

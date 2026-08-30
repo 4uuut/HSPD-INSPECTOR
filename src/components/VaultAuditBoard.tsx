@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Landmark, Plus, Search, Filter, Calendar, DollarSign, Shield,
   FileText, Upload, CheckCircle2, AlertTriangle, AlertCircle, Clock,
@@ -26,6 +26,13 @@ export const VaultAuditBoard: React.FC<Props> = ({ currentOfficer }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExportingImage, setIsExportingImage] = useState<'png' | 'jpeg' | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Sync listener
+  useEffect(() => {
+    const handleSync = () => setAudits(getSavedVaultAuditLogs());
+    window.addEventListener('hspd-vault-updated', handleSync);
+    return () => window.removeEventListener('hspd-vault-updated', handleSync);
+  }, []);
 
   // Export Vault Audit Document to PNG / JPG
   const handleExportAuditImage = async (format: 'png' | 'jpeg') => {

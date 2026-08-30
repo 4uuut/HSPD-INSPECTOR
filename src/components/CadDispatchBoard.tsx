@@ -596,13 +596,13 @@ export const CadDispatchBoard: React.FC<Props> = ({ currentOfficer }) => {
               STATUS PATROLI UNIT AKTIF LAPANGAN (ROSTER REALTIME)
             </span>
             <span className="text-[11px] text-emerald-400 font-bold">
-              {units.filter(u => u.status === '10-8').length} Unit Siap Tugas (10-8)
+              {units.filter(u => u.status === '8-1-1' || u.status === '10-8').length} Unit Siap Tugas (8-1-1)
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {units.map((unit) => {
-              const is108 = unit.status === '10-8';
+              const isOnDuty = unit.status === '8-1-1' || unit.status === '10-8';
               const is1097 = unit.status === '10-97';
               return (
                 <div
@@ -612,7 +612,7 @@ export const CadDispatchBoard: React.FC<Props> = ({ currentOfficer }) => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${
-                        is108 
+                        isOnDuty 
                           ? 'bg-emerald-950 text-emerald-400 border border-emerald-700' 
                           : is1097
                             ? 'bg-blue-950 text-blue-400 border border-blue-700'
@@ -627,7 +627,7 @@ export const CadDispatchBoard: React.FC<Props> = ({ currentOfficer }) => {
                     </div>
 
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      is108
+                      isOnDuty
                         ? 'bg-emerald-950 text-emerald-300 border border-emerald-700'
                         : is1097
                           ? 'bg-blue-950 text-blue-300 border border-blue-700'

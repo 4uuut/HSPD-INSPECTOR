@@ -1,4 +1,5 @@
 import { HSPD_LOGO_URL } from '../assets/logo';
+import { pushToFirestore } from '../services/firebaseRealtimeSync';
 
 export interface DepartmentBrandingConfig {
   id?: string;                  // identifier for sync
@@ -220,6 +221,7 @@ export function saveCustomBranding(config: Partial<DepartmentBrandingConfig>, up
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(BRANDING_UPDATED_EVENT, { detail: updated }));
     }
+    pushToFirestore('BRANDING', updated, 'active_branding').catch(console.error);
   } catch (e) {
     console.error('Failed to save custom branding:', e);
   }
@@ -236,6 +238,7 @@ export function resetCustomBranding(): DepartmentBrandingConfig {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent(BRANDING_UPDATED_EVENT, { detail: DEFAULT_BRANDING }));
     }
+    pushToFirestore('BRANDING', DEFAULT_BRANDING, 'active_branding').catch(console.error);
   } catch (e) {
     console.error('Failed to reset custom branding:', e);
   }

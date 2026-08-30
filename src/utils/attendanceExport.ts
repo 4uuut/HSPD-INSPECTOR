@@ -256,9 +256,9 @@ export function generateAttendanceSummaries(
       });
     }
 
-    let currentStatusText = '10-7 (OFF DUTY)';
+    let currentStatusText = '8-1-0 (OFF DUTY)';
     if (dutyState.isDuty) {
-      currentStatusText = dutyState.dutyStatus ? `${dutyState.dutyStatus} (ON DUTY)` : '10-8 (ON DUTY)';
+      currentStatusText = dutyState.dutyStatus ? `${dutyState.dutyStatus} (ON DUTY)` : '8-1-1 (ON DUTY)';
     }
 
     return {

@@ -145,8 +145,8 @@ export interface OfficerProfile {
   dutyStatus?: DutyStatusCode;
 }
 
-// Duty Status and Report Interface
-export type DutyStatusCode = '10-8' | '10-7' | '10-6' | '10-97';
+// Duty Status and Report Interface (8-1-1 On Duty / 8-1-0 Off Duty)
+export type DutyStatusCode = '8-1-1' | '8-1-0' | '10-8' | '10-7' | '10-6' | '10-97';
 
 export interface DutyLog {
   id: string;

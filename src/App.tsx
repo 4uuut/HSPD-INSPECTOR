@@ -764,7 +764,7 @@ export default function App() {
                 title="Klik untuk ubah status tugas & kirim report duty ke Discord Webhook"
               >
                 <Power className="w-3.5 h-3.5" />
-                <span>{isDuty ? '🟢 10-8 ON DUTY' : '🔴 10-7 OFF DUTY'}</span>
+                <span>{isDuty ? '🟢 8-1-1 ON DUTY' : '🔴 8-1-0 OFF DUTY'}</span>
                 {isDuty && (
                   <span className="text-[9px] bg-black/50 px-1.5 py-0.2 rounded border border-emerald-700/60 hidden sm:inline text-emerald-200">
                     {dutyDurationStr}

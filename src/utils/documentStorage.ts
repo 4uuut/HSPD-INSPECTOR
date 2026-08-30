@@ -60,6 +60,9 @@ export function saveOfficialDocument(doc: OfficialDocument): OfficialDocument[] 
       updated = [{ ...doc, createdAt: doc.createdAt || Date.now(), updatedAt: Date.now() }, ...current];
     }
     localStorage.setItem(DOCUMENTS_STORAGE_KEY, JSON.stringify(updated));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('hspd-documents-updated', { detail: updated }));
+    }
     syncCollectionWithFirestore('OFFICIAL_DOCUMENTS', updated).catch(console.error);
     return updated;
   } catch (e) {
@@ -73,6 +76,9 @@ export function deleteOfficialDocument(id: string): OfficialDocument[] {
     const current = getSavedOfficialDocuments();
     const updated = current.filter(d => d.id !== id);
     localStorage.setItem(DOCUMENTS_STORAGE_KEY, JSON.stringify(updated));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('hspd-documents-updated', { detail: updated }));
+    }
     syncCollectionWithFirestore('OFFICIAL_DOCUMENTS', updated).catch(console.error);
     return updated;
   } catch (e) {

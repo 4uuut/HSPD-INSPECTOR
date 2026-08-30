@@ -78,6 +78,19 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
   const [archiveSearch, setArchiveSearch] = useState('');
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
 
+  // Sync saved documents with other tabs and Firestore
+  useEffect(() => {
+    const handleDocsSync = (e: any) => {
+      if (e && e.detail && Array.isArray(e.detail)) {
+        setSavedDocs(e.detail);
+      } else {
+        setSavedDocs(getSavedOfficialDocuments());
+      }
+    };
+    window.addEventListener('hspd-documents-updated', handleDocsSync);
+    return () => window.removeEventListener('hspd-documents-updated', handleDocsSync);
+  }, []);
+
   // Active Working Document State
   const [activeDoc, setActiveDoc] = useState<OfficialDocument>(() => {
     const defaultTemplate = DOCUMENT_PRESET_TEMPLATES[0].defaultDoc;

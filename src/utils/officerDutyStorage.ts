@@ -50,7 +50,7 @@ export function getOfficerDutyState(
   officerName?: string
 ): OfficerDutyState {
   if (!badgeOrName && !officerName) {
-    return { isDuty: false, dutyStartTime: 0, dutyStatus: '10-7' };
+    return { isDuty: false, dutyStartTime: 0, dutyStatus: '8-1-0' };
   }
 
   const key1 = normalizeOfficerIdentifier(badgeOrName);
@@ -63,7 +63,7 @@ export function getOfficerDutyState(
     return {
       isDuty: !!entry.isDuty,
       dutyStartTime: typeof entry.dutyStartTime === 'number' && entry.dutyStartTime > 0 ? entry.dutyStartTime : 0,
-      dutyStatus: (entry.dutyStatus as DutyStatusCode) || (entry.isDuty ? '10-8' : '10-7'),
+      dutyStatus: (entry.dutyStatus as DutyStatusCode) || (entry.isDuty ? '8-1-1' : '8-1-0'),
       officerName: entry.officerName,
       officerBadge: entry.officerBadge,
       updatedAt: entry.updatedAt
@@ -75,7 +75,7 @@ export function getOfficerDutyState(
     return {
       isDuty: !!entry.isDuty,
       dutyStartTime: typeof entry.dutyStartTime === 'number' && entry.dutyStartTime > 0 ? entry.dutyStartTime : 0,
-      dutyStatus: (entry.dutyStatus as DutyStatusCode) || (entry.isDuty ? '10-8' : '10-7'),
+      dutyStatus: (entry.dutyStatus as DutyStatusCode) || (entry.isDuty ? '8-1-1' : '8-1-0'),
       officerName: entry.officerName,
       officerBadge: entry.officerBadge,
       updatedAt: entry.updatedAt
@@ -90,7 +90,7 @@ export function getOfficerDutyState(
       return {
         isDuty: !!parsed.isDuty,
         dutyStartTime: typeof parsed.dutyStartTime === 'number' && parsed.dutyStartTime > 0 ? parsed.dutyStartTime : 0,
-        dutyStatus: (parsed.dutyStatus as DutyStatusCode) || (parsed.isDuty ? '10-8' : '10-7'),
+        dutyStatus: (parsed.dutyStatus as DutyStatusCode) || (parsed.isDuty ? '8-1-1' : '8-1-0'),
         officerName: parsed.officerName,
         officerBadge: parsed.officerBadge
       };
@@ -113,7 +113,7 @@ export function getOfficerDutyState(
       return {
         isDuty: found.isDuty,
         dutyStartTime: found.dutyStartTime || 0,
-        dutyStatus: (found.dutyStatus as DutyStatusCode) || (found.isDuty ? '10-8' : '10-7'),
+        dutyStatus: (found.dutyStatus as DutyStatusCode) || (found.isDuty ? '8-1-1' : '8-1-0'),
         officerName: found.name,
         officerBadge: found.badge
       };
@@ -124,7 +124,7 @@ export function getOfficerDutyState(
   return {
     isDuty: false,
     dutyStartTime: 0,
-    dutyStatus: '10-7'
+    dutyStatus: '8-1-0'
   };
 }
 
@@ -148,7 +148,7 @@ export function saveOfficerDutyState(
     finalState = {
       isDuty: !!stateOrIsDuty.isDuty,
       dutyStartTime: typeof stateOrIsDuty.dutyStartTime === 'number' && stateOrIsDuty.dutyStartTime > 0 ? stateOrIsDuty.dutyStartTime : 0,
-      dutyStatus: (stateOrIsDuty.dutyStatus as DutyStatusCode) || (stateOrIsDuty.isDuty ? '10-8' : '10-7'),
+      dutyStatus: (stateOrIsDuty.dutyStatus as DutyStatusCode) || (stateOrIsDuty.isDuty ? '8-1-1' : '8-1-0'),
       officerName: stateOrIsDuty.officerName || officerName,
       officerBadge: stateOrIsDuty.officerBadge || badgeOrName,
       updatedAt: Date.now()
@@ -158,7 +158,7 @@ export function saveOfficerDutyState(
     finalState = {
       isDuty,
       dutyStartTime: isDuty ? (typeof dutyStartTime === 'number' && dutyStartTime > 0 ? dutyStartTime : Date.now()) : 0,
-      dutyStatus: (dutyStatus as DutyStatusCode) || (isDuty ? '10-8' : '10-7'),
+      dutyStatus: (dutyStatus as DutyStatusCode) || (isDuty ? '8-1-1' : '8-1-0'),
       officerName: officerName,
       officerBadge: badgeOrName,
       updatedAt: Date.now()

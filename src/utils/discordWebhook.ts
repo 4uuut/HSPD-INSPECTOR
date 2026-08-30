@@ -725,18 +725,21 @@ export async function sendDutyReportToDiscord(
     timeStyle: 'medium',
   });
 
-  // Color mapping & Status labels
-  let embedColor = 0x10B981; // 10-8 Emerald Green
-  let statusBadge = '🟢 10-8 ON DUTY';
+  // Color mapping & Status labels (8-1-1 On Duty / 8-1-0 Off Duty)
+  const isOnDuty = duty.status === '8-1-1' || duty.status === '10-8';
+  const isOffDuty = duty.status === '8-1-0' || duty.status === '10-7';
+
+  let embedColor = 0x10B981; // 8-1-1 Emerald Green
+  let statusBadge = '🟢 8-1-1 ON DUTY';
   let titleIcon = '🟢';
-  let titleText = '🟢 [HSPD CAD] LAPORAN MEMULAI DINAS (10-8 ON DUTY)';
+  let titleText = '🟢 [HSPD CAD] LAPORAN MEMULAI DINAS (8-1-1 ON DUTY)';
   let descText = 'Petugas Kepolisian Highstate Roleplay telah resmi mengaktifkan status tugas patroli dan siap siaga menjaga keamanan kota.';
 
-  if (duty.status === '10-7') {
-    embedColor = 0xEF4444; // 10-7 Red
-    statusBadge = '🔴 10-7 OFF DUTY';
+  if (isOffDuty) {
+    embedColor = 0xEF4444; // 8-1-0 Red
+    statusBadge = '🔴 8-1-0 OFF DUTY';
     titleIcon = '🔴';
-    titleText = '🔴 [HSPD CAD] LAPORAN SELESAI DINAS & LEPAS PIKET (10-7 OFF DUTY)';
+    titleText = '🔴 [HSPD CAD] LAPORAN SELESAI DINAS & LEPAS PIKET (8-1-0 OFF DUTY)';
     descText = 'Petugas Kepolisian Highstate Roleplay telah menyelesaikan seluruh rangkaian shift operasional, penyerahan inventaris, dan resmi lepas dinas.';
   } else if (duty.status === '10-6') {
     embedColor = 0xF59E0B; // 10-6 Amber
@@ -755,11 +758,11 @@ export async function sendDutyReportToDiscord(
   // Collect all attached images in order
   const attachedImages: { urlOrData: string; label: string }[] = [];
 
-  if (duty.status === '10-8') {
+  if (isOnDuty) {
     if (duty.onDutyPhoneImage && duty.onDutyPhoneImage.trim()) {
-      attachedImages.push({ urlOrData: duty.onDutyPhoneImage.trim(), label: 'Foto Layar HP Sebelum On Duty' });
+      attachedImages.push({ urlOrData: duty.onDutyPhoneImage.trim(), label: 'Foto Layar HP Sebelum On Duty (8-1-1)' });
     }
-  } else if (duty.status === '10-7') {
+  } else if (isOffDuty) {
     if (duty.offDutyActivityImage1 && duty.offDutyActivityImage1.trim()) {
       attachedImages.push({ urlOrData: duty.offDutyActivityImage1.trim(), label: 'Foto Dokumentasi Kegiatan 1' });
     }
@@ -767,7 +770,7 @@ export async function sendDutyReportToDiscord(
       attachedImages.push({ urlOrData: duty.offDutyActivityImage2.trim(), label: 'Foto Dokumentasi Kegiatan 2' });
     }
     if (duty.offDutyPhoneImage && duty.offDutyPhoneImage.trim()) {
-      attachedImages.push({ urlOrData: duty.offDutyPhoneImage.trim(), label: 'Foto Layar HP Selesai Dinas (10-7)' });
+      attachedImages.push({ urlOrData: duty.offDutyPhoneImage.trim(), label: 'Foto Layar HP Selesai Dinas (8-1-0)' });
     }
   }
 
@@ -797,7 +800,7 @@ export async function sendDutyReportToDiscord(
   ];
 
   // Specific detail fields
-  if (duty.status === '10-7') {
+  if (isOffDuty) {
     if (duty.durationFormatted || (duty.durationMinutes !== undefined && duty.durationMinutes >= 0)) {
       fields.push({
         name: '⏱️ Total Durasi Dinas (Shift Duration)',
@@ -818,12 +821,12 @@ export async function sendDutyReportToDiscord(
 
     fields.push(
       {
-        name: '🕒 Mulai Dinas (10-8)',
+        name: '🕒 Mulai Dinas (8-1-1)',
         value: `\`${startTimeStr}\``,
         inline: true,
       },
       {
-        name: '🏁 Selesai Dinas (10-7)',
+        name: '🏁 Selesai Dinas (8-1-0)',
         value: `\`${endTimeStr}\``,
         inline: true,
       },
@@ -834,18 +837,18 @@ export async function sendDutyReportToDiscord(
       }
     );
 
-    // 10-7 Evidence Breakdown
+    // 8-1-0 Evidence Breakdown
     const hasAnyOffDutyPhoto = duty.offDutyActivityImage1 || duty.offDutyActivityImage2 || duty.offDutyPhoneImage || attachedImages.length > 0;
     fields.push({
       name: '📸 Dokumentasi & Berkas Lampiran (3 Foto)',
       value: [
         `1. 🚔 **Foto Kegiatan Patroli #1**: ${duty.offDutyActivityImage1 ? '✅ *Terlampir*' : '⚠️ *Tidak dilampirkan*'}`,
         `2. 🚔 **Foto Kegiatan Patroli #2**: ${duty.offDutyActivityImage2 ? '✅ *Terlampir*' : '⚠️ *Tidak dilampirkan*'}`,
-        `3. 📱 **Foto HP Selesai Dinas (10-7)**: ${duty.offDutyPhoneImage ? '✅ *Terlampir*' : '⚠️ *Tidak dilampirkan*'}`
+        `3. 📱 **Foto HP Selesai Dinas (8-1-0)**: ${duty.offDutyPhoneImage ? '✅ *Terlampir*' : '⚠️ *Tidak dilampirkan*'}`
       ].join('\n'),
       inline: false,
     });
-  } else if (duty.status === '10-8') {
+  } else if (isOnDuty) {
     const startTimeStr = new Date(duty.dutyStartTime || duty.timestamp || Date.now()).toLocaleTimeString('id-ID', {
       hour: '2-digit',
       minute: '2-digit',
@@ -854,7 +857,7 @@ export async function sendDutyReportToDiscord(
 
     fields.push(
       {
-        name: '🕒 Jam Mulai Dinas',
+        name: '🕒 Jam Mulai Dinas (8-1-1)',
         value: `\`${startTimeStr}\``,
         inline: true,
       },
@@ -864,7 +867,7 @@ export async function sendDutyReportToDiscord(
         inline: true,
       },
       {
-        name: '📱 Bukti Layar HP Awal',
+        name: '📱 Bukti Layar HP Awal (8-1-1)',
         value: duty.onDutyPhoneImage ? '✅ **Foto HP Sebelum On Duty Terverifikasi**' : '⚠️ *Tidak dilampirkan*',
         inline: true,
       }
@@ -890,7 +893,7 @@ export async function sendDutyReportToDiscord(
 
   if (duty.notes && duty.notes.trim()) {
     fields.push({
-      name: '📝 Catatan / Rencana Tugas',
+      name: isOffDuty ? '📋 Activity / Kegiatan Dinas' : '📝 Catatan / Rencana Tugas',
       value: `>>> ${duty.notes}`,
       inline: false,
     });
