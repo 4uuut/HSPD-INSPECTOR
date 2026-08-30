@@ -6,7 +6,7 @@ import {
   Search, Car, Crosshair, Landmark, Flame, Stamp as StampIcon,
   UserCheck, Microscope, Cloud, Palette, Bell, Battery,
   Wifi, Signal, Smartphone, Monitor, ChevronRight, X, AlertTriangle,
-  FileSpreadsheet, Zap, Volume2, ShieldCheck, Grid
+  FileSpreadsheet, Zap, Volume2, ShieldCheck, Grid, Settings
 } from 'lucide-react';
 import { 
   OfficerProfile, OfficerAccount, OfficerRankLevel,
@@ -225,7 +225,16 @@ export const AndroidMdtView: React.FC<Props> = ({
         badge: 'COMMAND',
         badgeColor: 'bg-amber-950 text-amber-300 border-amber-600'
       }
-    ] : [])
+    ] : []),
+    { 
+      id: 'settings', 
+      title: 'Setting & Otoritas Komando', 
+      desc: 'Branding, Webhook, OTP, PIN & Export Absen',
+      icon: Settings, 
+      color: 'from-amber-700 to-yellow-900',
+      badge: 'SETTING',
+      badgeColor: 'bg-amber-950 text-amber-300 border-amber-600'
+    }
   ];
 
   const handleSelectApp = (id: string) => {
@@ -436,6 +445,20 @@ export const AndroidMdtView: React.FC<Props> = ({
             <span>Export Absen</span>
           </button>
         )}
+
+        {/* Setting Quick Pill */}
+        <button
+          type="button"
+          onClick={() => setActiveNav('settings')}
+          className={`px-2.5 py-1 rounded-full border text-[10px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 ${
+            activeNav === 'settings'
+              ? 'bg-amber-600 text-white border-amber-500'
+              : 'bg-amber-950/80 text-amber-300 border-amber-700'
+          }`}
+        >
+          <Settings className="w-3 h-3 text-amber-400" />
+          <span>Setting & Otoritas</span>
+        </button>
       </div>
 
       {/* 4. ANDROID APP DRAWER MODAL / SHEET */}

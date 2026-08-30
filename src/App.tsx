@@ -26,8 +26,9 @@ import { ForensicsLabBoard } from './components/ForensicsLabBoard';
 import { CustomBrandingModal } from './components/CustomBrandingModal';
 import { AndroidMdtView } from './components/AndroidMdtView';
 import { ExportAttendanceModal } from './components/ExportAttendanceModal';
+import { SettingsView } from './components/SettingsView';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
-import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch } from './utils/pinResetStorage';
+import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch, saveRosterToStorage, updateOfficerPinInRoster } from './utils/pinResetStorage';
 import { getSavedDetectiveCases, saveDetectiveCases } from './utils/detectiveCaseStorage';
 import { getSavedBoloAlerts, saveBoloAlerts, getSavedImpounds, saveImpounds } from './utils/boloImpoundStorage';
 import { getOfficerDutyState, saveOfficerDutyState, formatDutyDuration } from './utils/officerDutyStorage';
@@ -43,7 +44,7 @@ import {
   Radio, Award, User, LogOut, Lock, Sparkles, BadgeCheck,
   Users, ShieldAlert, KeyRound, Power, Clock, CheckCircle2, Sliders,
   Search, Car, Crosshair, Landmark, Flame, Stamp as StampIcon,
-  UserCheck, Microscope, Cloud, Database, Palette, Smartphone, Monitor
+  UserCheck, Microscope, Cloud, Database, Palette, Smartphone, Monitor, Settings
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from './assets/logo';
 import { 
@@ -215,7 +216,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const [activeNav, setActiveNav] = useState<'calc' | 'dispatch' | 'dmv' | 'divisions' | 'forensics' | 'documents' | 'detective' | 'traffic' | 'vault' | 'destruction' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster'>('calc');
+  const [activeNav, setActiveNav] = useState<'calc' | 'dispatch' | 'dmv' | 'divisions' | 'forensics' | 'documents' | 'detective' | 'traffic' | 'vault' | 'destruction' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster' | 'settings'>('calc');
   const [records, setRecords] = useState<ArrestRecord[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -524,12 +525,44 @@ export default function App() {
   };
 
   const handleUpdateOfficer = (updated: OfficerAccount) => {
-    setRoster(prev => prev.map(a => a.id === updated.id ? updated : a));
+    setRoster(prev => {
+      let isFound = false;
+      const nextRoster = prev.map(a => {
+        if (
+          (updated.id && a.id === updated.id) ||
+          isOfficerMatch(a, updated.badge) ||
+          isOfficerMatch(a, updated.name)
+        ) {
+          isFound = true;
+          return {
+            ...a,
+            ...updated,
+            pin: updated.pin ? updated.pin.trim() : a.pin,
+            _updatedAt: Date.now()
+          };
+        }
+        return a;
+      });
+
+      const finalRoster = isFound ? nextRoster : [updated, ...nextRoster];
+      saveRosterToStorage(finalRoster);
+      return finalRoster;
+    });
+
+    if (updated.pin && updated.pin.trim()) {
+      updateOfficerPinInRoster(updated.badge, updated.pin.trim(), updated.name);
+    }
     
     // If updated officer is the currently logged in officer, sync state
-    if (currentOfficer && currentOfficer.badge.toLowerCase() === updated.badge.toLowerCase()) {
+    if (currentOfficer && (
+      currentOfficer.badge.toLowerCase() === updated.badge.toLowerCase() ||
+      isOfficerMatch(updated, currentOfficer.badge) ||
+      isOfficerMatch(updated, currentOfficer.name)
+    )) {
       const synced: OfficerProfile = {
         ...currentOfficer,
+        name: updated.name || currentOfficer.name,
+        badge: updated.badge || currentOfficer.badge,
         rank: updated.rank,
         division: updated.division
       };
@@ -719,97 +752,11 @@ export default function App() {
                 <span className="text-[9px] text-emerald-400 font-bold">AUTO-SYNC</span>
               </div>
 
-              {/* HIGH RANK / SUPERVISOR ONLY: CUSTOM LOGO & BRANDING SETTINGS BUTTON */}
-              {hasFullAccess && (
-                <button
-                  id="btn-open-branding-header"
-                  type="button"
-                  onClick={() => setIsBrandingModalOpen(true)}
-                  className="px-2.5 py-1.5 bg-amber-950/70 hover:bg-amber-900/90 text-amber-300 border border-amber-600/70 hover:border-amber-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
-                  title="Pengaturan Logo & Background Wallpaper Website (Full Access)"
-                >
-                  <Palette className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden md:inline">👑 LOGO & BG</span>
-                  <span className="md:hidden">LOGO</span>
-                </button>
-              )}
-
-              {/* SUPERVISOR & HIGH COMMAND: OTP CLEARANCE DISPOSITION BUTTON */}
-              {isSupervisorOrAbove(currentOfficer.rank) && (
-                <button
-                  id="btn-open-otp-disposition-header"
-                  onClick={() => {
-                    setOtpModalDefaultModule('VAULT');
-                    setIsOtpGeneratorModalOpen(true);
-                  }}
-                  className="px-2.5 py-1.5 bg-gradient-to-r from-amber-950/80 to-amber-900/80 hover:from-amber-900 hover:to-amber-800 text-amber-300 border border-amber-500/70 hover:border-amber-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/50"
-                  title="Disposisi Kode Akses Sekali Pakai (OTP) untuk Petugas Lapangan membuka modul sensitif"
-                >
-                  <KeyRound className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-                  <span className="hidden md:inline">🔑 DISPOSISI OTP</span>
-                  <span className="md:hidden">OTP</span>
-                </button>
-              )}
-
-              {/* HIGH RANK ONLY: AUTHORITY PIN MANAGEMENT BUTTON */}
-              {isHighRank && (
-                <button
-                  id="btn-open-authority-pin-settings"
-                  onClick={() => setIsAuthorityPinModalOpen(true)}
-                  className="px-2.5 py-1.5 bg-amber-950/70 hover:bg-amber-900/90 text-amber-300 border border-amber-600/70 hover:border-amber-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
-                  title="Kelola PIN Otoritas Pembuka Berkas (Rotasi Otomatis 1 Jam / Manual)"
-                >
-                  <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden md:inline">👑 PIN OTORITAS: <strong className="text-amber-200">{authorityPinConfig.currentPin}</strong></span>
-                  <span className="md:hidden">PIN [{authorityPinConfig.currentPin}]</span>
-                  <span className="hidden lg:inline text-[9px] bg-black/40 px-1 py-0.5 rounded text-amber-300/80 border border-amber-800/40 font-normal">
-                    {pinTimeRemaining.text}
-                  </span>
-                </button>
-              )}
-
-              {/* HIGH RANK ONLY: SETTING WEBHOOK BUTTON */}
-              {isHighRank && (
-                <button
-                  id="btn-open-webhook-settings"
-                  onClick={() => setIsWebhookModalOpen(true)}
-                  className="px-2.5 py-1.5 bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 hover:border-amber-500 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-amber-950/40"
-                  title="Pengaturan Integrasi Discord Webhook (Hanya High Command)"
-                >
-                  <Sliders className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">👑 WEBHOOK</span>
-                  <span className="sm:hidden">DC</span>
-                </button>
-              )}
-
-              {/* SUPERVISOR & HIGH COMMAND: PIN RESET AUDIT & WEBHOOK LOG BUTTON */}
-              {(isHighRank || isSupervisorOrAbove(currentOfficer.rank)) && (
-                <button
-                  id="btn-open-pin-reset-audit-header"
-                  onClick={() => setIsPinResetAuditModalOpen(true)}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm ${
-                    pendingPinCount > 0
-                      ? 'bg-amber-500 text-black border border-amber-400 font-extrabold animate-pulse shadow-amber-500/40'
-                      : 'bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 hover:border-amber-500 shadow-amber-950/40'
-                  }`}
-                  title="Audit Log Permohonan Reset PIN & Otorisasi Webhook Discord (High Command & Supervisor)"
-                >
-                  <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">👑 LOG PIN</span>
-                  <span className="sm:hidden">PIN</span>
-                  {pendingPinCount > 0 && (
-                    <span className="px-1.5 py-0.2 bg-black text-amber-300 text-[9px] rounded-full font-bold">
-                      {pendingPinCount} PENDING
-                    </span>
-                  )}
-                </button>
-              )}
-
               {/* ON/OFF DUTY DISPATCH TOGGLE BUTTON */}
               <button
                 id="duty-dispatch-toggle-btn"
                 onClick={() => setIsDutyModalOpen(true)}
-                className={`px-3 py-1.5 rounded-lg border font-mono text-xs font-bold transition flex items-center gap-1.5 shadow-sm ${
+                className={`px-3 py-1.5 rounded-lg border font-mono text-xs font-bold transition flex items-center gap-1.5 shadow-sm shrink-0 ${
                   isDuty
                     ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 hover:bg-emerald-900/80 ring-1 ring-emerald-500/50'
                     : 'bg-rose-950/80 border-rose-500 text-rose-300 hover:bg-rose-900/80 ring-1 ring-rose-500/50'
@@ -825,20 +772,20 @@ export default function App() {
                 )}
               </button>
 
-              {/* Active Officer Identity Badge & Change PIN Button */}
-              <div className={`hidden sm:flex items-center gap-2 px-2 py-1.5 rounded-lg border font-mono transition ${
+              {/* Active Officer Identity Badge */}
+              <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border font-mono transition shrink-0 ${
                 isHighRank
-                  ? 'bg-amber-950/30 border-amber-800/60 text-amber-300'
+                  ? 'bg-amber-950/40 border-amber-700/70 text-amber-300 shadow-sm'
                   : 'bg-[#0D1117] border-gray-800 text-gray-200'
               }`}>
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold shrink-0 ${
-                  isHighRank ? 'bg-amber-900/60 border border-amber-700/60 text-amber-300' : 'bg-blue-900/60 border border-blue-700/60 text-blue-300'
+                  isHighRank ? 'bg-amber-900/80 border border-amber-500/80 text-amber-300' : 'bg-blue-900/60 border border-blue-700/60 text-blue-300'
                 }`}>
                   <User className="w-3.5 h-3.5" />
                 </div>
                 <div className="text-left leading-tight">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-gray-100 text-[11px] truncate max-w-[120px] lg:max-w-[160px]">
+                    <span className="font-bold text-gray-100 text-[11px] truncate max-w-[130px] lg:max-w-[180px]">
                       {currentOfficer.name}
                     </span>
                     <span className="text-[9px] bg-black/50 px-1.5 py-0.2 rounded border border-gray-700 text-gray-300">
@@ -859,14 +806,16 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Logout / Switch Button */}
+              {/* Logout / Switch Account Button */}
               <button
+                id="btn-logout-officer"
+                type="button"
                 onClick={handleLogout}
-                className="px-2.5 py-1.5 bg-gray-800 hover:bg-rose-900/60 text-gray-300 hover:text-rose-200 border border-gray-700 hover:border-rose-700 rounded-lg text-[10px] font-bold font-mono transition flex items-center gap-1"
+                className="px-3 py-1.5 bg-rose-950/70 hover:bg-rose-900 text-rose-200 hover:text-white border border-rose-700 hover:border-rose-500 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shrink-0 active:scale-95"
                 title="Keluar / Ganti Akun Petugas"
               >
                 <LogOut className="w-3.5 h-3.5 text-rose-400" />
-                <span className="hidden sm:inline">GANTI AKUN</span>
+                <span>GANTI AKUN</span>
               </button>
             </div>
           </header>
@@ -906,6 +855,13 @@ export default function App() {
                     isHighRankOnly: true
                   }
                 ] : []),
+                {
+                  id: 'settings',
+                  label: '⚙️ Setting & Otoritas',
+                  icon: Settings,
+                  code: 'CFG',
+                  moduleKey: undefined
+                },
               ].map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeNav === tab.id;
@@ -1117,6 +1073,27 @@ export default function App() {
             onDeleteOfficer={handleDeleteOfficer}
             onOpenPinResetAudit={() => setIsPinResetAuditModalOpen(true)}
             pendingPinResetCount={pendingPinCount}
+          />
+        )}
+        {activeNav === 'settings' && (
+          <SettingsView
+            currentOfficer={currentOfficer}
+            roster={roster}
+            branding={branding}
+            authorityPinConfig={authorityPinConfig}
+            pinTimeRemaining={pinTimeRemaining}
+            pendingPinCount={pendingPinCount}
+            onOpenBrandingModal={() => setIsBrandingModalOpen(true)}
+            onOpenOtpModal={() => {
+              setOtpModalDefaultModule('VAULT');
+              setIsOtpGeneratorModalOpen(true);
+            }}
+            onOpenAuthorityPinModal={() => setIsAuthorityPinModalOpen(true)}
+            onOpenWebhookModal={() => setIsWebhookModalOpen(true)}
+            onOpenPinAuditModal={() => setIsPinResetAuditModalOpen(true)}
+            onOpenExportAttendanceModal={() => setIsExportAttendanceModalOpen(true)}
+            onToggleViewMode={handleToggleViewMode}
+            isAndroidMode={isAndroidMode}
           />
         )}
       </main>

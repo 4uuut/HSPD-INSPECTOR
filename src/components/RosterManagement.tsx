@@ -30,6 +30,7 @@ import {
   FirebaseSyncStatus 
 } from '../services/firebaseRealtimeSync';
 import { mergeWithOfficialRoster, HSPD_OFFICIAL_ROSTER } from '../data/hspdOfficialRoster';
+import { updateOfficerPinInRoster } from '../utils/pinResetStorage';
 
 interface Props {
   roster: OfficerAccount[];
@@ -599,13 +600,17 @@ export const RosterManagement: React.FC<Props> = ({
       ? `Diubah ke ${newRank} oleh ${currentOfficerName || 'Atasan'} (${currentOfficerRank || 'Command'}) pada ${new Date().toLocaleDateString('id-ID')}`
       : editingOfficer.promotedBy;
 
+    const finalPin = newPin.trim() || editingOfficer.pin || '10-4';
     const updated: OfficerAccount = {
       ...editingOfficer,
       rank: newRank,
       division: newDivision || editingOfficer.division,
-      pin: newPin.trim() || editingOfficer.pin || '10-4',
-      promotedBy: promotedByText
+      pin: finalPin,
+      promotedBy: promotedByText,
+      _updatedAt: Date.now()
     };
+
+    updateOfficerPinInRoster(editingOfficer.badge, finalPin, editingOfficer.name);
 
     try {
       if (isRankChanged && promotionSendWebhook) {

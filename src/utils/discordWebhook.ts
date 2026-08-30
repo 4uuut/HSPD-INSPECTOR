@@ -697,6 +697,9 @@ export async function sendArrestRecordToDiscord(
 /**
  * Send a Dedicated Duty Report (10-8 On Duty / 10-7 Off Duty / 10-6 Busy) to Duty Discord Webhook
  */
+/**
+ * Send a Dedicated Duty Report (10-8 On Duty / 10-7 Off Duty / 10-6 Busy) to Duty Discord Webhook with evidence attachments
+ */
 export async function sendDutyReportToDiscord(
   duty: DutyLog,
   customConfig?: Partial<WebhookConfig>
@@ -710,34 +713,75 @@ export async function sendDutyReportToDiscord(
     };
   }
 
-  const dateStr = new Date(duty.timestamp || Date.now()).toLocaleString('id-ID', {
+  const dateObj = new Date(duty.timestamp || Date.now());
+  const dateFullStr = dateObj.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  const dateStr = dateObj.toLocaleString('id-ID', {
     dateStyle: 'full',
     timeStyle: 'medium',
   });
 
-  // Color mapping
+  // Color mapping & Status labels
   let embedColor = 0x10B981; // 10-8 Emerald Green
   let statusBadge = '🟢 10-8 ON DUTY';
   let titleIcon = '🟢';
+  let titleText = '🟢 [HSPD CAD] LAPORAN MEMULAI DINAS (10-8 ON DUTY)';
+  let descText = 'Petugas Kepolisian Highstate Roleplay telah resmi mengaktifkan status tugas patroli dan siap siaga menjaga keamanan kota.';
 
   if (duty.status === '10-7') {
     embedColor = 0xEF4444; // 10-7 Red
     statusBadge = '🔴 10-7 OFF DUTY';
     titleIcon = '🔴';
+    titleText = '🔴 [HSPD CAD] LAPORAN SELESAI DINAS & LEPAS PIKET (10-7 OFF DUTY)';
+    descText = 'Petugas Kepolisian Highstate Roleplay telah menyelesaikan seluruh rangkaian shift operasional, penyerahan inventaris, dan resmi lepas dinas.';
   } else if (duty.status === '10-6') {
     embedColor = 0xF59E0B; // 10-6 Amber
-    statusBadge = '🟡 10-6 BUSY / PENANGANAN';
+    statusBadge = '🟡 10-6 BUSY (SEDANG PENANGANAN KASUS)';
     titleIcon = '🟡';
+    titleText = '🟡 [HSPD CAD] LAPORAN STATUS PENANGANAN (10-6 BUSY)';
+    descText = 'Petugas sedang menangani kasus / sidang / investigasi khusus dan tidak dapat merespons panggilan reguler sementara waktu.';
   } else if (duty.status === '10-97') {
     embedColor = 0x3B82F6; // 10-97 Blue
-    statusBadge = '🔵 10-97 ON SCENE';
+    statusBadge = '🔵 10-97 ON SCENE (TIBA DI LOKASI)';
     titleIcon = '🔵';
+    titleText = '🔵 [HSPD CAD] LAPORAN TIBA DI LOKASI (10-97 ON SCENE)';
+    descText = 'Unit kepolisian telah tiba di tempat kejadian perkara (TKP) / titik operasi.';
+  }
+
+  // Collect all attached images in order
+  const attachedImages: { urlOrData: string; label: string }[] = [];
+
+  if (duty.status === '10-8') {
+    if (duty.onDutyPhoneImage && duty.onDutyPhoneImage.trim()) {
+      attachedImages.push({ urlOrData: duty.onDutyPhoneImage.trim(), label: 'Foto Layar HP Sebelum On Duty' });
+    }
+  } else if (duty.status === '10-7') {
+    if (duty.offDutyActivityImage1 && duty.offDutyActivityImage1.trim()) {
+      attachedImages.push({ urlOrData: duty.offDutyActivityImage1.trim(), label: 'Foto Dokumentasi Kegiatan 1' });
+    }
+    if (duty.offDutyActivityImage2 && duty.offDutyActivityImage2.trim()) {
+      attachedImages.push({ urlOrData: duty.offDutyActivityImage2.trim(), label: 'Foto Dokumentasi Kegiatan 2' });
+    }
+    if (duty.offDutyPhoneImage && duty.offDutyPhoneImage.trim()) {
+      attachedImages.push({ urlOrData: duty.offDutyPhoneImage.trim(), label: 'Foto Layar HP Selesai Dinas (10-7)' });
+    }
+  }
+
+  // Fallback for general evidence images array if present and attachedImages is empty
+  if (attachedImages.length === 0 && duty.evidenceImages && Array.isArray(duty.evidenceImages)) {
+    duty.evidenceImages.filter(Boolean).forEach((img, i) => {
+      attachedImages.push({ urlOrData: img, label: `Foto Bukti Dinas #${i + 1}` });
+    });
   }
 
   const fields: any[] = [
     {
-      name: '👮 Petugas Kepolisian',
-      value: `**${duty.officerName}** (\`${duty.officerBadge}\`)\nRank: **${duty.officerRank}**`,
+      name: '👮 Identitas Personel',
+      value: `**${duty.officerName}**\nNomor Badge: \`${duty.officerBadge}\`\nPangkat: **${duty.officerRank}**`,
       inline: true,
     },
     {
@@ -752,7 +796,7 @@ export async function sendDutyReportToDiscord(
     }
   ];
 
-  // Specific highlight for 10-7 OFF DUTY: Full shift duration recap
+  // Specific detail fields
   if (duty.status === '10-7') {
     if (duty.durationFormatted || (duty.durationMinutes !== undefined && duty.durationMinutes >= 0)) {
       fields.push({
@@ -762,43 +806,72 @@ export async function sendDutyReportToDiscord(
       });
     }
 
-    if (duty.dutyStartTime && duty.dutyStartTime > 0) {
-      const startTimeStr = new Date(duty.dutyStartTime).toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-      fields.push({
-        name: '🕒 Waktu Mulai Dinas (10-8)',
-        value: `\`${startTimeStr} WIB\``,
-        inline: true,
-      });
-    }
+    const startTimeStr = duty.dutyStartTime && duty.dutyStartTime > 0
+      ? new Date(duty.dutyStartTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB'
+      : '-';
 
     const endTimeStr = new Date(duty.dutyEndTime || duty.timestamp || Date.now()).toLocaleTimeString('id-ID', {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit'
-    });
+    }) + ' WIB';
+
+    fields.push(
+      {
+        name: '🕒 Mulai Dinas (10-8)',
+        value: `\`${startTimeStr}\``,
+        inline: true,
+      },
+      {
+        name: '🏁 Selesai Dinas (10-7)',
+        value: `\`${endTimeStr}\``,
+        inline: true,
+      },
+      {
+        name: '📅 Tanggal Lepas Piket',
+        value: `\`${dateFullStr}\``,
+        inline: true,
+      }
+    );
+
+    // 10-7 Evidence Breakdown
+    const hasAnyOffDutyPhoto = duty.offDutyActivityImage1 || duty.offDutyActivityImage2 || duty.offDutyPhoneImage || attachedImages.length > 0;
     fields.push({
-      name: '🏁 Waktu Selesai Dinas (10-7)',
-      value: `\`${endTimeStr} WIB\``,
-      inline: true,
+      name: '📸 Dokumentasi & Berkas Lampiran (3 Foto)',
+      value: [
+        `1. 🚔 **Foto Kegiatan Patroli #1**: ${duty.offDutyActivityImage1 ? '✅ *Terlampir*' : '⚠️ *Tidak dilampirkan*'}`,
+        `2. 🚔 **Foto Kegiatan Patroli #2**: ${duty.offDutyActivityImage2 ? '✅ *Terlampir*' : '⚠️ *Tidak dilampirkan*'}`,
+        `3. 📱 **Foto HP Selesai Dinas (10-7)**: ${duty.offDutyPhoneImage ? '✅ *Terlampir*' : '⚠️ *Tidak dilampirkan*'}`
+      ].join('\n'),
+      inline: false,
     });
   } else if (duty.status === '10-8') {
     const startTimeStr = new Date(duty.dutyStartTime || duty.timestamp || Date.now()).toLocaleTimeString('id-ID', {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit'
-    });
-    fields.push({
-      name: '🕒 Waktu Mulai Dinas (10-8)',
-      value: `\`${startTimeStr} WIB\``,
-      inline: true,
-    });
+    }) + ' WIB';
+
+    fields.push(
+      {
+        name: '🕒 Jam Mulai Dinas',
+        value: `\`${startTimeStr}\``,
+        inline: true,
+      },
+      {
+        name: '📅 Tanggal Dinas',
+        value: `\`${dateFullStr}\``,
+        inline: true,
+      },
+      {
+        name: '📱 Bukti Layar HP Awal',
+        value: duty.onDutyPhoneImage ? '✅ **Foto HP Sebelum On Duty Terverifikasi**' : '⚠️ *Tidak dilampirkan*',
+        inline: true,
+      }
+    );
   }
 
-  // Include optional fields only if they exist
+  // Include optional fields if provided
   if (duty.callsign && duty.callsign !== 'UNIT-1' && duty.callsign.trim()) {
     fields.push({
       name: '📻 Callsign Unit',
@@ -817,49 +890,108 @@ export async function sendDutyReportToDiscord(
 
   if (duty.notes && duty.notes.trim()) {
     fields.push({
-      name: '📝 Catatan Dinas',
+      name: '📝 Catatan / Rencana Tugas',
       value: `>>> ${duty.notes}`,
       inline: false,
     });
   }
 
-  const embedObj = {
-    title: `${titleIcon} LAPORAN STATUS DINAS: ${statusBadge}`,
-    description: duty.status === '10-7' 
-      ? `Petugas telah menyelesaikan shift dinas dan resmi lepas piket (**10-7 OFF DUTY**).` 
-      : duty.status === '10-8'
-        ? `Petugas telah mengaktifkan status dinas dan siap bertugas di lapangan (**10-8 ON DUTY**).`
-        : `Update status operasional personel Kepolisian Highstate Roleplay (HSPD MDC CAD).`,
+  const primaryEmbed: any = {
+    title: titleText,
+    description: descText,
     color: embedColor,
     fields,
     footer: {
-      text: `HSPD Duty Logger • Highstate Roleplay • ${dateStr}`,
+      text: `HSPD CAD Duty Dispatch Terminal • Highstate Roleplay • ${dateStr}`,
       icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
     },
     timestamp: new Date(duty.timestamp || Date.now()).toISOString(),
   };
 
-  const payload = {
-    username: config.botName.trim() || 'HSPD Duty Logger',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
-    embeds: [embedObj],
-  };
+  const embeds = [primaryEmbed];
+
+  // Process attachments and multipart upload if any
+  const formData = new FormData();
+  let hasFileAttachments = false;
+  let fileIndex = 0;
+
+  attachedImages.forEach((item, idx) => {
+    const imgStr = item.urlOrData;
+    if (imgStr.startsWith('data:image/')) {
+      hasFileAttachments = true;
+      const { blob, extension } = dataURLtoBlob(imgStr);
+      const filename = `duty_proof_${idx + 1}_${Date.now()}.${extension}`;
+      formData.append(`files[${fileIndex}]`, blob, filename);
+
+      if (idx === 0) {
+        primaryEmbed.image = { url: `attachment://${filename}` };
+      } else {
+        // Multi-image gallery embeds
+        embeds.push({
+          url: 'https://highstate.roleplay/duty-evidence',
+          image: { url: `attachment://${filename}` },
+          color: embedColor,
+        });
+      }
+      fileIndex++;
+    } else if (imgStr.startsWith('http')) {
+      if (idx === 0) {
+        primaryEmbed.image = { url: imgStr };
+      } else {
+        embeds.push({
+          url: 'https://highstate.roleplay/duty-evidence',
+          image: { url: imgStr },
+          color: embedColor,
+        });
+      }
+    }
+  });
 
   try {
-    const res = await fetch(config.webhookUrl.trim(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    if (hasFileAttachments) {
+      const payload = {
+        username: config.botName.trim() || 'HSPD Duty Logger',
+        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        embeds: embeds.slice(0, 10),
+      };
 
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      formData.append('payload_json', JSON.stringify(payload));
+
+      const res = await fetch(config.webhookUrl.trim(), {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+
+      return {
+        success: true,
+        message: `Laporan status dinas [${statusBadge}] atas nama ${duty.officerName} beserta ${attachedImages.length} foto bukti berhasil dikirim ke Discord!`
+      };
+    } else {
+      const payload = {
+        username: config.botName.trim() || 'HSPD Duty Logger',
+        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        embeds: embeds.slice(0, 10),
+      };
+
+      const res = await fetch(config.webhookUrl.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+
+      return {
+        success: true,
+        message: `Status dinas [${statusBadge}] atas nama ${duty.officerName} berhasil dikirim ke Webhook Duty Log!`
+      };
     }
-
-    return {
-      success: true,
-      message: `Status dinas [${statusBadge}] atas nama ${duty.officerName} berhasil dikirim ke Webhook Duty Log!`
-    };
   } catch (err: any) {
     console.error('Duty Webhook Error:', err);
     return {

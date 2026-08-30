@@ -131,6 +131,7 @@ export interface OfficerAccount {
   isDuty?: boolean;
   dutyStartTime?: number;
   dutyStatus?: DutyStatusCode;
+  _updatedAt?: number;
 }
 
 export interface OfficerProfile {
@@ -165,6 +166,12 @@ export interface DutyLog {
   dutyEndTime?: number;
   durationMinutes?: number;
   durationFormatted?: string;
+  // Evidence photos
+  onDutyPhoneImage?: string; // 1 foto HP sebelum on duty
+  offDutyActivityImage1?: string; // Foto kegiatan 1 saat off duty
+  offDutyActivityImage2?: string; // Foto kegiatan 2 saat off duty
+  offDutyPhoneImage?: string; // 1 foto HP saat off duty
+  evidenceImages?: string[]; // Array of attached evidence images
 }
 
 export const ALL_RANKS: OfficerRankLevel[] = [

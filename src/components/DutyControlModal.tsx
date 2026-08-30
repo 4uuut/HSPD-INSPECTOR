@@ -1,15 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { OfficerProfile, DutyStatusCode, DutyLog, isOfficerHighRank } from '../types';
 import { 
   Radio, Shield, Power, Clock, User, CheckCircle2, 
   AlertCircle, Settings, Send, RefreshCw, X, Globe,
-  CheckCheck, Timer, Calendar, ShieldCheck
+  CheckCheck, Timer, Calendar, ShieldCheck, Camera,
+  Upload, Image as ImageIcon, Trash2, ZoomIn, Link2, Plus,
+  Smartphone, FileText
 } from 'lucide-react';
 import { 
   getSavedDutyWebhookConfig, saveDutyWebhookConfig, 
   sendDutyReportToDiscord, testDutyDiscordWebhook, WebhookConfig 
 } from '../utils/discordWebhook';
 import { recordDutySession } from '../utils/attendanceExport';
+import { processAndCompressImage } from '../utils/imageCompressor';
 import { HSPD_LOGO_URL } from '../assets/logo';
 
 interface Props {
@@ -44,12 +47,46 @@ export const DutyControlModal: React.FC<Props> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitFeedback, setSubmitFeedback] = useState<{ type: 'success' | 'error'; message: string; shiftSummary?: string } | null>(null);
 
+  // --- EVIDENCE PHOTOS STATES ---
+  // On Duty: 1 foto HP sebelum on duty
+  const [onDutyPhoneImage, setOnDutyPhoneImage] = useState<string>('');
+  // Off Duty: 3 photos (2 foto kegiatan + 1 foto HP off duty)
+  const [offDutyActivityImage1, setOffDutyActivityImage1] = useState<string>('');
+  const [offDutyActivityImage2, setOffDutyActivityImage2] = useState<string>('');
+  const [offDutyPhoneImage, setOffDutyPhoneImage] = useState<string>('');
+
+  // Processing indicators
+  const [isProcessingImg, setIsProcessingImg] = useState<string | null>(null);
+  const [previewLightboxImg, setPreviewLightboxImg] = useState<{ title: string; url: string } | null>(null);
+
+  // Hidden File Inputs Refs
+  const onDutyPhoneInputRef = useRef<HTMLInputElement>(null);
+  const onDutyPhoneCameraRef = useRef<HTMLInputElement>(null);
+
+  const offDutyBatchInputRef = useRef<HTMLInputElement>(null);
+  const offDutyAct1InputRef = useRef<HTMLInputElement>(null);
+  const offDutyAct1CameraRef = useRef<HTMLInputElement>(null);
+  const offDutyAct2InputRef = useRef<HTMLInputElement>(null);
+  const offDutyAct2CameraRef = useRef<HTMLInputElement>(null);
+  const offDutyPhoneInputRef = useRef<HTMLInputElement>(null);
+  const offDutyPhoneCameraRef = useRef<HTMLInputElement>(null);
+
+  // Notes & Callsign / Partner state
+  const [dutyNotes, setDutyNotes] = useState('');
+  const [dutyCallsign, setDutyCallsign] = useState('UNIT-1');
+  const [dutyPartner, setDutyPartner] = useState('');
+
   // Sync default next state when opened
   useEffect(() => {
     if (isOpen) {
       setSelectedStatus(isDuty ? '10-7' : '10-8');
       setSubmitFeedback(null);
       setCurrentTime(Date.now());
+      setOnDutyPhoneImage('');
+      setOffDutyActivityImage1('');
+      setOffDutyActivityImage2('');
+      setOffDutyPhoneImage('');
+      setDutyNotes('');
     }
   }, [isOpen, isDuty]);
 
@@ -88,6 +125,54 @@ export const DutyControlModal: React.FC<Props> = ({
 
   const endTimeStr = new Date(currentTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
 
+  // Helper to process single file upload from device
+  const handleProcessFileForSlot = async (
+    file: File, 
+    slotSetter: (val: string) => void,
+    slotName: string
+  ) => {
+    if (!file.type.startsWith('image/')) {
+      alert('Mohon pilih berkas gambar (JPG, PNG, WebP).');
+      return;
+    }
+    setIsProcessingImg(slotName);
+    try {
+      const compressed = await processAndCompressImage(file, 1400, 1400, 0.85);
+      slotSetter(compressed.dataUrl);
+    } catch (err: any) {
+      console.error('Failed to compress image:', err);
+      alert(`Gagal memproses gambar: ${err.message || 'File tidak valid'}`);
+    } finally {
+      setIsProcessingImg(null);
+    }
+  };
+
+  // Helper for batch uploading up to 3 files for off duty
+  const handleBatchOffDutyUpload = async (files: FileList | File[]) => {
+    const fileArr = Array.from(files).filter(f => f.type.startsWith('image/')).slice(0, 3);
+    if (fileArr.length === 0) return;
+
+    setIsProcessingImg('batch_off_duty');
+    try {
+      if (fileArr[0]) {
+        const res1 = await processAndCompressImage(fileArr[0], 1400, 1400, 0.85);
+        setOffDutyActivityImage1(res1.dataUrl);
+      }
+      if (fileArr[1]) {
+        const res2 = await processAndCompressImage(fileArr[1], 1400, 1400, 0.85);
+        setOffDutyActivityImage2(res2.dataUrl);
+      }
+      if (fileArr[2]) {
+        const res3 = await processAndCompressImage(fileArr[2], 1400, 1400, 0.85);
+        setOffDutyPhoneImage(res3.dataUrl);
+      }
+    } catch (err: any) {
+      console.error('Batch upload error:', err);
+    } finally {
+      setIsProcessingImg(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -111,6 +196,16 @@ export const DutyControlModal: React.FC<Props> = ({
       '10-97': '10-97 ON SCENE (Tiba di Lokasi Operasi)'
     };
 
+    // Prepare evidence image collection
+    const collectedEvidence: string[] = [];
+    if (selectedStatus === '10-8') {
+      if (onDutyPhoneImage) collectedEvidence.push(onDutyPhoneImage);
+    } else if (selectedStatus === '10-7') {
+      if (offDutyActivityImage1) collectedEvidence.push(offDutyActivityImage1);
+      if (offDutyActivityImage2) collectedEvidence.push(offDutyActivityImage2);
+      if (offDutyPhoneImage) collectedEvidence.push(offDutyPhoneImage);
+    }
+
     const dutyLog: DutyLog = {
       id: `duty-${Date.now()}`,
       officerName: currentOfficer.name,
@@ -119,11 +214,20 @@ export const DutyControlModal: React.FC<Props> = ({
       division: currentOfficer.division || 'Patrol Division',
       status: selectedStatus,
       statusText: statusTexts[selectedStatus],
+      callsign: dutyCallsign !== 'UNIT-1' ? dutyCallsign : undefined,
+      partner: dutyPartner.trim() ? dutyPartner.trim() : undefined,
+      notes: dutyNotes.trim() ? dutyNotes.trim() : undefined,
       timestamp: now,
       dutyStartTime: selectedStatus === '10-7' ? dutyStartTime : (selectedStatus === '10-8' ? now : undefined),
       dutyEndTime: selectedStatus === '10-7' ? now : undefined,
       durationMinutes: selectedStatus === '10-7' ? finalMinutes : undefined,
-      durationFormatted: selectedStatus === '10-7' ? finalDurationFormatted : undefined
+      durationFormatted: selectedStatus === '10-7' ? finalDurationFormatted : undefined,
+      // Attached photos
+      onDutyPhoneImage: selectedStatus === '10-8' ? onDutyPhoneImage : undefined,
+      offDutyActivityImage1: selectedStatus === '10-7' ? offDutyActivityImage1 : undefined,
+      offDutyActivityImage2: selectedStatus === '10-7' ? offDutyActivityImage2 : undefined,
+      offDutyPhoneImage: selectedStatus === '10-7' ? offDutyPhoneImage : undefined,
+      evidenceImages: collectedEvidence
     };
 
     let webhookSuccess = true;
@@ -161,7 +265,7 @@ export const DutyControlModal: React.FC<Props> = ({
         endTime: now,
         durationMinutes: Math.max(1, finalMinutes),
         durationFormatted: finalDurationFormatted,
-        notes: `Shift Dinas ${currentOfficer.rank}`
+        notes: dutyNotes.trim() ? `${dutyNotes.trim()} (${currentOfficer.rank})` : `Shift Dinas ${currentOfficer.rank}`
       });
     }
 
@@ -174,9 +278,10 @@ export const DutyControlModal: React.FC<Props> = ({
         message: `Status dinas lokal diperbarui, namun Discord Webhook gagal: ${webhookMsg}`
       });
     } else {
+      const photoCountText = collectedEvidence.length > 0 ? ` (+${collectedEvidence.length} Berkas Foto)` : '';
       setSubmitFeedback({
         type: 'success',
-        message: `✅ Laporan status dinas [${selectedStatus}] berhasil diperbarui${dutyWebhookConfig.webhookUrl.trim() ? ' & terkirim ke Discord!' : '!'}`,
+        message: `✅ Laporan status dinas [${selectedStatus}]${photoCountText} berhasil diperbarui${dutyWebhookConfig.webhookUrl.trim() ? ' & terkirim ke Discord!' : '!'}`,
         shiftSummary: selectedStatus === '10-7' ? `Total Durasi Dinas: ${finalDurationFormatted} (Mulai: ${startTimeStr} - Selesai: ${endTimeStr})` : undefined
       });
       setTimeout(() => {
@@ -199,8 +304,8 @@ export const DutyControlModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-[#161B22] border border-blue-900/60 rounded-xl max-w-lg w-full p-4 sm:p-5 shadow-2xl space-y-4 max-h-[94vh] overflow-y-auto font-mono">
+    <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="bg-[#161B22] border border-blue-900/60 rounded-xl max-w-xl w-full p-4 sm:p-5 shadow-2xl space-y-4 max-h-[94vh] overflow-y-auto font-mono">
         {/* Header Modal */}
         <div className="flex items-center justify-between pb-3 border-b border-gray-800">
           <div className="flex items-center gap-3">
@@ -463,30 +568,516 @@ export const DutyControlModal: React.FC<Props> = ({
                 </div>
               </div>
             </div>
+          </div>
+        )}
 
-            <div className="flex items-center gap-2 text-[11px] text-gray-400 pt-1">
-              <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-              <span>
-                {selectedStatus === '10-7' 
-                  ? 'Data durasi dinas di atas akan otomatis dicatat dan dikirimkan ke Discord Log Dinas.'
-                  : 'Timer durasi dinas berjalan secara real-time selama Anda mengaktifkan status 10-8 ON DUTY.'}
+        {/* ---------------------------------------------------- */}
+        {/* EVIDENCE PHOTO UPLOAD SECTION (10-8 vs 10-7)          */}
+        {/* ---------------------------------------------------- */}
+
+        {/* CASE 1: 10-8 ON DUTY -> 1 FOTO HP SEBELUM ON DUTY */}
+        {selectedStatus === '10-8' && (
+          <div className="p-3.5 bg-[#0D1117] border border-emerald-800/60 rounded-xl space-y-2.5">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+              <div className="flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-emerald-400" />
+                <span className="text-xs font-bold text-gray-100 uppercase tracking-wide">
+                  Bukti Foto Layar HP Sebelum On Duty
+                </span>
+              </div>
+              <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                onDutyPhoneImage ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-amber-950 text-amber-300 border border-amber-800'
+              }`}>
+                {onDutyPhoneImage ? '✅ Foto Terlampir' : '⚠️ Wajib 1 Foto HP'}
               </span>
             </div>
+
+            <p className="text-[10px] text-gray-400 leading-relaxed">
+              Unggah 1 foto tangkapan layar HP in-game sebelum memulai dinas (menampilkan jam dan status HP).
+            </p>
+
+            {/* Hidden Input Files */}
+            <input
+              type="file"
+              ref={onDutyPhoneInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleProcessFileForSlot(e.target.files[0], setOnDutyPhoneImage, 'on_duty_phone');
+                }
+                e.target.value = '';
+              }}
+            />
+            <input
+              type="file"
+              ref={onDutyPhoneCameraRef}
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleProcessFileForSlot(e.target.files[0], setOnDutyPhoneImage, 'on_duty_phone');
+                }
+                e.target.value = '';
+              }}
+            />
+
+            {/* Image Preview or Upload Dropzone */}
+            {onDutyPhoneImage ? (
+              <div className="relative group bg-black/60 rounded-lg border border-emerald-800/80 overflow-hidden p-2 flex items-center gap-3">
+                <img
+                  src={onDutyPhoneImage}
+                  alt="Foto HP Sebelum On Duty"
+                  className="w-20 h-16 object-cover rounded border border-gray-700 cursor-pointer group-hover:opacity-90 transition"
+                  onClick={() => setPreviewLightboxImg({ title: 'Foto Layar HP Sebelum On Duty', url: onDutyPhoneImage })}
+                  referrerPolicy="no-referrer"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>Foto HP Awal Dinas Terverifikasi</span>
+                  </div>
+                  <div className="text-[9px] text-gray-400 mt-0.5">
+                    Klik gambar untuk melihat ukuran penuh.
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewLightboxImg({ title: 'Foto Layar HP Sebelum On Duty', url: onDutyPhoneImage })}
+                      className="px-2 py-0.5 bg-gray-800 hover:bg-gray-700 text-gray-200 text-[10px] rounded flex items-center gap-1 transition"
+                    >
+                      <ZoomIn className="w-3 h-3" /> Perbesar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDutyPhoneInputRef.current?.click()}
+                      className="px-2 py-0.5 bg-blue-900/60 hover:bg-blue-800 text-blue-200 text-[10px] rounded flex items-center gap-1 transition"
+                    >
+                      <Upload className="w-3 h-3" /> Ganti Foto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOnDutyPhoneImage('')}
+                      className="px-2 py-0.5 bg-rose-950/60 hover:bg-rose-900 text-rose-300 text-[10px] rounded flex items-center gap-1 transition"
+                    >
+                      <Trash2 className="w-3 h-3" /> Hapus
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div 
+                className="border-2 border-dashed border-gray-700 hover:border-emerald-500 bg-black/40 hover:bg-emerald-950/20 rounded-lg p-3 text-center transition cursor-pointer flex flex-col items-center justify-center gap-2"
+                onClick={() => onDutyPhoneInputRef.current?.click()}
+              >
+                {isProcessingImg === 'on_duty_phone' ? (
+                  <div className="flex items-center gap-2 text-emerald-400 text-xs py-2">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Memproses foto HP...</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-8 h-8 rounded-full bg-emerald-950 border border-emerald-700 flex items-center justify-center text-emerald-400">
+                      <Smartphone className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-gray-200">
+                        Klik untuk Unggah Foto HP Sebelum On Duty
+                      </div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">
+                        Pilih foto dari berkas device atau gunakan kamera HP
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => onDutyPhoneInputRef.current?.click()}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold flex items-center gap-1.5 transition shadow-sm"
+                      >
+                        <Upload className="w-3 h-3" />
+                        <span>PILIH DARI DEVICE / HP</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDutyPhoneCameraRef.current?.click()}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-black rounded text-[10px] font-bold flex items-center gap-1.5 transition shadow-sm"
+                      >
+                        <Camera className="w-3 h-3" />
+                        <span>KAMERA</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 
-        {/* If selected 10-8 while previously off duty */}
-        {selectedStatus === '10-8' && !isDuty && (
-          <div className="p-3.5 bg-emerald-950/30 border border-emerald-800/60 rounded-xl space-y-1.5 text-xs text-emerald-300">
-            <div className="flex items-center gap-2 font-bold">
-              <Clock className="w-4 h-4 text-emerald-400" />
-              <span>Mulai Sesi Dinas Baru (10-8 ON DUTY)</span>
+        {/* CASE 2: 10-7 OFF DUTY -> 3 FOTO (2 FOTO KEGIATAN + 1 FOTO HP OFF DUTY) */}
+        {selectedStatus === '10-7' && (
+          <div className="p-3.5 bg-[#0D1117] border border-rose-900/70 rounded-xl space-y-3">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+              <div className="flex items-center gap-2">
+                <Camera className="w-4 h-4 text-rose-400" />
+                <span className="text-xs font-bold text-gray-100 uppercase tracking-wide">
+                  Upload 3 Berkas Bukti Lepas Dinas
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-rose-950 text-rose-300 border border-rose-800">
+                  {[offDutyActivityImage1, offDutyActivityImage2, offDutyPhoneImage].filter(Boolean).length} / 3 Foto
+                </span>
+              </div>
             </div>
-            <p className="text-[11px] text-gray-400 leading-relaxed">
-              Mengaktifkan status ini akan mencatat jam mulai dinas Anda sekarang (<code>{new Date().toLocaleTimeString('id-ID')} WIB</code>) dan mengirimkan notifikasi siap dinas ke Discord.
+
+            <p className="text-[10px] text-gray-400 leading-relaxed">
+              Sesuai SOP, wajib mengunggah <strong>2 Foto Kegiatan Patroli / Penindakan</strong> dan <strong>1 Foto Layar HP Selesai Dinas</strong>.
             </p>
+
+            {/* Master Batch Input for Off Duty */}
+            <input
+              type="file"
+              ref={offDutyBatchInputRef}
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  handleBatchOffDutyUpload(e.target.files);
+                }
+                e.target.value = '';
+              }}
+            />
+
+            {/* Batch Upload Quick Button */}
+            <button
+              type="button"
+              onClick={() => offDutyBatchInputRef.current?.click()}
+              className="w-full py-1.5 bg-blue-900/40 hover:bg-blue-900/60 border border-blue-700/60 text-blue-300 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>PILIH 3 FOTO SEKALIGUS DARI DEVICE (AUTO-SLOT)</span>
+            </button>
+
+            {/* Hidden individual inputs for 3 slots */}
+            <input
+              type="file"
+              ref={offDutyAct1InputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleProcessFileForSlot(e.target.files[0], setOffDutyActivityImage1, 'act1');
+                }
+                e.target.value = '';
+              }}
+            />
+            <input
+              type="file"
+              ref={offDutyAct1CameraRef}
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleProcessFileForSlot(e.target.files[0], setOffDutyActivityImage1, 'act1');
+                }
+                e.target.value = '';
+              }}
+            />
+
+            <input
+              type="file"
+              ref={offDutyAct2InputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleProcessFileForSlot(e.target.files[0], setOffDutyActivityImage2, 'act2');
+                }
+                e.target.value = '';
+              }}
+            />
+            <input
+              type="file"
+              ref={offDutyAct2CameraRef}
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleProcessFileForSlot(e.target.files[0], setOffDutyActivityImage2, 'act2');
+                }
+                e.target.value = '';
+              }}
+            />
+
+            <input
+              type="file"
+              ref={offDutyPhoneInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleProcessFileForSlot(e.target.files[0], setOffDutyPhoneImage, 'off_phone');
+                }
+                e.target.value = '';
+              }}
+            />
+            <input
+              type="file"
+              ref={offDutyPhoneCameraRef}
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  handleProcessFileForSlot(e.target.files[0], setOffDutyPhoneImage, 'off_phone');
+                }
+                e.target.value = '';
+              }}
+            />
+
+            {/* 3 SLOTS GRID */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {/* SLOT 1: FOTO KEGIATAN 1 */}
+              <div className={`p-2.5 rounded-lg border flex flex-col justify-between transition ${
+                offDutyActivityImage1 ? 'bg-black/60 border-blue-700/80' : 'bg-black/30 border-gray-800 hover:border-gray-700'
+              }`}>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-bold text-blue-400 flex items-center gap-1">
+                      <FileText className="w-3 h-3" /> Foto Kegiatan 1
+                    </span>
+                    <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded ${
+                      offDutyActivityImage1 ? 'bg-emerald-950 text-emerald-300' : 'bg-gray-800 text-gray-400'
+                    }`}>
+                      {offDutyActivityImage1 ? 'TERISI' : 'KOSONG'}
+                    </span>
+                  </div>
+                  <div className="text-[9px] text-gray-400 line-clamp-1 mb-2">Patroli / Penindakan #1</div>
+                </div>
+
+                {offDutyActivityImage1 ? (
+                  <div className="relative group rounded overflow-hidden aspect-[4/3] bg-black border border-gray-700">
+                    <img
+                      src={offDutyActivityImage1}
+                      alt="Kegiatan 1"
+                      className="w-full h-full object-cover cursor-pointer"
+                      onClick={() => setPreviewLightboxImg({ title: 'Foto Kegiatan Patroli #1', url: offDutyActivityImage1 })}
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewLightboxImg({ title: 'Foto Kegiatan Patroli #1', url: offDutyActivityImage1 })}
+                        className="p-1 bg-blue-600 rounded text-white"
+                        title="Perbesar"
+                      >
+                        <ZoomIn className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOffDutyActivityImage1('')}
+                        className="p-1 bg-rose-600 rounded text-white"
+                        title="Hapus"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => offDutyAct1InputRef.current?.click()}
+                    className="border border-dashed border-gray-700 hover:border-blue-500 rounded aspect-[4/3] flex flex-col items-center justify-center p-2 text-center cursor-pointer transition bg-black/40 hover:bg-blue-950/20"
+                  >
+                    {isProcessingImg === 'act1' ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 text-gray-400 mb-1" />
+                        <span className="text-[9px] font-bold text-gray-300">+ Pilih Foto</span>
+                        <span className="text-[8px] text-gray-500">Device / HP</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* SLOT 2: FOTO KEGIATAN 2 */}
+              <div className={`p-2.5 rounded-lg border flex flex-col justify-between transition ${
+                offDutyActivityImage2 ? 'bg-black/60 border-blue-700/80' : 'bg-black/30 border-gray-800 hover:border-gray-700'
+              }`}>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-bold text-blue-400 flex items-center gap-1">
+                      <FileText className="w-3 h-3" /> Foto Kegiatan 2
+                    </span>
+                    <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded ${
+                      offDutyActivityImage2 ? 'bg-emerald-950 text-emerald-300' : 'bg-gray-800 text-gray-400'
+                    }`}>
+                      {offDutyActivityImage2 ? 'TERISI' : 'KOSONG'}
+                    </span>
+                  </div>
+                  <div className="text-[9px] text-gray-400 line-clamp-1 mb-2">Patroli / Penindakan #2</div>
+                </div>
+
+                {offDutyActivityImage2 ? (
+                  <div className="relative group rounded overflow-hidden aspect-[4/3] bg-black border border-gray-700">
+                    <img
+                      src={offDutyActivityImage2}
+                      alt="Kegiatan 2"
+                      className="w-full h-full object-cover cursor-pointer"
+                      onClick={() => setPreviewLightboxImg({ title: 'Foto Kegiatan Patroli #2', url: offDutyActivityImage2 })}
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewLightboxImg({ title: 'Foto Kegiatan Patroli #2', url: offDutyActivityImage2 })}
+                        className="p-1 bg-blue-600 rounded text-white"
+                        title="Perbesar"
+                      >
+                        <ZoomIn className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOffDutyActivityImage2('')}
+                        className="p-1 bg-rose-600 rounded text-white"
+                        title="Hapus"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => offDutyAct2InputRef.current?.click()}
+                    className="border border-dashed border-gray-700 hover:border-blue-500 rounded aspect-[4/3] flex flex-col items-center justify-center p-2 text-center cursor-pointer transition bg-black/40 hover:bg-blue-950/20"
+                  >
+                    {isProcessingImg === 'act2' ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-blue-400" />
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 text-gray-400 mb-1" />
+                        <span className="text-[9px] font-bold text-gray-300">+ Pilih Foto</span>
+                        <span className="text-[8px] text-gray-500">Device / HP</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* SLOT 3: FOTO HP OFF DUTY */}
+              <div className={`p-2.5 rounded-lg border flex flex-col justify-between transition ${
+                offDutyPhoneImage ? 'bg-black/60 border-rose-700/80' : 'bg-black/30 border-gray-800 hover:border-gray-700'
+              }`}>
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-bold text-rose-400 flex items-center gap-1">
+                      <Smartphone className="w-3 h-3" /> Foto HP Selesai
+                    </span>
+                    <span className={`text-[8px] font-bold px-1.5 py-0.2 rounded ${
+                      offDutyPhoneImage ? 'bg-emerald-950 text-emerald-300' : 'bg-gray-800 text-gray-400'
+                    }`}>
+                      {offDutyPhoneImage ? 'TERISI' : 'KOSONG'}
+                    </span>
+                  </div>
+                  <div className="text-[9px] text-gray-400 line-clamp-1 mb-2">Tunjuk Layar HP Selesai</div>
+                </div>
+
+                {offDutyPhoneImage ? (
+                  <div className="relative group rounded overflow-hidden aspect-[4/3] bg-black border border-gray-700">
+                    <img
+                      src={offDutyPhoneImage}
+                      alt="Foto HP Off Duty"
+                      className="w-full h-full object-cover cursor-pointer"
+                      onClick={() => setPreviewLightboxImg({ title: 'Foto Layar HP Selesai Dinas (10-7)', url: offDutyPhoneImage })}
+                      referrerPolicy="no-referrer"
+                    />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewLightboxImg({ title: 'Foto Layar HP Selesai Dinas (10-7)', url: offDutyPhoneImage })}
+                        className="p-1 bg-blue-600 rounded text-white"
+                        title="Perbesar"
+                      >
+                        <ZoomIn className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOffDutyPhoneImage('')}
+                        className="p-1 bg-rose-600 rounded text-white"
+                        title="Hapus"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => offDutyPhoneInputRef.current?.click()}
+                    className="border border-dashed border-gray-700 hover:border-rose-500 rounded aspect-[4/3] flex flex-col items-center justify-center p-2 text-center cursor-pointer transition bg-black/40 hover:bg-rose-950/20"
+                  >
+                    {isProcessingImg === 'off_phone' ? (
+                      <RefreshCw className="w-4 h-4 animate-spin text-rose-400" />
+                    ) : (
+                      <>
+                        <Upload className="w-4 h-4 text-gray-400 mb-1" />
+                        <span className="text-[9px] font-bold text-gray-300">+ Pilih Foto</span>
+                        <span className="text-[8px] text-gray-500">HP In-Game</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
+
+        {/* OPTIONAL NOTES & CALLSIGN / PARTNER INPUT */}
+        <div className="bg-[#0D1117] p-3 rounded-lg border border-gray-800 space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] font-bold text-gray-300 block mb-1">
+                Callsign Unit (Opsional):
+              </label>
+              <input
+                type="text"
+                value={dutyCallsign}
+                onChange={(e) => setDutyCallsign(e.target.value)}
+                placeholder="UNIT-1 / ADAM-12 / LINCOLN-1"
+                className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-blue-500 rounded text-xs text-gray-200 outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-gray-300 block mb-1">
+                Rekan Patroli / Partner (Opsional):
+              </label>
+              <input
+                type="text"
+                value={dutyPartner}
+                onChange={(e) => setDutyPartner(e.target.value)}
+                placeholder="Nama Petugas Partner (Solo jika kosong)"
+                className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-blue-500 rounded text-xs text-gray-200 outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] font-bold text-gray-300 block mb-1">
+              Catatan Dinas / Ringkasan Shift (Opsional):
+            </label>
+            <input
+              type="text"
+              value={dutyNotes}
+              onChange={(e) => setDutyNotes(e.target.value)}
+              placeholder={selectedStatus === '10-8' ? 'Contoh: Patroli Area Idlewood & Rodeo' : 'Contoh: Patroli lancar, 2 tilang & 1 sita ranmor'}
+              className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-blue-500 rounded text-xs text-gray-200 outline-none"
+            />
+          </div>
+        </div>
 
         {/* Discord Webhook Auto-Sync Indicator */}
         <div className="flex items-center justify-between p-2.5 bg-[#0D1117] border border-gray-800 rounded-lg text-xs">
@@ -537,7 +1128,7 @@ export const DutyControlModal: React.FC<Props> = ({
             {isSubmitting ? (
               <>
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span>Memproses Laporan...</span>
+                <span>Mengirim Laporan & Berkas Bukti...</span>
               </>
             ) : (
               <>
@@ -550,6 +1141,51 @@ export const DutyControlModal: React.FC<Props> = ({
           </button>
         </div>
       </div>
+
+      {/* LIGHTBOX FULLSCREEN PREVIEW MODAL */}
+      {previewLightboxImg && (
+        <div 
+          className="fixed inset-0 z-60 bg-black/95 flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-150"
+          onClick={() => setPreviewLightboxImg(null)}
+        >
+          <div 
+            className="relative max-w-3xl w-full bg-[#161B22] border border-gray-800 rounded-xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-2.5 bg-[#0F1319] border-b border-gray-800 flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-200 font-mono flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-blue-400" />
+                {previewLightboxImg.title}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewLightboxImg(null)}
+                className="w-6 h-6 rounded bg-gray-800 hover:bg-rose-900 text-gray-300 hover:text-white flex items-center justify-center transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-3 bg-black flex items-center justify-center max-h-[75vh] overflow-hidden">
+              <img
+                src={previewLightboxImg.url}
+                alt={previewLightboxImg.title}
+                className="max-w-full max-h-[70vh] object-contain rounded shadow"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <div className="px-4 py-2 bg-[#0F1319] border-t border-gray-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setPreviewLightboxImg(null)}
+                className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded font-bold text-xs"
+              >
+                Tutup Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
