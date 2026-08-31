@@ -318,7 +318,6 @@ export type ModuleAccessKey =
   | 'BOLO'              // Sistem BOLO & Sitaan Lalu Lintas (Patrol / PU Hub)
   | 'IAD'               // Internal Affairs & Disiplin Anggota
   | 'FORENSICS'         // Laboratorium Forensik & Balistik
-  | 'DISPATCH'          // CAD 911 & Panic Emergency
   | 'DMV_CITIZEN'       // Database Sipil & Kendaraan DMV
   | 'SPECIAL_DIVISIONS' // Hub Divisi Khusus (SWAT, ASD, K-9, IAD, Academy)
   | 'UNIVERSAL';        // Master Access Sekali Pakai

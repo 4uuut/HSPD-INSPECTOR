@@ -71,21 +71,6 @@ export const SYNC_COLLECTIONS = {
     altStorageKeys: ['hspd_arrest_records'],
     event: 'hspd-records-updated'
   },
-  CAD_CALLS: {
-    name: 'cad_calls',
-    storageKey: 'hspd_cad_911_calls_v1',
-    event: 'hspd-cad-calls-updated'
-  },
-  PANIC_ALERTS: {
-    name: 'panic_alerts',
-    storageKey: 'hspd_cad_panic_alerts_v1',
-    event: 'hspd-panic-alerts-updated'
-  },
-  CAD_UNITS: {
-    name: 'cad_units',
-    storageKey: 'hspd_cad_active_units_v1',
-    event: 'hspd-cad-units-updated'
-  },
   CITIZENS: {
     name: 'citizens',
     storageKey: 'hspd_citizen_dmv_database_v1',

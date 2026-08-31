@@ -105,16 +105,6 @@ export const AndroidMdtView: React.FC<Props> = ({
       badgeColor: 'bg-blue-950 text-blue-300 border-blue-700'
     },
     { 
-      id: 'dispatch', 
-      title: 'CAD 911 & Panic', 
-      desc: 'Panggilan Darurat & Peta Patroli',
-      icon: Radio, 
-      color: 'from-rose-600 to-red-800',
-      moduleKey: 'DISPATCH' as ModuleAccessKey,
-      badge: 'LIVE',
-      badgeColor: 'bg-rose-950 text-rose-300 border-rose-700'
-    },
-    { 
       id: 'traffic', 
       title: 'BOLO & Sitaan Kendaraan', 
       desc: `DPO Plat Nomor & Impound (${totalBoloCount})`,
@@ -224,17 +214,17 @@ export const AndroidMdtView: React.FC<Props> = ({
         color: 'from-amber-600 to-yellow-700',
         badge: 'COMMAND',
         badgeColor: 'bg-amber-950 text-amber-300 border-amber-600'
+      },
+      { 
+        id: 'settings', 
+        title: 'Setting & Otoritas Komando', 
+        desc: 'Branding, Webhook, OTP, PIN & Export Absen',
+        icon: Settings, 
+        color: 'from-amber-700 to-yellow-900',
+        badge: 'SETTING',
+        badgeColor: 'bg-amber-950 text-amber-300 border-amber-600'
       }
-    ] : []),
-    { 
-      id: 'settings', 
-      title: 'Setting & Otoritas Komando', 
-      desc: 'Branding, Webhook, OTP, PIN & Export Absen',
-      icon: Settings, 
-      color: 'from-amber-700 to-yellow-900',
-      badge: 'SETTING',
-      badgeColor: 'bg-amber-950 text-amber-300 border-amber-600'
-    }
+    ] : [])
   ];
 
   const handleSelectApp = (id: string) => {
@@ -612,18 +602,18 @@ export const AndroidMdtView: React.FC<Props> = ({
           <span>Kalkulator</span>
         </button>
 
-        {/* Tab 2: CAD 911 Dispatch */}
+        {/* Tab 2: Dokumen Resmi */}
         <button
           type="button"
-          onClick={() => setActiveNav('dispatch')}
+          onClick={() => setActiveNav('documents')}
           className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] ${
-            activeNav === 'dispatch'
-              ? 'text-rose-400 font-bold'
+            activeNav === 'documents'
+              ? 'text-sky-400 font-bold'
               : 'text-gray-400 hover:text-gray-200'
           }`}
         >
-          <Radio className={`w-5 h-5 mb-0.5 ${activeNav === 'dispatch' ? 'scale-110 text-rose-400' : ''}`} />
-          <span>CAD 911</span>
+          <StampIcon className={`w-5 h-5 mb-0.5 ${activeNav === 'documents' ? 'scale-110 text-sky-400' : ''}`} />
+          <span>Dokumen</span>
         </button>
 
         {/* Tab 3: BOLO & Sitaan */}

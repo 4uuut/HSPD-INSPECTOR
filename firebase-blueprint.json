@@ -15,36 +15,6 @@
       },
       "required": ["id", "suspectName", "officerName", "timestamp"]
     },
-    "cad_calls": {
-      "title": "CAD 911 Emergency Calls",
-      "description": "Real-time 911 emergency calls and dispatch status",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "callNumber": { "type": "string" },
-        "callerName": { "type": "string" },
-        "callerPhone": { "type": "string" },
-        "location": { "type": "string" },
-        "priority": { "type": "string" },
-        "status": { "type": "string" },
-        "timestamp": { "type": "number" }
-      },
-      "required": ["id", "callNumber", "location", "timestamp"]
-    },
-    "panic_alerts": {
-      "title": "Officer Panic Alerts 10-99",
-      "description": "Code Red emergency panic button transmissions",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "officerName": { "type": "string" },
-        "officerBadge": { "type": "string" },
-        "location": { "type": "string" },
-        "status": { "type": "string" },
-        "timestamp": { "type": "number" }
-      },
-      "required": ["id", "officerName", "officerBadge", "location", "timestamp"]
-    },
     "citizens": {
       "title": "DMV Citizens Database",
       "description": "Citizen records, driver and gun licenses",
@@ -120,8 +90,6 @@
   "firestore": {
     "collections": {
       "arrest_records": { "entity": "arrest_records" },
-      "cad_calls": { "entity": "cad_calls" },
-      "panic_alerts": { "entity": "panic_alerts" },
       "citizens": { "entity": "citizens" },
       "forensics": { "entity": "forensics" },
       "bolos": { "entity": "bolos" },

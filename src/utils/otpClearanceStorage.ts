@@ -151,28 +151,6 @@ export const MODULE_CLEARANCE_RULES: Record<ModuleAccessKey, ModuleClearanceRule
     allowOtpBypass: true,
     iconName: 'Microscope'
   },
-  DISPATCH: {
-    key: 'DISPATCH',
-    title: 'Terminal CAD 911 & Panic Emergency System',
-    description: 'Monitoring panggilan darurat warga sipil 911, aktivasi Panic Button 10-99, & tracking pengejaran Code 3.',
-    minimumRankTier: 5, // All duty officers
-    directAccessRanks: [
-      'CHIEF OF POLICE [COP]',
-      'ASSISTANT CHIEF [A/C]',
-      'DEPUTY CHIEF [D/C]',
-      'COMMANDER [CDR]',
-      'CAPTAIN [CPT]',
-      'LIEUTENANT [LT]',
-      'SERGEANT [SGT]',
-      'SENIOR LEAD OFFICER [SLO]',
-      'POLICE OFFICER III [PO III]',
-      'POLICE OFFICER II [PO II]',
-      'POLICE OFFICER I [PO I]',
-      'CADET [CDT]'
-    ],
-    allowOtpBypass: true,
-    iconName: 'Radio'
-  },
   DMV_CITIZEN: {
     key: 'DMV_CITIZEN',
     title: 'Database Sipil & Kendaraan DMV (Citizen Registry)',
@@ -458,7 +436,6 @@ export const generateOtpCode = (module: ModuleAccessKey): string => {
     BOLO: 'OTP-BLO',
     IAD: 'OTP-IAD',
     FORENSICS: 'OTP-LAB',
-    DISPATCH: 'OTP-CAD',
     DMV_CITIZEN: 'OTP-DMV',
     SPECIAL_DIVISIONS: 'OTP-DIV',
     UNIVERSAL: 'OTP-ALL'

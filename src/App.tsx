@@ -19,7 +19,6 @@ import { OfficialDocumentStudio } from './components/OfficialDocumentStudio';
 import { DivisionBadgeHero } from './components/DivisionBadgeHero';
 import { ModuleClearanceGuard } from './components/ModuleClearanceGuard';
 import { OtpGeneratorModal } from './components/OtpGeneratorModal';
-import { CadDispatchBoard } from './components/CadDispatchBoard';
 import { SpecializedDivisionsHub } from './components/SpecializedDivisionsHub';
 import { CitizenDmvDatabase } from './components/CitizenDmvDatabase';
 import { ForensicsLabBoard } from './components/ForensicsLabBoard';
@@ -216,7 +215,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const [activeNav, setActiveNav] = useState<'calc' | 'dispatch' | 'dmv' | 'divisions' | 'forensics' | 'documents' | 'detective' | 'traffic' | 'vault' | 'destruction' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster' | 'settings'>('calc');
+  const [activeNav, setActiveNav] = useState<'calc' | 'dmv' | 'divisions' | 'forensics' | 'documents' | 'detective' | 'traffic' | 'vault' | 'destruction' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster' | 'settings'>('calc');
   const [records, setRecords] = useState<ArrestRecord[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -606,6 +605,15 @@ export default function App() {
     });
   };
 
+  // Guard: if current logged-in officer is not high rank, ensure activeNav is not 'roster' or 'settings'
+  useEffect(() => {
+    if (currentOfficer && !isOfficerHighRank(currentOfficer.rank)) {
+      if (activeNav === 'settings' || activeNav === 'roster') {
+        setActiveNav('calc');
+      }
+    }
+  }, [currentOfficer, activeNav]);
+
   // If no officer logged in, show Login / Register Portal
   if (!currentOfficer) {
     return (
@@ -825,7 +833,6 @@ export default function App() {
             <nav className="flex items-center gap-1 text-[11px] font-medium">
               {[
                 { id: 'calc', label: 'Kalkulator Pasal', icon: Calculator, code: 'CALC', moduleKey: undefined },
-                { id: 'dispatch', label: '📻 CAD 911 & Panic', icon: Radio, code: 'CAD', moduleKey: 'DISPATCH' as ModuleAccessKey },
                 { id: 'dmv', label: '👤 Sipil & DMV', icon: UserCheck, code: 'DMV', moduleKey: 'DMV_CITIZEN' as ModuleAccessKey },
                 { id: 'divisions', label: '🎖️ Divisi Khusus', icon: Award, code: 'DIV', moduleKey: 'SPECIAL_DIVISIONS' as ModuleAccessKey },
                 { id: 'forensics', label: '🔬 Lab Forensik', icon: Microscope, code: 'LAB', moduleKey: 'FORENSICS' as ModuleAccessKey },
@@ -853,15 +860,16 @@ export default function App() {
                     code: 'ROSTER',
                     moduleKey: undefined,
                     isHighRankOnly: true
+                  },
+                  {
+                    id: 'settings',
+                    label: 'Setting & Otoritas',
+                    icon: Settings,
+                    code: 'CFG',
+                    moduleKey: undefined,
+                    isHighRankOnly: true
                   }
                 ] : []),
-                {
-                  id: 'settings',
-                  label: '⚙️ Setting & Otoritas',
-                  icon: Settings,
-                  code: 'CFG',
-                  moduleKey: undefined
-                },
               ].map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeNav === tab.id;
@@ -933,17 +941,6 @@ export default function App() {
             onSaveRecord={handleSaveRecord} 
             currentOfficer={currentOfficer}
           />
-        )}
-        {activeNav === 'dispatch' && (
-          <ModuleClearanceGuard
-            moduleKey="DISPATCH"
-            currentOfficer={currentOfficer}
-            roster={roster}
-          >
-            <CadDispatchBoard
-              currentOfficer={currentOfficer}
-            />
-          </ModuleClearanceGuard>
         )}
         {activeNav === 'dmv' && (
           <ModuleClearanceGuard
@@ -1075,7 +1072,7 @@ export default function App() {
             pendingPinResetCount={pendingPinCount}
           />
         )}
-        {activeNav === 'settings' && (
+        {activeNav === 'settings' && isHighRank && (
           <SettingsView
             currentOfficer={currentOfficer}
             roster={roster}
