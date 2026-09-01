@@ -85,6 +85,102 @@ export const DOCUMENT_BOT_NAME_KEY = 'hspd_document_bot_name';
 export const DOCUMENT_BOT_AVATAR_KEY = 'hspd_document_bot_avatar';
 export const DOCUMENT_AUTO_SEND_KEY = 'hspd_document_auto_send';
 
+// Dedicated Discord Bot Token for PM / Direct Messages
+export const DISCORD_BOT_TOKEN_KEY = 'hspd_discord_bot_token';
+export const DISCORD_BOT_CUSTOM_NAME_KEY = 'hspd_discord_bot_custom_name';
+export const DISCORD_BOT_CUSTOM_AVATAR_KEY = 'hspd_discord_bot_custom_avatar';
+export const DISCORD_BOT_DEFAULT_NOTE_KEY = 'hspd_discord_bot_default_note';
+export const DISCORD_BOT_EMBED_TITLE_KEY = 'hspd_discord_bot_embed_title';
+export const DISCORD_BOT_EMBED_DESC_KEY = 'hspd_discord_bot_embed_desc';
+export const DISCORD_BOT_EMBED_COLOR_KEY = 'hspd_discord_bot_embed_color';
+export const DISCORD_BOT_FOOTER_TEXT_KEY = 'hspd_discord_bot_footer_text';
+
+export const PRESET_DISCORD_BOT_LOGOS = [
+  {
+    name: 'High State Blue Robot',
+    url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    category: 'High State'
+  },
+  {
+    name: 'HSPD Golden Police Star',
+    url: 'https://cdn-icons-png.flaticon.com/512/1022/1022331.png',
+    category: 'HSPD Official'
+  },
+  {
+    name: 'Police Department Shield',
+    url: 'https://cdn-icons-png.flaticon.com/512/942/942748.png',
+    category: 'Police Shield'
+  },
+  {
+    name: 'Tactical Cyber Badge',
+    url: 'https://cdn-icons-png.flaticon.com/512/2345/2345338.png',
+    category: 'Cyber Tactical'
+  },
+  {
+    name: 'Command Star Bureau',
+    url: 'https://cdn-icons-png.flaticon.com/512/179/179386.png',
+    category: 'High Command'
+  },
+  {
+    name: 'Special Response SWAT',
+    url: 'https://cdn-icons-png.flaticon.com/512/1022/1022370.png',
+    category: 'Special Operations'
+  }
+];
+
+export interface DiscordBotConfig {
+  botToken: string;
+  botName: string;
+  botAvatar: string;
+  defaultNote: string;
+  embedTitle: string;
+  embedDescription: string;
+  embedColor: string;
+  footerText: string;
+}
+
+export function getSavedDiscordBotConfig(): DiscordBotConfig {
+  try {
+    return {
+      botToken: localStorage.getItem(DISCORD_BOT_TOKEN_KEY) || '',
+      botName: localStorage.getItem(DISCORD_BOT_CUSTOM_NAME_KEY) || 'Cek Akun | High State',
+      botAvatar: localStorage.getItem(DISCORD_BOT_CUSTOM_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      defaultNote: localStorage.getItem(DISCORD_BOT_DEFAULT_NOTE_KEY) || 'Jangan beritahu informasi ini kepada orang lain!',
+      embedTitle: localStorage.getItem(DISCORD_BOT_EMBED_TITLE_KEY) || '✅ Berhasil!',
+      embedDescription: localStorage.getItem(DISCORD_BOT_EMBED_DESC_KEY) || 'Berikut adalah detail dari akun UCP Anda:',
+      embedColor: localStorage.getItem(DISCORD_BOT_EMBED_COLOR_KEY) || '#00A8FF',
+      footerText: localStorage.getItem(DISCORD_BOT_FOOTER_TEXT_KEY) || 'Bot High State'
+    };
+  } catch {
+    return {
+      botToken: '',
+      botName: 'Cek Akun | High State',
+      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      defaultNote: 'Jangan beritahu informasi ini kepada orang lain!',
+      embedTitle: '✅ Berhasil!',
+      embedDescription: 'Berikut adalah detail dari akun UCP Anda:',
+      embedColor: '#00A8FF',
+      footerText: 'Bot High State'
+    };
+  }
+}
+
+export function saveDiscordBotConfig(config: Partial<DiscordBotConfig>) {
+  try {
+    if (config.botToken !== undefined) localStorage.setItem(DISCORD_BOT_TOKEN_KEY, config.botToken.trim());
+    if (config.botName !== undefined) localStorage.setItem(DISCORD_BOT_CUSTOM_NAME_KEY, config.botName.trim());
+    if (config.botAvatar !== undefined) localStorage.setItem(DISCORD_BOT_CUSTOM_AVATAR_KEY, config.botAvatar.trim());
+    if (config.defaultNote !== undefined) localStorage.setItem(DISCORD_BOT_DEFAULT_NOTE_KEY, config.defaultNote.trim());
+    if (config.embedTitle !== undefined) localStorage.setItem(DISCORD_BOT_EMBED_TITLE_KEY, config.embedTitle.trim());
+    if (config.embedDescription !== undefined) localStorage.setItem(DISCORD_BOT_EMBED_DESC_KEY, config.embedDescription.trim());
+    if (config.embedColor !== undefined) localStorage.setItem(DISCORD_BOT_EMBED_COLOR_KEY, config.embedColor.trim());
+    if (config.footerText !== undefined) localStorage.setItem(DISCORD_BOT_FOOTER_TEXT_KEY, config.footerText.trim());
+    syncAllWebhooksToFirestore();
+  } catch (e) {
+    console.error('Failed to save Discord Bot settings', e);
+  }
+}
+
 export interface WebhookConfig {
   webhookUrl: string;
   botName: string;
@@ -2008,7 +2104,7 @@ export async function sendPinResetAutoGrantedWebhookToDiscord(params: {
 }
 
 /**
- * Send New Officer Induction / Registration announcement to Discord Webhook
+ * Send New Officer Induction / Registration & Login Credentials to Discord Webhook
  */
 export async function sendNewOfficerRegistrationToDiscord(params: {
   officerName: string;
@@ -2016,6 +2112,7 @@ export async function sendNewOfficerRegistrationToDiscord(params: {
   officerRank: string;
   officerDivision: string;
   officerPhone?: string;
+  discordTag?: string;
   initialPin: string;
   registeredBy: string;
   registeredByBadge: string;
@@ -2027,75 +2124,101 @@ export async function sendNewOfficerRegistrationToDiscord(params: {
   if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
     return {
       success: false,
-      message: 'URL Webhook Discord belum disetting.'
+      message: 'URL Webhook Discord belum disetting. Silakan atur di Pengaturan Webhook.'
     };
   }
 
-  const dateStr = new Date().toLocaleString('id-ID', {
-    dateStyle: 'full',
-    timeStyle: 'medium',
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('id-ID', {
+    month: 'numeric',
+    day: 'numeric',
+    year: '2-digit'
+  }) + ', ' + now.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
   });
 
+  // Calculate Discord mention string if Discord username / ID is provided
+  let mentionContent = '';
+  let formattedDiscordValue = '`-`';
+  if (params.discordTag && params.discordTag.trim()) {
+    const rawTag = params.discordTag.trim();
+    if (rawTag.startsWith('<@') && rawTag.endsWith('>')) {
+      mentionContent = rawTag;
+      formattedDiscordValue = rawTag;
+    } else if (/^\d{17,20}$/.test(rawTag)) {
+      // Numeric Discord User ID
+      mentionContent = `<@${rawTag}>`;
+      formattedDiscordValue = `<@${rawTag}> (\`${rawTag}\`)`;
+    } else {
+      // Discord Username / Tag
+      const cleanUsername = rawTag.replace(/^@/, '');
+      mentionContent = `@${cleanUsername}`;
+      formattedDiscordValue = `\`@${cleanUsername}\``;
+    }
+  }
+
+  // Primary Embed: Matches the user's requested "Cek Akun | High State" format
   const fields = [
     {
-      name: '👮 NAMA LENGKAP ANGGOTA',
-      value: `**${params.officerName}**`,
+      name: 'UCP',
+      value: `${params.officerName}`,
       inline: true,
     },
     {
-      name: '🏷️ NOMOR BADGE / LENCANA',
-      value: `\`${params.officerBadge}\``,
+      name: 'Pin Code',
+      value: `\`${params.initialPin}\``,
       inline: true,
     },
     {
-      name: '🎖️ PANGKAT DILANTIK',
-      value: `**${params.officerRank}**`,
+      name: 'Badge & Pangkat',
+      value: `\`${params.officerBadge}\` • **${params.officerRank}**`,
       inline: true,
     },
     {
-      name: '🏢 DIVISI PENUGASAN',
-      value: `**${params.officerDivision}**`,
+      name: 'Discord',
+      value: formattedDiscordValue,
       inline: true,
     },
     {
-      name: '📞 KONTAK / RADIO',
-      value: params.officerPhone ? `\`${params.officerPhone}\`` : '`-`',
+      name: 'Divisi Penugasan',
+      value: `${params.officerDivision}`,
       inline: true,
     },
     {
-      name: '👑 DIRESMIKAN OLEH',
-      value: `**${params.registeredByRank} ${params.registeredBy}** (\`${params.registeredByBadge}\`)`,
+      name: 'Diresmikan Oleh',
+      value: `${params.registeredByRank} ${params.registeredBy} (\`${params.registeredByBadge}\`)`,
       inline: true,
     },
     {
-      name: '🕒 TANGGAL PENDAFTARAN',
-      value: `${dateStr}`,
-      inline: false,
-    },
-    {
-      name: '🔐 INFORMASI LOGIN TERMINAL MDT',
-      value: `>>> Gunakan Nama Lengkap / Badge \`${params.officerBadge}\` dengan PIN Default yang telah diberikan oleh Supervisor. Segera laporkan jika membutuhkan bantuan akses.`,
+      name: 'Note',
+      value: 'Jangan beritahu informasi ini kepada orang lain!\n*Gunakan nama UCP / Badge dan Pin Code di atas untuk login ke Terminal MDT Kepolisian.*',
       inline: false,
     }
   ];
 
   const embedObj = {
-    title: `🛡️ PENGUMUMAN PENDAFTARAN PERSONEL BARU KEPOLISIAN HSPD`,
-    description: `Selamat bergabung kepada **${params.officerRank} ${params.officerName}** (\`${params.officerBadge}\`) di jajaran **State of High State Police Department**. Personel telah resmi terdaftar di database Roster Kepolisian!`,
-    color: 0x3B82F6, // Blue
+    title: `✅ Berhasil!`,
+    description: `Berikut adalah detail dari akun UCP Anda:`,
+    color: 0x22C55E, // Emerald Green #22C55E
     fields,
     footer: {
-      text: `HSPD Personnel Roster Bureau • Highstate Roleplay • ${dateStr}`,
+      text: `Bot High State • ${dateStr}`,
       icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
     },
-    timestamp: new Date().toISOString(),
+    timestamp: now.toISOString(),
   };
 
-  const payload = {
-    username: config.botName.trim() || 'HSPD Personnel & Roster Bureau',
+  const payload: Record<string, any> = {
+    username: config.botName.trim() || 'Cek Akun | High State',
     avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
     embeds: [embedObj],
   };
+
+  if (mentionContent) {
+    payload.content = `${mentionContent} Halo! Akun UCP Anda telah didaftarkan oleh Atasan Kepolisian:`;
+  }
 
   try {
     const res = await fetch(config.webhookUrl.trim(), {
@@ -2110,7 +2233,7 @@ export async function sendNewOfficerRegistrationToDiscord(params: {
 
     return {
       success: true,
-      message: `Pemberitahuan pendaftaran ${params.officerName} berhasil dikirim ke Webhook Discord!`
+      message: `Pemberitahuan akun ${params.officerName} (${params.discordTag || 'Tanpa Discord'}) berhasil dikirim ke Webhook Discord!`
     };
   } catch (err: any) {
     console.error('New Officer Webhook Error:', err);
@@ -2120,6 +2243,240 @@ export async function sendNewOfficerRegistrationToDiscord(params: {
     };
   }
 }
+
+/**
+ * Send / Resend Officer Login Credentials to Discord
+ */
+export async function sendOfficerLoginCredentialsToDiscord(params: {
+  officerName: string;
+  officerBadge: string;
+  officerRank: string;
+  officerDivision: string;
+  pin: string;
+  discordTag?: string;
+  sentBy: string;
+  sentByBadge: string;
+  sentByRank: string;
+  customConfig?: Partial<WebhookConfig>;
+}): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedRosterWebhookConfig(), ...params.customConfig };
+
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'URL Webhook Discord belum disetting. Silakan atur di Pengaturan Webhook.'
+    };
+  }
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('id-ID', {
+    month: 'numeric',
+    day: 'numeric',
+    year: '2-digit'
+  }) + ', ' + now.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  });
+
+  let mentionContent = '';
+  let formattedDiscordValue = '`-`';
+  if (params.discordTag && params.discordTag.trim()) {
+    const rawTag = params.discordTag.trim();
+    if (rawTag.startsWith('<@') && rawTag.endsWith('>')) {
+      mentionContent = rawTag;
+      formattedDiscordValue = rawTag;
+    } else if (/^\d{17,20}$/.test(rawTag)) {
+      mentionContent = `<@${rawTag}>`;
+      formattedDiscordValue = `<@${rawTag}> (\`${rawTag}\`)`;
+    } else {
+      const cleanUsername = rawTag.replace(/^@/, '');
+      mentionContent = `@${cleanUsername}`;
+      formattedDiscordValue = `\`@${cleanUsername}\``;
+    }
+  }
+
+  const fields = [
+    {
+      name: 'UCP',
+      value: `${params.officerName}`,
+      inline: true,
+    },
+    {
+      name: 'Pin Code',
+      value: `\`${params.pin}\``,
+      inline: true,
+    },
+    {
+      name: 'Badge & Pangkat',
+      value: `\`${params.officerBadge}\` • **${params.officerRank}**`,
+      inline: true,
+    },
+    {
+      name: 'Discord',
+      value: formattedDiscordValue,
+      inline: true,
+    },
+    {
+      name: 'Divisi Penugasan',
+      value: `${params.officerDivision}`,
+      inline: true,
+    },
+    {
+      name: 'Note',
+      value: 'Jangan beritahu informasi ini kepada orang lain!\n*Gunakan nama UCP / Badge dan Pin Code di atas untuk login ke Terminal MDT Kepolisian.*',
+      inline: false,
+    }
+  ];
+
+  const embedObj = {
+    title: `✅ Berhasil!`,
+    description: `Berikut adalah detail dari akun UCP Anda:`,
+    color: 0x22C55E,
+    fields,
+    footer: {
+      text: `Bot High State • ${dateStr}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    },
+    timestamp: now.toISOString(),
+  };
+
+  const payload: Record<string, any> = {
+    username: config.botName.trim() || 'Cek Akun | High State',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [embedObj],
+  };
+
+  if (mentionContent) {
+    payload.content = `${mentionContent} Halo! Berikut adalah detail kredensial akun UCP Anda yang dikirim oleh Atasan (${params.sentByRank} ${params.sentBy}):`;
+  }
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return {
+      success: true,
+      message: `Kredensial login akun ${params.officerName} berhasil dikirim ke Webhook Discord!`
+    };
+  } catch (err: any) {
+    console.error('Send Credentials Webhook Error:', err);
+    return {
+      success: false,
+      message: `Gagal mengirim ke Discord: ${err.message || 'Cek koneksi'}`
+    };
+  }
+}
+
+/**
+ * Send Direct Message (PM / DM) directly to officer's Discord Inbox via Bot
+ */
+export async function sendOfficerDirectMessageViaBot(params: {
+  userId?: string;
+  discordUserId?: string;
+  officerName: string;
+  pin: string;
+  officerBadge?: string;
+  badge?: string;
+  officerRank?: string;
+  rank?: string;
+  officerDivision?: string;
+  division?: string;
+  customNote?: string;
+  note?: string;
+  customBotToken?: string;
+  botName?: string;
+  botAvatar?: string;
+  avatarUrl?: string;
+  embedTitle?: string;
+  title?: string;
+  embedDescription?: string;
+  description?: string;
+  embedColor?: string;
+  color?: string;
+  footerText?: string;
+  customMessage?: string;
+}): Promise<{ success: boolean; message: string }> {
+  const botConfig = getSavedDiscordBotConfig();
+  const token = (params.customBotToken || botConfig.botToken || '').trim();
+  const rawId = params.discordUserId || params.userId || '';
+
+  // Extract clean numeric digits
+  const cleanId = rawId.toString().replace(/[^0-9]/g, '');
+
+  if (!cleanId || cleanId.length < 16) {
+    return {
+      success: false,
+      message: `ID Discord '${rawId || ''}' tidak valid. Untuk mengirim Pesan Pribadi (PM) otomatis via Bot, masukkan Discord User ID numerik (17-20 digit angka, contoh: 842019283719001). Caranya: Aktifkan Developer Mode di Discord Settings -> Advanced -> Klik kanan profil -> Copy User ID.`
+    };
+  }
+
+  try {
+    const res = await fetch('/api/discord/send-bot-dm', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        botToken: token,
+        userId: cleanId,
+        officerName: params.officerName,
+        pin: params.pin,
+        badge: params.officerBadge || params.badge,
+        rank: params.officerRank || params.rank,
+        division: params.officerDivision || params.division,
+        customNote: params.customNote || params.note || botConfig.defaultNote,
+        botName: params.botName || botConfig.botName,
+        avatarUrl: params.avatarUrl || params.botAvatar || botConfig.botAvatar,
+        embedTitle: params.embedTitle || params.title || botConfig.embedTitle,
+        embedDescription: params.embedDescription || params.description || botConfig.embedDescription,
+        embedColor: params.embedColor || params.color || botConfig.embedColor,
+        footerText: params.footerText || botConfig.footerText,
+        customMessage: params.customMessage
+      })
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return {
+        success: false,
+        message: data.message || `HTTP ${res.status}: Gagal mengirim PM Discord.`
+      };
+    }
+
+    return {
+      success: true,
+      message: data.message || `✅ Pesan Pribadi (PM) berhasil dikirim ke akun Discord ${params.officerName}!`
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `Gagal menghubungi server: ${err.message || err}`
+    };
+  }
+}
+
+/**
+ * Test Direct Message to an Admin's Discord User ID
+ */
+export async function testDiscordBotDirectMessage(targetUserId: string, customToken?: string): Promise<{ success: boolean; message: string }> {
+  return sendOfficerDirectMessageViaBot({
+    userId: targetUserId,
+    officerName: 'Test Account / Nexia',
+    officerBadge: '#001',
+    officerRank: 'HIGH COMMAND',
+    officerDivision: 'HQ Command',
+    pin: '20857',
+    customNote: 'Jangan beritahu informasi ini kepada orang lain!',
+    customBotToken: customToken
+  });
+}
+
 
 /**
  * Send Officer Profile / Member Information Update to Discord Webhook

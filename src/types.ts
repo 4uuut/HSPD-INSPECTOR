@@ -124,6 +124,7 @@ export interface OfficerAccount {
   division: string;
   pin: string; // Personal login PIN
   phone?: string;
+  discordTag?: string; // Discord Username / Tag / User ID (e.g. @nexia, 842019..., or nexia#1234)
   registeredAt: number;
   promotedBy?: string;
   lastLogin?: number;
@@ -140,6 +141,7 @@ export interface OfficerProfile {
   rank: OfficerRankLevel;
   division: string;
   loginTime: number;
+  discordTag?: string;
   isDuty?: boolean;
   dutyStartTime?: number;
   dutyStatus?: DutyStatusCode;
@@ -769,6 +771,7 @@ export interface OfficialDocument {
   
   recipientSignatureTitle?: string; // e.g. "Penerima Perintah / Pemohon,"
   recipientSignatureName?: string;
+  recipientSignatureSubtitle?: string; // e.g. "Citizen ID: 10492" or "Pihak Terkait" (bisa diubah atau dikosongkan)
   recipientSignatureStyle?: 'handwriting1' | 'handwriting2' | 'formal' | 'badge_stamp' | 'blank';
   recipientSignatureType?: 'font' | 'upload' | 'draw' | 'blank';
   recipientSignatureImage?: string; // Base64 upload / digital canvas

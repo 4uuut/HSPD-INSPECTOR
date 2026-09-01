@@ -517,7 +517,16 @@ export const ALL_WEBHOOK_CONFIG_KEYS = [
   'hspd_document_webhook_url',
   'hspd_document_bot_name',
   'hspd_document_bot_avatar',
-  'hspd_document_auto_send'
+  'hspd_document_auto_send',
+  // Discord Bot Direct Message (PM / DM) Keys
+  'hspd_discord_bot_token',
+  'hspd_discord_bot_custom_name',
+  'hspd_discord_bot_custom_avatar',
+  'hspd_discord_bot_default_note',
+  'hspd_discord_bot_embed_title',
+  'hspd_discord_bot_embed_desc',
+  'hspd_discord_bot_embed_color',
+  'hspd_discord_bot_footer_text'
 ];
 
 /**

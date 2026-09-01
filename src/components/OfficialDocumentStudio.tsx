@@ -1506,13 +1506,13 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                           </div>
                         )}
 
-                        {/* Detailed Fields: Label, Custom Name, Style */}
-                        <div className="grid grid-cols-2 gap-2 pt-1">
+                        {/* Detailed Fields: Label, Custom Name, Subtitle, Style */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                           <div>
                             <label className="block text-gray-400 text-[9px] mb-0.5 font-mono">LABEL JABATAN / POSISI:</label>
                             <input
                               type="text"
-                              value={activeDoc.recipientSignatureTitle || ''}
+                              value={activeDoc.recipientSignatureTitle ?? 'Pihak Penerima,'}
                               onChange={(e) => setActiveDoc(prev => ({ ...prev, recipientSignatureTitle: e.target.value }))}
                               className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs focus:border-emerald-500 focus:outline-none"
                               placeholder="Pihak Penerima / Pemohon,"
@@ -1527,6 +1527,17 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                               onChange={(e) => setActiveDoc(prev => ({ ...prev, recipientSignatureName: e.target.value }))}
                               className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs focus:border-emerald-500 focus:outline-none"
                               placeholder="Nama Pihak Penerima"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-gray-400 text-[9px] mb-0.5 font-mono">KETERANGAN / SUBTITLE:</label>
+                            <input
+                              type="text"
+                              value={activeDoc.recipientSignatureSubtitle ?? (activeDoc.recipientId ? `ID: ${activeDoc.recipientId}` : 'Pihak Terkait')}
+                              onChange={(e) => setActiveDoc(prev => ({ ...prev, recipientSignatureSubtitle: e.target.value }))}
+                              className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs focus:border-emerald-500 focus:outline-none"
+                              placeholder="Kosongkan jika tidak perlu"
                             />
                           </div>
                         </div>
@@ -2119,9 +2130,11 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                         <span className="font-bold text-[11.5px] block text-black">
                           {activeDoc.recipientSignatureName || activeDoc.recipientName}
                         </span>
-                        <span className="text-[9.5px] text-gray-600 font-mono block">
-                          {activeDoc.recipientId ? `ID: ${activeDoc.recipientId}` : 'Pihak Terkait'}
-                        </span>
+                        {activeDoc.recipientSignatureSubtitle !== '' && (
+                          <span className="text-[9.5px] text-gray-600 font-mono block">
+                            {activeDoc.recipientSignatureSubtitle ?? (activeDoc.recipientId ? `ID: ${activeDoc.recipientId}` : 'Pihak Terkait')}
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}

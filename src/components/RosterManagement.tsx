@@ -7,7 +7,8 @@ import {
   Search, CheckCircle2, AlertTriangle, KeyRound, 
   Sparkles, ShieldAlert, X, Plus, ShieldCheck, Clock, Lock,
   UserX, Trash2, AlertOctagon, Send, RotateCcw, AlertCircle, FileText, RefreshCw,
-  UserPlus, Phone, Sliders, Eye, EyeOff, Radio, Activity, FileSpreadsheet, Download, Archive
+  UserPlus, Phone, Sliders, Eye, EyeOff, Radio, Activity, FileSpreadsheet, Download, Archive,
+  MessageSquare, Bot, Upload, Image, Palette
 } from 'lucide-react';
 import { ExportAttendanceModal } from './ExportAttendanceModal';
 import { getNextAvailableBadge } from '../utils/badgeHelper';
@@ -16,9 +17,13 @@ import {
   sendOfficerDischargeToDiscord,
   sendPromotionAnnouncementToDiscord,
   sendNewOfficerRegistrationToDiscord,
+  sendOfficerLoginCredentialsToDiscord,
+  sendOfficerDirectMessageViaBot,
   getSavedWarningWebhookConfig,
   getSavedDischargeWebhookConfig,
-  getSavedPromotionWebhookConfig
+  getSavedPromotionWebhookConfig,
+  getSavedDiscordBotConfig,
+  PRESET_DISCORD_BOT_LOGOS
 } from '../utils/discordWebhook';
 import { getOfficerDutyState, formatDutyDuration } from '../utils/officerDutyStorage';
 import { HSPD_LOGO_URL } from '../assets/logo';
@@ -125,6 +130,10 @@ export const RosterManagement: React.FC<Props> = ({
   const [newRank, setNewRank] = useState<OfficerRankLevel>('POLICE OFFICER II [PO II]');
   const [newDivision, setNewDivision] = useState('');
   const [newPin, setNewPin] = useState('');
+  const [editDiscordTag, setEditDiscordTag] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [isSendingCredentials, setIsSendingCredentials] = useState(false);
+  const [sendingCredentialsId, setSendingCredentialsId] = useState<string | null>(null);
   const [showEditPin, setShowEditPin] = useState(false);
   const [showTablePins, setShowTablePins] = useState(false);
   const [revealedPins, setRevealedPins] = useState<Record<string, boolean>>({});
@@ -217,15 +226,36 @@ export const RosterManagement: React.FC<Props> = ({
   const [addDivision, setAddDivision] = useState(PRESET_DIVISIONS[0]);
   const [addCustomDivision, setAddCustomDivision] = useState('');
   const [addPin, setAddPin] = useState('10-4');
+  const [addDiscordTag, setAddDiscordTag] = useState('');
   const [addPhone, setAddPhone] = useState('');
   const [addPromotedBy, setAddPromotedBy] = useState(() => 
     `SK Pengangkatan oleh ${currentOfficerRank || 'High Command'} ${currentOfficerName || ''}`
   );
   const [addSendWebhook, setAddSendWebhook] = useState(true);
+  const [addSendDm, setAddSendDm] = useState(true);
   const [isSubmittingAdd, setIsSubmittingAdd] = useState(false);
   const [addFormError, setAddFormError] = useState('');
   const [addOfficerSuccessMsg, setAddOfficerSuccessMsg] = useState('');
   const [showAddPin, setShowAddPin] = useState(false);
+
+  // Quick Direct Message (PM via Bot Discord) Modal State
+  const [targetDmOfficer, setTargetDmOfficer] = useState<OfficerAccount | null>(null);
+  const [targetDmUserId, setTargetDmUserId] = useState('');
+  const [targetDmBotName, setTargetDmBotName] = useState('Cek Akun | High State');
+  const [targetDmLogoUrl, setTargetDmLogoUrl] = useState('https://cdn-icons-png.flaticon.com/512/1022/1022382.png');
+  const [targetDmEmbedTitle, setTargetDmEmbedTitle] = useState('✅ Berhasil!');
+  const [targetDmEmbedDescription, setTargetDmEmbedDescription] = useState('Berikut adalah detail dari akun UCP Anda:');
+  const [targetDmEmbedColor, setTargetDmEmbedColor] = useState('#00A8FF');
+  const [targetDmFooterText, setTargetDmFooterText] = useState('Bot High State');
+  const [targetDmCustomNote, setTargetDmCustomNote] = useState('Jangan beritahu informasi ini kepada orang lain!');
+  const [targetDmOfficerName, setTargetDmOfficerName] = useState('');
+  const [targetDmPin, setTargetDmPin] = useState('');
+  const [targetDmBadge, setTargetDmBadge] = useState('');
+  const [targetDmRank, setTargetDmRank] = useState('');
+  const [targetDmDivision, setTargetDmDivision] = useState('');
+  const [showAdvancedDmSettings, setShowAdvancedDmSettings] = useState(false);
+  const [isSendingBotDm, setIsSendingBotDm] = useState(false);
+  const [botDmResultNotice, setBotDmResultNotice] = useState<{ success: boolean; message: string } | null>(null);
 
   // Check if current officer holds one of the 4 High Command ranks
   const isCurrentOfficerCommand = isOfficerHighRank(currentOfficerRank);
@@ -243,9 +273,11 @@ export const RosterManagement: React.FC<Props> = ({
     setAddDivision(PRESET_DIVISIONS[0]);
     setAddCustomDivision('');
     setAddPin('10-4');
+    setAddDiscordTag('');
     setAddPhone('');
     setAddPromotedBy(`SK Pengangkatan oleh ${currentOfficerRank || 'High Command'} ${currentOfficerName || ''}`);
     setAddSendWebhook(true);
+    setAddSendDm(true);
     setAddFormError('');
     setAddOfficerSuccessMsg('');
     setIsAddOfficerModalOpen(true);
@@ -316,6 +348,7 @@ export const RosterManagement: React.FC<Props> = ({
       rank: addRank,
       division: finalDivision,
       phone: addPhone.trim() || undefined,
+      discordTag: addDiscordTag.trim() || undefined,
       pin: trimmedPin,
       registeredAt: Date.now(),
       promotedBy: addPromotedBy.trim() || `SK Pengangkatan oleh ${currentOfficerRank || 'High Command'} ${currentOfficerName || ''}`,
@@ -323,7 +356,27 @@ export const RosterManagement: React.FC<Props> = ({
     };
 
     try {
-      // 1. Send Discord Webhook Announcement if enabled
+      // 1. Send Direct Message (PM / DM) via Discord Bot directly to officer's Discord inbox if requested
+      let dmStatusText = '';
+      if (addSendDm && addDiscordTag.trim()) {
+        try {
+          const dmRes = await sendOfficerDirectMessageViaBot({
+            discordUserId: addDiscordTag.trim(),
+            officerName: trimmedName,
+            pin: trimmedPin,
+            badge: trimmedBadge,
+            rank: addRank,
+            note: 'Jangan beritahu informasi ini kepada orang lain!'
+          });
+          if (dmRes.success) {
+            dmStatusText = ' & Kredensial login dikirim ke PM Discord (Direct Message)!';
+          }
+        } catch (botErr) {
+          console.warn('Bot PM dispatch skipped or encountered error:', botErr);
+        }
+      }
+
+      // 2. Send Discord Webhook Announcement & Credential Dispatch if enabled
       if (addSendWebhook) {
         await sendNewOfficerRegistrationToDiscord({
           officerName: trimmedName,
@@ -331,6 +384,7 @@ export const RosterManagement: React.FC<Props> = ({
           officerRank: addRank,
           officerDivision: finalDivision,
           officerPhone: addPhone.trim() || undefined,
+          discordTag: addDiscordTag.trim() || undefined,
           initialPin: trimmedPin,
           registeredBy: currentOfficerName || 'High Command',
           registeredByBadge: currentOfficerBadge || '#001',
@@ -338,7 +392,7 @@ export const RosterManagement: React.FC<Props> = ({
         });
       }
 
-      // 2. Call handler or update roster
+      // 3. Call handler or update roster
       if (onRegisterOfficer) {
         onRegisterOfficer(newAccount);
       } else {
@@ -352,13 +406,14 @@ export const RosterManagement: React.FC<Props> = ({
         setAddBadge(nextSequentialBadge);
         setIsManualBadge(false);
         setAddName('');
+        setAddDiscordTag('');
         setAddPhone('');
-        setAddOfficerSuccessMsg(`✅ Petugas ${trimmedName} (${trimmedBadge}) sukses didaftarkan! Badge otomatis berlanjut ke ${nextSequentialBadge} untuk anggota berikutnya.`);
-        setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) berhasil ditambahkan ke Roster!`);
+        setAddOfficerSuccessMsg(`✅ Petugas ${trimmedName} (${trimmedBadge}) sukses didaftarkan!${dmStatusText} Badge otomatis berlanjut ke ${nextSequentialBadge} untuk anggota berikutnya.`);
+        setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) berhasil ditambahkan ke Roster!${dmStatusText}`);
         setTimeout(() => setSuccessNotice(''), 5000);
       } else {
         setIsAddOfficerModalOpen(false);
-        setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) pangkat ${addRank} berhasil ditambahkan ke Roster dan disahkan!`);
+        setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) pangkat ${addRank} berhasil ditambahkan ke Roster dan disahkan!${dmStatusText}`);
         setTimeout(() => setSuccessNotice(''), 6000);
       }
     } catch (err: any) {
@@ -370,6 +425,7 @@ export const RosterManagement: React.FC<Props> = ({
         setAddBadge(nextSequentialBadge);
         setIsManualBadge(false);
         setAddName('');
+        setAddDiscordTag('');
         setAddPhone('');
         setAddOfficerSuccessMsg(`✅ Personel ${trimmedName} (${trimmedBadge}) tersimpan di database! Badge baru: ${nextSequentialBadge}.`);
       } else {
@@ -388,6 +444,8 @@ export const RosterManagement: React.FC<Props> = ({
       officer.badge.toLowerCase().includes(searchQuery.toLowerCase()) ||
       officer.rank.toLowerCase().includes(searchQuery.toLowerCase()) ||
       officer.division.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (officer.discordTag && officer.discordTag.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (officer.phone && officer.phone.includes(searchQuery)) ||
       (officer.pin && officer.pin.includes(searchQuery));
     
     if (!matchesSearch) return false;
@@ -410,6 +468,8 @@ export const RosterManagement: React.FC<Props> = ({
     setNewRank(officer.rank);
     setNewDivision(officer.division);
     setNewPin(officer.pin || '10-4');
+    setEditDiscordTag(officer.discordTag || '');
+    setEditPhone(officer.phone || '');
     setShowEditPin(false);
     setPromotionPresetReason(PRESET_PROMOTION_REASONS[0]);
     setPromotionDetailReason('');
@@ -606,6 +666,8 @@ export const RosterManagement: React.FC<Props> = ({
       rank: newRank,
       division: newDivision || editingOfficer.division,
       pin: finalPin,
+      discordTag: editDiscordTag.trim() || undefined,
+      phone: editPhone.trim() || undefined,
       promotedBy: promotedByText,
       _updatedAt: Date.now()
     };
@@ -635,7 +697,7 @@ export const RosterManagement: React.FC<Props> = ({
       }
 
       onUpdateOfficer(updated);
-      setSuccessNotice(`✅ Berhasil memperbarui data & PIN akun ${editingOfficer.name} (${editingOfficer.badge})!${isRankChanged ? ` SK Promosi ke ${newRank} telah dicatat.` : ''}`);
+      setSuccessNotice(`✅ Berhasil memperbarui data, Discord & PIN akun ${editingOfficer.name} (${editingOfficer.badge})!${isRankChanged ? ` SK Promosi ke ${newRank} telah dicatat.` : ''}`);
       setEditingOfficer(null);
       setTimeout(() => setSuccessNotice(''), 5000);
     } catch (err) {
@@ -644,6 +706,109 @@ export const RosterManagement: React.FC<Props> = ({
       setEditingOfficer(null);
     } finally {
       setIsSubmittingRankUpdate(false);
+    }
+  };
+
+  // Direct send login credentials (UCP & PIN Code) to Discord
+  const handleSendDirectCredentials = async (officer: OfficerAccount) => {
+    try {
+      setSendingCredentialsId(officer.id || officer.name);
+      const res = await sendOfficerLoginCredentialsToDiscord({
+        officerName: officer.name,
+        officerBadge: officer.badge,
+        officerRank: officer.rank,
+        officerDivision: officer.division,
+        pin: officer.pin || '10-4',
+        discordTag: officer.discordTag,
+        sentBy: currentOfficerName || 'High Command',
+        sentByBadge: currentOfficerBadge || '#001',
+        sentByRank: currentOfficerRank || 'HIGH COMMAND'
+      });
+      if (res.success) {
+        setSuccessNotice(`✅ Kredensial akun login (UCP & PIN) ${officer.name} (${officer.discordTag || 'Akun UCP'}) berhasil dikirim ke Webhook Discord!`);
+      } else {
+        alert(res.message);
+      }
+      setTimeout(() => setSuccessNotice(''), 5000);
+    } catch (e: any) {
+      alert(`Gagal mengirim ke Discord: ${e.message || 'Periksa koneksi webhook'}`);
+    } finally {
+      setSendingCredentialsId(null);
+    }
+  };
+
+  // Open Bot DM (Pesan Pribadi) Modal for an officer
+  const handleOpenBotDmModal = (officer: OfficerAccount) => {
+    setTargetDmOfficer(officer);
+    const rawTag = (officer.discordTag || '').trim();
+    const digitsOnly = rawTag.replace(/\D/g, '');
+    setTargetDmUserId(digitsOnly || rawTag);
+    
+    const botCfg = getSavedDiscordBotConfig();
+    setTargetDmBotName(botCfg.botName || 'Cek Akun | High State');
+    setTargetDmLogoUrl(botCfg.botAvatar || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png');
+    setTargetDmEmbedTitle(botCfg.embedTitle || '✅ Berhasil!');
+    setTargetDmEmbedDescription(botCfg.embedDescription || 'Berikut adalah detail dari akun UCP Anda:');
+    setTargetDmEmbedColor(botCfg.embedColor || '#00A8FF');
+    setTargetDmFooterText(botCfg.footerText || 'Bot High State');
+    setTargetDmCustomNote(botCfg.defaultNote || 'Jangan beritahu informasi ini kepada orang lain!');
+    
+    setTargetDmOfficerName(officer.name);
+    setTargetDmPin(officer.pin || '10-4');
+    setTargetDmBadge(officer.badge);
+    setTargetDmRank(officer.rank);
+    setTargetDmDivision(officer.division || 'Patrol Bureau');
+    setBotDmResultNotice(null);
+    setShowAdvancedDmSettings(false);
+  };
+
+  // Execute sending Bot Direct Message (PM / DM)
+  const handleExecuteSendBotDm = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!targetDmOfficer) return;
+    if (!targetDmUserId.trim()) {
+      setBotDmResultNotice({
+        success: false,
+        message: 'Masukkan Discord User ID anggota target (17-20 digit angka)!'
+      });
+      return;
+    }
+
+    setIsSendingBotDm(true);
+    setBotDmResultNotice(null);
+    try {
+      const res = await sendOfficerDirectMessageViaBot({
+        discordUserId: targetDmUserId.trim(),
+        officerName: targetDmOfficerName.trim() || targetDmOfficer.name,
+        pin: targetDmPin.trim() || targetDmOfficer.pin || '10-4',
+        badge: targetDmBadge.trim() || targetDmOfficer.badge,
+        rank: targetDmRank.trim() || targetDmOfficer.rank,
+        division: targetDmDivision.trim() || targetDmOfficer.division,
+        note: targetDmCustomNote.trim() || 'Jangan beritahu informasi ini kepada orang lain!',
+        botName: targetDmBotName.trim(),
+        botAvatar: targetDmLogoUrl.trim(),
+        embedTitle: targetDmEmbedTitle.trim(),
+        embedDescription: targetDmEmbedDescription.trim(),
+        embedColor: targetDmEmbedColor.trim(),
+        footerText: targetDmFooterText.trim()
+      });
+
+      setBotDmResultNotice(res);
+      if (res.success) {
+        if (targetDmOfficer.discordTag !== targetDmUserId.trim()) {
+          const updated = { ...targetDmOfficer, discordTag: targetDmUserId.trim() };
+          onUpdateOfficer(updated);
+        }
+        setSuccessNotice(`✅ Kredensial akun login (UCP & PIN) berhasil dikirim ke Pesan Pribadi (PM/DM) Discord milik ${targetDmOfficer.name}!`);
+        setTimeout(() => setSuccessNotice(''), 6000);
+      }
+    } catch (err: any) {
+      setBotDmResultNotice({
+        success: false,
+        message: err.message || 'Gagal mengirim PM via Bot Discord'
+      });
+    } finally {
+      setIsSendingBotDm(false);
     }
   };
 
@@ -944,7 +1109,7 @@ export const RosterManagement: React.FC<Props> = ({
                             <User className="w-3.5 h-3.5" />
                           </div>
                           <div>
-                            <div className="font-bold text-gray-100 flex items-center gap-1.5">
+                            <div className="font-bold text-gray-100 flex items-center gap-1.5 flex-wrap">
                               <span>{officer.name}</span>
                               {isSelf && (
                                 <span className="text-[9px] bg-blue-900/60 text-blue-300 px-1.5 py-0.2 rounded border border-blue-700 font-normal">
@@ -952,7 +1117,15 @@ export const RosterManagement: React.FC<Props> = ({
                                 </span>
                               )}
                             </div>
-                            <div className="text-[10px] text-gray-500">Badge: <span className="text-gray-300">{officer.badge}</span></div>
+                            <div className="flex items-center gap-2 text-[10px] text-gray-400 mt-0.5 flex-wrap">
+                              <span>Badge: <strong className="text-gray-300 font-mono">{officer.badge}</strong></span>
+                              {officer.discordTag && (
+                                <span className="text-indigo-300 font-mono bg-indigo-950/70 border border-indigo-700/60 px-1.5 py-0.2 rounded text-[9px] flex items-center gap-1" title={`Discord: ${officer.discordTag}`}>
+                                  <MessageSquare className="w-2.5 h-2.5 text-indigo-400" />
+                                  <span>{officer.discordTag}</span>
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -1063,6 +1236,31 @@ export const RosterManagement: React.FC<Props> = ({
                         <div className="flex items-center justify-end gap-1.5">
                           {isCurrentOfficerCommand ? (
                             <>
+                              {/* Send PM via Discord Bot Button */}
+                              <button
+                                onClick={() => handleOpenBotDmModal(officer)}
+                                className="px-2 py-1 bg-sky-950/90 hover:bg-sky-800 text-sky-300 hover:text-white border border-sky-700/80 rounded text-[10px] font-bold transition flex items-center gap-1 shadow-sm"
+                                title="Kirim kredensial login (UCP & PIN) langsung ke Pesan Pribadi (PM / DM) Discord anggota"
+                              >
+                                <Bot className="w-3 h-3 text-sky-400" />
+                                <span className="hidden sm:inline">PM BOT</span>
+                              </button>
+
+                              {/* Send Discord Webhook Credentials Button */}
+                              <button
+                                onClick={() => handleSendDirectCredentials(officer)}
+                                disabled={sendingCredentialsId === (officer.id || officer.name)}
+                                className="px-2 py-1 bg-indigo-950/90 hover:bg-indigo-800 text-indigo-300 hover:text-white border border-indigo-700/80 rounded text-[10px] font-bold transition flex items-center gap-1 shadow-sm"
+                                title="Kirim/Broadcast kredensial akun login (UCP, Badge, & PIN) ke Saluran Webhook Discord"
+                              >
+                                {sendingCredentialsId === (officer.id || officer.name) ? (
+                                  <RefreshCw className="w-3 h-3 animate-spin text-indigo-300" />
+                                ) : (
+                                  <Send className="w-3 h-3 text-indigo-400" />
+                                )}
+                                <span className="hidden lg:inline">WEBHOOK</span>
+                              </button>
+
                               {/* Warning Button */}
                               <button
                                 onClick={() => handleStartWarning(officer)}
@@ -1625,6 +1823,99 @@ export const RosterManagement: React.FC<Props> = ({
                 </div>
               </div>
 
+              {/* Discord Tag & No. Telepon / Radio */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-indigo-950/20 border border-indigo-900/50 rounded-lg">
+                <div>
+                  <label className="text-[11px] font-bold text-indigo-300 uppercase flex items-center gap-1 mb-1">
+                    <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Akun / Tag Discord Petugas:</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editDiscordTag}
+                    onChange={(e) => setEditDiscordTag(e.target.value)}
+                    placeholder="Contoh: @nexia / 842019283719001"
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-indigo-700/60 focus:border-indigo-400 rounded text-xs text-indigo-200 outline-none font-mono"
+                  />
+                  <span className="text-[9px] text-gray-400 mt-0.5 block">
+                    Digunakan untuk mention & bot pengirim akun login
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-gray-300 uppercase flex items-center gap-1 mb-1">
+                    <Phone className="w-3.5 h-3.5 text-gray-400" />
+                    <span>No. Kontak / Radio (Opsional):</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    placeholder="Contoh: 555-0199 / Freq 1111"
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded text-xs text-gray-200 outline-none font-mono"
+                  />
+                  <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5">
+                    {/* Bot PM Direct Message Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!editingOfficer) return;
+                        handleOpenBotDmModal({
+                          ...editingOfficer,
+                          rank: newRank,
+                          division: newDivision || editingOfficer.division,
+                          pin: newPin.trim() || editingOfficer.pin,
+                          discordTag: editDiscordTag.trim() || editingOfficer.discordTag
+                        });
+                      }}
+                      className="text-[10px] bg-sky-900/80 hover:bg-sky-700 text-sky-200 px-2 py-1 rounded border border-sky-600 transition flex items-center gap-1 font-bold cursor-pointer"
+                      title="Kirim kredensial login (UCP & PIN) langsung ke Pesan Pribadi (PM / DM) Discord anggota ini"
+                    >
+                      <Bot className="w-3 h-3 text-sky-400" />
+                      <span>Kirim PM Bot (DM)</span>
+                    </button>
+
+                    {/* Webhook Broadcast Button */}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!editingOfficer) return;
+                        setIsSendingCredentials(true);
+                        try {
+                          const res = await sendOfficerLoginCredentialsToDiscord({
+                            officerName: editingOfficer.name,
+                            officerBadge: editingOfficer.badge,
+                            officerRank: newRank,
+                            officerDivision: newDivision || editingOfficer.division,
+                            pin: newPin.trim() || editingOfficer.pin || '10-4',
+                            discordTag: editDiscordTag.trim() || undefined,
+                            sentBy: currentOfficerName || 'High Command',
+                            sentByBadge: currentOfficerBadge || '#001',
+                            sentByRank: currentOfficerRank || 'HIGH COMMAND'
+                          });
+                          if (res.success) {
+                            setSuccessNotice(`✅ Kredensial login ${editingOfficer.name} berhasil dikirim ke Saluran Webhook Discord!`);
+                          } else {
+                            alert(res.message);
+                          }
+                          setTimeout(() => setSuccessNotice(''), 5000);
+                        } catch (e: any) {
+                          alert(`Gagal mengirim kredensial: ${e.message}`);
+                        } finally {
+                          setIsSendingCredentials(false);
+                        }
+                      }}
+                      disabled={isSendingCredentials}
+                      className="text-[10px] bg-indigo-900/80 hover:bg-indigo-700 text-indigo-200 px-2 py-1 rounded border border-indigo-600 transition flex items-center gap-1 font-bold disabled:opacity-50 cursor-pointer"
+                      title="Kirim detail akun login (UCP & PIN) ke Saluran Webhook Discord"
+                    >
+                      {isSendingCredentials ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3 text-indigo-300" />}
+                      <span>Kirim ke Webhook</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               {/* PROMOTION / RANK CHANGE REASON & WEBHOOK DISPATCH SECTION */}
               {newRank !== editingOfficer.rank ? (
                 <div className="p-3.5 bg-amber-950/40 border border-amber-600/70 rounded-lg space-y-2.5">
@@ -1876,33 +2167,51 @@ export const RosterManagement: React.FC<Props> = ({
                 )}
               </div>
 
-              {/* PIN Login Awal & No. Telepon / Radio */}
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+              {/* PIN Login Awal */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-amber-300 uppercase flex items-center gap-1">
+                    <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                    <span>PIN Login Terminal MDT Petugas <span className="text-rose-400">*</span></span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddPin(!showAddPin)}
+                    className="text-[10px] text-amber-400 hover:underline flex items-center gap-0.5"
+                  >
+                    {showAddPin ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                    <span>{showAddPin ? 'Hide' : 'Show'}</span>
+                  </button>
+                </div>
+                <input
+                  type={showAddPin ? 'text' : 'password'}
+                  value={addPin}
+                  onChange={(e) => setAddPin(e.target.value)}
+                  placeholder="10-4"
+                  className="w-full px-3 py-2 bg-[#0D1117] border border-amber-600/70 focus:border-amber-400 rounded-lg text-xs text-amber-200 outline-none font-mono font-bold"
+                  required
+                />
+                <span className="text-[9px] text-gray-400 block">
+                  Default awal: <strong>10-4</strong> (dapat diubah nanti oleh petugas/High Command)
+                </span>
+              </div>
+
+              {/* Tag Discord & No. Telepon / Radio */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3 bg-indigo-950/20 border border-indigo-900/60 rounded-lg">
                 <div className="sm:col-span-6 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-bold text-gray-300 uppercase flex items-center gap-1">
-                      <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                      <span>PIN Login Terminal MDT <span className="text-rose-400">*</span></span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowAddPin(!showAddPin)}
-                      className="text-[10px] text-amber-400 hover:underline flex items-center gap-0.5"
-                    >
-                      {showAddPin ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                      <span>{showAddPin ? 'Hide' : 'Show'}</span>
-                    </button>
-                  </div>
+                  <label className="text-[10px] font-bold text-indigo-300 uppercase flex items-center gap-1">
+                    <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Nama / Discord User ID (Untuk PM Langsung)</span>
+                  </label>
                   <input
-                    type={showAddPin ? 'text' : 'password'}
-                    value={addPin}
-                    onChange={(e) => setAddPin(e.target.value)}
-                    placeholder="10-4"
-                    className="w-full px-3 py-2 bg-[#0D1117] border border-amber-600/70 focus:border-amber-400 rounded-lg text-xs text-amber-200 outline-none font-mono font-bold"
-                    required
+                    type="text"
+                    value={addDiscordTag}
+                    onChange={(e) => setAddDiscordTag(e.target.value)}
+                    placeholder="Contoh: 842019283719001 / @nexia"
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-indigo-700/60 focus:border-indigo-400 rounded-lg text-xs text-indigo-200 placeholder:text-gray-600 outline-none font-mono"
                   />
-                  <span className="text-[9px] text-gray-500 block">
-                    Default awal: 10-4 (dapat diubah nanti)
+                  <span className="text-[9px] text-indigo-400/80 block">
+                    Gunakan <strong>User ID angka</strong> (Copy ID) agar bot dapat langsung mengirim PM
                   </span>
                 </div>
 
@@ -1918,6 +2227,9 @@ export const RosterManagement: React.FC<Props> = ({
                     placeholder="Contoh: 555-0199 / Freq 1111"
                     className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-200 outline-none font-mono"
                   />
+                  <span className="text-[9px] text-gray-500 block">
+                    Frekuensi radio patroli atau telepon IC
+                  </span>
                 </div>
               </div>
 
@@ -1935,20 +2247,46 @@ export const RosterManagement: React.FC<Props> = ({
                 />
               </div>
 
-              {/* Discord Webhook Toggle Box */}
-              <div className="p-3 bg-blue-950/30 border border-blue-800/60 rounded-lg space-y-1">
-                <label className="flex items-center gap-2 text-xs text-blue-200 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={addSendWebhook}
-                    onChange={(e) => setAddSendWebhook(e.target.checked)}
-                    className="w-4 h-4 rounded border-gray-700 text-blue-600 focus:ring-0 cursor-pointer"
-                  />
-                  <span className="font-bold">📢 Kirim Pengumuman Personel Baru ke Webhook Discord</span>
-                </label>
-                <p className="text-[10px] text-gray-400 pl-6">
-                  Broadcast induction resmi ke channel Discord Roster / Personel Markas Besar.
-                </p>
+              {/* Discord Delivery Options */}
+              <div className="p-3 bg-sky-950/30 border border-sky-800/60 rounded-lg space-y-2.5">
+                <div className="text-[11px] font-bold text-sky-300 flex items-center gap-1.5">
+                  <Bot className="w-4 h-4 text-sky-400" />
+                  <span>METODE PENGIRIMAN AKUN LOGIN KE ANGGOTA:</span>
+                </div>
+
+                <div className="space-y-2 pl-1">
+                  {/* Option 1: Direct Message PM via Bot */}
+                  <label className="flex items-start gap-2 text-xs text-sky-200 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={addSendDm}
+                      onChange={(e) => setAddSendDm(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-700 text-sky-600 focus:ring-0 cursor-pointer mt-0.5"
+                    />
+                    <div>
+                      <span className="font-bold text-gray-100">✉️ Kirim Kredensial Login Langsung ke Pesan Pribadi (PM / DM) Discord</span>
+                      <div className="text-[10px] text-gray-400">
+                        Bot <strong className="text-sky-300">Cek Akun | High State</strong> akan mengirimkan pesan embed (UCP & PIN) langsung ke DM akun Discord anggota secara rahasia.
+                      </div>
+                    </div>
+                  </label>
+
+                  {/* Option 2: Channel Webhook */}
+                  <label className="flex items-start gap-2 text-xs text-indigo-200 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={addSendWebhook}
+                      onChange={(e) => setAddSendWebhook(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-700 text-indigo-600 focus:ring-0 cursor-pointer mt-0.5"
+                    />
+                    <div>
+                      <span className="font-bold text-gray-100">📢 Kirim Pengumuman & Kredensial ke Saluran Webhook Discord</span>
+                      <div className="text-[10px] text-gray-400">
+                        Mengirim embed pengumuman anggota baru ke saluran Discord Roster / Pendaftaran.
+                      </div>
+                    </div>
+                  </label>
+                </div>
               </div>
 
               {/* Action Buttons */}
@@ -1978,12 +2316,371 @@ export const RosterManagement: React.FC<Props> = ({
                   {isSubmittingAdd ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Mendaftarkan & Broadcast...</span>
+                      <span>Mendaftarkan & Mengirim...</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="w-4 h-4" />
                       <span>Simpan & Selesai</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL QUICK SEND PM BOT DISCORD ================= */}
+      {targetDmOfficer && (
+        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-[#161B22] border border-sky-600/80 rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col font-mono text-xs max-h-[92vh]">
+            <div className="bg-[#0D1117] border-b border-gray-800 px-4 py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Bot className="w-4 h-4 text-sky-400" />
+                <h3 className="font-bold text-gray-100 uppercase tracking-wide">
+                  Kirim & Kustomisasi Pesan Pribadi (PM / DM) Discord
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTargetDmOfficer(null)}
+                className="text-gray-400 hover:text-white transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleExecuteSendBotDm} className="p-4 space-y-4 overflow-y-auto">
+              {/* Officer Target Badge Card */}
+              <div className="p-3 bg-sky-950/40 border border-sky-800/80 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="text-[10px] text-gray-400 uppercase font-bold">Penerima Pesan:</div>
+                  <div className="text-sm font-bold text-gray-100">{targetDmOfficer.name}</div>
+                  <div className="text-[11px] text-sky-300">
+                    Badge: <strong>{targetDmOfficer.badge}</strong> • Pangkat: <strong>{targetDmOfficer.rank}</strong>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold bg-sky-900/60 text-sky-300 px-2 py-1 rounded border border-sky-700">
+                    UCP: {targetDmOfficer.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedDmSettings(!showAdvancedDmSettings)}
+                    className="text-[11px] font-bold px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-sky-300 border border-sky-800 rounded transition flex items-center gap-1.5"
+                  >
+                    <Palette className="w-3.5 h-3.5" />
+                    <span>{showAdvancedDmSettings ? 'Tutup Kustomisasi' : 'Kustomisasi Desain & Logo'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Discord User ID Input */}
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold text-gray-200 uppercase">
+                  DISCORD USER ID TARGET: <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={targetDmUserId}
+                  onChange={(e) => setTargetDmUserId(e.target.value)}
+                  placeholder="Contoh: 842019283719001 (17-20 digit angka)"
+                  className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-sky-500 rounded text-xs text-sky-200 outline-none font-mono"
+                  required
+                />
+                <div className="text-[10px] text-gray-400">
+                  💡 <strong>Cara dapat User ID:</strong> Di Discord, buka <em>Settings &gt; Advanced &gt; Developer Mode (Aktifkan)</em>. Klik kanan profil &gt; <strong>Copy User ID</strong>.
+                </div>
+              </div>
+
+              {/* ADVANCED CUSTOMIZATION: EDIT MESSAGE & LOGO (BY ATASAN / ADMIN) */}
+              {showAdvancedDmSettings && (
+                <div className="p-3.5 bg-[#0D1117] border border-sky-800/80 rounded-lg space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+                    <div className="font-bold text-sky-300 text-xs flex items-center gap-1.5">
+                      <Sliders className="w-3.5 h-3.5" />
+                      <span>KUSTOMISASI LOGO & KONTEN PESAN OLEH ATASAN:</span>
+                    </div>
+                    <span className="text-[10px] text-gray-400">Dapat diedit manual sebelum dikirim</span>
+                  </div>
+
+                  {/* LOGO CHANGER */}
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-bold text-gray-300 uppercase">
+                      PILIH LOGO / AVATAR PESAN BOT:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                      {PRESET_DISCORD_BOT_LOGOS.map((preset, idx) => {
+                        const isSelected = targetDmLogoUrl === preset.url;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setTargetDmLogoUrl(preset.url)}
+                            className={`p-1.5 rounded border text-left flex items-center gap-1.5 transition ${
+                              isSelected 
+                                ? 'bg-sky-950/80 border-sky-500 ring-1 ring-sky-500 text-sky-200' 
+                                : 'bg-[#161B22] border-gray-800 hover:border-gray-700 text-gray-400'
+                            }`}
+                          >
+                            <img
+                              src={preset.url}
+                              alt={preset.name}
+                              referrerPolicy="no-referrer"
+                              className="w-6 h-6 rounded-full object-cover bg-black/40 p-0.5 border border-gray-700 shrink-0"
+                            />
+                            <span className="text-[10px] font-bold truncate">{preset.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                      <input
+                        type="url"
+                        value={targetDmLogoUrl}
+                        onChange={(e) => setTargetDmLogoUrl(e.target.value)}
+                        placeholder="Link URL Logo Kustom..."
+                        className="sm:col-span-2 px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none font-mono"
+                      />
+                      <label className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 rounded text-[11px] font-bold cursor-pointer transition">
+                        <Upload className="w-3 h-3 text-sky-400" />
+                        <span>Upload Logo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (loadEvt) => {
+                                const dataUrl = loadEvt.target?.result as string;
+                                if (dataUrl) setTargetDmLogoUrl(dataUrl);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* EDIT EMBED TITLES & DESCRIPTIONS */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                        Header Author / Bot:
+                      </label>
+                      <input
+                        type="text"
+                        value={targetDmBotName}
+                        onChange={(e) => setTargetDmBotName(e.target.value)}
+                        placeholder="Cek Akun | High State"
+                        className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                        Judul Pesan Embed:
+                      </label>
+                      <input
+                        type="text"
+                        value={targetDmEmbedTitle}
+                        onChange={(e) => setTargetDmEmbedTitle(e.target.value)}
+                        placeholder="✅ Berhasil!"
+                        className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                      Deskripsi / Sub-Header:
+                    </label>
+                    <input
+                      type="text"
+                      value={targetDmEmbedDescription}
+                      onChange={(e) => setTargetDmEmbedDescription(e.target.value)}
+                      placeholder="Berikut adalah detail dari akun UCP Anda:"
+                      className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                    />
+                  </div>
+
+                  {/* EDIT CREDENTIAL FIELDS & COLORS */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                        UCP Name:
+                      </label>
+                      <input
+                        type="text"
+                        value={targetDmOfficerName}
+                        onChange={(e) => setTargetDmOfficerName(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                        PIN Code:
+                      </label>
+                      <input
+                        type="text"
+                        value={targetDmPin}
+                        onChange={(e) => setTargetDmPin(e.target.value)}
+                        className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-amber-300 font-bold outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                        Warna Embed:
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="color"
+                          value={targetDmEmbedColor.startsWith('#') ? targetDmEmbedColor : '#00A8FF'}
+                          onChange={(e) => setTargetDmEmbedColor(e.target.value)}
+                          className="w-7 h-7 rounded border border-gray-700 bg-transparent cursor-pointer shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={targetDmEmbedColor}
+                          onChange={(e) => setTargetDmEmbedColor(e.target.value)}
+                          placeholder="#00A8FF"
+                          className="w-full px-2 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Note / Catatan Kustom */}
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold text-gray-300 uppercase">
+                  Catatan Privasi (Footer Note):
+                </label>
+                <input
+                  type="text"
+                  value={targetDmCustomNote}
+                  onChange={(e) => setTargetDmCustomNote(e.target.value)}
+                  placeholder="Jangan beritahu informasi ini kepada orang lain!"
+                  className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                />
+              </div>
+
+              {/* Embed Live Preview */}
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-bold text-gray-400 uppercase flex items-center justify-between">
+                  <span>PREVIEW PESAN DISCORD PM (REAL-TIME):</span>
+                  <span className="text-[10px] text-sky-400">● Tampilan Sesuai Kustomisasi</span>
+                </div>
+                <div 
+                  className="bg-[#2B2D31] rounded-r-lg p-3.5 space-y-2.5 text-white font-sans text-xs shadow-inner"
+                  style={{ borderLeft: `4px solid ${targetDmEmbedColor || '#00A8FF'}` }}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <img
+                      src={targetDmLogoUrl || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
+                      alt="Bot Icon"
+                      referrerPolicy="no-referrer"
+                      className="w-4 h-4 rounded-full object-cover"
+                    />
+                    <span className="font-bold text-[11px] text-gray-200">
+                      {targetDmBotName || 'Cek Akun | High State'}
+                    </span>
+                  </div>
+                  <div>
+                    <div className="font-bold text-white text-xs">
+                      {targetDmEmbedTitle || '✅ Berhasil!'}
+                    </div>
+                    <p className="text-gray-300 text-[11px]">
+                      {targetDmEmbedDescription || 'Berikut adalah detail dari akun UCP Anda:'}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5 pt-0.5 font-mono text-[11px]">
+                    <div>
+                      <div className="text-[9.5px] font-bold text-gray-400 uppercase">UCP</div>
+                      <div className="text-gray-100 font-semibold font-sans">
+                        {targetDmOfficerName || targetDmOfficer.name}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[9.5px] font-bold text-gray-400 uppercase">Pin Code</div>
+                      <div className="text-amber-300 font-bold bg-[#1E1F22] px-2 py-0.5 rounded inline-block">
+                        {targetDmPin || targetDmOfficer.pin || '10-4'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[9.5px] font-bold text-gray-400 uppercase">No. Badge & Pangkat</div>
+                      <div className="text-gray-200 font-sans text-xs">
+                        `{targetDmBadge || targetDmOfficer.badge}` • {targetDmRank || targetDmOfficer.rank}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[9.5px] font-bold text-gray-400 uppercase">Divisi</div>
+                      <div className="text-sky-300 font-sans text-xs">
+                        {targetDmDivision || targetDmOfficer.division || 'Patrol Bureau'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[9.5px] font-bold text-gray-400 uppercase">Note</div>
+                      <div className="text-gray-300 text-[10.5px] font-sans">
+                        {targetDmCustomNote || 'Jangan beritahu informasi ini kepada orang lain!'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="border-t border-gray-700/50 pt-1.5 text-[9.5px] text-gray-400 font-sans flex items-center justify-between">
+                    <span>{targetDmFooterText || 'Bot High State'} • Hari ini pukul 12:40 AM</span>
+                    <img
+                      src={targetDmLogoUrl || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
+                      alt="Footer Logo"
+                      className="w-3 h-3 rounded-full object-cover"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Result Notice */}
+              {botDmResultNotice && (
+                <div className={`p-2.5 rounded border text-xs flex items-center gap-2 animate-in fade-in ${
+                  botDmResultNotice.success 
+                    ? 'bg-emerald-950/80 border-emerald-600 text-emerald-200' 
+                    : 'bg-rose-950/80 border-rose-600 text-rose-200'
+                }`}>
+                  {botDmResultNotice.success ? (
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                  )}
+                  <span>{botDmResultNotice.message}</span>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="pt-2 border-t border-gray-800 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTargetDmOfficer(null)}
+                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded font-bold transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSendingBotDm || !targetDmUserId.trim()}
+                  className="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded transition flex items-center gap-2 disabled:opacity-40 shadow-lg shadow-sky-600/30"
+                >
+                  {isSendingBotDm ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Mengirim PM Discord...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Bot className="w-3.5 h-3.5" />
+                      <span>KIRIM SEKARANG KE PM DISCORD</span>
                     </>
                   )}
                 </button>

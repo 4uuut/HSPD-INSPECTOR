@@ -3,7 +3,8 @@ import {
   Shield, Radio, Send, CheckCircle2, AlertCircle, RefreshCw, 
   X, Globe, Settings, Lock, Check, Copy, ExternalLink, Sparkles, Sliders,
   AlertTriangle, UserX, Award, KeyRound, Users, Search, ShieldAlert, Car,
-  Landmark, Flame, Hammer, Coins, Palette, FileText
+  Landmark, Flame, Hammer, Coins, Palette, FileText, Bot, Eye, EyeOff, MessageSquare,
+  Upload, Image
 } from 'lucide-react';
 import { 
   getSavedWebhookConfig, saveWebhookConfig, 
@@ -19,6 +20,8 @@ import {
   getSavedVaultWebhookConfig, saveVaultWebhookConfig,
   getSavedDestructionWebhookConfig, saveDestructionWebhookConfig,
   getSavedDocumentWebhookConfig, saveDocumentWebhookConfig,
+  getSavedDiscordBotConfig, saveDiscordBotConfig,
+  testDiscordBotDirectMessage, DiscordBotConfig, PRESET_DISCORD_BOT_LOGOS,
   testDiscordWebhook, testDutyDiscordWebhook, 
   testPromotionDiscordWebhook,
   testWarningDiscordWebhook, testDischargeDiscordWebhook,
@@ -48,7 +51,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
   onSaved,
   onOpenBrandingModal
 }) => {
-  const [activeTab, setActiveTab] = useState<'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'impound' | 'vault' | 'destruction' | 'document'>('case');
+  const [activeTab, setActiveTab] = useState<'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm'>('case');
   
   // Case / Arrest Webhook State
   const [caseConfig, setCaseConfig] = useState<WebhookConfig>(() => getSavedWebhookConfig());
@@ -114,6 +117,13 @@ export const WebhookSettingsModal: React.FC<Props> = ({
   const [documentConfig, setDocumentConfig] = useState<WebhookConfig>(() => getSavedDocumentWebhookConfig());
   const [isTestingDocument, setIsTestingDocument] = useState(false);
   const [documentTestResult, setDocumentTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Dedicated Discord Bot (PM / DM Direct Message) State
+  const [botConfig, setBotConfig] = useState<DiscordBotConfig>(() => getSavedDiscordBotConfig());
+  const [showBotToken, setShowBotToken] = useState(false);
+  const [testBotUserId, setTestBotUserId] = useState('');
+  const [isTestingBot, setIsTestingBot] = useState(false);
+  const [botTestResult, setBotTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<string>('');
 
@@ -364,6 +374,30 @@ export const WebhookSettingsModal: React.FC<Props> = ({
     }
   };
 
+  // Test Direct Message via Discord Bot
+  const handleTestBotDm = async () => {
+    if (!testBotUserId.trim()) {
+      setBotTestResult({
+        success: false,
+        message: 'Masukkan Discord User ID target untuk pengujian!'
+      });
+      return;
+    }
+    setIsTestingBot(true);
+    setBotTestResult(null);
+    try {
+      const res = await testDiscordBotDirectMessage(testBotUserId.trim(), botConfig.botToken.trim());
+      setBotTestResult(res);
+    } catch (err: any) {
+      setBotTestResult({
+        success: false,
+        message: err.message || 'Gagal mengirim Test PM via Bot Discord'
+      });
+    } finally {
+      setIsTestingBot(false);
+    }
+  };
+
   // Save All Settings
   const handleSaveAll = (e: React.FormEvent) => {
     e.preventDefault();
@@ -380,7 +414,8 @@ export const WebhookSettingsModal: React.FC<Props> = ({
     saveVaultWebhookConfig(vaultConfig);
     saveDestructionWebhookConfig(destructionConfig);
     saveDocumentWebhookConfig(documentConfig);
-    setSaveSuccessNotice('✅ Seluruh konfigurasi Discord Webhook (13 Saluran Lengkap) berhasil disimpan!');
+    saveDiscordBotConfig(botConfig);
+    setSaveSuccessNotice('✅ Seluruh konfigurasi Discord Webhook & Bot Direct Message (PM) berhasil disimpan!');
     if (onSaved) onSaved();
     setTimeout(() => {
       setSaveSuccessNotice('');
@@ -623,6 +658,20 @@ export const WebhookSettingsModal: React.FC<Props> = ({
           >
             <FileText className="w-3 h-3 shrink-0 text-cyan-400" />
             <span className="truncate">13. Dokumen</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('botDm')}
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
+              activeTab === 'botDm'
+                ? 'border-sky-500 text-sky-400 bg-[#161B22]'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+            }`}
+            title="Bot Discord Pesan Pribadi (PM / DM)"
+          >
+            <Bot className="w-3 h-3 shrink-0 text-sky-400" />
+            <span className="truncate">14. Bot PM (DM)</span>
           </button>
         </div>
 
@@ -2200,6 +2249,433 @@ export const WebhookSettingsModal: React.FC<Props> = ({
                       <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
                     )}
                     <span>{documentTestResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 14: DISCORD BOT DIRECT MESSAGE (PM / DM) */}
+          {activeTab === 'botDm' && (
+            <div className="space-y-4">
+              {/* Header Info Banner */}
+              <div className="p-3.5 bg-sky-950/40 border border-sky-800/80 rounded-lg text-[11px] text-sky-200 space-y-1.5 shadow-sm">
+                <div className="flex items-center gap-2 font-bold text-sky-300 text-xs">
+                  <Bot className="w-4 h-4 text-sky-400" />
+                  <span>INTEGRASI BOT DISCORD — PESAN PRIBADI (PM / DIRECT MESSAGE)</span>
+                </div>
+                <p className="text-gray-300 leading-relaxed">
+                  Fitur ini memungkinkan Bot Discord mengirimkan detail akun UCP & PIN login <strong>langsung ke kotak masuk Pesan Pribadi (PM / DM)</strong> Discord anggota yang didaftarkan, menjaga privasi kredensial login tanpa dibagikan di channel publik server.
+                </p>
+              </div>
+
+              {/* Bot Token Configuration */}
+              <div className="space-y-4 p-4 bg-[#0D1117] border border-gray-800 rounded-lg">
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-gray-200">
+                      DISCORD BOT TOKEN: <span className="text-rose-400">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowBotToken(!showBotToken)}
+                      className="text-[10px] text-sky-400 hover:text-sky-300 flex items-center gap-1 transition"
+                    >
+                      {showBotToken ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      <span>{showBotToken ? 'Sembunyikan Token' : 'Tampilkan Token'}</span>
+                    </button>
+                  </div>
+                  <input
+                    type={showBotToken ? 'text' : 'password'}
+                    value={botConfig.botToken}
+                    onChange={(e) => setBotConfig({ ...botConfig, botToken: e.target.value })}
+                    placeholder="Contoh: MTI1MDU1OT..."
+                    className="w-full px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none font-mono"
+                  />
+                  <div className="text-[10px] text-gray-400 mt-1 flex items-center justify-between">
+                    <span>Diperoleh dari <strong>Discord Developer Portal &gt; Bot &gt; Token</strong>.</span>
+                    <a
+                      href="https://discord.com/developers/applications"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sky-400 hover:underline flex items-center gap-1"
+                    >
+                      <span>Buka Developer Portal</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* LOGO & AVATAR CUSTOMIZATION */}
+                <div className="p-3 bg-[#161B22] border border-sky-900/60 rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Image className="w-4 h-4 text-sky-400" />
+                      <span className="font-bold text-xs text-gray-200 uppercase">PILIHAN LOGO / AVATAR BOT & EMBED:</span>
+                    </div>
+                    <span className="text-[10px] text-sky-300">Bisa dipilih preset atau ganti custom</span>
+                  </div>
+
+                  {/* Preset Logo Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {PRESET_DISCORD_BOT_LOGOS.map((preset, idx) => {
+                      const isSelected = botConfig.botAvatar === preset.url;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setBotConfig({ ...botConfig, botAvatar: preset.url })}
+                          className={`p-2 rounded-lg border text-left flex items-center gap-2 transition ${
+                            isSelected 
+                              ? 'bg-sky-950/80 border-sky-500 ring-1 ring-sky-500 text-sky-200' 
+                              : 'bg-[#0D1117] border-gray-800 hover:border-gray-700 text-gray-400 hover:text-gray-200'
+                          }`}
+                        >
+                          <img
+                            src={preset.url}
+                            alt={preset.name}
+                            referrerPolicy="no-referrer"
+                            className="w-7 h-7 rounded-full object-cover bg-black/40 p-0.5 border border-gray-700 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="text-[11px] font-bold truncate">{preset.name}</div>
+                            <div className="text-[9px] text-gray-500 truncate">{preset.category}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Custom URL or Upload File */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 items-center">
+                    <div className="sm:col-span-2">
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                        URL Logo Kustom (PNG / JPG / WebP):
+                      </label>
+                      <input
+                        type="url"
+                        value={botConfig.botAvatar}
+                        onChange={(e) => setBotConfig({ ...botConfig, botAvatar: e.target.value })}
+                        placeholder="https://i.imgur.com/... atau link gambar"
+                        className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                        Upload dari Komputer:
+                      </label>
+                      <label className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 hover:border-sky-500 rounded text-xs font-bold cursor-pointer transition">
+                        <Upload className="w-3.5 h-3.5 text-sky-400" />
+                        <span>Pilih Gambar</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = (loadEvt) => {
+                                const dataUrl = loadEvt.target?.result as string;
+                                if (dataUrl) setBotConfig({ ...botConfig, botAvatar: dataUrl });
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Embed Content Customization */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-300 mb-1">
+                      Nama Header Bot / Author:
+                    </label>
+                    <input
+                      type="text"
+                      value={botConfig.botName}
+                      onChange={(e) => setBotConfig({ ...botConfig, botName: e.target.value })}
+                      placeholder="Cek Akun | High State"
+                      className="w-full px-3 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-300 mb-1">
+                      Judul Pesan Embed (Title):
+                    </label>
+                    <input
+                      type="text"
+                      value={botConfig.embedTitle || '✅ Berhasil!'}
+                      onChange={(e) => setBotConfig({ ...botConfig, embedTitle: e.target.value })}
+                      placeholder="✅ Berhasil!"
+                      className="w-full px-3 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-300 mb-1">
+                    Deskripsi / Sub-Header Pesan:
+                  </label>
+                  <input
+                    type="text"
+                    value={botConfig.embedDescription || 'Berikut adalah detail dari akun UCP Anda:'}
+                    onChange={(e) => setBotConfig({ ...botConfig, embedDescription: e.target.value })}
+                    placeholder="Berikut adalah detail dari akun UCP Anda:"
+                    className="w-full px-3 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-300 mb-1">
+                      Warna Aksen Embed (Hex):
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={botConfig.embedColor?.startsWith('#') ? botConfig.embedColor : '#00A8FF'}
+                        onChange={(e) => setBotConfig({ ...botConfig, embedColor: e.target.value })}
+                        className="w-8 h-8 rounded border border-gray-700 bg-transparent cursor-pointer shrink-0"
+                      />
+                      <input
+                        type="text"
+                        value={botConfig.embedColor || '#00A8FF'}
+                        onChange={(e) => setBotConfig({ ...botConfig, embedColor: e.target.value })}
+                        placeholder="#00A8FF"
+                        className="w-full px-3 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none font-mono"
+                      />
+                    </div>
+                    {/* Quick Color Presets */}
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      {[
+                        { name: 'Blue', color: '#00A8FF' },
+                        { name: 'Green', color: '#10B981' },
+                        { name: 'Gold', color: '#EAB308' },
+                        { name: 'Indigo', color: '#6366F1' },
+                        { name: 'Red', color: '#EF4444' }
+                      ].map((cp, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setBotConfig({ ...botConfig, embedColor: cp.color })}
+                          className="w-5 h-5 rounded-full border border-white/20 transition hover:scale-110"
+                          style={{ backgroundColor: cp.color }}
+                          title={cp.name}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-300 mb-1">
+                      Teks Footer Embed:
+                    </label>
+                    <input
+                      type="text"
+                      value={botConfig.footerText || 'Bot High State'}
+                      onChange={(e) => setBotConfig({ ...botConfig, footerText: e.target.value })}
+                      placeholder="Bot High State"
+                      className="w-full px-3 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-300 mb-1">
+                    Catatan Privasi Bawah (Default Note):
+                  </label>
+                  <input
+                    type="text"
+                    value={botConfig.defaultNote}
+                    onChange={(e) => setBotConfig({ ...botConfig, defaultNote: e.target.value })}
+                    placeholder="Jangan beritahu informasi ini kepada orang lain!"
+                    className="w-full px-3 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Live Preview of the Direct Message (Matches User's Reference Screenshot) */}
+              <div className="space-y-2">
+                <div className="text-[11px] font-bold text-gray-400 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-sky-400" />
+                    <span>PREVIEW TAMPILAN PESAN PRIBADI (PM / DM DISCORD REAL-TIME):</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-400">● Live Dynamic Preview</span>
+                </div>
+
+                <div className="bg-[#313338] border border-[#232428] rounded-xl p-4 text-white shadow-xl max-w-xl font-sans text-xs">
+                  {/* Discord Chat Header simulation */}
+                  <div className="flex items-start gap-3">
+                    <img
+                      src={botConfig.botAvatar || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
+                      alt="Bot Avatar"
+                      referrerPolicy="no-referrer"
+                      className="w-10 h-10 rounded-full bg-black/40 shrink-0 object-cover border border-gray-700"
+                    />
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-white text-sm">High State Roleplay</span>
+                        <span className="bg-[#5865F2] text-white text-[9px] font-bold px-1.5 py-0.2 rounded font-sans uppercase">
+                          APP
+                        </span>
+                        <span className="text-[10px] text-gray-400">Hari ini pukul 12:40 AM</span>
+                      </div>
+
+                      {/* Discord Embed Box */}
+                      <div 
+                        className="bg-[#2B2D31] rounded-r-lg p-3.5 space-y-2.5 max-w-md shadow-md"
+                        style={{ borderLeft: `4px solid ${botConfig.embedColor || '#00A8FF'}` }}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <img
+                            src={botConfig.botAvatar || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
+                            alt="Embed Author"
+                            referrerPolicy="no-referrer"
+                            className="w-4 h-4 rounded-full object-cover"
+                          />
+                          <span className="font-bold text-xs text-gray-200">
+                            {botConfig.botName || 'Cek Akun | High State'}
+                          </span>
+                        </div>
+
+                        <div>
+                          <div className="font-bold text-white text-sm flex items-center gap-1">
+                            <span>{botConfig.embedTitle || '✅ Berhasil!'}</span>
+                          </div>
+                          <p className="text-gray-300 text-xs mt-0.5">
+                            {botConfig.embedDescription || 'Berikut adalah detail dari akun UCP Anda:'}
+                          </p>
+                        </div>
+
+                        <div className="space-y-2 pt-1 font-mono text-xs">
+                          <div>
+                            <div className="text-[10px] font-bold text-gray-400 uppercase">UCP</div>
+                            <div className="text-gray-100 font-semibold font-sans">Nexia</div>
+                          </div>
+
+                          <div>
+                            <div className="text-[10px] font-bold text-gray-400 uppercase">Pin Code</div>
+                            <div className="text-amber-300 font-bold bg-[#1E1F22] px-2 py-0.5 rounded inline-block">20857</div>
+                          </div>
+
+                          <div>
+                            <div className="text-[10px] font-bold text-gray-400 uppercase">No. Badge & Pangkat</div>
+                            <div className="text-gray-200 font-sans text-xs">
+                              `#104` • POLICE OFFICER II [PO II]
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-[10px] font-bold text-gray-400 uppercase">Divisi</div>
+                            <div className="text-sky-300 font-sans text-xs">
+                              Patrol Bureau
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="text-[10px] font-bold text-gray-400 uppercase">Note</div>
+                            <div className="text-gray-300 text-[11px] font-sans">
+                              {botConfig.defaultNote || 'Jangan beritahu informasi ini kepada orang lain!'}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-gray-700/50 pt-1.5 text-[9.5px] text-gray-400 font-sans flex items-center justify-between">
+                          <span>{botConfig.footerText || 'Bot High State'} • Hari ini pukul 12:40 AM</span>
+                          <img
+                            src={botConfig.botAvatar || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
+                            alt="Footer Icon"
+                            className="w-3 h-3 rounded-full object-cover"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step-by-Step Interactive Guide */}
+              <div className="p-3.5 bg-gray-900/90 border border-gray-800 rounded-lg space-y-2 text-[11px]">
+                <div className="font-bold text-amber-300 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>PANDUAN LENGKAP MEMBUAT BOT & MENGAMBIL USER ID (1 MENIT):</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-gray-300">
+                  <div className="bg-[#161B22] p-2.5 rounded border border-gray-800 space-y-1">
+                    <div className="font-bold text-sky-300 text-xs">1. Setup Bot di Discord Portal:</div>
+                    <ol className="list-decimal list-inside space-y-1 text-[10px] text-gray-400">
+                      <li>Buka <a href="https://discord.com/developers/applications" target="_blank" rel="noreferrer" className="text-sky-400 underline">Discord Developer Portal</a> &gt; <strong>New Application</strong>.</li>
+                      <li>Klik menu <strong>Bot</strong> &gt; Reset/Copy <strong>Token</strong> lalu tempel di atas.</li>
+                      <li>Aktifkan <strong>Privileged Gateway Intents</strong> (centang <em>Server Members Intent</em>).</li>
+                      <li>Buka <strong>OAuth2 &gt; URL Generator</strong> &gt; centang <code>bot</code> &gt; invite bot ke Server Discord Anda.</li>
+                    </ol>
+                  </div>
+
+                  <div className="bg-[#161B22] p-2.5 rounded border border-gray-800 space-y-1">
+                    <div className="font-bold text-emerald-300 text-xs">2. Cara Ambil Discord User ID:</div>
+                    <ol className="list-decimal list-inside space-y-1 text-[10px] text-gray-400">
+                      <li>Buka aplikasi Discord &gt; <strong>User Settings ⚙️</strong> &gt; <strong>Advanced</strong>.</li>
+                      <li>Aktifkan toggle <strong>Developer Mode</strong>.</li>
+                      <li>Klik kanan pada profil / nama anggota di Discord &gt; klik <strong>Copy User ID</strong> (17-20 digit angka).</li>
+                      <li>Masukkan ID tersebut ke data anggota saat mendaftar atau kirim PM.</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+
+              {/* Test DM Section */}
+              <div className="p-3.5 bg-[#0D1117] border border-sky-800/60 rounded-lg space-y-3">
+                <div className="font-bold text-gray-200 text-xs flex items-center gap-2">
+                  <Send className="w-3.5 h-3.5 text-sky-400" />
+                  <span>UJI COBA KIRIM PESAN PRIBADI (TEST PM / DM LANGSUNG):</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-2">
+                  <input
+                    type="text"
+                    value={testBotUserId}
+                    onChange={(e) => setTestBotUserId(e.target.value)}
+                    placeholder="Masukkan Discord User ID Anda (contoh: 842019283719001)"
+                    className="w-full sm:flex-1 px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleTestBotDm}
+                    disabled={isTestingBot || !botConfig.botToken.trim()}
+                    className="w-full sm:w-auto px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded text-xs transition flex items-center justify-center gap-2 disabled:opacity-40 shrink-0"
+                  >
+                    {isTestingBot ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Mengirim PM...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Bot className="w-3.5 h-3.5" />
+                        <span>KIRIM TEST PM</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {botTestResult && (
+                  <div className={`p-2.5 rounded border text-xs flex items-center gap-2 animate-in fade-in ${
+                    botTestResult.success 
+                      ? 'bg-emerald-950/80 border-emerald-600 text-emerald-200' 
+                      : 'bg-rose-950/80 border-rose-600 text-rose-200'
+                  }`}>
+                    {botTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    )}
+                    <span>{botTestResult.message}</span>
                   </div>
                 )}
               </div>
