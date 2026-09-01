@@ -763,14 +763,14 @@ export interface OfficialDocument {
   
   // Signatures configuration
   issuerSignatureTitle: string;    // e.g. "Pejabat Pemberi Perintah,"
-  issuerSignatureStyle: 'handwriting1' | 'handwriting2' | 'formal' | 'badge_stamp';
-  issuerSignatureType?: 'font' | 'upload' | 'draw';
+  issuerSignatureStyle: 'handwriting1' | 'handwriting2' | 'formal' | 'badge_stamp' | 'blank';
+  issuerSignatureType?: 'font' | 'upload' | 'draw' | 'blank';
   issuerSignatureImage?: string;   // Base64 upload / digital canvas
   
   recipientSignatureTitle?: string; // e.g. "Penerima Perintah / Pemohon,"
   recipientSignatureName?: string;
-  recipientSignatureStyle?: 'handwriting1' | 'handwriting2' | 'formal' | 'badge_stamp';
-  recipientSignatureType?: 'font' | 'upload' | 'draw';
+  recipientSignatureStyle?: 'handwriting1' | 'handwriting2' | 'formal' | 'badge_stamp' | 'blank';
+  recipientSignatureType?: 'font' | 'upload' | 'draw' | 'blank';
   recipientSignatureImage?: string; // Base64 upload / digital canvas
   showRecipientSignature?: boolean; // Tampilkan / Sembunyikan tanda tangan pihak penerima (default: true)
   
