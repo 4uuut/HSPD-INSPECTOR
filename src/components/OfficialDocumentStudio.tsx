@@ -1336,72 +1336,120 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                   </div>
 
                   {/* 2. Recipient Signature */}
-                  <div className="bg-[#161B22] border border-gray-800 rounded-lg p-2.5 space-y-2">
+                  <div className={`bg-[#161B22] border rounded-lg p-2.5 space-y-2 transition ${activeDoc.showRecipientSignature === false ? 'border-gray-800/60 opacity-80' : 'border-gray-800'}`}>
                     <div className="flex items-center justify-between text-[11px] font-bold text-gray-200">
                       <span className="flex items-center gap-1.5 text-emerald-300">
                         <User className="w-3.5 h-3.5" />
                         2. Tanda Tangan Penerima / Subjek ({activeDoc.recipientName})
                       </span>
-                      {activeDoc.recipientSignatureImage && (
-                        <button
-                          onClick={() => setActiveDoc(prev => ({ ...prev, recipientSignatureImage: undefined, recipientSignatureType: 'font' }))}
-                          className="text-rose-400 hover:text-rose-300 text-[10px] underline"
-                        >
-                          Reset ke Font
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-gray-400 text-[9px] mb-0.5">LABEL TTD:</label>
-                        <input
-                          type="text"
-                          value={activeDoc.recipientSignatureTitle || ''}
-                          onChange={(e) => setActiveDoc(prev => ({ ...prev, recipientSignatureTitle: e.target.value }))}
-                          className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs"
-                          placeholder="Pihak Penerima / Pemohon,"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-gray-400 text-[9px] mb-0.5">METODE TTD:</label>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => setActiveSigPadTarget('recipient')}
-                            className="flex-1 px-1.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-[10px] font-bold flex items-center justify-center gap-1"
-                          >
-                            <PenTool className="w-3 h-3" />
-                            <span>Gambar</span>
-                          </button>
-                          
+                      <div className="flex items-center gap-2">
+                        {/* Toggle Switch Tampilkan / Sembunyikan Tanda Tangan Penerima */}
+                        <label className="flex items-center gap-1.5 cursor-pointer text-[10px] font-mono px-2 py-0.5 rounded bg-black/40 border border-gray-700 hover:border-emerald-500/50 transition">
                           <input
-                            type="file"
-                            ref={recipientSigUploadRef}
-                            accept="image/*"
-                            onChange={(e) => handleUploadImageFile(e, (url) => setActiveDoc(prev => ({ ...prev, recipientSignatureImage: url, recipientSignatureType: 'upload' })))}
-                            className="hidden"
+                            type="checkbox"
+                            checked={activeDoc.showRecipientSignature !== false}
+                            onChange={(e) => setActiveDoc(prev => ({ ...prev, showRecipientSignature: e.target.checked }))}
+                            className="rounded border-gray-700 text-emerald-500 focus:ring-0 w-3 h-3 accent-emerald-500 cursor-pointer"
                           />
+                          <span className={activeDoc.showRecipientSignature !== false ? 'text-emerald-400 font-bold' : 'text-gray-400'}>
+                            {activeDoc.showRecipientSignature !== false ? 'TAMPILKAN' : 'DISEMBUNYIKAN'}
+                          </span>
+                        </label>
+
+                        {/* Reset TTD atau Kosongkan */}
+                        {(activeDoc.recipientSignatureImage || activeDoc.recipientSignatureName || activeDoc.recipientSignatureTitle) && (
                           <button
-                            onClick={() => recipientSigUploadRef.current?.click()}
-                            className="flex-1 px-1.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded text-[10px] font-bold flex items-center justify-center gap-1 border border-gray-600"
+                            type="button"
+                            onClick={() => setActiveDoc(prev => ({
+                              ...prev,
+                              recipientSignatureImage: undefined,
+                              recipientSignatureType: 'font',
+                              recipientSignatureName: undefined,
+                              recipientSignatureTitle: undefined
+                            }))}
+                            className="text-rose-400 hover:text-rose-300 text-[10px] underline flex items-center gap-0.5"
+                            title="Hapus gambar atau teks tanda tangan penerima"
                           >
-                            <Upload className="w-3 h-3" />
-                            <span>Upload</span>
+                            <Trash2 className="w-3 h-3" />
+                            <span>Hapus TTD</span>
                           </button>
-                        </div>
+                        )}
                       </div>
                     </div>
 
-                    {activeDoc.recipientSignatureImage && (
-                      <div className="h-10 bg-white/10 rounded flex items-center justify-center p-1 border border-gray-700">
-                        <img
-                          src={activeDoc.recipientSignatureImage}
-                          alt="Recipient Signature Preview"
-                          className="max-h-full max-w-full object-contain"
-                          style={{ mixBlendMode: 'multiply' }}
-                        />
+                    {activeDoc.showRecipientSignature === false ? (
+                      <div className="p-2 bg-black/30 border border-dashed border-gray-800 rounded text-[10px] text-gray-400 font-sans flex items-center justify-between">
+                        <span>Kolom tanda tangan pihak penerima dinonaktifkan (dokumen hanya ditandatangani oleh Pejabat Penerbit / Atasan).</span>
+                        <button
+                          type="button"
+                          onClick={() => setActiveDoc(prev => ({ ...prev, showRecipientSignature: true }))}
+                          className="px-2 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-700/60 rounded text-[10px] font-bold hover:bg-emerald-900"
+                        >
+                          Aktifkan Kembali
+                        </button>
                       </div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-gray-400 text-[9px] mb-0.5">LABEL TTD:</label>
+                            <input
+                              type="text"
+                              value={activeDoc.recipientSignatureTitle || ''}
+                              onChange={(e) => setActiveDoc(prev => ({ ...prev, recipientSignatureTitle: e.target.value }))}
+                              className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs"
+                              placeholder="Pihak Penerima / Pemohon,"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-gray-400 text-[9px] mb-0.5">METODE TTD:</label>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => setActiveSigPadTarget('recipient')}
+                                className="flex-1 px-1.5 py-1 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-[10px] font-bold flex items-center justify-center gap-1"
+                              >
+                                <PenTool className="w-3 h-3" />
+                                <span>Gambar</span>
+                              </button>
+                              
+                              <input
+                                type="file"
+                                ref={recipientSigUploadRef}
+                                accept="image/*"
+                                onChange={(e) => handleUploadImageFile(e, (url) => setActiveDoc(prev => ({ ...prev, recipientSignatureImage: url, recipientSignatureType: 'upload' })))}
+                                className="hidden"
+                              />
+                              <button
+                                onClick={() => recipientSigUploadRef.current?.click()}
+                                className="flex-1 px-1.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded text-[10px] font-bold flex items-center justify-center gap-1 border border-gray-600"
+                              >
+                                <Upload className="w-3 h-3" />
+                                <span>Upload</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {activeDoc.recipientSignatureImage && (
+                          <div className="h-10 bg-white/10 rounded flex items-center justify-center p-1 border border-gray-700 relative group">
+                            <img
+                              src={activeDoc.recipientSignatureImage}
+                              alt="Recipient Signature Preview"
+                              className="max-h-full max-w-full object-contain"
+                              style={{ mixBlendMode: 'multiply' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setActiveDoc(prev => ({ ...prev, recipientSignatureImage: undefined, recipientSignatureType: 'font' }))}
+                              className="absolute top-1 right-1 p-1 bg-rose-950/80 hover:bg-rose-900 text-rose-300 rounded border border-rose-700/60 opacity-0 group-hover:opacity-100 transition text-[9px]"
+                              title="Hapus gambar TTD ini"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
 
@@ -1897,45 +1945,47 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                   Ditetapkan di: <strong>{activeDoc.location}</strong> pada tanggal <strong>{activeDoc.date}</strong>
                 </div>
 
-                {/* 3-Column Signature Block with Real Wet Seals & Custom Signatures */}
-                <div className="grid grid-cols-3 gap-4 text-center items-end relative">
+                {/* Signature Block (3 Columns if recipient signature is enabled, or 2 Columns if hidden) */}
+                <div className={`gap-4 text-center items-end relative ${activeDoc.showRecipientSignature !== false ? 'grid grid-cols-3' : 'grid grid-cols-2 max-w-xl ml-auto'}`}>
                   
-                  {/* Left Signature: Recipient / Pihak Kedua */}
-                  <div className="flex flex-col items-center">
-                    <span className="text-[11px] font-bold text-gray-800 font-sans block mb-1">
-                      {activeDoc.recipientSignatureTitle || 'Pihak Penerima,'}
-                    </span>
-                    
-                    {/* Custom Recipient Signature Display */}
-                    <div className="h-16 flex items-center justify-center my-1 w-full overflow-hidden">
-                      {activeDoc.recipientSignatureImage ? (
-                        <img
-                          src={activeDoc.recipientSignatureImage}
-                          alt="Recipient Signature"
-                          className="max-h-full max-w-full object-contain"
-                          style={{ mixBlendMode: 'multiply' }}
-                        />
-                      ) : (
-                        <span 
-                          className="text-[20px] text-blue-900 rotate-[-4deg] select-none italic font-serif"
-                          style={{ fontFamily: 'Georgia, serif' }}
-                        >
+                  {/* Left Signature: Recipient / Pihak Kedua (Only rendered if showRecipientSignature !== false) */}
+                  {activeDoc.showRecipientSignature !== false && (
+                    <div className="flex flex-col items-center">
+                      <span className="text-[11px] font-bold text-gray-800 font-sans block mb-1">
+                        {activeDoc.recipientSignatureTitle || 'Pihak Penerima,'}
+                      </span>
+                      
+                      {/* Custom Recipient Signature Display */}
+                      <div className="h-16 flex items-center justify-center my-1 w-full overflow-hidden">
+                        {activeDoc.recipientSignatureImage ? (
+                          <img
+                            src={activeDoc.recipientSignatureImage}
+                            alt="Recipient Signature"
+                            className="max-h-full max-w-full object-contain"
+                            style={{ mixBlendMode: 'multiply' }}
+                          />
+                        ) : (
+                          <span 
+                            className="text-[20px] text-blue-900 rotate-[-4deg] select-none italic font-serif"
+                            style={{ fontFamily: 'Georgia, serif' }}
+                          >
+                            {activeDoc.recipientSignatureName || activeDoc.recipientName}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="border-t border-black w-36 pt-1">
+                        <span className="font-bold text-[11.5px] block text-black">
                           {activeDoc.recipientSignatureName || activeDoc.recipientName}
                         </span>
-                      )}
+                        <span className="text-[9.5px] text-gray-600 font-mono block">
+                          {activeDoc.recipientId ? `ID: ${activeDoc.recipientId}` : 'Pihak Terkait'}
+                        </span>
+                      </div>
                     </div>
+                  )}
 
-                    <div className="border-t border-black w-36 pt-1">
-                      <span className="font-bold text-[11.5px] block text-black">
-                        {activeDoc.recipientSignatureName || activeDoc.recipientName}
-                      </span>
-                      <span className="text-[9.5px] text-gray-600 font-mono block">
-                        {activeDoc.recipientId ? `ID: ${activeDoc.recipientId}` : 'Pihak Terkait'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Center: Real Official Wet Stamp & Watermark QR */}
+                  {/* Center / Left-Center: Real Official Wet Stamp & Watermark QR */}
                   <div className="flex flex-col items-center justify-center relative min-h-[120px]">
                     {/* 1. Custom Uploaded Seal from Device (if enabled) */}
                     {(activeDoc.sealDisplayMode === 'custom' || activeDoc.sealDisplayMode === 'both') && activeDoc.customSealImage && (

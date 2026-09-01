@@ -23,6 +23,7 @@ interface Props {
   onOpenWebhookModal: () => void;
   onOpenPinAuditModal: () => void;
   onOpenExportAttendanceModal: () => void;
+  onOpenRecruitmentPortalModal?: () => void;
   onToggleViewMode: () => void;
   isAndroidMode: boolean;
 }
@@ -40,6 +41,7 @@ export const SettingsView: React.FC<Props> = ({
   onOpenWebhookModal,
   onOpenPinAuditModal,
   onOpenExportAttendanceModal,
+  onOpenRecruitmentPortalModal,
   onToggleViewMode,
   isAndroidMode
 }) => {
@@ -182,6 +184,21 @@ export const SettingsView: React.FC<Props> = ({
                     </span>
                   )}
                 </div>
+              </div>
+            </button>
+
+            {/* BUTTON 6: 👑 PORTAL REKRUTMEN */}
+            <button
+              id="btn-settings-recruitment-portal"
+              type="button"
+              onClick={onOpenRecruitmentPortalModal}
+              className="px-3.5 py-2.5 bg-[#17120A] hover:bg-[#241B0E] text-amber-300 border border-amber-600/80 hover:border-amber-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-2 shrink-0 shadow-md shadow-amber-950/40 group active:scale-95"
+              title="Pengaturan Portal Informasi & Penerimaan Anggota Depan (High Command)"
+            >
+              <Sparkles className="w-4 h-4 text-amber-400 group-hover:rotate-12 transition" />
+              <div className="flex flex-col items-start text-left leading-tight">
+                <span className="text-[10px] text-amber-400/90 font-normal flex items-center gap-1">👑 PORTAL</span>
+                <span className="font-bold">REKRUTMEN</span>
               </div>
             </button>
 
@@ -438,6 +455,44 @@ export const SettingsView: React.FC<Props> = ({
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
             <span>BUKA EKSPORTIR ABSENSI</span>
+          </button>
+        </div>
+
+        {/* CARD 7: PORTAL INFORMASI & REKRUTMEN */}
+        <div className="bg-[#121620] border border-gray-800 rounded-xl p-4 flex flex-col justify-between space-y-3 hover:border-amber-700/60 transition shadow-lg">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-amber-950/70 border border-amber-700/70 text-amber-400">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <span className="font-bold text-gray-100 text-sm">Portal Rekrutmen Depan</span>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 font-mono font-bold">
+                POLICE ACADEMY
+              </span>
+            </div>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              Kelola teks pengumuman, status buka/tutup pendaftaran, syarat IC/OOC, tahapan seleksi akademi, dan divisi kepolisian yang tampil di halaman login depan.
+            </p>
+            <div className="p-2.5 bg-black/40 rounded-lg border border-gray-800 space-y-1 text-[11px] font-mono text-gray-400">
+              <div className="flex justify-between">
+                <span>Otorisasi Akses:</span>
+                <span className="text-amber-300 font-bold">Atasan / High Command</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Pratinjau:</span>
+                <span className="text-emerald-400 font-bold">Live Synchronized</span>
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenRecruitmentPortalModal}
+            className="w-full py-2 bg-gradient-to-r from-amber-950/90 to-amber-900/90 hover:from-amber-900 hover:to-amber-800 border border-amber-500 text-amber-300 rounded-lg text-xs font-bold font-mono transition flex items-center justify-center gap-2 shadow-md shadow-amber-950/30"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>BUKA PENGATURAN PORTAL REKRUTMEN</span>
           </button>
         </div>
       </div>

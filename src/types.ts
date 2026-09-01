@@ -772,6 +772,7 @@ export interface OfficialDocument {
   recipientSignatureStyle?: 'handwriting1' | 'handwriting2' | 'formal' | 'badge_stamp';
   recipientSignatureType?: 'font' | 'upload' | 'draw';
   recipientSignatureImage?: string; // Base64 upload / digital canvas
+  showRecipientSignature?: boolean; // Tampilkan / Sembunyikan tanda tangan pihak penerima (default: true)
   
   acknowledgedByTitle?: string;    // e.g. "Mengetahui & Menyetujui,"
   acknowledgedByName?: string;     // e.g. "Leoarnd Neave"

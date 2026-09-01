@@ -10,6 +10,36 @@
     <meta property="og:description" content="HSPD Police Roleplay Assistant, Penal Code Calculator & CAD Hub." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      (function() {
+        var isNoise = function(m) {
+          var s = String(m || '').toLowerCase();
+          return s.indexOf('metamask') !== -1 ||
+                 s.indexOf('ethereum') !== -1 ||
+                 s.indexOf('wallet') !== -1 ||
+                 s.indexOf('web3') !== -1 ||
+                 s.indexOf('inpage.js') !== -1 ||
+                 s.indexOf('contentscript.js') !== -1 ||
+                 s.indexOf('chrome-extension') !== -1 ||
+                 s.indexOf('receiving end does not exist') !== -1;
+        };
+        window.addEventListener('unhandledrejection', function(e) {
+          var r = e && e.reason;
+          var msg = r ? (r.message || r.code || r.stack || r) : '';
+          if (isNoise(msg)) {
+            e.preventDefault();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+          }
+        }, true);
+        window.addEventListener('error', function(e) {
+          var msg = e ? (e.message || (e.error && e.error.message) || e.filename) : '';
+          if (isNoise(msg)) {
+            e.preventDefault();
+            if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+          }
+        }, true);
+      })();
+    </script>
   </head>
   <body class="bg-[#0A0D12] text-gray-100 antialiased selection:bg-amber-500/30 selection:text-amber-200">
     <div id="root"></div>

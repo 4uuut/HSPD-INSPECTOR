@@ -121,8 +121,8 @@ export function formatDocumentAsText(doc: OfficialDocument): string {
   output += `==========================================================\n`;
   output += `[ TANDA TANGAN & PENGESAHAN DOKUMEN RESMI ]\n`;
   output += `Pejabat Penerbit: ${doc.issuerName} [${doc.issuerRank}]\n`;
-  if (doc.recipientSignatureName) {
-    output += `Pihak Penerima  : ${doc.recipientSignatureName}\n`;
+  if (doc.showRecipientSignature !== false && (doc.recipientSignatureName || doc.recipientName)) {
+    output += `Pihak Penerima  : ${doc.recipientSignatureName || doc.recipientName}\n`;
   }
   if (doc.acknowledgedByName) {
     output += `Mengesahkan     : ${doc.acknowledgedByName} [${doc.acknowledgedByRank || 'Chief of Police'}]\n`;

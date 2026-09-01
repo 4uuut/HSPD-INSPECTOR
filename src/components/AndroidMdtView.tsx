@@ -35,6 +35,7 @@ interface Props {
   onOpenWebhookModal: () => void;
   onOpenPinAuditModal: () => void;
   onOpenExportAttendanceModal?: () => void;
+  onOpenRecruitmentPortalModal?: () => void;
   onLogout: () => void;
   viewMode: 'android' | 'desktop';
   onToggleViewMode: () => void;
@@ -61,6 +62,7 @@ export const AndroidMdtView: React.FC<Props> = ({
   onOpenWebhookModal,
   onOpenPinAuditModal,
   onOpenExportAttendanceModal,
+  onOpenRecruitmentPortalModal,
   onLogout,
   viewMode,
   onToggleViewMode,
@@ -433,6 +435,18 @@ export const AndroidMdtView: React.FC<Props> = ({
           >
             <FileSpreadsheet className="w-3 h-3 text-emerald-400" />
             <span>Export Absen</span>
+          </button>
+        )}
+
+        {/* High Rank Only: Portal Rekrutmen Depan */}
+        {isHighRank && onOpenRecruitmentPortalModal && (
+          <button
+            type="button"
+            onClick={onOpenRecruitmentPortalModal}
+            className="px-2.5 py-1 rounded-full bg-amber-950/80 border border-amber-600 text-amber-300 text-[10px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0"
+          >
+            <Sparkles className="w-3 h-3 text-amber-400" />
+            <span>Portal Rekrutmen</span>
           </button>
         )}
 

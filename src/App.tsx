@@ -23,6 +23,7 @@ import { SpecializedDivisionsHub } from './components/SpecializedDivisionsHub';
 import { CitizenDmvDatabase } from './components/CitizenDmvDatabase';
 import { ForensicsLabBoard } from './components/ForensicsLabBoard';
 import { CustomBrandingModal } from './components/CustomBrandingModal';
+import { RecruitmentPortalSettingsModal } from './components/RecruitmentPortalSettingsModal';
 import { AndroidMdtView } from './components/AndroidMdtView';
 import { ExportAttendanceModal } from './components/ExportAttendanceModal';
 import { SettingsView } from './components/SettingsView';
@@ -144,6 +145,7 @@ export default function App() {
   // Dynamic Website Logo & Department Identity Branding
   const [branding, setBranding] = useState<DepartmentBrandingConfig>(() => getCustomBranding());
   const [isBrandingModalOpen, setIsBrandingModalOpen] = useState(false);
+  const [isRecruitmentPortalModalOpen, setIsRecruitmentPortalModalOpen] = useState(false);
   const [isExportAttendanceModalOpen, setIsExportAttendanceModalOpen] = useState(false);
 
   // Dedicated Android / Mobile View Mode State & Auto-detection
@@ -677,6 +679,7 @@ export default function App() {
           onOpenWebhookModal={() => setIsWebhookModalOpen(true)}
           onOpenPinAuditModal={() => setIsPinResetAuditModalOpen(true)}
           onOpenExportAttendanceModal={() => setIsExportAttendanceModalOpen(true)}
+          onOpenRecruitmentPortalModal={() => setIsRecruitmentPortalModalOpen(true)}
           onLogout={handleLogout}
           viewMode={isAndroidMode ? 'android' : 'desktop'}
           onToggleViewMode={handleToggleViewMode}
@@ -1089,6 +1092,7 @@ export default function App() {
             onOpenWebhookModal={() => setIsWebhookModalOpen(true)}
             onOpenPinAuditModal={() => setIsPinResetAuditModalOpen(true)}
             onOpenExportAttendanceModal={() => setIsExportAttendanceModalOpen(true)}
+            onOpenRecruitmentPortalModal={() => setIsRecruitmentPortalModalOpen(true)}
             onToggleViewMode={handleToggleViewMode}
             isAndroidMode={isAndroidMode}
           />
@@ -1160,6 +1164,13 @@ export default function App() {
         onClose={() => setIsBrandingModalOpen(false)}
         currentOfficer={currentOfficer}
         onBrandingUpdated={cfg => setBranding(cfg)}
+      />
+
+      {/* Recruitment & Academy Information Settings Modal (High Command / Supervisor) */}
+      <RecruitmentPortalSettingsModal
+        isOpen={isRecruitmentPortalModalOpen}
+        onClose={() => setIsRecruitmentPortalModalOpen(false)}
+        currentOfficer={currentOfficer}
       />
 
       {/* Export Absen Mingguan Modal (Excel / ZIP / CSV / Print) */}

@@ -121,6 +121,11 @@ export const SYNC_COLLECTIONS = {
     storageKey: 'hspd_custom_branding_v1',
     event: 'hspd-branding-updated'
   },
+  RECRUITMENT_PORTAL: {
+    name: 'recruitment_portal',
+    storageKey: 'hspd_recruitment_portal_config_v1',
+    event: 'hspd-recruitment-portal-updated'
+  },
   PIN_RESET_REQUESTS: {
     name: 'pin_reset_requests',
     storageKey: 'HSPD_PIN_RESET_REQUESTS_V1',
