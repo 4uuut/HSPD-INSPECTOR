@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Shield, Radio, Send, CheckCircle2, AlertCircle, RefreshCw, 
   X, Globe, Settings, Lock, Check, Copy, ExternalLink, Sparkles, Sliders,
   AlertTriangle, UserX, Award, KeyRound, Users, Search, ShieldAlert, Car,
   Landmark, Flame, Hammer, Coins, Palette, FileText, Bot, Eye, EyeOff, MessageSquare,
-  Upload, Image
+  Upload, Image, Activity, Zap
 } from 'lucide-react';
 import { 
   getSavedWebhookConfig, saveWebhookConfig, 
@@ -21,6 +21,7 @@ import {
   getSavedDestructionWebhookConfig, saveDestructionWebhookConfig,
   getSavedDocumentWebhookConfig, saveDocumentWebhookConfig,
   getSavedDiscordBotConfig, saveDiscordBotConfig,
+  getDiscordBotGatewayStatus, startDiscordBotGateway, stopDiscordBotGateway,
   testDiscordBotDirectMessage, DiscordBotConfig, PRESET_DISCORD_BOT_LOGOS,
   testDiscordWebhook, testDutyDiscordWebhook, 
   testPromotionDiscordWebhook,
@@ -122,8 +123,66 @@ export const WebhookSettingsModal: React.FC<Props> = ({
   const [botConfig, setBotConfig] = useState<DiscordBotConfig>(() => getSavedDiscordBotConfig());
   const [showBotToken, setShowBotToken] = useState(false);
   const [testBotUserId, setTestBotUserId] = useState('');
+  const [testBotCustomMessage, setTestBotCustomMessage] = useState('Uji coba pesan khusus dinas dari atasan / Komando Tinggi kepolisian.');
   const [isTestingBot, setIsTestingBot] = useState(false);
   const [botTestResult, setBotTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Live Gateway Presence State (Menyala Hijau di Discord)
+  const [botGatewayStatus, setBotGatewayStatus] = useState<{
+    isOnline: boolean;
+    botUser: { id: string; username: string; discriminator: string; avatar: string | null } | null;
+    status: 'online' | 'offline';
+    uptimeSeconds: number;
+    lastError: string | null;
+    hasToken: boolean;
+  } | null>(null);
+  const [isTogglingGateway, setIsTogglingGateway] = useState(false);
+  const [gatewayNotice, setGatewayNotice] = useState<string>('');
+
+  const refreshBotGatewayStatus = async () => {
+    try {
+      const st = await getDiscordBotGatewayStatus();
+      setBotGatewayStatus(st);
+    } catch {}
+  };
+
+  useEffect(() => {
+    if (isOpen && activeTab === 'botDm') {
+      refreshBotGatewayStatus();
+      const interval = setInterval(refreshBotGatewayStatus, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, activeTab]);
+
+  const handleToggleBotGateway = async () => {
+    const token = botConfig.botToken.trim();
+    if (!token) {
+      setGatewayNotice('⚠️ Masukkan Discord Bot Token terlebih dahulu sebelum menyalakan bot!');
+      setTimeout(() => setGatewayNotice(''), 5000);
+      return;
+    }
+    setIsTogglingGateway(true);
+    setGatewayNotice('');
+    try {
+      if (botGatewayStatus?.isOnline) {
+        await stopDiscordBotGateway();
+        setGatewayNotice('🔴 Bot gateway dinonaktifkan (Status beralih ke Offline/Abu-abu).');
+      } else {
+        const res = await startDiscordBotGateway(token);
+        if (res.success) {
+          setGatewayNotice('🟢 SUKSES! Bot sekarang terhubung ke Gateway & MENYALA HIJAU (Online 24/7) di Discord!');
+        } else {
+          setGatewayNotice(`⚠️ Gagal menghubungkan ke Discord Gateway: ${res.message}`);
+        }
+      }
+      await refreshBotGatewayStatus();
+    } catch (err: any) {
+      setGatewayNotice(`Error: ${err.message || err}`);
+    } finally {
+      setIsTogglingGateway(false);
+      setTimeout(() => setGatewayNotice(''), 6000);
+    }
+  };
 
   const [saveSuccessNotice, setSaveSuccessNotice] = useState<string>('');
 
@@ -386,7 +445,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
     setIsTestingBot(true);
     setBotTestResult(null);
     try {
-      const res = await testDiscordBotDirectMessage(testBotUserId.trim(), botConfig.botToken.trim());
+      const res = await testDiscordBotDirectMessage(testBotUserId.trim(), botConfig.botToken.trim(), testBotCustomMessage.trim());
       setBotTestResult(res);
     } catch (err: any) {
       setBotTestResult({
@@ -2269,6 +2328,127 @@ export const WebhookSettingsModal: React.FC<Props> = ({
                 </p>
               </div>
 
+              {/* LIVE GATEWAY PRESENCE CARD: STATUS MENYALA HIJAU 24/7 */}
+              <div className={`p-4 rounded-xl border transition-all ${
+                botGatewayStatus?.isOnline 
+                  ? 'bg-gradient-to-r from-emerald-950/50 via-[#0e241c] to-[#0D1117] border-emerald-500/70 shadow-lg shadow-emerald-950/40' 
+                  : 'bg-[#161B22] border-gray-800'
+              }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="relative shrink-0">
+                      {botGatewayStatus?.botUser?.avatar ? (
+                        <img
+                          src={`https://cdn.discordapp.com/avatars/${botGatewayStatus.botUser.id}/${botGatewayStatus.botUser.avatar}.png?size=80`}
+                          alt="Bot Discord Avatar"
+                          className="w-13 h-13 rounded-full border-2 border-emerald-400 object-cover bg-black/60 shadow-md"
+                        />
+                      ) : (
+                        <div className="w-13 h-13 rounded-full border-2 border-gray-700 bg-gray-800 flex items-center justify-center text-gray-300 shadow-md">
+                          <Bot className="w-7 h-7 text-emerald-400" />
+                        </div>
+                      )}
+                      {/* Pulsing indicator dot */}
+                      <span className="absolute bottom-0 right-0 flex h-4 w-4">
+                        {botGatewayStatus?.isOnline ? (
+                          <>
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-[#161B22]"></span>
+                          </>
+                        ) : (
+                          <span className="relative inline-flex rounded-full h-4 w-4 bg-gray-500 border-2 border-[#161B22]"></span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold text-sm text-gray-100 font-sans">
+                          {botGatewayStatus?.botUser?.username || botConfig.botName || 'Bot Discord HSPD'}
+                        </span>
+                        {botGatewayStatus?.isOnline ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 flex items-center gap-1.5 shadow-xs animate-pulse">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                            <span>ONLINE (MENYALA HIJAU 24/7)</span>
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-gray-800 text-gray-400 border border-gray-700 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-gray-500"></span>
+                            <span>OFFLINE (ABU-ABU)</span>
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-[11px] text-gray-300 leading-normal max-w-xl">
+                        {botGatewayStatus?.isOnline ? (
+                          <>
+                            ✅ Bot terhubung aktif ke <strong>Discord Gateway</strong> dengan status <em>Presence Online</em>. Di server Discord, ikon bot menyala hijau terang dan siap mengirimkan pesan pribadi secara langsung ketika atasan menambah anggota baru.
+                          </>
+                        ) : (
+                          <>
+                            ⚪ Bot saat ini dalam keadaan offline (abu-abu). Klik tombol <strong>Nyalakan Online (Hijau)</strong> di samping untuk mengaktifkan koneksi 24/7.
+                          </>
+                        )}
+                      </p>
+
+                      {botGatewayStatus?.uptimeSeconds ? (
+                        <div className="text-[10px] text-emerald-400 font-mono flex items-center gap-2 pt-0.5">
+                          <span>⏱️ Uptime Gateway: {Math.floor(botGatewayStatus.uptimeSeconds / 60)} m {botGatewayStatus.uptimeSeconds % 60} d</span>
+                          {botGatewayStatus?.botUser?.id && (
+                            <span className="text-gray-400">• ID Bot: {botGatewayStatus.botUser.id}</span>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+                    <button
+                      type="button"
+                      onClick={handleToggleBotGateway}
+                      disabled={isTogglingGateway || !botConfig.botToken.trim()}
+                      className={`px-4 py-2 rounded-lg font-bold text-xs flex items-center gap-2 transition shadow-md disabled:opacity-40 cursor-pointer ${
+                        botGatewayStatus?.isOnline
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/50'
+                          : 'bg-emerald-700 hover:bg-emerald-600 text-white shadow-emerald-900/40'
+                      }`}
+                    >
+                      {isTogglingGateway ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Menghubungkan...</span>
+                        </>
+                      ) : botGatewayStatus?.isOnline ? (
+                        <>
+                          <Activity className="w-3.5 h-3.5 text-emerald-200" />
+                          <span>BOT AKTIF (HIJAU)</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-3.5 h-3.5 text-yellow-300" />
+                          <span>NYALAKAN ONLINE (HIJAU)</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={refreshBotGatewayStatus}
+                      title="Perbarui Status Gateway"
+                      className="p-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg border border-gray-700 transition"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                {gatewayNotice && (
+                  <div className="mt-3 p-2.5 rounded-lg bg-black/60 text-xs border border-white/10 text-gray-200 flex items-center gap-2 animate-in fade-in duration-200">
+                    <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>{gatewayNotice}</span>
+                  </div>
+                )}
+              </div>
+
               {/* Bot Token Configuration */}
               <div className="space-y-4 p-4 bg-[#0D1117] border border-gray-800 rounded-lg">
                 <div>
@@ -2636,32 +2816,46 @@ export const WebhookSettingsModal: React.FC<Props> = ({
                   <span>UJI COBA KIRIM PESAN PRIBADI (TEST PM / DM LANGSUNG):</span>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center gap-2">
-                  <input
-                    type="text"
-                    value={testBotUserId}
-                    onChange={(e) => setTestBotUserId(e.target.value)}
-                    placeholder="Masukkan Discord User ID Anda (contoh: 842019283719001)"
-                    className="w-full sm:flex-1 px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleTestBotDm}
-                    disabled={isTestingBot || !botConfig.botToken.trim()}
-                    className="w-full sm:w-auto px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded text-xs transition flex items-center justify-center gap-2 disabled:opacity-40 shrink-0"
-                  >
-                    {isTestingBot ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Mengirim PM...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Bot className="w-3.5 h-3.5" />
-                        <span>KIRIM TEST PM</span>
-                      </>
-                    )}
-                  </button>
+                <div className="space-y-2">
+                  <div className="flex flex-col sm:flex-row items-center gap-2">
+                    <input
+                      type="text"
+                      value={testBotUserId}
+                      onChange={(e) => setTestBotUserId(e.target.value)}
+                      placeholder="Masukkan Discord User ID Anda (contoh: 842019283719001)"
+                      className="w-full sm:flex-1 px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleTestBotDm}
+                      disabled={isTestingBot || !botConfig.botToken.trim()}
+                      className="w-full sm:w-auto px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded text-xs transition flex items-center justify-center gap-2 disabled:opacity-40 shrink-0"
+                    >
+                      {isTestingBot ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Mengirim PM...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Bot className="w-3.5 h-3.5" />
+                          <span>KIRIM TEST PM</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                      Pesan Uji Coba Khusus Atasan:
+                    </label>
+                    <input
+                      type="text"
+                      value={testBotCustomMessage}
+                      onChange={(e) => setTestBotCustomMessage(e.target.value)}
+                      placeholder="Uji coba pesan dinas khusus dari atasan..."
+                      className="w-full px-3 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-300 outline-none"
+                    />
+                  </div>
                 </div>
 
                 {botTestResult && (

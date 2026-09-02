@@ -176,8 +176,74 @@ export function saveDiscordBotConfig(config: Partial<DiscordBotConfig>) {
     if (config.embedColor !== undefined) localStorage.setItem(DISCORD_BOT_EMBED_COLOR_KEY, config.embedColor.trim());
     if (config.footerText !== undefined) localStorage.setItem(DISCORD_BOT_FOOTER_TEXT_KEY, config.footerText.trim());
     syncAllWebhooksToFirestore();
+
+    // Auto-connect / Keep bot online (Green) 24/7 whenever token is provided
+    if (config.botToken && config.botToken.trim()) {
+      startDiscordBotGateway(config.botToken.trim()).catch(() => {});
+    }
   } catch (e) {
     console.error('Failed to save Discord Bot settings', e);
+  }
+}
+
+/**
+ * Check if the Discord Bot is currently online (green circle) on Gateway
+ */
+export async function getDiscordBotGatewayStatus(): Promise<{
+  isOnline: boolean;
+  botUser: { id: string; username: string; discriminator: string; avatar: string | null } | null;
+  status: 'online' | 'offline';
+  uptimeSeconds: number;
+  lastError: string | null;
+  hasToken: boolean;
+}> {
+  try {
+    const res = await fetch('/api/discord/bot-status');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  } catch (err: any) {
+    return {
+      isOnline: false,
+      botUser: null,
+      status: 'offline',
+      uptimeSeconds: 0,
+      lastError: err.message,
+      hasToken: false
+    };
+  }
+}
+
+/**
+ * Start or Reconnect Discord Gateway to make Bot status ONLINE (Green light)
+ */
+export async function startDiscordBotGateway(token?: string): Promise<{ success: boolean; message: string; botUser?: any }> {
+  try {
+    const botConfig = getSavedDiscordBotConfig();
+    const tokenToUse = (token || botConfig.botToken || '').trim();
+    if (!tokenToUse) {
+      return { success: false, message: 'Bot Token belum diisi! Masukkan Bot Token di menu Pengaturan Bot Discord.' };
+    }
+    const res = await fetch('/api/discord/bot-start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ botToken: tokenToUse })
+    });
+    const data = await res.json();
+    return data;
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Gagal menyalakan status online Discord Bot' };
+  }
+}
+
+/**
+ * Disconnect Discord Gateway
+ */
+export async function stopDiscordBotGateway(): Promise<{ success: boolean; message: string }> {
+  try {
+    const res = await fetch('/api/discord/bot-stop', { method: 'POST' });
+    return await res.json();
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Gagal mematikan bot' };
   }
 }
 
@@ -2382,7 +2448,7 @@ export async function sendOfficerDirectMessageViaBot(params: {
   userId?: string;
   discordUserId?: string;
   officerName: string;
-  pin: string;
+  pin?: string;
   officerBadge?: string;
   badge?: string;
   officerRank?: string;
@@ -2403,6 +2469,7 @@ export async function sendOfficerDirectMessageViaBot(params: {
   color?: string;
   footerText?: string;
   customMessage?: string;
+  messageType?: 'credentials' | 'custom_chat';
 }): Promise<{ success: boolean; message: string }> {
   const botConfig = getSavedDiscordBotConfig();
   const token = (params.customBotToken || botConfig.botToken || '').trim();
@@ -2426,7 +2493,7 @@ export async function sendOfficerDirectMessageViaBot(params: {
         botToken: token,
         userId: cleanId,
         officerName: params.officerName,
-        pin: params.pin,
+        pin: params.pin || '10-4',
         badge: params.officerBadge || params.badge,
         rank: params.officerRank || params.rank,
         division: params.officerDivision || params.division,
@@ -2437,7 +2504,8 @@ export async function sendOfficerDirectMessageViaBot(params: {
         embedDescription: params.embedDescription || params.description || botConfig.embedDescription,
         embedColor: params.embedColor || params.color || botConfig.embedColor,
         footerText: params.footerText || botConfig.footerText,
-        customMessage: params.customMessage
+        customMessage: params.customMessage,
+        messageType: params.messageType || 'credentials'
       })
     });
 
@@ -2464,7 +2532,11 @@ export async function sendOfficerDirectMessageViaBot(params: {
 /**
  * Test Direct Message to an Admin's Discord User ID
  */
-export async function testDiscordBotDirectMessage(targetUserId: string, customToken?: string): Promise<{ success: boolean; message: string }> {
+export async function testDiscordBotDirectMessage(
+  targetUserId: string, 
+  customToken?: string,
+  testMessage?: string
+): Promise<{ success: boolean; message: string }> {
   return sendOfficerDirectMessageViaBot({
     userId: targetUserId,
     officerName: 'Test Account / Nexia',
@@ -2473,14 +2545,165 @@ export async function testDiscordBotDirectMessage(targetUserId: string, customTo
     officerDivision: 'HQ Command',
     pin: '20857',
     customNote: 'Jangan beritahu informasi ini kepada orang lain!',
+    customMessage: testMessage || 'Halo! Ini adalah tes pengiriman Pesan Pribadi (PM/DM) dari Bot Discord HSPD dengan pesan kustom dari atasan.',
     customBotToken: customToken
   });
 }
 
+// Keys for saving superior PM custom message and custom templates
+export const HSPD_SAVED_SUPERIOR_DM_DEFAULT_MSG = 'hspd_saved_superior_dm_message';
+export const HSPD_SAVED_SUPERIOR_DM_PRESETS = 'hspd_saved_superior_dm_presets';
+
+export interface SuperiorSavedPreset {
+  id: string;
+  title: string;
+  text: string;
+  createdAt: number;
+}
+
+export const DEFAULT_SUPERIOR_DM_PRESETS: SuperiorSavedPreset[] = [
+  {
+    id: 'preset-1',
+    title: '📋 Kredensial & SOP Standar',
+    text: 'Selamat bertugas di jajaran kepolisian HSPD! Harap segera login ke sistem MDT, ubah PIN Anda bila perlu, dan selalu patuhi seluruh SOP dinas.',
+    createdAt: 1700000000000
+  },
+  {
+    id: 'preset-2',
+    title: '🚨 Panggilan Apel / Siaga',
+    text: 'PANGGILAN ATASAN: Harap segera memasuki radio dinas frekuensi 1111 dan berkumpul di ruang briefing markas besar sekarang juga.',
+    createdAt: 1700000000001
+  },
+  {
+    id: 'preset-3',
+    title: '🎖️ Promosi & Kenaikan Pangkat',
+    text: 'Selamat atas dedikasi dan integritas Anda! Pangkat dinas Anda telah dinaikkan. Terus junjung tinggi kehormatan korps kepolisian HSPD.',
+    createdAt: 1700000000002
+  },
+  {
+    id: 'preset-4',
+    title: '⚠️ Peringatan Kedisiplinan',
+    text: 'PERINGATAN ATASAN: Diharapkan memperhatikan kedisiplinan dinas, kepatuhan SOP patroli, dan kelengkapan bodycam saat bertugas.',
+    createdAt: 1700000000003
+  }
+];
+
+export function getSavedSuperiorDmMessage(): string {
+  try {
+    const saved = localStorage.getItem(HSPD_SAVED_SUPERIOR_DM_DEFAULT_MSG);
+    if (saved && saved.trim()) return saved;
+  } catch {}
+  return 'Selamat bertugas di jajaran kepolisian HSPD! Harap jaga kerahasiaan kredensial akun dan patuhi seluruh SOP dinas.';
+}
+
+export function saveSuperiorDmMessage(message: string): void {
+  try {
+    localStorage.setItem(HSPD_SAVED_SUPERIOR_DM_DEFAULT_MSG, message);
+  } catch (e) {
+    console.error('Failed to save superior DM message:', e);
+  }
+}
+
+export function getSavedSuperiorDmPresets(): SuperiorSavedPreset[] {
+  try {
+    const raw = localStorage.getItem(HSPD_SAVED_SUPERIOR_DM_PRESETS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return DEFAULT_SUPERIOR_DM_PRESETS;
+}
+
+export function saveSuperiorDmPresets(presets: SuperiorSavedPreset[]): void {
+  try {
+    localStorage.setItem(HSPD_SAVED_SUPERIOR_DM_PRESETS, JSON.stringify(presets));
+  } catch (e) {
+    console.error('Failed to save superior presets:', e);
+  }
+}
 
 /**
- * Send Officer Profile / Member Information Update to Discord Webhook
+ * Send Batch PIN Broadcast Summary Audit to PIN Webhook
  */
+export async function sendBatchPinBroadcastLogToDiscord(params: {
+  superiorName: string;
+  superiorBadge: string;
+  superiorRank: string;
+  totalOfficers: number;
+  successCount: number;
+  failedCount: number;
+  skippedCount: number;
+  customMessage?: string;
+  customConfig?: Partial<WebhookConfig>;
+}): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedPinResetWebhookConfig(), ...params.customConfig };
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return { success: false, message: 'URL Webhook pengiriman PIN belum diatur.' };
+  }
+
+  const dateStr = new Date().toLocaleString('id-ID', {
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+
+  const embedObj = {
+    title: `📢 [BROADCAST MASSAL] PENGIRIMAN PIN BOT KE SELURUH AKUN ANGGOTA`,
+    description: `Pihak Komando / Atasan telah mengeksekusi pengiriman PIN login terminal MDT secara massal ke akun Discord seluruh personel kepolisian.`,
+    color: params.failedCount === 0 ? 0x10B981 : 0xF59E0B, // Emerald or Amber
+    fields: [
+      {
+        name: '👑 EKSEKUTOR KOMANDO',
+        value: `**${params.superiorRank} ${params.superiorName}**\nBadge: \`${params.superiorBadge}\``,
+        inline: true,
+      },
+      {
+        name: '📊 STATISTIK PENGIRIMAN',
+        value: `Total Akun: **${params.totalOfficers}**\n🟢 Berhasil: **${params.successCount}**\n🔴 Gagal: **${params.failedCount}**\n⚪ Dilewati (Tanpa ID): **${params.skippedCount}**`,
+        inline: true,
+      },
+      {
+        name: '🕒 WAKTU EKSEKUSI',
+        value: `${dateStr}`,
+        inline: true,
+      },
+      ...(params.customMessage?.trim() ? [{
+        name: '💬 PESAN/ARAHAN ATASAN DI PM DISCORD',
+        value: `>>> *${params.customMessage.trim()}*`,
+        inline: false,
+      }] : []),
+      {
+        name: '🛡️ CATATAN KEAMANAN',
+        value: 'Setiap anggota menerima UCP & PIN masing-masing secara rahasia melalui Pesan Pribadi (PM/DM) Bot Discord.',
+        inline: false,
+      }
+    ],
+    footer: {
+      text: `HSPD Bot Direct Dispatch • HighState Roleplay • ${dateStr}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: config.botName.trim() || 'HSPD Security & Credentials HQ',
+        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        embeds: [embedObj]
+      })
+    });
+
+    if (!res.ok) {
+      return { success: false, message: `Discord Webhook error HTTP ${res.status}` };
+    }
+    return { success: true, message: 'Log audit broadcast PIN berhasil dikirim ke Discord Webhook!' };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Gagal mengirim log broadcast ke webhook' };
+  }
+}
 export async function sendOfficerProfileUpdateToDiscord(params: {
   officerName: string;
   officerBadge: string;

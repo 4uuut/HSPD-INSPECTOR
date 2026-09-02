@@ -32,7 +32,7 @@ import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch, saveRo
 import { getSavedDetectiveCases, saveDetectiveCases } from './utils/detectiveCaseStorage';
 import { getSavedBoloAlerts, saveBoloAlerts, getSavedImpounds, saveImpounds } from './utils/boloImpoundStorage';
 import { getOfficerDutyState, saveOfficerDutyState, formatDutyDuration } from './utils/officerDutyStorage';
-import { getDiscordWebhookConfig } from './utils/discordWebhook';
+import { getDiscordWebhookConfig, getSavedDiscordBotConfig, startDiscordBotGateway } from './utils/discordWebhook';
 import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from './utils/brandingStorage';
 import { checkDirectRankClearance, hasActiveUnlockedSession } from './utils/otpClearanceStorage';
 import { 
@@ -130,6 +130,16 @@ export default function App() {
   useEffect(() => {
     const interval = setInterval(() => setTimeTicker(Date.now()), 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Auto-connect Discord bot gateway on startup if token is configured (keeps bot online & green 24/7)
+  useEffect(() => {
+    try {
+      const botCfg = getSavedDiscordBotConfig();
+      if (botCfg.botToken && botCfg.botToken.trim()) {
+        startDiscordBotGateway(botCfg.botToken.trim()).catch(() => {});
+      }
+    } catch {}
   }, []);
 
   const [isDutyModalOpen, setIsDutyModalOpen] = useState(false);
