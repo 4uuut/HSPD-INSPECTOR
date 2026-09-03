@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import { OfficerAccount } from '../types';
 import { getAllOfficersDutyRegistry, getOfficerDutyState, formatDutyDuration } from './officerDutyStorage';
 import { HSPD_LOGO_URL } from '../assets/logo';
+import { pushToFirestore } from '../services/firebaseRealtimeSync';
 
 export interface DutySession {
   id: string;
@@ -79,6 +80,7 @@ export function recordDutySession(session: Omit<DutySession, 'id' | 'dateStr'>):
   try {
     localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent('hspd-duty-sessions-updated', { detail: updated }));
+    pushToFirestore('DUTY_SESSIONS', newSession, newSession.id).catch(() => {});
   } catch (e) {
     console.error('Failed to save duty session', e);
   }

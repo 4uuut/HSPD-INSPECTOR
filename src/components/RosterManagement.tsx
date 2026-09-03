@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  OfficerAccount, OfficerRankLevel, OfficerWarning, DischargeRecord, PromotionRecord, ALL_RANKS, HIGH_COMMAND_RANKS, isOfficerHighRank 
+  OfficerAccount, OfficerRankLevel, OfficerWarning, DischargeRecord, PromotionRecord, ALL_RANKS, HIGH_COMMAND_RANKS, isOfficerHighRank, isAtasanRank 
 } from '../types';
 import { 
   Shield, User, Award, ArrowUpRight, ArrowDownRight, Edit3, 
@@ -8,7 +8,7 @@ import {
   Sparkles, ShieldAlert, X, Plus, ShieldCheck, Clock, Lock,
   UserX, Trash2, AlertOctagon, Send, RotateCcw, AlertCircle, FileText, RefreshCw,
   UserPlus, Phone, Sliders, Eye, EyeOff, Radio, Activity, FileSpreadsheet, Download, Archive,
-  MessageSquare, Bot, Upload, Image, Palette, Save, Bookmark
+  MessageSquare, Bot, Upload, Image, Palette, Save, Bookmark, Settings, Globe, ExternalLink
 } from 'lucide-react';
 import { ExportAttendanceModal } from './ExportAttendanceModal';
 import { getNextAvailableBadge } from '../utils/badgeHelper';
@@ -30,7 +30,13 @@ import {
   saveSuperiorDmMessage,
   getSavedSuperiorDmPresets,
   saveSuperiorDmPresets,
-  SuperiorSavedPreset
+  SuperiorSavedPreset,
+  getSavedRosterWebhookConfig,
+  saveRosterWebhookConfig,
+  testRosterDiscordWebhook,
+  getSavedPinResetWebhookConfig,
+  savePinResetWebhookConfig,
+  WebhookConfig
 } from '../utils/discordWebhook';
 import { getOfficerDutyState, formatDutyDuration } from '../utils/officerDutyStorage';
 import { HSPD_LOGO_URL } from '../assets/logo';
@@ -53,8 +59,11 @@ interface Props {
   onUpdateOfficer: (updated: OfficerAccount) => void;
   onRegisterOfficer?: (newAccount: OfficerAccount) => void;
   onDeleteOfficer?: (officerId: string, reason?: string, deletingOfficer?: OfficerAccount) => void;
+  onPurgeNonAtasanOfficers?: () => Promise<void> | void;
   onOpenPinResetAudit?: () => void;
   pendingPinResetCount?: number;
+  onOpenWebhookModal?: (tab?: string) => void;
+  onNavigateToSettings?: (sectionId?: string) => void;
   onClose?: () => void;
 }
 
@@ -111,13 +120,98 @@ export const RosterManagement: React.FC<Props> = ({
   onUpdateOfficer,
   onRegisterOfficer,
   onDeleteOfficer,
+  onPurgeNonAtasanOfficers,
   onOpenPinResetAudit,
   pendingPinResetCount,
+  onOpenWebhookModal,
+  onNavigateToSettings,
   onClose
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRank, setFilterRank] = useState<'ALL' | 'DUTY' | 'COMMAND' | 'PATROL' | 'WARNED' | 'DISCHARGED'>('ALL');
   const [editingOfficer, setEditingOfficer] = useState<OfficerAccount | null>(null);
+  const [showPurgeNonAtasanModal, setShowPurgeNonAtasanModal] = useState(false);
+  const [isPurgingNonAtasan, setIsPurgingNonAtasan] = useState(false);
+
+  // Webhook Settings Configuration Modal State (Bisa merubah webhook di Pengaturan Sistem & Otoritas Komando)
+  const [isWebhookConfigModalOpen, setIsWebhookConfigModalOpen] = useState(false);
+  const [rosterWebhookUrl, setRosterWebhookUrl] = useState('');
+  const [rosterBotName, setRosterBotName] = useState('');
+  const [isTestingWebhook, setIsTestingWebhook] = useState(false);
+  const [isSavingWebhook, setIsSavingWebhook] = useState(false);
+  const [webhookNotice, setWebhookNotice] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleOpenWebhookConfigModal = () => {
+    const rConfig = getSavedRosterWebhookConfig();
+    const pConfig = getSavedPinResetWebhookConfig();
+    setRosterWebhookUrl(rConfig.webhookUrl || pConfig.webhookUrl || '');
+    setRosterBotName(rConfig.botName || 'HSPD Personnel & Roster Bureau');
+    setWebhookNotice(null);
+    setIsWebhookConfigModalOpen(true);
+  };
+
+  const handleSaveWebhookConfig = () => {
+    setIsSavingWebhook(true);
+    setWebhookNotice(null);
+    try {
+      const trimmedUrl = rosterWebhookUrl.trim();
+      const trimmedBot = rosterBotName.trim() || 'HSPD Personnel & Roster Bureau';
+      
+      saveRosterWebhookConfig({
+        webhookUrl: trimmedUrl,
+        botName: trimmedBot
+      });
+      savePinResetWebhookConfig({
+        webhookUrl: trimmedUrl,
+        botName: trimmedBot
+      });
+      setWebhookNotice({
+        success: true,
+        message: '✅ URL Webhook berhasil disimpan dan disinkronkan ke Pengaturan Sistem & Otoritas Komando!'
+      });
+      setTimeout(() => {
+        setWebhookNotice(null);
+      }, 4000);
+    } catch (e: any) {
+      setWebhookNotice({
+        success: false,
+        message: `Gagal menyimpan webhook: ${e.message || 'Error tidak diketahui'}`
+      });
+    } finally {
+      setIsSavingWebhook(false);
+    }
+  };
+
+  const handleTestWebhookPing = async () => {
+    if (!rosterWebhookUrl.trim()) {
+      setWebhookNotice({
+        success: false,
+        message: 'Masukkan URL Webhook Discord terlebih dahulu sebelum melakukan tes ping.'
+      });
+      return;
+    }
+    setIsTestingWebhook(true);
+    setWebhookNotice(null);
+    try {
+      const res = await testRosterDiscordWebhook({
+        webhookUrl: rosterWebhookUrl.trim(),
+        botName: rosterBotName.trim() || 'HSPD Personnel & Roster Bureau',
+        botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        autoSendOnSave: true
+      });
+      setWebhookNotice({
+        success: res.success,
+        message: res.message
+      });
+    } catch (e: any) {
+      setWebhookNotice({
+        success: false,
+        message: `Tes gagal: ${e.message || 'Periksa koneksi internet & URL webhook'}`
+      });
+    } finally {
+      setIsTestingWebhook(false);
+    }
+  };
   
   // Discharged officers archive state
   const [dischargedList, setDischargedList] = useState<DischargedOfficerEntry[]>(() => getDischargedOfficers());
@@ -1175,6 +1269,20 @@ export const RosterManagement: React.FC<Props> = ({
               <span>{isTestingConnection ? 'MENGUJI...' : '🔄 TES KONEKSI'}</span>
             </button>
 
+            {/* HIGH COMMAND: HAPUS SEMUA AKUN NON-ATASAN */}
+            {isCurrentOfficerCommand && onPurgeNonAtasanOfficers && (
+              <button
+                id="btn-purge-non-atasan"
+                type="button"
+                onClick={() => setShowPurgeNonAtasanModal(true)}
+                className="px-3 py-2 bg-rose-950/80 hover:bg-rose-900 border border-rose-600/70 hover:border-rose-400 text-rose-300 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
+                title="Hapus seluruh akun anggota selain Atasan dari database CAD dan Cloud Firestore"
+              >
+                <Trash2 className="w-4 h-4 text-rose-400" />
+                <span>🗑️ BERSIHKAN NON-ATASAN</span>
+              </button>
+            )}
+
             {/* HIGH COMMAND ONLY: PIN RESET AUDIT & WEBHOOK LOG BUTTON */}
             {onOpenPinResetAudit && (
               <button
@@ -1191,6 +1299,20 @@ export const RosterManagement: React.FC<Props> = ({
                     {pendingPinResetCount}
                   </span>
                 )}
+              </button>
+            )}
+
+            {/* HIGH COMMAND ONLY: PENGATURAN WEBHOOK KOMANDO */}
+            {isCurrentOfficerCommand && (
+              <button
+                id="btn-open-roster-webhook-settings"
+                type="button"
+                onClick={handleOpenWebhookConfigModal}
+                className="px-3 py-2 bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-600/70 hover:border-indigo-400 text-indigo-300 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                title="Pengaturan & Perubahan Webhook di Pengaturan Sistem & Otoritas Komando"
+              >
+                <Settings className="w-4 h-4 text-indigo-400" />
+                <span>👑 PENGATURAN WEBHOOK</span>
               </button>
             )}
           </div>
@@ -1551,20 +1673,31 @@ export const RosterManagement: React.FC<Props> = ({
                                 <span className="hidden sm:inline">PM BOT</span>
                               </button>
 
-                              {/* Send Discord Webhook Credentials Button */}
-                              <button
-                                onClick={() => handleSendDirectCredentials(officer)}
-                                disabled={sendingCredentialsId === (officer.id || officer.name)}
-                                className="px-2 py-1 bg-indigo-950/90 hover:bg-indigo-800 text-indigo-300 hover:text-white border border-indigo-700/80 rounded text-[10px] font-bold transition flex items-center gap-1 shadow-sm"
-                                title="Kirim/Broadcast kredensial akun login (UCP, Badge, & PIN) ke Saluran Webhook Discord"
-                              >
-                                {sendingCredentialsId === (officer.id || officer.name) ? (
-                                  <RefreshCw className="w-3 h-3 animate-spin text-indigo-300" />
-                                ) : (
-                                  <Send className="w-3 h-3 text-indigo-400" />
-                                )}
-                                <span className="hidden lg:inline">WEBHOOK</span>
-                              </button>
+                              {/* Send Discord Webhook Credentials Button with Settings */}
+                              <div className="flex items-center -space-x-px">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSendDirectCredentials(officer)}
+                                  disabled={sendingCredentialsId === (officer.id || officer.name)}
+                                  className="px-2 py-1 bg-indigo-950/90 hover:bg-indigo-800 text-indigo-300 hover:text-white border border-indigo-700/80 rounded-l text-[10px] font-bold transition flex items-center gap-1 shadow-sm disabled:opacity-50 cursor-pointer"
+                                  title="Kirim/Broadcast kredensial akun login (UCP, Badge, & PIN) ke Saluran Webhook Discord"
+                                >
+                                  {sendingCredentialsId === (officer.id || officer.name) ? (
+                                    <RefreshCw className="w-3 h-3 animate-spin text-indigo-300" />
+                                  ) : (
+                                    <Send className="w-3 h-3 text-indigo-400" />
+                                  )}
+                                  <span className="hidden lg:inline">WEBHOOK</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleOpenWebhookConfigModal}
+                                  className="px-1.5 py-1 bg-indigo-900/90 hover:bg-indigo-700 text-indigo-300 hover:text-white border border-indigo-700/80 rounded-r text-[10px] font-bold transition flex items-center justify-center shadow-sm cursor-pointer group"
+                                  title="Ubah Webhook di Pengaturan Sistem & Otoritas Komando"
+                                >
+                                  <Settings className="w-3 h-3 text-indigo-300 group-hover:rotate-90 transition-transform duration-300" />
+                                </button>
+                              </div>
 
                               {/* Warning Button */}
                               <button
@@ -2181,43 +2314,53 @@ export const RosterManagement: React.FC<Props> = ({
                       <span>Kirim PM Bot (DM)</span>
                     </button>
 
-                    {/* Webhook Broadcast Button */}
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!editingOfficer) return;
-                        setIsSendingCredentials(true);
-                        try {
-                          const res = await sendOfficerLoginCredentialsToDiscord({
-                            officerName: editingOfficer.name,
-                            officerBadge: editingOfficer.badge,
-                            officerRank: newRank,
-                            officerDivision: newDivision || editingOfficer.division,
-                            pin: newPin.trim() || editingOfficer.pin || '10-4',
-                            discordTag: editDiscordTag.trim() || undefined,
-                            sentBy: currentOfficerName || 'High Command',
-                            sentByBadge: currentOfficerBadge || '#001',
-                            sentByRank: currentOfficerRank || 'HIGH COMMAND'
-                          });
-                          if (res.success) {
-                            setSuccessNotice(`✅ Kredensial login ${editingOfficer.name} berhasil dikirim ke Saluran Webhook Discord!`);
-                          } else {
-                            alert(res.message);
+                    {/* Webhook Broadcast Button Group with Settings */}
+                    <div className="flex items-center -space-x-px">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!editingOfficer) return;
+                          setIsSendingCredentials(true);
+                          try {
+                            const res = await sendOfficerLoginCredentialsToDiscord({
+                              officerName: editingOfficer.name,
+                              officerBadge: editingOfficer.badge,
+                              officerRank: newRank,
+                              officerDivision: newDivision || editingOfficer.division,
+                              pin: newPin.trim() || editingOfficer.pin || '10-4',
+                              discordTag: editDiscordTag.trim() || undefined,
+                              sentBy: currentOfficerName || 'High Command',
+                              sentByBadge: currentOfficerBadge || '#001',
+                              sentByRank: currentOfficerRank || 'HIGH COMMAND'
+                            });
+                            if (res.success) {
+                              setSuccessNotice(`✅ Kredensial login ${editingOfficer.name} berhasil dikirim ke Saluran Webhook Discord!`);
+                            } else {
+                              alert(res.message);
+                            }
+                            setTimeout(() => setSuccessNotice(''), 5000);
+                          } catch (e: any) {
+                            alert(`Gagal mengirim kredensial: ${e.message}`);
+                          } finally {
+                            setIsSendingCredentials(false);
                           }
-                          setTimeout(() => setSuccessNotice(''), 5000);
-                        } catch (e: any) {
-                          alert(`Gagal mengirim kredensial: ${e.message}`);
-                        } finally {
-                          setIsSendingCredentials(false);
-                        }
-                      }}
-                      disabled={isSendingCredentials}
-                      className="text-[10px] bg-indigo-900/80 hover:bg-indigo-700 text-indigo-200 px-2 py-1 rounded border border-indigo-600 transition flex items-center gap-1 font-bold disabled:opacity-50 cursor-pointer"
-                      title="Kirim detail akun login (UCP & PIN) ke Saluran Webhook Discord"
-                    >
-                      {isSendingCredentials ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3 text-indigo-300" />}
-                      <span>Kirim ke Webhook</span>
-                    </button>
+                        }}
+                        disabled={isSendingCredentials}
+                        className="text-[10px] bg-indigo-900/80 hover:bg-indigo-700 text-indigo-200 px-2 py-1 rounded-l border border-indigo-600 transition flex items-center gap-1 font-bold disabled:opacity-50 cursor-pointer"
+                        title="Kirim detail akun login (UCP & PIN) ke Saluran Webhook Discord"
+                      >
+                        {isSendingCredentials ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3 text-indigo-300" />}
+                        <span>Kirim ke Webhook</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleOpenWebhookConfigModal}
+                        className="p-1 bg-indigo-800/90 hover:bg-indigo-600 text-indigo-200 hover:text-white border-y border-r border-indigo-600 rounded-r text-[10px] font-bold transition flex items-center justify-center shadow-sm cursor-pointer group"
+                        title="Ubah Webhook di Pengaturan Sistem & Otoritas Komando"
+                      >
+                        <Settings className="w-3 h-3 text-indigo-300 group-hover:rotate-90 transition-transform duration-300" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3328,12 +3471,231 @@ export const RosterManagement: React.FC<Props> = ({
         </div>
       )}
 
+      {/* MODAL KONFIRMASI HAPUS SEMUA AKUN NON-ATASAN */}
+      {showPurgeNonAtasanModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#161B22] border border-rose-600/70 rounded-xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-rose-950/80 border border-rose-600 flex items-center justify-center text-rose-400 shrink-0">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-100 text-sm">Hapus Semua Akun Selain Atasan</h3>
+                <p className="text-xs text-gray-400">Pembersihan Total Akun Non-Command dari Database CAD & Cloud</p>
+              </div>
+            </div>
+            <div className="p-3 bg-rose-950/40 border border-rose-800/60 rounded-lg text-xs text-rose-200 space-y-1 font-mono">
+              <p className="font-bold text-rose-300">⚠️ PERINGATAN PEMBERSIHAN DATA:</p>
+              <p>Aksi ini akan menghapus seluruh akun personel selain jajaran Atasan (Chief, Assistant Chief, Deputy Chief, Commander, Captain, Lieutenant) dari database lokal dan Cloud Firestore.</p>
+              <p className="text-gray-300 text-[11px]">Hanya akun Atasan resmi yang akan dipertahankan di roster. Data yang terhapus dari cloud tidak akan dapat dipulihkan kembali kecuali didaftarkan ulang.</p>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowPurgeNonAtasanModal(false)}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-bold transition font-mono"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isPurgingNonAtasan}
+                onClick={async () => {
+                  setIsPurgingNonAtasan(true);
+                  try {
+                    if (onPurgeNonAtasanOfficers) {
+                      await onPurgeNonAtasanOfficers();
+                    }
+                    setShowPurgeNonAtasanModal(false);
+                    setSuccessNotice('✅ Seluruh akun personel selain atasan berhasil dibersihkan dari database lokal & cloud!');
+                    setTimeout(() => setSuccessNotice(''), 5000);
+                  } catch (e) {
+                    alert('Gagal membersihkan data non-atasan.');
+                  } finally {
+                    setIsPurgingNonAtasan(false);
+                  }
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 font-mono shadow-md shadow-rose-600/30"
+              >
+                {isPurgingNonAtasan ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                <span>{isPurgingNonAtasan ? 'Membersihkan Cloud...' : 'Ya, Bersihkan Semua Non-Atasan'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* EXPORT ATTENDANCE MODAL */}
       <ExportAttendanceModal
         isOpen={isExportAttendanceModalOpen}
         onClose={() => setIsExportAttendanceModalOpen(false)}
         roster={roster}
       />
+
+      {/* MODAL PENGATURAN & PERUBAHAN WEBHOOK (PENGATURAN SISTEM & OTORITAS KOMANDO) */}
+      {isWebhookConfigModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-[#121620] border border-indigo-700/80 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-gray-800 bg-indigo-950/40">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-950 border border-indigo-500/60 flex items-center justify-center text-indigo-400">
+                  <Settings className="w-5 h-5 animate-[spin_8s_linear_infinite]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-white tracking-tight">
+                      PENGATURAN WEBHOOK DISCORD
+                    </h3>
+                    <span className="text-[10px] bg-indigo-950 text-indigo-300 font-mono px-2 py-0.5 rounded border border-indigo-700 font-bold">
+                      OTORITAS KOMANDO
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400 font-mono">
+                    Kelola & ubah URL Webhook untuk pengiriman akun login, UCP, PIN, dan audit personel
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsWebhookConfigModalOpen(false)}
+                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-4">
+              {/* Status Notice */}
+              {webhookNotice && (
+                <div className={`p-3 rounded-lg border text-xs flex items-center gap-2 font-mono animate-in fade-in ${
+                  webhookNotice.success 
+                    ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-200' 
+                    : 'bg-rose-950/80 border-rose-500/80 text-rose-200'
+                }`}>
+                  {webhookNotice.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                  )}
+                  <span>{webhookNotice.message}</span>
+                </div>
+              )}
+
+              {/* Input Webhook URL */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-indigo-300 uppercase flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Send className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>URL Webhook Discord Petugas & Kredensial:</span>
+                  </span>
+                  <span className="text-[10px] text-gray-400 lowercase font-mono font-normal">
+                    https://discord.com/api/webhooks/...
+                  </span>
+                </label>
+                <input
+                  type="url"
+                  value={rosterWebhookUrl}
+                  onChange={(e) => setRosterWebhookUrl(e.target.value)}
+                  placeholder="https://discord.com/api/webhooks/ID/TOKEN"
+                  className="w-full px-3.5 py-2.5 bg-[#0D1117] border border-gray-700 focus:border-indigo-500 rounded-lg text-xs text-gray-100 font-mono outline-none"
+                />
+                <div className="text-[11px] text-gray-400 flex items-center justify-between">
+                  <span>Digunakan oleh tombol WEBHOOK di tabel untuk mengirim UCP & PIN login.</span>
+                  <span className={rosterWebhookUrl.startsWith('https://discord.com/api/webhooks/') ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
+                    {rosterWebhookUrl.startsWith('https://discord.com/api/webhooks/') ? '✓ Format Discord Valid' : '⚠️ Format Harus Discord Webhook'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Input Bot Name */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-gray-300 uppercase flex items-center gap-1.5">
+                  <Bot className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>Nama Bot Webhook (Embed Sender):</span>
+                </label>
+                <input
+                  type="text"
+                  value={rosterBotName}
+                  onChange={(e) => setRosterBotName(e.target.value)}
+                  placeholder="Contoh: HSPD Personnel & Roster Bureau"
+                  className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-indigo-500 rounded-lg text-xs text-gray-100 font-mono outline-none"
+                />
+              </div>
+
+              {/* Navigation & Integration shortcuts */}
+              <div className="p-3 bg-[#0D1117] rounded-xl border border-gray-800 space-y-2">
+                <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+                  <span>👑 PINTASAN PENGATURAN SISTEM & OTORITAS KOMANDO</span>
+                </span>
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                  Anda dapat berpindah langsung ke menu pengaturan induk Markas Besar HSPD untuk audit lengkap, konfigurasi multi-channel, dan log keamanan:
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                  {onNavigateToSettings && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsWebhookConfigModalOpen(false);
+                        onNavigateToSettings('section-pin-webhook');
+                      }}
+                      className="flex-1 py-2 px-3 bg-amber-950/70 hover:bg-amber-900 border border-amber-600 text-amber-300 rounded-lg text-xs font-bold font-mono transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                    >
+                      <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Buka di Pengaturan Sistem & Otoritas Komando</span>
+                    </button>
+                  )}
+                  {onOpenWebhookModal && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsWebhookConfigModalOpen(false);
+                        onOpenWebhookModal('roster');
+                      }}
+                      className="py-2 px-3 bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-600 text-indigo-300 rounded-lg text-xs font-bold font-mono transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                    >
+                      <Settings className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>Buka 14 Tab Webhook</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Footer Buttons */}
+              <div className="flex items-center justify-between pt-2 border-t border-gray-800">
+                <button
+                  type="button"
+                  onClick={handleTestWebhookPing}
+                  disabled={isTestingWebhook || !rosterWebhookUrl.trim()}
+                  className="px-3.5 py-2 bg-blue-950 hover:bg-blue-900 border border-blue-600 text-blue-300 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 disabled:opacity-40 cursor-pointer"
+                >
+                  {isTestingWebhook ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                  <span>Tes Ping Webhook</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsWebhookConfigModalOpen(false)}
+                    className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-mono transition cursor-pointer"
+                  >
+                    Tutup
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveWebhookConfig}
+                    disabled={isSavingWebhook}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-md shadow-emerald-950 cursor-pointer"
+                  >
+                    {isSavingWebhook ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                    <span>Simpan Webhook</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

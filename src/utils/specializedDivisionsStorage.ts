@@ -7,6 +7,7 @@ import {
   CadetEvaluation,
   TedTrafficRecord
 } from '../types';
+import { pushToFirestore } from '../services/firebaseRealtimeSync';
 
 export const ASD_KEY = 'hspd_asd_helicopters_v1';
 export const K9_KEY = 'hspd_k9_partners_v1';
@@ -243,114 +244,171 @@ export const INITIAL_TED_RECORDS: TedTrafficRecord[] = [
   }
 ];
 
+/**
+ * Synchronizes all specialized division modules into a single consolidated Cloud document.
+ */
+export function syncSpecializedDivisionsToCloud() {
+  try {
+    const bundle = {
+      id: 'specialized_divisions',
+      asd: getSavedAsdHelis(),
+      k9: getSavedK9Partners(),
+      k9Logs: getSavedK9Logs(),
+      swat: getSavedSwatOps(),
+      iad: getSavedIadComplaints(),
+      academy: getSavedCadetEvals(),
+      ted: getSavedTedRecords(),
+      updatedAt: Date.now()
+    };
+    pushToFirestore('SYSTEM_CONFIGS', bundle, 'specialized_divisions').catch(() => {});
+  } catch (e) {
+    console.warn('Failed to sync specialized divisions to cloud', e);
+  }
+}
+
 export const getSavedAsdHelis = (): AsdHelicopter[] => {
   try {
     const raw = localStorage.getItem(ASD_KEY);
-    if (!raw) return INITIAL_ASD_HELIS;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_ASD_HELIS;
-  } catch (e) {
-    return INITIAL_ASD_HELIS;
-  }
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  return INITIAL_ASD_HELIS;
 };
 
 export const saveAsdHelis = (helis: AsdHelicopter[]) => {
-  localStorage.setItem(ASD_KEY, JSON.stringify(helis));
-  window.dispatchEvent(new Event('hspd-asd-updated'));
+  try {
+    localStorage.setItem(ASD_KEY, JSON.stringify(helis));
+    window.dispatchEvent(new Event('hspd-asd-updated'));
+    syncSpecializedDivisionsToCloud();
+  } catch (e) {
+    console.error('Failed to save ASD helis:', e);
+  }
 };
 
 export const getSavedK9Partners = (): K9Partner[] => {
   try {
     const raw = localStorage.getItem(K9_KEY);
-    if (!raw) return INITIAL_K9_PARTNERS;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_K9_PARTNERS;
-  } catch (e) {
-    return INITIAL_K9_PARTNERS;
-  }
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  return INITIAL_K9_PARTNERS;
 };
 
 export const saveK9Partners = (partners: K9Partner[]) => {
-  localStorage.setItem(K9_KEY, JSON.stringify(partners));
-  window.dispatchEvent(new Event('hspd-k9-updated'));
+  try {
+    localStorage.setItem(K9_KEY, JSON.stringify(partners));
+    window.dispatchEvent(new Event('hspd-k9-updated'));
+    syncSpecializedDivisionsToCloud();
+  } catch (e) {
+    console.error('Failed to save K9 partners:', e);
+  }
 };
 
 export const getSavedK9Logs = (): K9DeploymentLog[] => {
   try {
     const raw = localStorage.getItem(K9_LOGS_KEY);
-    if (!raw) return INITIAL_K9_LOGS;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_K9_LOGS;
-  } catch (e) {
-    return INITIAL_K9_LOGS;
-  }
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  return INITIAL_K9_LOGS;
 };
 
 export const saveK9Logs = (logs: K9DeploymentLog[]) => {
-  localStorage.setItem(K9_LOGS_KEY, JSON.stringify(logs));
-  window.dispatchEvent(new Event('hspd-k9-logs-updated'));
+  try {
+    localStorage.setItem(K9_LOGS_KEY, JSON.stringify(logs));
+    window.dispatchEvent(new Event('hspd-k9-logs-updated'));
+    syncSpecializedDivisionsToCloud();
+  } catch (e) {
+    console.error('Failed to save K9 logs:', e);
+  }
 };
 
 export const getSavedSwatOps = (): SwatOperation[] => {
   try {
     const raw = localStorage.getItem(SWAT_KEY);
-    if (!raw) return INITIAL_SWAT_OPS;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_SWAT_OPS;
-  } catch (e) {
-    return INITIAL_SWAT_OPS;
-  }
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  return INITIAL_SWAT_OPS;
 };
 
 export const saveSwatOps = (ops: SwatOperation[]) => {
-  localStorage.setItem(SWAT_KEY, JSON.stringify(ops));
-  window.dispatchEvent(new Event('hspd-swat-updated'));
+  try {
+    localStorage.setItem(SWAT_KEY, JSON.stringify(ops));
+    window.dispatchEvent(new Event('hspd-swat-updated'));
+    syncSpecializedDivisionsToCloud();
+  } catch (e) {
+    console.error('Failed to save SWAT ops:', e);
+  }
 };
 
 export const getSavedIadComplaints = (): IadComplaint[] => {
   try {
     const raw = localStorage.getItem(IAD_KEY);
-    if (!raw) return INITIAL_IAD_COMPLAINTS;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_IAD_COMPLAINTS;
-  } catch (e) {
-    return INITIAL_IAD_COMPLAINTS;
-  }
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  return INITIAL_IAD_COMPLAINTS;
 };
 
 export const saveIadComplaints = (complaints: IadComplaint[]) => {
-  localStorage.setItem(IAD_KEY, JSON.stringify(complaints));
-  window.dispatchEvent(new Event('hspd-iad-updated'));
+  try {
+    localStorage.setItem(IAD_KEY, JSON.stringify(complaints));
+    window.dispatchEvent(new Event('hspd-iad-updated'));
+    syncSpecializedDivisionsToCloud();
+  } catch (e) {
+    console.error('Failed to save IAD complaints:', e);
+  }
 };
 
 export const getSavedCadetEvals = (): CadetEvaluation[] => {
   try {
     const raw = localStorage.getItem(ACADEMY_KEY);
-    if (!raw) return INITIAL_CADET_EVALS;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_CADET_EVALS;
-  } catch (e) {
-    return INITIAL_CADET_EVALS;
-  }
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  return INITIAL_CADET_EVALS;
 };
 
 export const saveCadetEvals = (evals: CadetEvaluation[]) => {
-  localStorage.setItem(ACADEMY_KEY, JSON.stringify(evals));
-  window.dispatchEvent(new Event('hspd-academy-updated'));
+  try {
+    localStorage.setItem(ACADEMY_KEY, JSON.stringify(evals));
+    window.dispatchEvent(new Event('hspd-academy-updated'));
+    syncSpecializedDivisionsToCloud();
+  } catch (e) {
+    console.error('Failed to save cadet evals:', e);
+  }
 };
 
 export const getSavedTedRecords = (): TedTrafficRecord[] => {
   try {
     const raw = localStorage.getItem(TED_KEY);
-    if (!raw) return INITIAL_TED_RECORDS;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_TED_RECORDS;
-  } catch (e) {
-    return INITIAL_TED_RECORDS;
-  }
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {}
+  return INITIAL_TED_RECORDS;
 };
 
 export const saveTedRecords = (records: TedTrafficRecord[]) => {
-  localStorage.setItem(TED_KEY, JSON.stringify(records));
-  window.dispatchEvent(new Event('hspd-ted-updated'));
+  try {
+    localStorage.setItem(TED_KEY, JSON.stringify(records));
+    window.dispatchEvent(new Event('hspd-ted-updated'));
+    syncSpecializedDivisionsToCloud();
+  } catch (e) {
+    console.error('Failed to save TED records:', e);
+  }
 };

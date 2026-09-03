@@ -218,9 +218,9 @@ export const INITIAL_DETECTIVE_CASES: DetectiveCase[] = [
 export function getSavedDetectiveCases(): DetectiveCase[] {
   try {
     const raw = localStorage.getItem(DETECTIVE_CASES_KEY);
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
     console.error('Failed reading detective cases', e);

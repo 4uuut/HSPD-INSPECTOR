@@ -43,6 +43,7 @@ interface Props {
   currentOfficer?: OfficerProfile | null;
   onSaved?: () => void;
   onOpenBrandingModal?: () => void;
+  initialTab?: 'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm';
 }
 
 export const WebhookSettingsModal: React.FC<Props> = ({
@@ -50,9 +51,16 @@ export const WebhookSettingsModal: React.FC<Props> = ({
   onClose,
   currentOfficer,
   onSaved,
-  onOpenBrandingModal
+  onOpenBrandingModal,
+  initialTab
 }) => {
-  const [activeTab, setActiveTab] = useState<'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm'>('case');
+  const [activeTab, setActiveTab] = useState<'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm'>(initialTab || 'case');
+
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [isOpen, initialTab]);
   
   // Case / Arrest Webhook State
   const [caseConfig, setCaseConfig] = useState<WebhookConfig>(() => getSavedWebhookConfig());

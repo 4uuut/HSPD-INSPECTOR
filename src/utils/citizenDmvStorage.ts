@@ -116,12 +116,14 @@ export const INITIAL_CITIZENS: CitizenProfile[] = [
 export const getSavedCitizens = (): CitizenProfile[] => {
   try {
     const raw = localStorage.getItem(CITIZEN_DMV_KEY);
-    if (!raw) return INITIAL_CITIZENS;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_CITIZENS;
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
   } catch (e) {
-    return INITIAL_CITIZENS;
+    console.error('Failed reading citizens', e);
   }
+  return INITIAL_CITIZENS;
 };
 
 export const saveCitizens = (citizens: CitizenProfile[]) => {

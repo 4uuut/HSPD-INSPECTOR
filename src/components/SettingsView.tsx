@@ -13,6 +13,7 @@ import { HSPD_LOGO_URL } from '../assets/logo';
 import { 
   getSavedPinResetWebhookConfig, 
   savePinResetWebhookConfig, 
+  saveRosterWebhookConfig,
   testPinResetDiscordWebhook,
   WebhookConfig,
   DEFAULT_PIN_RESET_WEBHOOK_URL,
@@ -72,9 +73,10 @@ export const SettingsView: React.FC<Props> = ({
     setIsSavingPinWebhook(true);
     try {
       savePinResetWebhookConfig(pinWebhookConfig);
+      saveRosterWebhookConfig(pinWebhookConfig);
       setPinWebhookNotice({
         success: true,
-        message: '✅ Webhook pengiriman PIN akun berhasil disimpan dan disinkronkan ke database!'
+        message: '✅ Webhook pengiriman PIN akun & Roster berhasil disimpan dan disinkronkan ke database!'
       });
       setTimeout(() => setPinWebhookNotice(null), 5000);
     } catch (e: any) {
@@ -214,20 +216,40 @@ export const SettingsView: React.FC<Props> = ({
               </div>
             </button>
 
-            {/* BUTTON 4: 🎛️ 👑 WEBHOOK */}
-            <button
-              id="btn-settings-webhook"
-              type="button"
-              onClick={onOpenWebhookModal}
-              className="px-3.5 py-2.5 bg-[#17120A] hover:bg-[#241B0E] text-amber-300 border border-amber-600/80 hover:border-amber-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-2 shrink-0 shadow-md shadow-amber-950/40 group active:scale-95"
-              title="Pengaturan Integrasi Discord Webhook (High Command)"
-            >
-              <Sliders className="w-4 h-4 text-amber-400 group-hover:scale-110 transition" />
-              <div className="flex flex-col items-start text-left leading-tight">
-                <span className="text-[10px] text-amber-400/90 font-normal flex items-center gap-1">👑</span>
-                <span className="font-bold">WEBHOOK</span>
-              </div>
-            </button>
+            {/* BUTTON 4: 🎛️ 👑 WEBHOOK + SETTINGS UNTUK MERUBAH WEBHOOK */}
+            <div className="flex items-center -space-x-px shrink-0">
+              <button
+                id="btn-settings-webhook"
+                type="button"
+                onClick={onOpenWebhookModal}
+                className="px-3 py-2.5 bg-[#17120A] hover:bg-[#241B0E] text-amber-300 border border-amber-600/80 hover:border-amber-400 rounded-l-lg text-xs font-bold font-mono transition flex items-center gap-2 shadow-md shadow-amber-950/40 group active:scale-95"
+                title="Buka 14 Tab Integrasi Discord Webhook Studio (High Command)"
+              >
+                <Sliders className="w-4 h-4 text-amber-400 group-hover:scale-110 transition" />
+                <div className="flex flex-col items-start text-left leading-tight">
+                  <span className="text-[10px] text-amber-400/90 font-normal flex items-center gap-1">👑</span>
+                  <span className="font-bold">WEBHOOK</span>
+                </div>
+              </button>
+              <button
+                id="btn-settings-webhook-config"
+                type="button"
+                onClick={() => {
+                  const el = document.getElementById('section-pin-webhook');
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth' });
+                    el.classList.add('ring-2', 'ring-amber-400');
+                    setTimeout(() => el.classList.remove('ring-2', 'ring-amber-400'), 2500);
+                  } else {
+                    onOpenWebhookModal();
+                  }
+                }}
+                className="p-2.5 bg-[#1f170c] hover:bg-[#2e2110] text-amber-300 border-y border-r border-amber-600/80 hover:border-amber-400 rounded-r-lg text-xs font-bold font-mono transition flex items-center justify-center shadow-md shadow-amber-950/40 group active:scale-95 cursor-pointer"
+                title="Settings untuk merubah webhook di Pengaturan Sistem & Otoritas Komando"
+              >
+                <Settings className="w-4 h-4 text-amber-400 group-hover:rotate-90 transition-transform duration-300" />
+              </button>
+            </div>
 
             {/* BUTTON 5: 🔑 👑 LOG PIN */}
             <button
@@ -619,7 +641,7 @@ export const SettingsView: React.FC<Props> = ({
       </div>
 
       {/* 2.5 WEBHOOK PENGIRIMAN PIN AKUN DI SETTING & OTORITAS (BISA DIUBAH BEBAS OLEH ATASAN) */}
-      <div className="bg-[#121620] border border-sky-800/80 rounded-xl p-4 sm:p-5 shadow-xl space-y-4">
+      <div id="section-pin-webhook" className="bg-[#121620] border border-sky-800/80 rounded-xl p-4 sm:p-5 shadow-xl space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-gray-800">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-sky-950 border border-sky-600/60 flex items-center justify-center text-sky-400">
@@ -667,6 +689,17 @@ export const SettingsView: React.FC<Props> = ({
               {isSavingPinWebhook ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
               <span>Simpan Webhook PIN</span>
             </button>
+            {onOpenWebhookModal && (
+              <button
+                type="button"
+                onClick={onOpenWebhookModal}
+                className="px-3 py-1.5 bg-indigo-950 hover:bg-indigo-900 border border-indigo-600 text-indigo-300 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 cursor-pointer shadow-sm"
+                title="Buka 14 Tab Webhook Discord Studio Lengkap"
+              >
+                <Settings className="w-3.5 h-3.5 text-indigo-400" />
+                <span>14 Tab Webhook</span>
+              </button>
+            )}
           </div>
         </div>
 

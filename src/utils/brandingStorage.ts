@@ -180,20 +180,21 @@ export function getCustomBranding(): DepartmentBrandingConfig {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
+        const dataObj = Array.isArray(parsed) ? (parsed[0] || {}) : parsed;
         return {
           ...DEFAULT_BRANDING,
-          ...parsed,
-          logoUrl: parsed.logoUrl || DEFAULT_BRANDING.logoUrl,
-          departmentCode: parsed.departmentCode || DEFAULT_BRANDING.departmentCode,
-          departmentName: parsed.departmentName || DEFAULT_BRANDING.departmentName,
-          subTitle: parsed.subTitle || DEFAULT_BRANDING.subTitle,
-          cadBadgeText: parsed.cadBadgeText || DEFAULT_BRANDING.cadBadgeText,
-          agencyJurisdiction: parsed.agencyJurisdiction || DEFAULT_BRANDING.agencyJurisdiction,
-          radioFreq: parsed.radioFreq || DEFAULT_BRANDING.radioFreq,
-          backgroundWallpaper: parsed.backgroundWallpaper !== undefined ? parsed.backgroundWallpaper : DEFAULT_BRANDING.backgroundWallpaper,
-          backgroundOpacity: typeof parsed.backgroundOpacity === 'number' ? parsed.backgroundOpacity : DEFAULT_BRANDING.backgroundOpacity,
-          backgroundBlur: typeof parsed.backgroundBlur === 'number' ? parsed.backgroundBlur : DEFAULT_BRANDING.backgroundBlur,
-          backgroundStyle: parsed.backgroundStyle || DEFAULT_BRANDING.backgroundStyle
+          ...dataObj,
+          logoUrl: dataObj.logoUrl || DEFAULT_BRANDING.logoUrl,
+          departmentCode: dataObj.departmentCode || DEFAULT_BRANDING.departmentCode,
+          departmentName: dataObj.departmentName || DEFAULT_BRANDING.departmentName,
+          subTitle: dataObj.subTitle || DEFAULT_BRANDING.subTitle,
+          cadBadgeText: dataObj.cadBadgeText || DEFAULT_BRANDING.cadBadgeText,
+          agencyJurisdiction: dataObj.agencyJurisdiction || DEFAULT_BRANDING.agencyJurisdiction,
+          radioFreq: dataObj.radioFreq || DEFAULT_BRANDING.radioFreq,
+          backgroundWallpaper: dataObj.backgroundWallpaper !== undefined ? dataObj.backgroundWallpaper : DEFAULT_BRANDING.backgroundWallpaper,
+          backgroundOpacity: typeof dataObj.backgroundOpacity === 'number' ? dataObj.backgroundOpacity : DEFAULT_BRANDING.backgroundOpacity,
+          backgroundBlur: typeof dataObj.backgroundBlur === 'number' ? dataObj.backgroundBlur : DEFAULT_BRANDING.backgroundBlur,
+          backgroundStyle: dataObj.backgroundStyle || DEFAULT_BRANDING.backgroundStyle
         };
       }
     }

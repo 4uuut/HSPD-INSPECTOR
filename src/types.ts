@@ -254,6 +254,24 @@ export const isOfficerHighRank = (rank?: string): boolean => {
 export const isHighCommand = isOfficerHighRank;
 
 /**
+ * Check if officer holds an Atasan / Command rank:
+ * Chief of Police, Assistant Chief, Deputy Chief, Commander, Captain, Lieutenant.
+ */
+export const isAtasanRank = (rank?: string): boolean => {
+  if (!rank) return false;
+  const r = rank.toUpperCase().trim();
+  return (
+    isOfficerHighRank(rank) ||
+    r.includes('COMMANDER') ||
+    r.includes('[CDR]') ||
+    r.includes('CAPTAIN') ||
+    r.includes('[CPT]') ||
+    r.includes('LIEUTENANT') ||
+    r.includes('[LT]')
+  );
+};
+
+/**
  * Check if officer is Supervisor / Command Staff (Captain or Lieutenant or above)
  * Authorized to generate OTP, approve destruction, manage confidential documents, and access vault.
  */

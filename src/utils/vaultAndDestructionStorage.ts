@@ -190,14 +190,14 @@ const INITIAL_DESTRUCTION_LIST: DestructionRegistryItem[] = [
 export function getSavedVaultAuditLogs(): VaultAuditLog[] {
   try {
     const raw = localStorage.getItem(VAULT_STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(VAULT_STORAGE_KEY, JSON.stringify(INITIAL_VAULT_LOGS));
-      return INITIAL_VAULT_LOGS;
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
     }
-    return JSON.parse(raw);
   } catch {
-    return INITIAL_VAULT_LOGS;
+    // fallback
   }
+  return INITIAL_VAULT_LOGS;
 }
 
 // Aliases
@@ -305,14 +305,14 @@ export function generateAuditReportSummary(audit: VaultAuditLog): string {
 export function getSavedDestructionList(): DestructionRegistryItem[] {
   try {
     const raw = localStorage.getItem(DESTRUCTION_STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(DESTRUCTION_STORAGE_KEY, JSON.stringify(INITIAL_DESTRUCTION_LIST));
-      return INITIAL_DESTRUCTION_LIST;
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
     }
-    return JSON.parse(raw);
   } catch {
-    return INITIAL_DESTRUCTION_LIST;
+    // fallback
   }
+  return INITIAL_DESTRUCTION_LIST;
 }
 
 export const getSavedDestructionItems = getSavedDestructionList;

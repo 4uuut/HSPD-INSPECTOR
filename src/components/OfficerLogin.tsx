@@ -15,6 +15,7 @@ import { CaptchaVerification } from './CaptchaVerification';
 import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from '../utils/brandingStorage';
 import { isOfficerMatch, getPinResetRequests, updateOfficerPinInRoster, getRosterFromStorage } from '../utils/pinResetStorage';
 import { HSPD_OFFICIAL_ROSTER, mergeWithOfficialRoster } from '../data/hspdOfficialRoster';
+import { isOfficerDischarged } from '../utils/dischargeStorage';
 
 interface Props {
   onLogin: (officer: OfficerProfile) => void;
@@ -89,6 +90,12 @@ export const OfficerLogin: React.FC<Props> = ({
 
     if (!matched) {
       setLoginError(`Petugas "${loginIdentifier}" tidak terdaftar di database anggota kepolisian! Silakan hubungi Atasan di Discord jika Anda anggota baru.`);
+      return;
+    }
+
+    // Check if officer was discharged / dipecat
+    if (isOfficerDischarged(matched)) {
+      setLoginError(`Akses Ditolak: Petugas "${matched.name}" (${matched.badge}) telah diberhentikan/dipecat dari dinas kepolisian.`);
       return;
     }
 

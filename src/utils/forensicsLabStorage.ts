@@ -48,12 +48,14 @@ export const INITIAL_FORENSICS: ForensicAnalysis[] = [
 export const getSavedForensics = (): ForensicAnalysis[] => {
   try {
     const raw = localStorage.getItem(FORENSICS_KEY);
-    if (!raw) return INITIAL_FORENSICS;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_FORENSICS;
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
   } catch (e) {
-    return INITIAL_FORENSICS;
+    console.error('Failed reading forensics', e);
   }
+  return INITIAL_FORENSICS;
 };
 
 export const saveForensics = (records: ForensicAnalysis[]) => {

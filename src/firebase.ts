@@ -21,12 +21,12 @@ export const firebaseApp = !getApps().length
   : getApp();
 
 // Initialize Firestore instance using databaseId configured in firebase-applet-config
-// Auto-detect long polling and resilient cache prevent WebSocket drops in sandboxed iframe previews
+// Forcing long polling prevents the 10-second WebSocket/WebChannel stream timeout in sandboxed iframe environments
 export const db: Firestore = (() => {
   const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
   try {
     return initializeFirestore(firebaseApp, {
-      experimentalAutoDetectLongPolling: true,
+      experimentalForceLongPolling: true,
       ignoreUndefinedProperties: true,
       localCache: persistentLocalCache({
         tabManager: persistentMultipleTabManager()
@@ -35,7 +35,7 @@ export const db: Firestore = (() => {
   } catch {
     try {
       return initializeFirestore(firebaseApp, {
-        experimentalAutoDetectLongPolling: true,
+        experimentalForceLongPolling: true,
         ignoreUndefinedProperties: true
       }, dbId);
     } catch {

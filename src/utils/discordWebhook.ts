@@ -445,7 +445,7 @@ export function savePinResetWebhookConfig(config: Partial<WebhookConfig>) {
 export function getSavedRosterWebhookConfig(): WebhookConfig {
   try {
     return {
-      webhookUrl: localStorage.getItem(ROSTER_WEBHOOK_STORAGE_KEY) || localStorage.getItem(PROMOTION_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
+      webhookUrl: localStorage.getItem(ROSTER_WEBHOOK_STORAGE_KEY) || localStorage.getItem(PIN_RESET_WEBHOOK_STORAGE_KEY) || localStorage.getItem(PROMOTION_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(ROSTER_BOT_NAME_KEY) || 'HSPD Personnel & Roster Bureau',
       botAvatar: localStorage.getItem(ROSTER_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
       autoSendOnSave: localStorage.getItem(ROSTER_AUTO_SEND_KEY) !== 'false'

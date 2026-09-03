@@ -8,6 +8,7 @@ import {
   getRankHierarchyTier,
   VALID_SUPERVISOR_PASSCODES
 } from '../types';
+import { pushToFirestore } from '../services/firebaseRealtimeSync';
 
 export const OTP_STORAGE_KEY = 'hspd_one_time_passcodes_v1';
 export const OTP_ACTIVE_SESSIONS_KEY = 'hspd_otp_active_sessions_v1';
@@ -452,21 +453,22 @@ export const generateOtpCode = (module: ModuleAccessKey): string => {
 export const getSavedOtps = (): OneTimePasscode[] => {
   try {
     const raw = localStorage.getItem(OTP_STORAGE_KEY);
-    if (!raw) return getInitialDemoOtps();
-    const list: OneTimePasscode[] = JSON.parse(raw);
-    const now = Date.now();
-
-    // Auto-update expired items
-    return list.map(item => {
-      if (item.status === 'ACTIVE' && item.expiresAt > 0 && now > item.expiresAt) {
-        return { ...item, status: 'EXPIRED' as const };
+    if (raw !== null) {
+      const list: OneTimePasscode[] = JSON.parse(raw);
+      if (Array.isArray(list)) {
+        const now = Date.now();
+        return list.map(item => {
+          if (item.status === 'ACTIVE' && item.expiresAt > 0 && now > item.expiresAt) {
+            return { ...item, status: 'EXPIRED' as const };
+          }
+          return item;
+        });
       }
-      return item;
-    });
+    }
   } catch (e) {
     console.error('Failed to parse OTP list', e);
-    return getInitialDemoOtps();
   }
+  return getInitialDemoOtps();
 };
 
 /**
@@ -539,6 +541,7 @@ export const saveOtpList = (list: OneTimePasscode[]): void => {
   try {
     localStorage.setItem(OTP_STORAGE_KEY, JSON.stringify(list));
     window.dispatchEvent(new Event('hspd-otp-updated'));
+    pushToFirestore('SYSTEM_CONFIGS', { id: 'active_otps', list, updatedAt: Date.now() }, 'active_otps').catch(() => {});
   } catch (e) {
     console.error('Failed to save OTP list', e);
   }

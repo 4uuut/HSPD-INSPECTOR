@@ -79,9 +79,9 @@ export const INITIAL_IMPOUND_RECORDS: ImpoundRecord[] = [
 export function getSavedBoloAlerts(): BoloAlert[] {
   try {
     const raw = localStorage.getItem(BOLO_STORAGE_KEY);
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
     console.error('Failed reading BOLO alerts', e);
@@ -102,9 +102,9 @@ export function saveBoloAlerts(bolos: BoloAlert[]) {
 export function getSavedImpounds(): ImpoundRecord[] {
   try {
     const raw = localStorage.getItem(IMPOUND_STORAGE_KEY);
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch (e) {
     console.error('Failed reading Impound records', e);

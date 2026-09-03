@@ -1,4 +1,4 @@
-import { OfficerAccount } from '../types';
+import { OfficerAccount, isAtasanRank } from '../types';
 import { getDischargedOfficers, isOfficerDischarged, DischargedOfficerEntry } from '../utils/dischargeStorage';
 
 export const HSPD_OFFICIAL_ROSTER: OfficerAccount[] = [
@@ -110,615 +110,698 @@ export const HSPD_OFFICIAL_ROSTER: OfficerAccount[] = [
     name: 'Ramsey beningthon',
     badge: '#301',
     rank: 'SERGEANT II [SGT II]',
-    division: 'Patrol Supervisory',
+    division: 'Field Supervisory Division',
     pin: '30101',
     phone: '555-0301',
     registeredAt: Date.now() - 86400000 * 35,
-    promotedBy: 'Field Command Supervisory Board'
+    promotedBy: 'Executive Command Bureau'
   },
   {
     id: 'roster-carlos-gallarado-311',
     name: 'Carlos Gallarado',
     badge: '#311',
     rank: 'SERGEANT I [SGT I]',
-    division: 'Field Supervisory',
+    division: 'Patrol Supervisory Bureau',
     pin: '31101',
     phone: '555-0311',
-    registeredAt: Date.now() - 86400000 * 30,
-    promotedBy: 'Field Command Supervisory Board'
+    registeredAt: Date.now() - 86400000 * 34,
+    promotedBy: 'Executive Command Bureau'
   },
   {
     id: 'roster-jon-oliver-312',
     name: 'Jon Oliver',
     badge: '#312',
     rank: 'SERGEANT I [SGT I]',
-    division: 'Field Supervisory',
-    pin: '31202',
+    division: 'Patrol Supervisory Bureau',
+    pin: '31201',
     phone: '555-0312',
-    registeredAt: Date.now() - 86400000 * 28,
-    promotedBy: 'Field Command Supervisory Board'
+    registeredAt: Date.now() - 86400000 * 33,
+    promotedBy: 'Executive Command Bureau'
   },
   {
     id: 'roster-kyloo-askara-313',
     name: 'Kyloo Askara',
     badge: '#313',
     rank: 'SERGEANT I [SGT I]',
-    division: 'Field Supervisory',
-    pin: '31303',
+    division: 'Patrol Supervisory Bureau',
+    pin: '31301',
     phone: '555-0313',
-    registeredAt: Date.now() - 86400000 * 26,
-    promotedBy: 'Field Command Supervisory Board'
+    registeredAt: Date.now() - 86400000 * 32,
+    promotedBy: 'Executive Command Bureau'
   },
   {
     id: 'roster-moji-junior-314',
     name: 'Moji Junior',
     badge: '#314',
     rank: 'SERGEANT I [SGT I]',
-    division: 'Field Supervisory',
-    pin: '31404',
+    division: 'Patrol Supervisory Bureau',
+    pin: '31401',
     phone: '555-0314',
-    registeredAt: Date.now() - 86400000 * 25,
-    promotedBy: 'Field Command Supervisory Board'
+    registeredAt: Date.now() - 86400000 * 31,
+    promotedBy: 'Executive Command Bureau'
   },
   {
-    id: 'roster-rize-izumi-315',
-    name: 'Rize Izumi (Special Guest)',
+    id: 'roster-udin-phystachio-315',
+    name: 'Udin Phystachio',
     badge: '#315',
     rank: 'SERGEANT I [SGT I]',
-    division: 'Special Assignment / Guest Supervisor',
-    pin: '31505',
+    division: 'Patrol Supervisory Bureau',
+    pin: '31501',
     phone: '555-0315',
-    registeredAt: Date.now() - 86400000 * 24,
-    promotedBy: 'Penugasan Khusus High Command'
+    registeredAt: Date.now() - 86400000 * 30,
+    promotedBy: 'Executive Command Bureau'
+  },
+  {
+    id: 'roster-boris-layasa-316',
+    name: 'Boris Layasa',
+    badge: '#316',
+    rank: 'SERGEANT I [SGT I]',
+    division: 'Patrol Supervisory Bureau',
+    pin: '31601',
+    phone: '555-0316',
+    registeredAt: Date.now() - 86400000 * 29,
+    promotedBy: 'Executive Command Bureau'
+  },
+  {
+    id: 'roster-gorgon-xianlao-317',
+    name: 'Gorgon Xianlao',
+    badge: '#317',
+    rank: 'SERGEANT I [SGT I]',
+    division: 'Patrol Supervisory Bureau',
+    pin: '31701',
+    phone: '555-0317',
+    registeredAt: Date.now() - 86400000 * 28,
+    promotedBy: 'Executive Command Bureau'
+  },
+  {
+    id: 'roster-rize-izumi-318',
+    name: 'Rize Izumi',
+    badge: '#318',
+    rank: 'SERGEANT I [SGT I]',
+    division: 'Special Guest / Supervisory Liaison',
+    pin: '31801',
+    phone: '555-0318',
+    registeredAt: Date.now() - 86400000 * 27,
+    promotedBy: 'Chief of Police (Special Guest Liaison)'
   },
 
   // ==========================================
   // [POLICE OFFICERS // RANK 2]
   // ==========================================
+  // -- POLICE OFFICER III [PO III] --
   {
-    id: 'roster-udin-phystachio-201',
-    name: 'Udin Phystachio',
+    id: 'roster-thomas-olise-201',
+    name: 'Thomas Olise',
     badge: '#201',
-    rank: 'POLICE OFFICER II [PO II]',
-    division: 'Patrol Division',
-    pin: '20111',
+    rank: 'POLICE OFFICER III [PO III]',
+    division: 'Senior Patrol Division',
+    pin: '20101',
     phone: '555-0201',
-    registeredAt: Date.now() - 86400000 * 20,
-    promotedBy: 'Selesai Masa Probation PO I'
+    registeredAt: Date.now() - 86400000 * 25,
+    promotedBy: 'Field Operations Division'
+  },
+  {
+    id: 'roster-syns-askara-202',
+    name: 'Syns Askara',
+    badge: '#202',
+    rank: 'POLICE OFFICER III [PO III]',
+    division: 'Senior Patrol Division',
+    pin: '20201',
+    phone: '555-0202',
+    registeredAt: Date.now() - 86400000 * 24,
+    promotedBy: 'Field Operations Division'
+  },
+  {
+    id: 'roster-jimmy-hops-203',
+    name: 'Jimmy Hops',
+    badge: '#203',
+    rank: 'POLICE OFFICER III [PO III]',
+    division: 'Senior Patrol Division',
+    pin: '20301',
+    phone: '555-0203',
+    registeredAt: Date.now() - 86400000 * 23,
+    promotedBy: 'Field Operations Division'
+  },
+  {
+    id: 'roster-lexa-arvella-204',
+    name: 'Lexa Arvella',
+    badge: '#204',
+    rank: 'POLICE OFFICER III [PO III]',
+    division: 'Senior Patrol Division',
+    pin: '20401',
+    phone: '555-0204',
+    registeredAt: Date.now() - 86400000 * 22,
+    promotedBy: 'Field Operations Division'
   },
 
-  // POLICE OFFICER I [PO I]
+  // -- POLICE OFFICER II [PO II] --
   {
-    id: 'roster-luix-ziyen-101',
+    id: 'roster-gondrong-carregado-211',
+    name: 'Gondrong Carregado',
+    badge: '#211',
+    rank: 'POLICE OFFICER II [PO II]',
+    division: 'Regular Patrol Division',
+    pin: '21101',
+    phone: '555-0211',
+    registeredAt: Date.now() - 86400000 * 20,
+    promotedBy: 'Field Operations Division'
+  },
+  {
+    id: 'roster-edes-fernandes-212',
+    name: 'Edes Fernandes',
+    badge: '#212',
+    rank: 'POLICE OFFICER II [PO II]',
+    division: 'Regular Patrol Division',
+    pin: '21201',
+    phone: '555-0212',
+    registeredAt: Date.now() - 86400000 * 20,
+    promotedBy: 'Field Operations Division'
+  },
+  {
+    id: 'roster-jalisco-michoacana-213',
+    name: 'Jalisco Michoacana',
+    badge: '#213',
+    rank: 'POLICE OFFICER II [PO II]',
+    division: 'Regular Patrol Division',
+    pin: '21301',
+    phone: '555-0213',
+    registeredAt: Date.now() - 86400000 * 19,
+    promotedBy: 'Field Operations Division'
+  },
+  {
+    id: 'roster-cecep-alexsander-214',
+    name: 'Cecep Alexsander',
+    badge: '#214',
+    rank: 'POLICE OFFICER II [PO II]',
+    division: 'Regular Patrol Division',
+    pin: '21401',
+    phone: '555-0214',
+    registeredAt: Date.now() - 86400000 * 19,
+    promotedBy: 'Field Operations Division'
+  },
+  {
+    id: 'roster-yukai-escobar-215',
+    name: 'Yukai Escobar',
+    badge: '#215',
+    rank: 'POLICE OFFICER II [PO II]',
+    division: 'Regular Patrol Division',
+    pin: '21501',
+    phone: '555-0215',
+    registeredAt: Date.now() - 86400000 * 18,
+    promotedBy: 'Field Operations Division'
+  },
+  {
+    id: 'roster-shiko-alexanderz-216',
+    name: 'Shiko Alexanderz',
+    badge: '#216',
+    rank: 'POLICE OFFICER II [PO II]',
+    division: 'Regular Patrol Division',
+    pin: '21601',
+    phone: '555-0216',
+    registeredAt: Date.now() - 86400000 * 18,
+    promotedBy: 'Field Operations Division'
+  },
+  {
+    id: 'roster-marchel-leonerd-217',
+    name: 'Marchel Leonerd',
+    badge: '#217',
+    rank: 'POLICE OFFICER II [PO II]',
+    division: 'Regular Patrol Division',
+    pin: '21701',
+    phone: '555-0217',
+    registeredAt: Date.now() - 86400000 * 17,
+    promotedBy: 'Field Operations Division'
+  },
+  {
+    id: 'roster-theo-leviathan-218',
+    name: 'Theo Leviathan',
+    badge: '#218',
+    rank: 'POLICE OFFICER II [PO II]',
+    division: 'Regular Patrol Division',
+    pin: '21801',
+    phone: '555-0218',
+    registeredAt: Date.now() - 86400000 * 17,
+    promotedBy: 'Field Operations Division'
+  },
+  {
+    id: 'roster-dadang-darmawan-219',
+    name: 'Dadang Darmawan',
+    badge: '#219',
+    rank: 'POLICE OFFICER II [PO II]',
+    division: 'Regular Patrol Division',
+    pin: '21901',
+    phone: '555-0219',
+    registeredAt: Date.now() - 86400000 * 16,
+    promotedBy: 'Field Operations Division'
+  },
+  {
+    id: 'roster-michaell-anderson-220',
+    name: 'Michaell Anderson',
+    badge: '#220',
+    rank: 'POLICE OFFICER II [PO II]',
+    division: 'Regular Patrol Division',
+    pin: '22001',
+    phone: '555-0220',
+    registeredAt: Date.now() - 86400000 * 16,
+    promotedBy: 'Field Operations Division'
+  },
+  {
+    id: 'roster-oscar-hernandez-221',
+    name: 'Oscar Hernandez',
+    badge: '#221',
+    rank: 'POLICE OFFICER II [PO II]',
+    division: 'Regular Patrol Division',
+    pin: '22101',
+    phone: '555-0221',
+    registeredAt: Date.now() - 86400000 * 15,
+    promotedBy: 'Field Operations Division'
+  },
+  {
+    id: 'roster-kyle-satorue-222',
+    name: 'Kyle Satorue',
+    badge: '#222',
+    rank: 'POLICE OFFICER II [PO II]',
+    division: 'Regular Patrol Division',
+    pin: '22201',
+    phone: '555-0222',
+    registeredAt: Date.now() - 86400000 * 15,
+    promotedBy: 'Field Operations Division'
+  },
+
+  // -- POLICE OFFICER I [PO I] --
+  {
+    id: 'roster-luix-ziyen-231',
     name: 'Luix Ziyen',
-    badge: '#101',
+    badge: '#231',
     rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
+    division: 'Junior Patrol Division',
+    pin: '23101',
+    phone: '555-0231',
+    registeredAt: Date.now() - 86400000 * 14,
+    promotedBy: 'Academy Training Command'
+  },
+  {
+    id: 'roster-kenzo-velows-232',
+    name: 'Kenzo Velows',
+    badge: '#232',
+    rank: 'POLICE OFFICER I [PO I]',
+    division: 'Junior Patrol Division',
+    pin: '23201',
+    phone: '555-0232',
+    registeredAt: Date.now() - 86400000 * 14,
+    promotedBy: 'Academy Training Command'
+  },
+  {
+    id: 'roster-rejjie-kei-233',
+    name: 'Rejjie Kei',
+    badge: '#233',
+    rank: 'POLICE OFFICER I [PO I]',
+    division: 'Junior Patrol Division',
+    pin: '23301',
+    phone: '555-0233',
+    registeredAt: Date.now() - 86400000 * 13,
+    promotedBy: 'Academy Training Command'
+  },
+  {
+    id: 'roster-peter-schmaicel-234',
+    name: 'Peter Schmaicel',
+    badge: '#234',
+    rank: 'POLICE OFFICER I [PO I]',
+    division: 'Junior Patrol Division',
+    pin: '23401',
+    phone: '555-0234',
+    registeredAt: Date.now() - 86400000 * 13,
+    promotedBy: 'Academy Training Command'
+  },
+  {
+    id: 'roster-zaydan-kusuma-235',
+    name: 'Zaydan Kusuma',
+    badge: '#235',
+    rank: 'POLICE OFFICER I [PO I]',
+    division: 'Junior Patrol Division',
+    pin: '23501',
+    phone: '555-0235',
+    registeredAt: Date.now() - 86400000 * 12,
+    promotedBy: 'Academy Training Command'
+  },
+  {
+    id: 'roster-alvert-canizares-236',
+    name: 'Alvert Canizares',
+    badge: '#236',
+    rank: 'POLICE OFFICER I [PO I]',
+    division: 'Junior Patrol Division',
+    pin: '23601',
+    phone: '555-0236',
+    registeredAt: Date.now() - 86400000 * 12,
+    promotedBy: 'Academy Training Command'
+  },
+  {
+    id: 'roster-eiser-romanov-237',
+    name: 'Eiser Romanov',
+    badge: '#237',
+    rank: 'POLICE OFFICER I [PO I]',
+    division: 'Junior Patrol Division',
+    pin: '23701',
+    phone: '555-0237',
+    registeredAt: Date.now() - 86400000 * 11,
+    promotedBy: 'Academy Training Command'
+  },
+  {
+    id: 'roster-dendi-pablo-238',
+    name: 'Dendi Pablo',
+    badge: '#238',
+    rank: 'POLICE OFFICER I [PO I]',
+    division: 'Junior Patrol Division',
+    pin: '23801',
+    phone: '555-0238',
+    registeredAt: Date.now() - 86400000 * 11,
+    promotedBy: 'Academy Training Command'
+  },
+  {
+    id: 'roster-eliel-gravermourn-239',
+    name: 'Eliel Gravermourn',
+    badge: '#239',
+    rank: 'POLICE OFFICER I [PO I]',
+    division: 'Junior Patrol Division',
+    pin: '23901',
+    phone: '555-0239',
+    registeredAt: Date.now() - 86400000 * 10,
+    promotedBy: 'Academy Training Command',
+    warnings: [
+      {
+        id: 'warn-eliel-1',
+        strikeNumber: 1,
+        reason: 'Surat Peringatan 1 (SP 1) Pelanggaran Disiplin Tugas',
+        issuedBy: 'Internal Affairs Division',
+        issuedByBadge: '#001',
+        issuedByRank: 'CHIEF OF POLICE [COP]',
+        timestamp: Date.now() - 86400000 * 6
+      },
+      {
+        id: 'warn-eliel-2',
+        strikeNumber: 2,
+        reason: 'Surat Peringatan 2 (SP 2) Pelanggaran Prosedur Patroli',
+        issuedBy: 'Internal Affairs Division',
+        issuedByBadge: '#002',
+        issuedByRank: 'DEPUTY CHIEF [D/C]',
+        timestamp: Date.now() - 86400000 * 2
+      }
+    ]
+  },
+  {
+    id: 'roster-corvin-gravermourn-240',
+    name: 'Corvin Gravermourn',
+    badge: '#240',
+    rank: 'POLICE OFFICER I [PO I]',
+    division: 'Junior Patrol Division',
+    pin: '24001',
+    phone: '555-0240',
+    registeredAt: Date.now() - 86400000 * 10,
+    promotedBy: 'Academy Training Command',
+    warnings: [
+      {
+        id: 'warn-corvin-1',
+        strikeNumber: 1,
+        reason: 'Surat Peringatan 1 (SP 1) Pelanggaran Disiplin Tugas',
+        issuedBy: 'Internal Affairs Division',
+        issuedByBadge: '#001',
+        issuedByRank: 'CHIEF OF POLICE [COP]',
+        timestamp: Date.now() - 86400000 * 6
+      },
+      {
+        id: 'warn-corvin-2',
+        strikeNumber: 2,
+        reason: 'Surat Peringatan 2 (SP 2) Pelanggaran Prosedur Patroli',
+        issuedBy: 'Internal Affairs Division',
+        issuedByBadge: '#002',
+        issuedByRank: 'DEPUTY CHIEF [D/C]',
+        timestamp: Date.now() - 86400000 * 2
+      }
+    ]
+  },
+  {
+    id: 'roster-wesley-gravemourn-241',
+    name: 'Wesley Gravemourn',
+    badge: '#241',
+    rank: 'POLICE OFFICER I [PO I]',
+    division: 'Junior Patrol Division',
+    pin: '24101',
+    phone: '555-0241',
+    registeredAt: Date.now() - 86400000 * 10,
+    promotedBy: 'Academy Training Command',
+    warnings: [
+      {
+        id: 'warn-wesley-1',
+        strikeNumber: 1,
+        reason: 'Surat Peringatan 1 (SP 1) Pelanggaran Disiplin Tugas',
+        issuedBy: 'Internal Affairs Division',
+        issuedByBadge: '#001',
+        issuedByRank: 'CHIEF OF POLICE [COP]',
+        timestamp: Date.now() - 86400000 * 6
+      },
+      {
+        id: 'warn-wesley-2',
+        strikeNumber: 2,
+        reason: 'Surat Peringatan 2 (SP 2) Pelanggaran Prosedur Patroli',
+        issuedBy: 'Internal Affairs Division',
+        issuedByBadge: '#002',
+        issuedByRank: 'DEPUTY CHIEF [D/C]',
+        timestamp: Date.now() - 86400000 * 2
+      }
+    ]
+  },
+
+  // ==========================================
+  // [CADET // RANK 1]
+  // ==========================================
+  {
+    id: 'roster-leoanrd-neave-101',
+    name: 'Leoanrd Neave',
+    badge: '#101',
+    rank: 'CADET POLICE',
+    division: 'Police Academy / Field Cadet',
     pin: '10101',
     phone: '555-0101',
-    registeredAt: Date.now() - 86400000 * 18,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-kenzo-velows-102',
-    name: 'Kenzo Velows',
-    badge: '#102',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '10202',
-    phone: '555-0102',
-    registeredAt: Date.now() - 86400000 * 18,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-cecep-alexsander-103',
-    name: 'Cecep Alexsander',
-    badge: '#103',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '10303',
-    phone: '555-0103',
-    registeredAt: Date.now() - 86400000 * 17,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-yukai-escobar-104',
-    name: 'Yukai Escobar',
-    badge: '#104',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '10404',
-    phone: '555-0104',
-    registeredAt: Date.now() - 86400000 * 17,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-shiko-alexanderz-105',
-    name: 'Shiko Alexanderz',
-    badge: '#105',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '10505',
-    phone: '555-0105',
-    registeredAt: Date.now() - 86400000 * 16,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-lexa-arvella-106',
-    name: 'Lexa Arvella',
-    badge: '#106',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '10606',
-    phone: '555-0106',
-    registeredAt: Date.now() - 86400000 * 16,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-gondrong-carregado-107',
-    name: 'Gondrong Carregado',
-    badge: '#107',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '10707',
-    phone: '555-0107',
-    registeredAt: Date.now() - 86400000 * 15,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-gorgon-xianlao-108',
-    name: 'Gorgon Xianlao',
-    badge: '#108',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '10808',
-    phone: '555-0108',
-    registeredAt: Date.now() - 86400000 * 15,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-edes-fernandes-109',
-    name: 'Edes Fernandes',
-    badge: '#109',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '10909',
-    phone: '555-0109',
-    registeredAt: Date.now() - 86400000 * 14,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-thomas-olise-110',
-    name: 'Thomas Olise',
-    badge: '#110',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '11010',
-    phone: '555-0110',
-    registeredAt: Date.now() - 86400000 * 14,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-marchel-leonerd-111',
-    name: 'Marchel Leonerd',
-    badge: '#111',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '11111',
-    phone: '555-0111',
-    registeredAt: Date.now() - 86400000 * 13,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-rejjie-kei-112',
-    name: 'Rejjie Kei',
-    badge: '#112',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '11212',
-    phone: '555-0112',
-    registeredAt: Date.now() - 86400000 * 13,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-theo-leviathan-113',
-    name: 'Theo Leviathan',
-    badge: '#113',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '11313',
-    phone: '555-0113',
-    registeredAt: Date.now() - 86400000 * 12,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-peter-schmaicel-114',
-    name: 'Peter Schmaicel',
-    badge: '#114',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '11414',
-    phone: '555-0114',
-    registeredAt: Date.now() - 86400000 * 12,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-syns-askara-115',
-    name: 'Syns Askara',
-    badge: '#115',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '11515',
-    phone: '555-0115',
-    registeredAt: Date.now() - 86400000 * 11,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-dadang-darmawan-116',
-    name: 'Dadang Darmawan',
-    badge: '#116',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '11616',
-    phone: '555-0116',
-    registeredAt: Date.now() - 86400000 * 11,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-jalisco-michoacana-117',
-    name: 'Jalisco Michoacana',
-    badge: '#117',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '11717',
-    phone: '555-0117',
-    registeredAt: Date.now() - 86400000 * 10,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-jimmy-hops-118',
-    name: 'Jimmy Hops',
-    badge: '#118',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '11818',
-    phone: '555-0118',
-    registeredAt: Date.now() - 86400000 * 10,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-michaell-anderson-119',
-    name: 'Michaell Anderson',
-    badge: '#119',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '11919',
-    phone: '555-0119',
-    registeredAt: Date.now() - 86400000 * 9,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-oscar-hernandez-120',
-    name: 'Oscar Hernandez',
-    badge: '#120',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '12020',
-    phone: '555-0120',
-    registeredAt: Date.now() - 86400000 * 9,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-boris-layasa-121',
-    name: 'Boris Layasa',
-    badge: '#121',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '12121',
-    phone: '555-0121',
     registeredAt: Date.now() - 86400000 * 8,
-    promotedBy: 'Lulus Akademi Kepolisian'
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-zaydan-kusuma-122',
-    name: 'Zaydan Kusuma',
-    badge: '#122',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '12222',
-    phone: '555-0122',
-    registeredAt: Date.now() - 86400000 * 8,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-alvert-canizares-123',
-    name: 'Alvert Canizares',
-    badge: '#123',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '12323',
-    phone: '555-0123',
-    registeredAt: Date.now() - 86400000 * 7,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-kyle-satorue-124',
-    name: 'Kyle Satorue',
-    badge: '#124',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '12424',
-    phone: '555-0124',
-    registeredAt: Date.now() - 86400000 * 7,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-eiser-romanov-125',
-    name: 'Eiser Romanov',
-    badge: '#125',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '12525',
-    phone: '555-0125',
-    registeredAt: Date.now() - 86400000 * 6,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-dendi-pablo-126',
-    name: 'Dendi Pablo',
-    badge: '#126',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '12626',
-    phone: '555-0126',
-    registeredAt: Date.now() - 86400000 * 6,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-eliel-gravermourn-127',
-    name: 'Eliel Gravermourn',
-    badge: '#127',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '12727',
-    phone: '555-0127',
-    registeredAt: Date.now() - 86400000 * 5,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-corvin-gravermourn-128',
-    name: 'Corvin Gravermourn',
-    badge: '#128',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '12828',
-    phone: '555-0128',
-    registeredAt: Date.now() - 86400000 * 5,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-  {
-    id: 'roster-wesley-gravemourn-129',
-    name: 'Wesley Gravemourn',
-    badge: '#129',
-    rank: 'POLICE OFFICER I [PO I]',
-    division: 'Patrol Division',
-    pin: '12929',
-    phone: '555-0129',
-    registeredAt: Date.now() - 86400000 * 4,
-    promotedBy: 'Lulus Akademi Kepolisian'
-  },
-
-  // ==========================================
-  // [RECRUITS // RANK 1] - CADET POLICE
-  // ==========================================
-  {
-    id: 'roster-leoanrd-neave-011',
-    name: 'Leonard Neave',
-    badge: '#011',
-    rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '70101',
-    phone: '555-0011',
-    registeredAt: Date.now() - 86400000 * 3,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
-  },
-  {
-    id: 'roster-luna-haller-012',
+    id: 'roster-luna-haller-102',
     name: 'Luna Haller',
-    badge: '#012',
+    badge: '#102',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '70202',
-    phone: '555-0012',
-    registeredAt: Date.now() - 86400000 * 3,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '10201',
+    phone: '555-0102',
+    registeredAt: Date.now() - 86400000 * 8,
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-keii-claude-013',
+    id: 'roster-keii-claude-103',
     name: 'Keii Claude',
-    badge: '#013',
+    badge: '#103',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '70303',
-    phone: '555-0013',
-    registeredAt: Date.now() - 86400000 * 3,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '10301',
+    phone: '555-0103',
+    registeredAt: Date.now() - 86400000 * 7,
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-zayy-choper-014',
+    id: 'roster-zayy-choper-104',
     name: 'Zayy Choper',
-    badge: '#014',
+    badge: '#104',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '70404',
-    phone: '555-0014',
-    registeredAt: Date.now() - 86400000 * 3,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '10401',
+    phone: '555-0104',
+    registeredAt: Date.now() - 86400000 * 7,
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-viggo-bonapattem-015',
+    id: 'roster-viggo-bonapattem-105',
     name: 'Viggo Bonapattem',
-    badge: '#015',
+    badge: '#105',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '70505',
-    phone: '555-0015',
-    registeredAt: Date.now() - 86400000 * 2,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '10501',
+    phone: '555-0105',
+    registeredAt: Date.now() - 86400000 * 6,
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-stephen-oscar-016',
+    id: 'roster-stephen-oscar-106',
     name: 'Stephen Oscar',
-    badge: '#016',
+    badge: '#106',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '70606',
-    phone: '555-0016',
-    registeredAt: Date.now() - 86400000 * 2,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '10601',
+    phone: '555-0106',
+    registeredAt: Date.now() - 86400000 * 6,
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-rafa-gharui-017',
+    id: 'roster-rafa-gharui-107',
     name: 'Rafa Gharui',
-    badge: '#017',
+    badge: '#107',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '70707',
-    phone: '555-0017',
-    registeredAt: Date.now() - 86400000 * 2,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '10701',
+    phone: '555-0107',
+    registeredAt: Date.now() - 86400000 * 5,
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-jems-giantenk-018',
+    id: 'roster-jems-giantenk-108',
     name: 'Jems Giantenk',
-    badge: '#018',
+    badge: '#108',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '70808',
-    phone: '555-0018',
-    registeredAt: Date.now() - 86400000 * 2,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '10801',
+    phone: '555-0108',
+    registeredAt: Date.now() - 86400000 * 5,
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-rafferty-linnix-019',
+    id: 'roster-rafferty-linnix-109',
     name: 'Rafferty Linnix',
-    badge: '#019',
+    badge: '#109',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '70909',
-    phone: '555-0019',
-    registeredAt: Date.now() - 86400000 * 2,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '10901',
+    phone: '555-0109',
+    registeredAt: Date.now() - 86400000 * 4,
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-jeesyln-claurissa-020',
+    id: 'roster-jeesyln-claurissa-110',
     name: 'Jeesyln Claurissa',
-    badge: '#020',
+    badge: '#110',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '71010',
-    phone: '555-0020',
-    registeredAt: Date.now() - 86400000 * 1,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '11001',
+    phone: '555-0110',
+    registeredAt: Date.now() - 86400000 * 4,
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-gerry-roach-021',
+    id: 'roster-gerry-roach-111',
     name: 'Gerry Roach',
-    badge: '#021',
+    badge: '#111',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '71111',
-    phone: '555-0021',
-    registeredAt: Date.now() - 86400000 * 1,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '11101',
+    phone: '555-0111',
+    registeredAt: Date.now() - 86400000 * 3,
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-morale-lammar-022',
+    id: 'roster-morale-lammar-112',
     name: 'Morale Lammar',
-    badge: '#022',
+    badge: '#112',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '71212',
-    phone: '555-0022',
-    registeredAt: Date.now() - 86400000 * 1,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '11201',
+    phone: '555-0112',
+    registeredAt: Date.now() - 86400000 * 3,
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-moeses-clausius-023',
+    id: 'roster-moeses-clausius-113',
     name: 'Moeses Clausius',
-    badge: '#023',
+    badge: '#113',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '71313',
-    phone: '555-0023',
-    registeredAt: Date.now() - 86400000 * 1,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '11301',
+    phone: '555-0113',
+    registeredAt: Date.now() - 86400000 * 3,
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-jack-kingston-024',
+    id: 'roster-jack-kingston-114',
     name: 'Jack Kingston',
-    badge: '#024',
+    badge: '#114',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '71414',
-    phone: '555-0024',
-    registeredAt: Date.now() - 86400000 * 1,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '11401',
+    phone: '555-0114',
+    registeredAt: Date.now() - 86400000 * 2,
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-van-tamayuki-025',
+    id: 'roster-van-tamayuki-115',
     name: 'Van Tamayuki',
-    badge: '#025',
+    badge: '#115',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '71515',
-    phone: '555-0025',
-    registeredAt: Date.now() - 86400000 * 1,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '11501',
+    phone: '555-0115',
+    registeredAt: Date.now() - 86400000 * 2,
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-bian-alexander-026',
+    id: 'roster-bian-alexander-116',
     name: 'Bian Alexander',
-    badge: '#026',
+    badge: '#116',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '71616',
-    phone: '555-0026',
-    registeredAt: Date.now() - 86400000 * 1,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '11601',
+    phone: '555-0116',
+    registeredAt: Date.now() - 86400000 * 2,
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-shalom-cuirras-027',
+    id: 'roster-shalom-cuirras-117',
     name: 'Shalom Cuirras',
-    badge: '#027',
+    badge: '#117',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '71717',
-    phone: '555-0027',
-    registeredAt: Date.now() - 86400000 * 1,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    division: 'Police Academy / Field Cadet',
+    pin: '11701',
+    phone: '555-0117',
+    registeredAt: Date.now() - 86400000 * 2,
+    promotedBy: 'Police Academy Staff',
+    warnings: [
+      {
+        id: 'warn-shalom-1',
+        strikeNumber: 1,
+        reason: 'Surat Peringatan 1 (SP 1) Pelanggaran Kedisiplinan Akademi',
+        issuedBy: 'Internal Affairs Division',
+        issuedByBadge: '#001',
+        issuedByRank: 'CHIEF OF POLICE [COP]',
+        timestamp: Date.now() - 86400000 * 4
+      },
+      {
+        id: 'warn-shalom-2',
+        strikeNumber: 2,
+        reason: 'Surat Peringatan 2 (SP 2) Pelanggaran Peraturan Barak Akademi',
+        issuedBy: 'Internal Affairs Division',
+        issuedByBadge: '#002',
+        issuedByRank: 'DEPUTY CHIEF [D/C]',
+        timestamp: Date.now() - 86400000 * 1
+      }
+    ]
   },
   {
-    id: 'roster-briella-bimantara-028',
+    id: 'roster-briella-bimantara-118',
     name: 'Briella Bimantara',
-    badge: '#028',
+    badge: '#118',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '71818',
-    phone: '555-0028',
+    division: 'Police Academy / Field Cadet',
+    pin: '11801',
+    phone: '555-0118',
     registeredAt: Date.now() - 86400000 * 1,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    promotedBy: 'Police Academy Staff'
   },
   {
-    id: 'roster-omar-bradley-029',
+    id: 'roster-omar-bradley-119',
     name: 'Omar Bradley',
-    badge: '#029',
+    badge: '#119',
     rank: 'CADET POLICE',
-    division: 'Police Academy Division',
-    pin: '71919',
-    phone: '555-0029',
+    division: 'Police Academy / Field Cadet',
+    pin: '11901',
+    phone: '555-0119',
     registeredAt: Date.now() - 86400000 * 1,
-    promotedBy: 'Perekrutan Angkatan Baru Akademi HSPD'
+    promotedBy: 'Police Academy Staff'
   }
 ];
 
@@ -762,6 +845,14 @@ export function mergeWithOfficialRoster(
     const cleanBadge = (item.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
     const cleanName = (item.name || '').toLowerCase().trim();
 
+    const normalizeName = (n: string) => {
+      return n.toLowerCase()
+        .replace(/\(.*?\)/g, '') // remove parenthesized remarks like (WARN 2), (Special Guest)
+        .replace(/[^a-z0-9]/g, '')
+        .trim();
+    };
+    const normCleanName = normalizeName(cleanName);
+
     for (const [key, existing] of officersMap.entries()) {
       if (cleanId && existing.id && existing.id.toLowerCase().trim() === cleanId) {
         return key;
@@ -772,6 +863,9 @@ export function mergeWithOfficialRoster(
       }
       const existingName = (existing.name || '').toLowerCase().trim();
       if (cleanName && (cleanName === existingName || cleanName.replace(/\s+/g, '') === existingName.replace(/\s+/g, ''))) {
+        return key;
+      }
+      if (normCleanName && normCleanName === normalizeName(existingName)) {
         return key;
       }
       // Also handle common aliases/typos (e.g. Leoanrd / Leoarnd / Leonard)

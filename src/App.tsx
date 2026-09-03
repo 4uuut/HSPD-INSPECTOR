@@ -36,7 +36,7 @@ import { getDiscordWebhookConfig, getSavedDiscordBotConfig, startDiscordBotGatew
 import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from './utils/brandingStorage';
 import { checkDirectRankClearance, hasActiveUnlockedSession } from './utils/otpClearanceStorage';
 import { 
-  ArrestRecord, OfficerProfile, OfficerAccount, isOfficerHighRank, isSupervisorOrAbove,
+  ArrestRecord, OfficerProfile, OfficerAccount, isOfficerHighRank, isSupervisorOrAbove, isAtasanRank,
   DetectiveCase, BoloAlert, ImpoundRecord, getDivisionArchetype, ModuleAccessKey 
 } from './types';
 import { 
@@ -50,9 +50,12 @@ import { HSPD_LOGO_URL } from './assets/logo';
 import { 
   initRealtimeFirebaseSync, 
   subscribeToSyncStatus, 
+  pushToFirestore,
   pushAllToFirestore, 
   syncCollectionWithFirestore,
   deleteFromFirestore,
+  purgeOfficerFromCloud,
+  purgeAllNonAtasanFromCloud,
   FirebaseSyncStatus 
 } from './services/firebaseRealtimeSync';
 
@@ -66,7 +69,7 @@ const DUTY_STATUS_STORAGE_KEY = 'hspd_is_duty_v1';
 const DUTY_START_TIME_KEY = 'hspd_duty_start_time_v1';
 
 export default function App() {
-  // Active Roster Database with all 56+ department officers
+  // Active Roster Database with official Command / Atasan personnel
   const [roster, setRoster] = useState<OfficerAccount[]>(() => {
     try {
       let saved = localStorage.getItem(ROSTER_STORAGE_KEY) || 
@@ -146,6 +149,7 @@ export default function App() {
 
   const [isDutyModalOpen, setIsDutyModalOpen] = useState(false);
   const [isWebhookModalOpen, setIsWebhookModalOpen] = useState(false);
+  const [webhookModalInitialTab, setWebhookModalInitialTab] = useState<'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm'>('case');
   const [isAuthorityPinModalOpen, setIsAuthorityPinModalOpen] = useState(false);
   const [isPinResetAuditModalOpen, setIsPinResetAuditModalOpen] = useState(false);
   const [isOtpGeneratorModalOpen, setIsOtpGeneratorModalOpen] = useState(false);
@@ -271,6 +275,7 @@ export default function App() {
       saveDetectiveCases(updated);
       return updated;
     });
+    deleteFromFirestore('DETECTIVE_CASES', caseId).catch(() => {});
   };
 
   // Persist BOLO alerts
@@ -399,12 +404,10 @@ export default function App() {
         isRecordsFirstMount.current = false;
         return;
       }
-      if (records && records.length > 0) {
-        const timeout = setTimeout(() => {
-          syncCollectionWithFirestore('ARREST_RECORDS', records).catch(() => {});
-        }, 500);
-        return () => clearTimeout(timeout);
-      }
+      const timeout = setTimeout(() => {
+        syncCollectionWithFirestore('ARREST_RECORDS', records || []).catch(() => {});
+      }, 500);
+      return () => clearTimeout(timeout);
     } catch (e) {
       console.error('Failed to persist arrest records', e);
     }
@@ -615,6 +618,7 @@ export default function App() {
     });
 
     // 3. Remove officer from state
+    let nextRoster: OfficerAccount[] = [];
     setRoster(prev => {
       const next = prev.filter(a => {
         if (officerId && a.id === officerId) return false;
@@ -623,26 +627,29 @@ export default function App() {
         if (name && isOfficerMatch(a, name)) return false;
         return true;
       });
+      nextRoster = next;
       try {
         const serialized = JSON.stringify(next);
         localStorage.setItem(ROSTER_STORAGE_KEY, serialized);
+        localStorage.setItem('hspd_roster_database_v5', serialized);
+        localStorage.setItem('hspd_roster_database_v4', serialized);
         localStorage.setItem('hspd_roster_database_v3', serialized);
         localStorage.setItem('hspd_roster_database_v2', serialized);
       } catch {}
       return next;
     });
 
-    // 4. Also delete document from Firestore if exists
-    const candidateDocIds = [
-      target?.id,
-      officerId,
-      badge ? `officer_${String(badge).replace(/[^a-zA-Z0-9_-]/g, '')}` : '',
-      badge ? String(badge).replace(/[\/\s#]/g, '_').trim() : ''
-    ].filter(Boolean) as string[];
+    // 4. Thoroughly purge officer from Cloud Firestore across all document IDs, aliases, and duty registries
+    purgeOfficerFromCloud({
+      id: target?.id || officerId,
+      badge,
+      name
+    }).catch(() => {});
 
-    candidateDocIds.forEach(cId => {
-      deleteFromFirestore('ROSTER', cId).catch(() => {});
-    });
+    // Force push the remaining roster to Cloud Firestore immediately to overwrite cloud state
+    setTimeout(() => {
+      syncCollectionWithFirestore('ROSTER', nextRoster, true).catch(() => {});
+    }, 120);
 
     // 5. If this was the current logged in officer, log them out immediately
     if (currentOfficer && (
@@ -655,6 +662,25 @@ export default function App() {
     }
   };
 
+  // Purge all non-atasan officers from CAD database and Cloud Firestore
+  const handlePurgeNonAtasanOfficers = async () => {
+    const atasanOnly = roster.filter(o => isAtasanRank(o.rank));
+    const merged = mergeWithOfficialRoster(atasanOnly.length > 0 ? atasanOnly : HSPD_OFFICIAL_ROSTER);
+    setRoster(merged);
+    try {
+      const serialized = JSON.stringify(merged);
+      localStorage.setItem(ROSTER_STORAGE_KEY, serialized);
+      localStorage.setItem('hspd_roster_database_v5', serialized);
+      localStorage.setItem('hspd_roster_database_v4', serialized);
+      localStorage.setItem('hspd_roster_database_v3', serialized);
+      localStorage.setItem('hspd_roster_database_v2', serialized);
+      localStorage.setItem('hspd_atasan_only_purged_v2', 'true');
+    } catch {}
+
+    await purgeAllNonAtasanFromCloud();
+    await syncCollectionWithFirestore('ROSTER', merged, true);
+  };
+
   const handleSaveRecord = (newRecord: Omit<ArrestRecord, 'id' | 'timestamp'>) => {
     const record: ArrestRecord = {
       ...newRecord,
@@ -662,15 +688,18 @@ export default function App() {
       timestamp: Date.now()
     };
     setRecords(prev => [record, ...prev]);
+    pushToFirestore('ARREST_RECORDS', record).catch(() => {});
   };
 
   const handleDeleteRecord = (id: string) => {
     setRecords(prev => prev.filter(r => r.id !== id));
+    deleteFromFirestore('ARREST_RECORDS', id).catch(() => {});
   };
 
   const handleClearAllRecords = () => {
     if (window.confirm('Hapus seluruh riwayat penindakan yang tersimpan?')) {
       setRecords([]);
+      syncCollectionWithFirestore('ARREST_RECORDS', [], true).catch(() => {});
     }
   };
 
@@ -1146,7 +1175,21 @@ export default function App() {
             onUpdateOfficer={handleUpdateOfficer}
             onRegisterOfficer={handleRegisterOfficer}
             onDeleteOfficer={handleDeleteOfficer}
+            onPurgeNonAtasanOfficers={handlePurgeNonAtasanOfficers}
             onOpenPinResetAudit={() => setIsPinResetAuditModalOpen(true)}
+            onOpenWebhookModal={(tab) => {
+              setWebhookModalInitialTab((tab as any) || 'roster');
+              setIsWebhookModalOpen(true);
+            }}
+            onNavigateToSettings={(sectionId) => {
+              setActiveNav('settings');
+              if (sectionId) {
+                setTimeout(() => {
+                  const el = document.getElementById(sectionId);
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }, 150);
+              }
+            }}
             pendingPinResetCount={pendingPinCount}
           />
         )}
@@ -1164,7 +1207,10 @@ export default function App() {
               setIsOtpGeneratorModalOpen(true);
             }}
             onOpenAuthorityPinModal={() => setIsAuthorityPinModalOpen(true)}
-            onOpenWebhookModal={() => setIsWebhookModalOpen(true)}
+            onOpenWebhookModal={() => {
+              setWebhookModalInitialTab('case');
+              setIsWebhookModalOpen(true);
+            }}
             onOpenPinAuditModal={() => setIsPinResetAuditModalOpen(true)}
             onOpenExportAttendanceModal={() => setIsExportAttendanceModalOpen(true)}
             onOpenRecruitmentPortalModal={() => setIsRecruitmentPortalModalOpen(true)}
@@ -1190,6 +1236,7 @@ export default function App() {
         onClose={() => setIsWebhookModalOpen(false)}
         currentOfficer={currentOfficer}
         onOpenBrandingModal={() => setIsBrandingModalOpen(true)}
+        initialTab={webhookModalInitialTab}
       />
 
       {/* Authority PIN Modal (High Command & Hourly Auto-Rotation) */}

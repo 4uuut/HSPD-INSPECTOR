@@ -2,6 +2,8 @@ import {
   collection, 
   doc, 
   setDoc, 
+  getDoc,
+  getDocFromServer,
   deleteDoc, 
   onSnapshot, 
   getDocs,
@@ -10,6 +12,8 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { mergeWithOfficialRoster, HSPD_OFFICIAL_ROSTER } from '../data/hspdOfficialRoster';
+import { isAtasanRank } from '../types';
+import { isOfficerDischarged, getDischargedOfficers } from '../utils/dischargeStorage';
 
 export interface FirebaseSyncStatus {
   connected: boolean;
@@ -130,6 +134,11 @@ export const SYNC_COLLECTIONS = {
     name: 'pin_reset_requests',
     storageKey: 'HSPD_PIN_RESET_REQUESTS_V1',
     event: 'hspd-pin-requests-updated'
+  },
+  DUTY_SESSIONS: {
+    name: 'duty_sessions',
+    storageKey: 'hspd_duty_sessions_history_v1',
+    event: 'hspd-duty-sessions-updated'
   }
 } as const;
 
@@ -138,6 +147,47 @@ export type CollectionKey = keyof typeof SYNC_COLLECTIONS;
 // Anti-Loop & Deduplication Tracking
 const lastKnownFingerprints: Record<string, string> = {};
 const isApplyingRemoteMap: Record<string, boolean> = {};
+
+/**
+ * Sanitizes any raw string or number into a safe Firestore document ID.
+ * Replaces illegal characters like '/', '\', '#', and whitespace.
+ */
+export function sanitizeDocId(rawId: any, fallback: string = `item_${Date.now()}`): string {
+  if (!rawId && rawId !== 0) return fallback;
+  const str = String(rawId).replace(/[\/\s#\\]/g, '_').trim();
+  if (!str || str === '.' || str === '..') return fallback;
+  return str;
+}
+
+/**
+ * Deeply sanitizes any object or array before committing to Cloud Firestore.
+ * - Recursively strips all `undefined` values (which cause FirebaseError: Unsupported field value: undefined)
+ * - Safely handles nested arrays and objects
+ * - Preserves null, boolean, numbers, and strings
+ */
+export function sanitizeFirestorePayload<T>(input: T): T {
+  if (input === null || input === undefined) {
+    return null as any;
+  }
+  if (typeof input !== 'object') {
+    return input;
+  }
+  if (Array.isArray(input)) {
+    return input
+      .filter(val => val !== undefined)
+      .map(val => sanitizeFirestorePayload(val)) as any;
+  }
+  const cleanObj: Record<string, any> = {};
+  for (const [key, value] of Object.entries(input as Record<string, any>)) {
+    if (value === undefined) {
+      continue; // Never pass undefined to Firestore
+    }
+    if (typeof key === 'string' && key.length > 0) {
+      cleanObj[key] = sanitizeFirestorePayload(value);
+    }
+  }
+  return cleanObj as T;
+}
 
 function computeFingerprint(items: any): string {
   try {
@@ -185,7 +235,7 @@ async function commitBatchOperations(
 ) {
   const allOps: Array<{ type: 'delete'; colName: string; docId: string } | { type: 'set'; colName: string; docId: string; data: any }> = [
     ...deletes.map(d => ({ type: 'delete' as const, colName: d.colName, docId: d.docId })),
-    ...sets.map(s => ({ type: 'set' as const, colName: s.colName, docId: s.docId, data: s.data }))
+    ...sets.map(s => ({ type: 'set' as const, colName: s.colName, docId: s.docId, data: sanitizeFirestorePayload(s.data) }))
   ];
 
   const CHUNK_SIZE = 350;
@@ -258,16 +308,16 @@ export async function syncCollectionWithFirestore<T extends Record<string, any>>
 
     items.forEach((item, index) => {
       let rawId = item.id || (item.badge ? `officer_${String(item.badge).replace(/[^a-zA-Z0-9_-]/g, '')}` : '') || `item_${index}`;
-      const cleanDocId = String(rawId).replace(/[\/\s#]/g, '_').trim() || `item_${index}`;
+      const cleanDocId = sanitizeDocId(rawId, `item_${index}`);
       localIdSet.add(cleanDocId);
       docDataList.push({
         colName: config.name,
         docId: cleanDocId,
-        data: {
+        data: sanitizeFirestorePayload({
           ...item,
           id: item.id || cleanDocId,
           _updatedAt: Date.now()
-        }
+        })
       });
     });
 
@@ -275,6 +325,13 @@ export async function syncCollectionWithFirestore<T extends Record<string, any>>
 
     // Identify cloud docs that were deleted locally
     existingSnap.forEach(d => {
+      if (collectionKey === 'ROSTER') {
+        const dData = d.data();
+        if (isOfficerDischarged({ ...dData, id: d.id })) {
+          deletes.push({ colName: config.name, docId: d.id });
+          return;
+        }
+      }
       if (!localIdSet.has(d.id)) {
         deletes.push({ colName: config.name, docId: d.id });
       }
@@ -337,15 +394,17 @@ export async function pushToFirestore<T extends { id?: string }>(
 
   try {
     const config = SYNC_COLLECTIONS[collectionKey];
-    let docId = customDocId || item.id || `item_${Date.now()}`;
-    docId = String(docId).replace(/[\/\s#]/g, '_').trim();
-    const docRef = doc(db, config.name, docId);
+    const rawDocId = customDocId || item.id || `item_${Date.now()}`;
+    const cleanDocId = sanitizeDocId(rawDocId, `item_${Date.now()}`);
+    const docRef = doc(db, config.name, cleanDocId);
     
-    await setDoc(docRef, {
+    const cleanPayload = sanitizeFirestorePayload({
       ...item,
-      id: item.id || docId,
+      id: item.id || cleanDocId,
       _updatedAt: Date.now()
-    }, { merge: true });
+    });
+    
+    await setDoc(docRef, cleanPayload, { merge: true });
 
     notifyStatus({
       connected: true,
@@ -397,7 +456,7 @@ export async function deleteFromFirestore(
 
   try {
     const config = SYNC_COLLECTIONS[collectionKey];
-    const cleanDocId = String(docId).replace(/[\/\s#]/g, '_').trim();
+    const cleanDocId = sanitizeDocId(docId);
     const docRef = doc(db, config.name, cleanDocId);
     await deleteDoc(docRef);
     return true;
@@ -548,6 +607,148 @@ export function syncAllWebhooksToFirestore() {
   }
 }
 
+/**
+ * Permanently purges a specific officer from Cloud Firestore across all possible doc IDs and aliases.
+ * Matches by doc ID, badge digits, or officer full name, plus any entries in discharged registry.
+ */
+export async function purgeOfficerFromCloud(
+  target: { id?: string; badge?: string; name?: string }
+): Promise<number> {
+  if (!db) return 0;
+
+  try {
+    const colRef = collection(db, 'roster');
+    const snap = await getDocs(colRef);
+    const deletes: { colName: string; docId: string }[] = [];
+
+    const targetId = (target.id || '').toLowerCase().trim();
+    const targetBadgeDigits = (target.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+    const targetName = (target.name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+
+    snap.forEach(d => {
+      const data = d.data();
+      const docId = d.id.toLowerCase().trim();
+      const dBadgeDigits = (data.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+      const dName = (data.name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+      const dId = (data.id || '').toLowerCase().trim();
+
+      let shouldDelete = false;
+
+      // Direct ID match
+      if (targetId && (docId === targetId || dId === targetId)) {
+        shouldDelete = true;
+      }
+      // Badge match
+      if (targetBadgeDigits && dBadgeDigits) {
+        if (targetBadgeDigits === dBadgeDigits) shouldDelete = true;
+        const nT = parseInt(targetBadgeDigits, 10);
+        const nD = parseInt(dBadgeDigits, 10);
+        if (!isNaN(nT) && !isNaN(nD) && nT === nD) shouldDelete = true;
+      }
+      // DocId includes badge pattern
+      if (targetBadgeDigits && (docId.includes(`_${targetBadgeDigits}`) || docId.endsWith(targetBadgeDigits))) {
+        shouldDelete = true;
+      }
+      // Name match
+      if (targetName && dName) {
+        if (targetName === dName || targetName.replace(/\s+/g, '') === dName.replace(/\s+/g, '')) {
+          shouldDelete = true;
+        }
+      }
+      // Discharged check
+      if (isOfficerDischarged({ ...data, id: d.id })) {
+        shouldDelete = true;
+      }
+
+      if (shouldDelete) {
+        deletes.push({ colName: 'roster', docId: d.id });
+      }
+    });
+
+    if (deletes.length > 0) {
+      await commitBatchOperations(deletes, []);
+    }
+
+    // Also purge from duty registry if present
+    try {
+      const dutyDocRef = doc(db, 'system_configs', 'duty_registry');
+      const dutySnap = await getDoc(dutyDocRef);
+      if (dutySnap.exists()) {
+        const dData = dutySnap.data();
+        const reg = dData.registry || {};
+        let modified = false;
+        Object.keys(reg).forEach(b => {
+          const bDigits = b.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+          if (bDigits === targetBadgeDigits || (target.badge && b === target.badge)) {
+            delete reg[b];
+            modified = true;
+          }
+        });
+        if (modified) {
+          await setDoc(dutyDocRef, { ...dData, registry: reg, updatedAt: Date.now() }, { merge: true });
+        }
+      }
+    } catch {}
+
+    return deletes.length;
+  } catch (e) {
+    console.error('Failed to purge officer from cloud:', e);
+    return 0;
+  }
+}
+
+/**
+ * Permanently deletes all non-atasan accounts from Cloud Firestore roster collection.
+ * Only keeps command ranks (Chief, Deputy Chief, Commander, Captain, Lieutenant).
+ */
+export async function purgeAllNonAtasanFromCloud(): Promise<number> {
+  if (!db) return 0;
+
+  try {
+    const colRef = collection(db, 'roster');
+    const snap = await getDocs(colRef);
+    const deletes: { colName: string; docId: string }[] = [];
+
+    snap.forEach(d => {
+      const data = d.data();
+      const rank = data.rank || '';
+      // If NOT an Atasan rank, mark for cloud deletion
+      if (!isAtasanRank(rank)) {
+        deletes.push({ colName: 'roster', docId: d.id });
+      }
+    });
+
+    if (deletes.length > 0) {
+      await commitBatchOperations(deletes, []);
+    }
+    return deletes.length;
+  } catch (e) {
+    console.error('Failed to purge non-atasan from cloud:', e);
+    return 0;
+  }
+}
+
+// Validate initial connection as recommended by Firebase integration guidelines
+export async function validateFirestoreConnection(): Promise<boolean> {
+  try {
+    const testDocRef = doc(db, 'system_configs', 'connection_health');
+    await getDocFromServer(testDocRef);
+    notifyStatus({ connected: true, error: null });
+    return true;
+  } catch (err: any) {
+    if (isQuotaError(err)) {
+      setQuotaExhausted();
+      notifyStatus({ connected: true, quotaExhausted: true, error: 'Penyimpanan lokal aktif (Batas kuota cloud tercapai)' });
+      return true;
+    }
+    if (isUnavailableOrNetworkError(err)) {
+      notifyStatus({ connected: false, error: 'Mode Offline (Menggunakan data lokal)' });
+      return false;
+    }
+    return true;
+  }
+}
+
 // Setup real-time listeners for all collections
 let isInitialized = false;
 export function initRealtimeFirebaseSync() {
@@ -556,6 +757,9 @@ export function initRealtimeFirebaseSync() {
 
   resetQuotaExhausted();
   notifyStatus({ connected: true, lastSyncTime: Date.now() });
+
+  // Test backend connection smoothly
+  validateFirestoreConnection().catch(() => {});
 
   // Iterate over each collection and attach onSnapshot
   Object.keys(SYNC_COLLECTIONS).forEach((k) => {
@@ -604,6 +808,36 @@ export function initRealtimeFirebaseSync() {
                   window.dispatchEvent(new CustomEvent('hspd-discharged-updated', { detail: list }));
                 } catch {}
               }
+            } else if (d.id === 'recruitment_portal') {
+              try {
+                localStorage.setItem('hspd_recruitment_portal_config_v1', JSON.stringify(data));
+                window.dispatchEvent(new CustomEvent('hspd-recruitment-portal-updated', { detail: data }));
+              } catch {}
+            } else if (d.id === 'active_otps') {
+              try {
+                const list = data.list || (Array.isArray(data) ? data : null);
+                if (Array.isArray(list)) {
+                  localStorage.setItem('hspd_otp_clearance_list_v1', JSON.stringify(list));
+                  window.dispatchEvent(new Event('hspd-otp-updated'));
+                }
+              } catch {}
+            } else if (d.id === 'specialized_divisions') {
+              try {
+                if (data.asd) localStorage.setItem('hspd_asd_helicopters_v1', JSON.stringify(data.asd));
+                if (data.k9) localStorage.setItem('hspd_k9_partners_v1', JSON.stringify(data.k9));
+                if (data.k9Logs) localStorage.setItem('hspd_k9_deployment_logs_v1', JSON.stringify(data.k9Logs));
+                if (data.swat) localStorage.setItem('hspd_swat_operations_v1', JSON.stringify(data.swat));
+                if (data.iad) localStorage.setItem('hspd_iad_complaints_v1', JSON.stringify(data.iad));
+                if (data.academy) localStorage.setItem('hspd_academy_evaluations_v1', JSON.stringify(data.academy));
+                if (data.ted) localStorage.setItem('hspd_ted_records_v1', JSON.stringify(data.ted));
+                window.dispatchEvent(new Event('hspd-asd-updated'));
+                window.dispatchEvent(new Event('hspd-k9-updated'));
+                window.dispatchEvent(new Event('hspd-k9-logs-updated'));
+                window.dispatchEvent(new Event('hspd-swat-updated'));
+                window.dispatchEvent(new Event('hspd-iad-updated'));
+                window.dispatchEvent(new Event('hspd-academy-updated'));
+                window.dispatchEvent(new Event('hspd-ted-updated'));
+              } catch {}
             }
           });
           setTimeout(() => { isApplyingRemoteMap[key] = false; }, 200);
@@ -612,14 +846,45 @@ export function initRealtimeFirebaseSync() {
         }
 
         const items: any[] = [];
+        const dischargedList = key === 'ROSTER' ? getDischargedOfficers() : [];
+        const staleDischargedDocIds: string[] = [];
+
         snapshot.forEach((d) => {
           const data = d.data();
+          if (key === 'ROSTER') {
+            const officerObj = { ...data, id: data.id || d.id };
+            // If officer was discharged, do NOT include them and immediately purge from Firestore
+            if (isOfficerDischarged(officerObj, dischargedList)) {
+              staleDischargedDocIds.push(d.id);
+              return;
+            }
+          }
           items.push(data);
         });
 
+        // Trigger immediate background deletion of discharged officer documents from Firestore
+        if (staleDischargedDocIds.length > 0) {
+          staleDischargedDocIds.forEach(staleId => {
+            deleteFromFirestore('ROSTER', staleId).catch(() => {});
+          });
+        }
+
+        // Special handling for BRANDING singleton object
+        if (key === 'BRANDING') {
+          const brandingObj = items[0] || (items.length > 0 ? items[0] : null);
+          if (brandingObj) {
+            try {
+              localStorage.setItem(config.storageKey, JSON.stringify(brandingObj));
+              window.dispatchEvent(new CustomEvent(config.event, { detail: brandingObj }));
+            } catch {}
+          }
+          notifyStatus({ connected: true, lastSyncTime: Date.now(), error: null });
+          return;
+        }
+
         let finalItems: any[] = items;
         if (key === 'ROSTER') {
-          finalItems = mergeWithOfficialRoster(items);
+          finalItems = mergeWithOfficialRoster(items, dischargedList);
         }
 
         // Sort by timestamp, registeredAt, or _updatedAt (newest first)
