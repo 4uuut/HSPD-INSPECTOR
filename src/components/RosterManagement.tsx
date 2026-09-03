@@ -42,7 +42,8 @@ import {
   FirebaseSyncStatus 
 } from '../services/firebaseRealtimeSync';
 import { mergeWithOfficialRoster, HSPD_OFFICIAL_ROSTER } from '../data/hspdOfficialRoster';
-import { updateOfficerPinInRoster } from '../utils/pinResetStorage';
+import { updateOfficerPinInRoster, getRosterFromStorage, saveRosterToStorage, isOfficerMatch } from '../utils/pinResetStorage';
+import { getDischargedOfficers, restoreDischargedOfficer, DischargedOfficerEntry } from '../utils/dischargeStorage';
 
 interface Props {
   roster: OfficerAccount[];
@@ -51,7 +52,7 @@ interface Props {
   currentOfficerBadge?: string;
   onUpdateOfficer: (updated: OfficerAccount) => void;
   onRegisterOfficer?: (newAccount: OfficerAccount) => void;
-  onDeleteOfficer?: (officerId: string, reason?: string) => void;
+  onDeleteOfficer?: (officerId: string, reason?: string, deletingOfficer?: OfficerAccount) => void;
   onOpenPinResetAudit?: () => void;
   pendingPinResetCount?: number;
   onClose?: () => void;
@@ -115,8 +116,25 @@ export const RosterManagement: React.FC<Props> = ({
   onClose
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterRank, setFilterRank] = useState<'ALL' | 'DUTY' | 'COMMAND' | 'PATROL' | 'WARNED'>('ALL');
+  const [filterRank, setFilterRank] = useState<'ALL' | 'DUTY' | 'COMMAND' | 'PATROL' | 'WARNED' | 'DISCHARGED'>('ALL');
   const [editingOfficer, setEditingOfficer] = useState<OfficerAccount | null>(null);
+  
+  // Discharged officers archive state
+  const [dischargedList, setDischargedList] = useState<DischargedOfficerEntry[]>(() => getDischargedOfficers());
+
+  React.useEffect(() => {
+    const handleDischargedUpdated = () => {
+      setDischargedList(getDischargedOfficers());
+    };
+    window.addEventListener('hspd-discharged-updated', handleDischargedUpdated);
+    return () => {
+      window.removeEventListener('hspd-discharged-updated', handleDischargedUpdated);
+    };
+  }, []);
+
+  // Dedicated save state for Discord User ID in PM modal
+  const [isSavingTargetDiscordId, setIsSavingTargetDiscordId] = useState(false);
+  const [discordIdSaveNotice, setDiscordIdSaveNotice] = useState<string | null>(null);
   
   // Warning Management Modal State
   const [warningOfficer, setWarningOfficer] = useState<OfficerAccount | null>(null);
@@ -676,14 +694,20 @@ export const RosterManagement: React.FC<Props> = ({
         }
       }
 
-      onDeleteOfficer(deletingOfficer.id, finalReason);
+      if (onDeleteOfficer) {
+        onDeleteOfficer(deletingOfficer.id || deletingOfficer.badge, finalReason, deletingOfficer);
+      }
       setDeletingOfficer(null);
-      setSuccessNotice(`✅ Berhasil memecat dan memberhentikan ${removedName} (${removedBadge}) dari kepolisian.`);
+      setDischargedList(getDischargedOfficers());
+      setSuccessNotice(`✅ Berhasil memecat dan memberhentikan ${removedName} (${removedBadge}) dari kepolisian. Data diarsipkan permanen.`);
       setTimeout(() => setSuccessNotice(''), 5000);
     } catch (err) {
       console.error('Discharge failed', err);
-      onDeleteOfficer(deletingOfficer.id, finalReason);
+      if (onDeleteOfficer) {
+        onDeleteOfficer(deletingOfficer.id || deletingOfficer.badge, finalReason, deletingOfficer);
+      }
       setDeletingOfficer(null);
+      setDischargedList(getDischargedOfficers());
     } finally {
       setIsSubmittingDelete(false);
     }
@@ -844,6 +868,82 @@ export const RosterManagement: React.FC<Props> = ({
     saveSuperiorDmPresets(updated);
   };
 
+  // Explicitly Save Target Discord User ID to Officer Account & Storage
+  const handleSaveTargetDiscordUserId = () => {
+    if (!targetDmOfficer) return;
+    const cleanId = targetDmUserId.trim();
+    if (!cleanId) {
+      setDiscordIdSaveNotice('⚠️ Masukkan Discord User ID terlebih dahulu sebelum menyimpan!');
+      setTimeout(() => setDiscordIdSaveNotice(null), 4000);
+      return;
+    }
+
+    setIsSavingTargetDiscordId(true);
+    try {
+      const updatedOfficer: OfficerAccount = {
+        ...targetDmOfficer,
+        discordTag: cleanId,
+        _updatedAt: Date.now()
+      };
+
+      setTargetDmOfficer(updatedOfficer);
+      onUpdateOfficer(updatedOfficer);
+
+      // Centrally update in storage & broadcast to all keys
+      const currentRoster = getRosterFromStorage();
+      const nextRoster = currentRoster.map(o => 
+        (o.id && o.id === updatedOfficer.id) ||
+        isOfficerMatch(o, updatedOfficer.badge) ||
+        isOfficerMatch(o, updatedOfficer.name)
+          ? { ...o, discordTag: cleanId, _updatedAt: Date.now() }
+          : o
+      );
+      saveRosterToStorage(nextRoster);
+
+      setDiscordIdSaveNotice(`✅ DISCORD USER ID (${cleanId}) BERHASIL DISIMPAN ke akun ${targetDmOfficer.name} (${targetDmOfficer.badge})!`);
+      setSuccessNotice(`✅ Discord User ID ${targetDmOfficer.name} (${targetDmOfficer.badge}) berhasil diperbarui: ${cleanId}`);
+      setTimeout(() => {
+        setDiscordIdSaveNotice(null);
+        setSuccessNotice('');
+      }, 5000);
+    } catch (err: any) {
+      setDiscordIdSaveNotice(`❌ Gagal menyimpan Discord User ID: ${err?.message || err}`);
+      setTimeout(() => setDiscordIdSaveNotice(null), 5000);
+    } finally {
+      setIsSavingTargetDiscordId(false);
+    }
+  };
+
+  // Re-hire / Restore Discharged Officer
+  const handleRehireOfficer = (entry: DischargedOfficerEntry) => {
+    if (!isCurrentOfficerCommand) return;
+    if (!window.confirm(`Pulihkan dan pekerjakan kembali ${entry.name} (${entry.badge}) ke jajaran kepolisian?`)) return;
+
+    restoreDischargedOfficer(entry.badge);
+    setDischargedList(getDischargedOfficers());
+
+    // Re-register into active roster
+    const restoredAccount: OfficerAccount = {
+      id: entry.id,
+      name: entry.name,
+      badge: entry.badge,
+      rank: (entry.rank as OfficerRankLevel) || 'POLICE OFFICER I [PO I]',
+      division: entry.division || 'Field Training Bureau / Patrol',
+      pin: '10-4',
+      registeredAt: Date.now(),
+      promotedBy: `Dipulihkan / Direkrut Kembali oleh ${currentOfficerName || 'High Command'}`
+    };
+
+    if (onRegisterOfficer) {
+      onRegisterOfficer(restoredAccount);
+    } else {
+      onUpdateOfficer(restoredAccount);
+    }
+
+    setSuccessNotice(`✅ Berhasil memulihkan ${entry.name} (${entry.badge}) kembali ke jajaran dinas kepolisian.`);
+    setTimeout(() => setSuccessNotice(''), 5000);
+  };
+
   // Execute sending Bot Direct Message (PM / DM)
   const handleExecuteSendBotDm = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -854,6 +954,25 @@ export const RosterManagement: React.FC<Props> = ({
         message: 'Masukkan Discord User ID anggota target (17-20 digit angka)!'
       });
       return;
+    }
+
+    // Always auto-persist the entered Discord User ID
+    const cleanUserId = targetDmUserId.trim();
+    if (cleanUserId && targetDmOfficer.discordTag !== cleanUserId) {
+      const updated = { ...targetDmOfficer, discordTag: cleanUserId, _updatedAt: Date.now() };
+      setTargetDmOfficer(updated);
+      onUpdateOfficer(updated);
+      try {
+        const currentRoster = getRosterFromStorage();
+        const nextRoster = currentRoster.map(o => 
+          (o.id && o.id === updated.id) ||
+          isOfficerMatch(o, updated.badge) ||
+          isOfficerMatch(o, updated.name)
+            ? { ...o, discordTag: cleanUserId, _updatedAt: Date.now() }
+            : o
+        );
+        saveRosterToStorage(nextRoster);
+      } catch {}
     }
 
     setIsSendingBotDm(true);
@@ -879,10 +998,6 @@ export const RosterManagement: React.FC<Props> = ({
 
       setBotDmResultNotice(res);
       if (res.success) {
-        if (targetDmOfficer.discordTag !== targetDmUserId.trim()) {
-          const updated = { ...targetDmOfficer, discordTag: targetDmUserId.trim() };
-          onUpdateOfficer(updated);
-        }
         setSuccessNotice(
           targetDmMessageType === 'custom_chat'
             ? `✅ Pesan chat khusus dari atasan berhasil dikirim ke Pesan Pribadi (PM/DM) Discord milik ${targetDmOfficer.name}!`
@@ -1141,12 +1256,114 @@ export const RosterManagement: React.FC<Props> = ({
           >
             Kena SP ({roster.filter(r => (r.warnings?.length || 0) > 0).length})
           </button>
+          <button
+            id="btn-filter-discharged"
+            onClick={() => setFilterRank('DISCHARGED')}
+            className={`px-2.5 py-1 rounded transition whitespace-nowrap flex items-center gap-1 ${filterRank === 'DISCHARGED' ? 'bg-rose-800 text-white font-bold' : 'text-rose-400 hover:text-rose-200'}`}
+            title="Lihat arsip personel yang telah dipecat / diberhentikan dari kepolisian"
+          >
+            <UserX className="w-3.5 h-3.5" />
+            <span>Arsip Dipecat ({dischargedList.length})</span>
+          </button>
         </div>
       </div>
 
       {/* Anggota Table / Grid */}
       <div className="border border-gray-800 rounded-lg overflow-hidden bg-[#0D1117]">
-        <div className="overflow-x-auto">
+        {filterRank === 'DISCHARGED' ? (
+          <div className="overflow-x-auto">
+            <div className="p-3 bg-rose-950/40 border-b border-rose-900/60 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-rose-300 font-mono text-xs">
+                <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+                <span className="font-bold">ARSIP PERSONEL KEPOLISIAN YANG DIBERHENTIKAN / DIPECAT</span>
+                <span className="text-gray-400 text-[11px] hidden sm:inline">(Akun dinonaktifkan permanen dan tidak akan masuk kembali ke sistem)</span>
+              </div>
+              <span className="text-xs font-mono text-rose-400 font-bold">{dischargedList.length} Personel Dipecat</span>
+            </div>
+            <table className="w-full text-left text-xs font-mono">
+              <thead className="bg-[#161B22] border-b border-gray-800 text-gray-400 uppercase text-[10px]">
+                <tr>
+                  <th className="py-2.5 px-3">Mantan Personel & Lencana</th>
+                  <th className="py-2.5 px-3">Pangkat Terakhir</th>
+                  <th className="py-2.5 px-3">Divisi Terakhir</th>
+                  <th className="py-2.5 px-3">Waktu Pemecatan</th>
+                  <th className="py-2.5 px-3">Alasan Pemecatan Dinas</th>
+                  <th className="py-2.5 px-3">Diberhentikan Oleh</th>
+                  <th className="py-2.5 px-3 text-right">Tindakan High Command</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800 text-gray-300">
+                {dischargedList.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-gray-500 font-mono">
+                      Tidak ada personel yang pernah dipecat atau diberhentikan. Seluruh anggota berstatus aktif.
+                    </td>
+                  </tr>
+                ) : (
+                  dischargedList
+                    .filter(entry => {
+                      if (!searchQuery) return true;
+                      const q = searchQuery.toLowerCase();
+                      return (
+                        entry.name.toLowerCase().includes(q) ||
+                        entry.badge.toLowerCase().includes(q) ||
+                        (entry.rank && entry.rank.toLowerCase().includes(q)) ||
+                        (entry.division && entry.division.toLowerCase().includes(q)) ||
+                        (entry.reason && entry.reason.toLowerCase().includes(q))
+                      );
+                    })
+                    .map(entry => (
+                      <tr key={entry.id || entry.badge} className="hover:bg-rose-950/20 transition">
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded bg-rose-950 text-rose-400 border border-rose-800/80 flex items-center justify-center font-bold text-[10px] shrink-0">
+                              <UserX className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <div className="font-bold text-gray-200 line-through decoration-rose-500">{entry.name}</div>
+                              <div className="text-[10px] text-rose-400 font-bold">{entry.badge}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-gray-400">
+                          {entry.rank || '-'}
+                        </td>
+                        <td className="py-2.5 px-3 text-gray-400">
+                          {entry.division || '-'}
+                        </td>
+                        <td className="py-2.5 px-3 text-gray-400 whitespace-nowrap">
+                          {entry.dischargedAt ? new Date(entry.dischargedAt).toLocaleString('id-ID') : '-'}
+                        </td>
+                        <td className="py-2.5 px-3 text-rose-300 font-sans max-w-xs truncate" title={entry.reason}>
+                          {entry.reason || 'Diberhentikan dari dinas kepolisian'}
+                        </td>
+                        <td className="py-2.5 px-3 text-gray-400 whitespace-nowrap">
+                          {entry.dischargedBy || 'High Command'}
+                          {entry.dischargedByBadge && <span className="text-gray-500 ml-1">({entry.dischargedByBadge})</span>}
+                        </td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          {isCurrentOfficerCommand ? (
+                            <button
+                              type="button"
+                              onClick={() => handleRehireOfficer(entry)}
+                              className="px-2.5 py-1 bg-emerald-950 hover:bg-emerald-900 border border-emerald-600 text-emerald-300 rounded text-[11px] font-bold transition flex items-center gap-1 ml-auto shadow-xs"
+                              title="Pulihkan dan rekrut kembali personel ini ke jajaran dinas kepolisian"
+                            >
+                              <RotateCcw className="w-3 h-3" />
+                              <span>Pulihkan / Re-Hire</span>
+                            </button>
+                          ) : (
+                            <span className="text-[10px] text-gray-500">Hanya Command</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-xs font-mono">
             <thead className="bg-[#161B22] border-b border-gray-800 text-gray-400 uppercase text-[10px]">
               <tr>
@@ -1406,6 +1623,7 @@ export const RosterManagement: React.FC<Props> = ({
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* DISCIPLINARY / WARNING (SP) MODAL */}
@@ -2596,16 +2814,41 @@ export const RosterManagement: React.FC<Props> = ({
                   </label>
                   <span className="text-[10px] text-sky-400">Numerik 17-20 digit</span>
                 </div>
-                <input
-                  type="text"
-                  value={targetDmUserId}
-                  onChange={(e) => setTargetDmUserId(e.target.value)}
-                  placeholder="Contoh: 842019283719001 (17-20 digit angka)"
-                  className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-sky-500 rounded text-xs text-sky-200 outline-none font-mono"
-                  required
-                />
-                <div className="text-[10px] text-gray-400 flex flex-wrap items-center gap-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={targetDmUserId}
+                    onChange={(e) => setTargetDmUserId(e.target.value)}
+                    placeholder="Contoh: 842019283719001 (17-20 digit angka)"
+                    className="flex-1 px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-sky-500 rounded text-xs text-sky-200 outline-none font-mono"
+                    required
+                  />
+                  <button
+                    id="btn-save-target-discord-user-id"
+                    type="button"
+                    onClick={handleSaveTargetDiscordUserId}
+                    disabled={isSavingTargetDiscordId || !targetDmUserId.trim()}
+                    className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 disabled:bg-gray-800 disabled:text-gray-500 text-white rounded text-xs font-mono font-bold flex items-center gap-1.5 transition shadow-sm whitespace-nowrap cursor-pointer"
+                    title="Simpan Discord User ID ini secara permanen ke akun anggota ini di database"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{isSavingTargetDiscordId ? 'Menyimpan...' : 'Simpan ID Target'}</span>
+                  </button>
+                </div>
+                {discordIdSaveNotice && (
+                  <div className={`p-2 rounded text-xs font-mono border ${
+                    discordIdSaveNotice.includes('✅')
+                      ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
+                      : 'bg-rose-950/80 border-rose-500 text-rose-300'
+                  }`}>
+                    {discordIdSaveNotice}
+                  </div>
+                )}
+                <div className="text-[10px] text-gray-400 flex flex-wrap items-center justify-between gap-1">
                   <span>💡 <strong>Cara dapat User ID:</strong> Buka Discord &gt; <em>Settings &gt; Advanced &gt; Aktifkan Developer Mode</em> &gt; Klik kanan profil pengguna &gt; <strong>Copy User ID</strong>.</span>
+                  {targetDmOfficer?.discordTag && (
+                    <span className="text-sky-300 font-mono text-[10px]">Tersimpan di Akun: {targetDmOfficer.discordTag}</span>
+                  )}
                 </div>
               </div>
 

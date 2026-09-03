@@ -1,4 +1,5 @@
 import { OfficerAccount } from '../types';
+import { getDischargedOfficers, isOfficerDischarged, DischargedOfficerEntry } from '../utils/dischargeStorage';
 
 export const HSPD_OFFICIAL_ROSTER: OfficerAccount[] = [
   // ==========================================
@@ -726,7 +727,13 @@ export const HSPD_OFFICIAL_ROSTER: OfficerAccount[] = [
  * with the official 56+ department officers so no official roster member is ever lost,
  * and user changes (especially PIN updates and promotions) are completely preserved.
  */
-export function mergeWithOfficialRoster(incoming: OfficerAccount[] = []): OfficerAccount[] {
+export function mergeWithOfficialRoster(
+  incoming: OfficerAccount[] = [],
+  dischargedOverride?: DischargedOfficerEntry[]
+): OfficerAccount[] {
+  // Read list of discharged/pecat officers so they are never resurrected
+  const dischargedList = dischargedOverride || getDischargedOfficers();
+
   // Canonical registry map: canonicalKey -> OfficerAccount
   const officersMap = new Map<string, OfficerAccount>();
 
@@ -740,8 +747,11 @@ export function mergeWithOfficialRoster(incoming: OfficerAccount[] = []): Office
     return `item_${Math.random()}`;
   };
 
-  // 1. Seed with all official officers
+  // 1. Seed with official officers ONLY IF THEY ARE NOT DISCHARGED
   HSPD_OFFICIAL_ROSTER.forEach(official => {
+    if (isOfficerDischarged(official, dischargedList)) {
+      return; // Do NOT seed discharged officer
+    }
     const key = getCanonicalKey(official);
     officersMap.set(key, { ...official });
   });
@@ -777,10 +787,10 @@ export function mergeWithOfficialRoster(incoming: OfficerAccount[] = []): Office
     return null;
   };
 
-  // 3. Overlay incoming records
+  // 3. Overlay incoming records (filtering out any discharged officer)
   if (Array.isArray(incoming)) {
     incoming.forEach(item => {
-      if (!item) return;
+      if (!item || isOfficerDischarged(item, dischargedList)) return;
       const existingKey = findExistingKey(item);
 
       if (existingKey && officersMap.has(existingKey)) {
@@ -795,6 +805,10 @@ export function mergeWithOfficialRoster(incoming: OfficerAccount[] = []): Office
           // CRITICAL: user's PIN modification is strictly preserved
           pin: (item.pin !== undefined && String(item.pin).trim() !== '') ? String(item.pin).trim() : existing.pin,
           phone: item.phone || existing.phone,
+          // CRITICAL: Discord Tag & Target User ID strictly preserved
+          discordTag: (item.discordTag !== undefined && item.discordTag !== null && String(item.discordTag).trim() !== '') 
+            ? String(item.discordTag).trim() 
+            : existing.discordTag,
           promotedBy: item.promotedBy || existing.promotedBy,
           warnings: Array.isArray(item.warnings) && item.warnings.length > 0 ? item.warnings : (existing.warnings || []),
           _updatedAt: item._updatedAt || Date.now()
@@ -806,6 +820,7 @@ export function mergeWithOfficialRoster(incoming: OfficerAccount[] = []): Office
         officersMap.set(newKey, {
           ...item,
           pin: item.pin ? String(item.pin).trim() : '10-4',
+          discordTag: item.discordTag ? String(item.discordTag).trim() : undefined,
           warnings: item.warnings || []
         });
       }

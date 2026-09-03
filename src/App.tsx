@@ -52,10 +52,12 @@ import {
   subscribeToSyncStatus, 
   pushAllToFirestore, 
   syncCollectionWithFirestore,
+  deleteFromFirestore,
   FirebaseSyncStatus 
 } from './services/firebaseRealtimeSync';
 
 import { HSPD_OFFICIAL_ROSTER, mergeWithOfficialRoster } from './data/hspdOfficialRoster';
+import { recordOfficerDischarge, isOfficerDischarged } from './utils/dischargeStorage';
 
 const STORAGE_KEY = 'hspd_arrest_records_v1';
 const OFFICER_STORAGE_KEY = 'hspd_active_officer_v1';
@@ -586,8 +588,71 @@ export default function App() {
     }
   };
 
-  const handleDeleteOfficer = (officerId: string, reason?: string) => {
-    setRoster(prev => prev.filter(a => a.id !== officerId));
+  const handleDeleteOfficer = (officerId: string, reason?: string, deletingOfficerObj?: OfficerAccount) => {
+    // 1. Find the officer object to get full details (id, badge, name, rank, division)
+    const target = deletingOfficerObj || roster.find(a => 
+      (officerId && a.id === officerId) || 
+      isOfficerMatch(a, officerId)
+    );
+
+    const badge = target?.badge || officerId;
+    const name = target?.name || officerId;
+    const rank = target?.rank;
+    const division = target?.division;
+
+    // 2. Persist to Discharged Officers registry so mergeWithOfficialRoster NEVER resurrects them
+    recordOfficerDischarge({
+      id: target?.id || officerId || `discharged_${Date.now()}`,
+      badge,
+      name,
+      rank,
+      division,
+      reason: reason || 'Diberhentikan dari dinas kepolisian (dipecat)',
+      dischargedAt: Date.now(),
+      dischargedBy: currentOfficer?.name || 'High Command',
+      dischargedByBadge: currentOfficer?.badge || '#001',
+      dischargedByRank: currentOfficer?.rank || 'HIGH COMMAND'
+    });
+
+    // 3. Remove officer from state
+    setRoster(prev => {
+      const next = prev.filter(a => {
+        if (officerId && a.id === officerId) return false;
+        if (target?.id && a.id === target.id) return false;
+        if (badge && isOfficerMatch(a, badge)) return false;
+        if (name && isOfficerMatch(a, name)) return false;
+        return true;
+      });
+      try {
+        const serialized = JSON.stringify(next);
+        localStorage.setItem(ROSTER_STORAGE_KEY, serialized);
+        localStorage.setItem('hspd_roster_database_v3', serialized);
+        localStorage.setItem('hspd_roster_database_v2', serialized);
+      } catch {}
+      return next;
+    });
+
+    // 4. Also delete document from Firestore if exists
+    const candidateDocIds = [
+      target?.id,
+      officerId,
+      badge ? `officer_${String(badge).replace(/[^a-zA-Z0-9_-]/g, '')}` : '',
+      badge ? String(badge).replace(/[\/\s#]/g, '_').trim() : ''
+    ].filter(Boolean) as string[];
+
+    candidateDocIds.forEach(cId => {
+      deleteFromFirestore('ROSTER', cId).catch(() => {});
+    });
+
+    // 5. If this was the current logged in officer, log them out immediately
+    if (currentOfficer && (
+      (officerId && currentOfficer.id === officerId) ||
+      (target?.id && currentOfficer.id === target.id) ||
+      (badge && isOfficerMatch(currentOfficer as any, badge)) ||
+      (name && isOfficerMatch(currentOfficer as any, name))
+    )) {
+      handleLogout();
+    }
   };
 
   const handleSaveRecord = (newRecord: Omit<ArrestRecord, 'id' | 'timestamp'>) => {

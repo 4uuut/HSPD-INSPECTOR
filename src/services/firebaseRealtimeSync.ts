@@ -378,6 +378,8 @@ export async function pushToFirestore<T extends { id?: string }>(
   }
 }
 
+export const pushSingleToFirestore = pushToFirestore;
+
 // Push all array items in a batch to Firestore
 export async function pushAllToFirestore<T extends { id?: string; badge?: string }>(
   collectionKey: CollectionKey,
@@ -592,6 +594,15 @@ export function initRealtimeFirebaseSync() {
               if (data.registry) {
                 localStorage.setItem('hspd_duty_registry_all_officers_v2', JSON.stringify(data.registry));
                 window.dispatchEvent(new CustomEvent('hspd-officer-duty-changed', { detail: { state: data.registry } }));
+              }
+            } else if (d.id === 'discharged_officers') {
+              const list = data.data?.list || data.list;
+              if (Array.isArray(list)) {
+                try {
+                  localStorage.setItem('hspd_discharged_officers_v1', JSON.stringify(list));
+                  localStorage.setItem('hspd_discharged_officers_backup', JSON.stringify(list));
+                  window.dispatchEvent(new CustomEvent('hspd-discharged-updated', { detail: list }));
+                } catch {}
               }
             }
           });
