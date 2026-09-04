@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { PasalCalculator } from './components/PasalCalculator';
 import { MegaphoneStudio } from './components/MegaphoneStudio';
 import { RoleplayActions } from './components/RoleplayActions';
@@ -1320,6 +1321,7 @@ export default function App() {
           </div>
         </div>
       </footer>
+      <SpeedInsights />
     </div>
   );
 }
