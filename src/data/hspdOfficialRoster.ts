@@ -861,6 +861,13 @@ export function mergeWithOfficialRoster(
       if (cleanBadge && existingBadgeDigits && cleanBadge === existingBadgeDigits) {
         return key;
       }
+
+      // CRITICAL GUARD: If both records have badge numbers and they do not match,
+      // they CANNOT be the same officer! (e.g. Officer #217 is NOT Officer #101)
+      if (cleanBadge && existingBadgeDigits && cleanBadge !== existingBadgeDigits) {
+        continue;
+      }
+
       const existingName = (existing.name || '').toLowerCase().trim();
       if (cleanName && (cleanName === existingName || cleanName.replace(/\s+/g, '') === existingName.replace(/\s+/g, ''))) {
         return key;
@@ -868,13 +875,9 @@ export function mergeWithOfficialRoster(
       if (normCleanName && normCleanName === normalizeName(existingName)) {
         return key;
       }
-      // Also handle common aliases/typos (e.g. Leoanrd / Leoarnd / Leonard)
-      if (cleanName && (
-        (cleanName.includes('neave') && existingName.includes('neave')) ||
-        (cleanName.includes('leonard') && existingName.includes('neave')) ||
-        (cleanName.includes('leoanrd') && existingName.includes('neave')) ||
-        (cleanName.includes('leoarnd') && existingName.includes('neave'))
-      )) {
+      // Only handle typo aliases when BOTH tokens of the specific officer name are present
+      // (e.g. "Leoanrd Neave" vs "Leonard Neave" #101) - never cross-match different officers!
+      if (cleanName && cleanName.includes('neave') && existingName.includes('neave')) {
         return key;
       }
     }

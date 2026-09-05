@@ -28,7 +28,7 @@ import { AndroidMdtView } from './components/AndroidMdtView';
 import { ExportAttendanceModal } from './components/ExportAttendanceModal';
 import { SettingsView } from './components/SettingsView';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
-import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch, saveRosterToStorage, updateOfficerPinInRoster } from './utils/pinResetStorage';
+import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch, isSameOfficerAccount, saveRosterToStorage, updateOfficerPinInRoster } from './utils/pinResetStorage';
 import { getSavedDetectiveCases, saveDetectiveCases } from './utils/detectiveCaseStorage';
 import { getSavedBoloAlerts, saveBoloAlerts, getSavedImpounds, saveImpounds } from './utils/boloImpoundStorage';
 import { getOfficerDutyState, saveOfficerDutyState, formatDutyDuration } from './utils/officerDutyStorage';
@@ -517,7 +517,10 @@ export default function App() {
 
     setRoster(prev => {
       const nextRoster = prev.map(a => {
-        if (isOfficerMatch(a, badgeOrName)) {
+        if (
+          isSameOfficerAccount(a, { badge: badgeOrName, name: badgeOrName }) ||
+          isOfficerMatch(a, badgeOrName)
+        ) {
           updated = true;
           return { ...a, pin: trimmedPin, _updatedAt: Date.now() };
         }
@@ -544,11 +547,7 @@ export default function App() {
     setRoster(prev => {
       let isFound = false;
       const nextRoster = prev.map(a => {
-        if (
-          (updated.id && a.id === updated.id) ||
-          isOfficerMatch(a, updated.badge) ||
-          isOfficerMatch(a, updated.name)
-        ) {
+        if (isSameOfficerAccount(a, updated)) {
           isFound = true;
           return {
             ...a,
@@ -570,11 +569,7 @@ export default function App() {
     }
     
     // If updated officer is the currently logged in officer, sync state
-    if (currentOfficer && (
-      currentOfficer.badge.toLowerCase() === updated.badge.toLowerCase() ||
-      isOfficerMatch(updated, currentOfficer.badge) ||
-      isOfficerMatch(updated, currentOfficer.name)
-    )) {
+    if (currentOfficer && isSameOfficerAccount(updated, currentOfficer as any)) {
       const synced: OfficerProfile = {
         ...currentOfficer,
         name: updated.name || currentOfficer.name,
@@ -595,7 +590,7 @@ export default function App() {
     // 1. Find the officer object to get full details (id, badge, name, rank, division)
     const target = deletingOfficerObj || roster.find(a => 
       (officerId && a.id === officerId) || 
-      isOfficerMatch(a, officerId)
+      isSameOfficerAccount(a, { id: officerId, badge: officerId, name: officerId })
     );
 
     const badge = target?.badge || officerId;
@@ -621,10 +616,8 @@ export default function App() {
     let nextRoster: OfficerAccount[] = [];
     setRoster(prev => {
       const next = prev.filter(a => {
+        if (target && isSameOfficerAccount(a, target)) return false;
         if (officerId && a.id === officerId) return false;
-        if (target?.id && a.id === target.id) return false;
-        if (badge && isOfficerMatch(a, badge)) return false;
-        if (name && isOfficerMatch(a, name)) return false;
         return true;
       });
       nextRoster = next;
@@ -652,12 +645,7 @@ export default function App() {
     }, 120);
 
     // 5. If this was the current logged in officer, log them out immediately
-    if (currentOfficer && (
-      (officerId && currentOfficer.id === officerId) ||
-      (target?.id && currentOfficer.id === target.id) ||
-      (badge && isOfficerMatch(currentOfficer as any, badge)) ||
-      (name && isOfficerMatch(currentOfficer as any, name))
-    )) {
+    if (currentOfficer && target && isSameOfficerAccount(currentOfficer as any, target)) {
       handleLogout();
     }
   };
@@ -1216,6 +1204,7 @@ export default function App() {
             onOpenRecruitmentPortalModal={() => setIsRecruitmentPortalModalOpen(true)}
             onToggleViewMode={handleToggleViewMode}
             isAndroidMode={isAndroidMode}
+            onNavigateToTab={(tab) => setActiveNav(tab as any)}
           />
         )}
       </main>

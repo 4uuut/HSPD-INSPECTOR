@@ -2,10 +2,9 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   initializeFirestore,
   getFirestore, 
-  Firestore,
-  persistentLocalCache,
-  persistentMultipleTabManager
+  Firestore
 } from 'firebase/firestore';
+import { getAuth, Auth } from 'firebase/auth';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Initialize Firebase App singleton
@@ -20,6 +19,8 @@ export const firebaseApp = !getApps().length
     })
   : getApp();
 
+export const auth: Auth = getAuth(firebaseApp);
+
 // Initialize Firestore instance using databaseId configured in firebase-applet-config
 // Forcing long polling prevents the 10-second WebSocket/WebChannel stream timeout in sandboxed iframe environments
 export const db: Firestore = (() => {
@@ -28,19 +29,9 @@ export const db: Firestore = (() => {
     return initializeFirestore(firebaseApp, {
       experimentalForceLongPolling: true,
       ignoreUndefinedProperties: true,
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-      })
     }, dbId);
   } catch {
-    try {
-      return initializeFirestore(firebaseApp, {
-        experimentalForceLongPolling: true,
-        ignoreUndefinedProperties: true
-      }, dbId);
-    } catch {
-      return getFirestore(firebaseApp, dbId);
-    }
+    return getFirestore(firebaseApp, dbId);
   }
 })();
 

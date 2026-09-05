@@ -24,7 +24,9 @@ if (typeof window !== 'undefined') {
       lower.includes('resource-exhausted') ||
       lower.includes('quota limit exceeded') ||
       lower.includes('free daily write units') ||
-      lower.includes('maximum backoff delay')
+      lower.includes('maximum backoff delay') ||
+      lower.includes('could not reach cloud firestore backend') ||
+      lower.includes('operate in offline mode')
     );
   };
 

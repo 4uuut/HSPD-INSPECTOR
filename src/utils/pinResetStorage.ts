@@ -42,6 +42,47 @@ function levenshteinDistance(a: string, b: string): number {
   return matrix[b.length][a.length];
 }
 
+/**
+ * Strictly tests if two officer records represent the exact same person.
+ * Used for database updates, deletions, and Discord ID assignment to prevent collisions.
+ * Never performs loose substring or single-word token matching.
+ */
+export function isSameOfficerAccount(
+  a: OfficerAccount | undefined | null,
+  b: { id?: string; badge?: string; name?: string } | undefined | null
+): boolean {
+  if (!a || !b) return false;
+
+  // 1. Direct ID match (highest precision)
+  if (a.id && b.id && a.id.trim() !== '' && a.id.toLowerCase().trim() === b.id.toLowerCase().trim()) {
+    return true;
+  }
+
+  // 2. Direct Badge comparison
+  const badgeA = (a.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+  const badgeB = (b.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+
+  if (badgeA && badgeB) {
+    if (badgeA === badgeB) return true;
+    const numA = parseInt(badgeA, 10);
+    const numB = parseInt(badgeB, 10);
+    if (!isNaN(numA) && !isNaN(numB) && numA === numB) {
+      return true;
+    }
+    // If both have badges and they differ, they CANNOT be the same officer!
+    return false;
+  }
+
+  // 3. Exact full name match (case-insensitive & trimmed)
+  const nameA = (a.name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  const nameB = (b.name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  if (nameA && nameB && nameA === nameB) {
+    return true;
+  }
+
+  return false;
+}
+
 export function isOfficerMatch(officer: OfficerAccount, searchIdentifier: string): boolean {
   if (!officer || !searchIdentifier) return false;
   const rawId = searchIdentifier.trim().toLowerCase();
@@ -73,27 +114,13 @@ export function isOfficerMatch(officer: OfficerAccount, searchIdentifier: string
   // 3. Officer ID match
   if (officer.id && officer.id.toLowerCase().trim() === rawId) return true;
 
-  // 4. Name substring matches
-  if (rawName && rawId && (rawName.includes(rawId) || rawId.includes(rawName))) {
-    return true;
-  }
+  // 4. Exact full name match (with normalized whitespace)
+  const normName = rawName.replace(/\s+/g, ' ');
+  const normSearch = rawId.replace(/\s+/g, ' ');
+  if (normName === normSearch) return true;
 
-  // 5. Token word match (e.g. searching "Leoarnd Neave" matches "Leonard Neave" via "neave")
-  const idTokens = rawId.split(/\s+/).filter(t => t.length >= 3);
-  const nameTokens = rawName.split(/\s+/).filter(t => t.length >= 3);
-
-  for (const it of idTokens) {
-    for (const nt of nameTokens) {
-      if (it === nt) return true;
-      // Levenshtein typo tolerance on individual name words (e.g. "leoarnd" vs "leonard", "neave" vs "naeve")
-      if (it.length >= 4 && nt.length >= 4 && levenshteinDistance(it, nt) <= 2) {
-        return true;
-      }
-    }
-  }
-
-  // 6. Full string Levenshtein distance for close typos (distance <= 2)
-  if (rawName.length >= 5 && rawId.length >= 5 && levenshteinDistance(rawName, rawId) <= 2) {
+  // 5. Full string Levenshtein distance ONLY if search has significant length and is an almost exact match (<= 1 typo on whole name)
+  if (normName.length >= 6 && normSearch.length >= 6 && levenshteinDistance(normName, normSearch) <= 1) {
     return true;
   }
 
@@ -147,8 +174,14 @@ export function updateOfficerPinInRoster(
   const currentRoster = getRosterFromStorage();
   let updated = false;
 
+  const targetIdentifier = {
+    badge: badgeOrName,
+    name: officerName || badgeOrName
+  };
+
   const updatedRoster = currentRoster.map(officer => {
     if (
+      isSameOfficerAccount(officer, targetIdentifier) ||
       isOfficerMatch(officer, badgeOrName) || 
       (officerName && isOfficerMatch(officer, officerName))
     ) {

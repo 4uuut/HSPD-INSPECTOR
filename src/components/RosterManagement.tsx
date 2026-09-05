@@ -8,7 +8,8 @@ import {
   Sparkles, ShieldAlert, X, Plus, ShieldCheck, Clock, Lock,
   UserX, Trash2, AlertOctagon, Send, RotateCcw, AlertCircle, FileText, RefreshCw,
   UserPlus, Phone, Sliders, Eye, EyeOff, Radio, Activity, FileSpreadsheet, Download, Archive,
-  MessageSquare, Bot, Upload, Image, Palette, Save, Bookmark, Settings, Globe, ExternalLink
+  MessageSquare, Bot, Upload, Image, Palette, Save, Bookmark, Settings, Globe, ExternalLink,
+  Maximize2, Minimize2
 } from 'lucide-react';
 import { ExportAttendanceModal } from './ExportAttendanceModal';
 import { getNextAvailableBadge } from '../utils/badgeHelper';
@@ -48,7 +49,7 @@ import {
   FirebaseSyncStatus 
 } from '../services/firebaseRealtimeSync';
 import { mergeWithOfficialRoster, HSPD_OFFICIAL_ROSTER } from '../data/hspdOfficialRoster';
-import { updateOfficerPinInRoster, getRosterFromStorage, saveRosterToStorage, isOfficerMatch } from '../utils/pinResetStorage';
+import { updateOfficerPinInRoster, getRosterFromStorage, saveRosterToStorage, isOfficerMatch, isSameOfficerAccount } from '../utils/pinResetStorage';
 import { getDischargedOfficers, restoreDischargedOfficer, DischargedOfficerEntry } from '../utils/dischargeStorage';
 
 interface Props {
@@ -147,6 +148,7 @@ export const RosterManagement: React.FC<Props> = ({
     setRosterWebhookUrl(rConfig.webhookUrl || pConfig.webhookUrl || '');
     setRosterBotName(rConfig.botName || 'HSPD Personnel & Roster Bureau');
     setWebhookNotice(null);
+    setIsWebhookModalFullscreen(modalDisplayPref === 'fullscreen');
     setIsWebhookConfigModalOpen(true);
   };
 
@@ -229,6 +231,59 @@ export const RosterManagement: React.FC<Props> = ({
   // Dedicated save state for Discord User ID in PM modal
   const [isSavingTargetDiscordId, setIsSavingTargetDiscordId] = useState(false);
   const [discordIdSaveNotice, setDiscordIdSaveNotice] = useState<string | null>(null);
+
+  // Display Preferences synced from Settings & Authority
+  const [modalDisplayPref, setModalDisplayPref] = useState<'normal' | 'spacious' | 'fullscreen'>(() => {
+    try {
+      return (localStorage.getItem('hspd_display_modal_preference') as any) || 'normal';
+    } catch {
+      return 'normal';
+    }
+  });
+  const [uiDensity, setUiDensity] = useState<'compact' | 'balanced' | 'spacious'>(() => {
+    try {
+      return (localStorage.getItem('hspd_ui_density') as any) || 'balanced';
+    } catch {
+      return 'balanced';
+    }
+  });
+  const [avatarScale, setAvatarScale] = useState<'small' | 'medium' | 'large'>(() => {
+    try {
+      return (localStorage.getItem('hspd_avatar_display_size') as any) || 'medium';
+    } catch {
+      return 'medium';
+    }
+  });
+
+  useEffect(() => {
+    const handleDisplayPrefChange = () => {
+      try {
+        setModalDisplayPref((localStorage.getItem('hspd_display_modal_preference') as any) || 'normal');
+        setUiDensity((localStorage.getItem('hspd_ui_density') as any) || 'balanced');
+        setAvatarScale((localStorage.getItem('hspd_avatar_display_size') as any) || 'medium');
+      } catch {}
+    };
+    window.addEventListener('hspd-display-settings-changed', handleDisplayPrefChange);
+    window.addEventListener('storage', handleDisplayPrefChange);
+    return () => {
+      window.removeEventListener('hspd-display-settings-changed', handleDisplayPrefChange);
+      window.removeEventListener('storage', handleDisplayPrefChange);
+    };
+  }, []);
+
+  // Modal Fullscreen Toggles
+  const [isPmModalFullscreen, setIsPmModalFullscreen] = useState(() => {
+    try {
+      return localStorage.getItem('hspd_display_modal_preference') === 'fullscreen';
+    } catch {
+      return false;
+    }
+  });
+  const [isWarningModalFullscreen, setIsWarningModalFullscreen] = useState(false);
+  const [isDeleteModalFullscreen, setIsDeleteModalFullscreen] = useState(false);
+  const [isEditRankModalFullscreen, setIsEditRankModalFullscreen] = useState(false);
+  const [isAddOfficerModalFullscreen, setIsAddOfficerModalFullscreen] = useState(false);
+  const [isWebhookModalFullscreen, setIsWebhookModalFullscreen] = useState(false);
   
   // Warning Management Modal State
   const [warningOfficer, setWarningOfficer] = useState<OfficerAccount | null>(null);
@@ -430,6 +485,7 @@ export const RosterManagement: React.FC<Props> = ({
     setAddSendDm(true);
     setAddFormError('');
     setAddOfficerSuccessMsg('');
+    setIsAddOfficerModalFullscreen(modalDisplayPref === 'fullscreen');
     setIsAddOfficerModalOpen(true);
   };
 
@@ -629,6 +685,7 @@ export const RosterManagement: React.FC<Props> = ({
     setPromotionPresetReason(PRESET_PROMOTION_REASONS[0]);
     setPromotionDetailReason('');
     setPromotionSendWebhook(true);
+    setIsEditRankModalFullscreen(modalDisplayPref === 'fullscreen');
   };
 
   const handleStartWarning = (officer: OfficerAccount) => {
@@ -641,6 +698,7 @@ export const RosterManagement: React.FC<Props> = ({
     setWarningDetailReason('');
     setWarningSendWebhook(true);
     setWarningModalNotice('');
+    setIsWarningModalFullscreen(modalDisplayPref === 'fullscreen');
   };
 
   const handleStartDelete = (officer: OfficerAccount) => {
@@ -653,6 +711,7 @@ export const RosterManagement: React.FC<Props> = ({
       return;
     }
     setDeletingOfficer(officer);
+    setIsDeleteModalFullscreen(modalDisplayPref === 'fullscreen');
     
     const strikeCount = officer.warnings?.length || 0;
     if (strikeCount >= 3) {
@@ -926,6 +985,7 @@ export const RosterManagement: React.FC<Props> = ({
     setShowAddPresetInput(false);
     setBotDmResultNotice(null);
     setShowAdvancedDmSettings(false);
+    setIsPmModalFullscreen(modalDisplayPref === 'fullscreen');
   };
 
   // Save current custom message as default
@@ -983,12 +1043,10 @@ export const RosterManagement: React.FC<Props> = ({
       setTargetDmOfficer(updatedOfficer);
       onUpdateOfficer(updatedOfficer);
 
-      // Centrally update in storage & broadcast to all keys
+      // Centrally update ONLY this exact officer in storage & broadcast to all keys
       const currentRoster = getRosterFromStorage();
       const nextRoster = currentRoster.map(o => 
-        (o.id && o.id === updatedOfficer.id) ||
-        isOfficerMatch(o, updatedOfficer.badge) ||
-        isOfficerMatch(o, updatedOfficer.name)
+        isSameOfficerAccount(o, updatedOfficer)
           ? { ...o, discordTag: cleanId, _updatedAt: Date.now() }
           : o
       );
@@ -1002,6 +1060,44 @@ export const RosterManagement: React.FC<Props> = ({
       }, 5000);
     } catch (err: any) {
       setDiscordIdSaveNotice(`❌ Gagal menyimpan Discord User ID: ${err?.message || err}`);
+      setTimeout(() => setDiscordIdSaveNotice(null), 5000);
+    } finally {
+      setIsSavingTargetDiscordId(false);
+    }
+  };
+
+  // Explicitly Remove / Clear Discord User ID from Officer Account
+  const handleClearTargetDiscordUserId = () => {
+    if (!targetDmOfficer) return;
+    setIsSavingTargetDiscordId(true);
+    try {
+      const updatedOfficer: OfficerAccount = {
+        ...targetDmOfficer,
+        discordTag: undefined,
+        _updatedAt: Date.now()
+      };
+
+      setTargetDmUserId('');
+      setTargetDmOfficer(updatedOfficer);
+      onUpdateOfficer(updatedOfficer);
+
+      // Centrally update ONLY this exact officer in storage & broadcast to all keys
+      const currentRoster = getRosterFromStorage();
+      const nextRoster = currentRoster.map(o => 
+        isSameOfficerAccount(o, updatedOfficer)
+          ? { ...o, discordTag: undefined, _updatedAt: Date.now() }
+          : o
+      );
+      saveRosterToStorage(nextRoster);
+
+      setDiscordIdSaveNotice(`✅ Discord User ID untuk ${targetDmOfficer.name} (${targetDmOfficer.badge}) berhasil dihapus / dikosongkan.`);
+      setSuccessNotice(`✅ Discord User ID ${targetDmOfficer.name} (${targetDmOfficer.badge}) berhasil dikosongkan.`);
+      setTimeout(() => {
+        setDiscordIdSaveNotice(null);
+        setSuccessNotice('');
+      }, 5000);
+    } catch (err: any) {
+      setDiscordIdSaveNotice(`❌ Gagal menghapus Discord User ID: ${err?.message || err}`);
       setTimeout(() => setDiscordIdSaveNotice(null), 5000);
     } finally {
       setIsSavingTargetDiscordId(false);
@@ -1059,9 +1155,7 @@ export const RosterManagement: React.FC<Props> = ({
       try {
         const currentRoster = getRosterFromStorage();
         const nextRoster = currentRoster.map(o => 
-          (o.id && o.id === updated.id) ||
-          isOfficerMatch(o, updated.badge) ||
-          isOfficerMatch(o, updated.name)
+          isSameOfficerAccount(o, updated)
             ? { ...o, discordTag: cleanUserId, _updatedAt: Date.now() }
             : o
         );
@@ -1761,38 +1855,92 @@ export const RosterManagement: React.FC<Props> = ({
 
       {/* DISCIPLINARY / WARNING (SP) MODAL */}
       {warningOfficer && (
-        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150 font-mono text-xs">
-          <div className="bg-[#161B22] border border-amber-700/80 rounded-xl max-w-xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className={
+          isWarningModalFullscreen
+            ? "fixed inset-0 z-50 bg-black/90 backdrop-blur-xs flex p-0 font-mono text-xs animate-in fade-in duration-150"
+            : modalDisplayPref === 'spacious'
+            ? "fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-2 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150 font-mono text-xs"
+            : "fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150 font-mono text-xs"
+        }>
+          <div className={
+            isWarningModalFullscreen
+              ? "w-full h-full rounded-none border-0 bg-[#161B22] shadow-2xl flex flex-col overflow-hidden"
+              : modalDisplayPref === 'spacious'
+              ? "bg-[#161B22] border border-amber-600/80 rounded-2xl max-w-5xl xl:max-w-6xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[94vh]"
+              : "bg-[#161B22] border border-amber-700/80 rounded-xl max-w-4xl xl:max-w-5xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+          }>
             {/* Header Modal */}
-            <div className="bg-[#0F1319] border-b border-gray-800 px-5 py-4 flex items-center justify-between">
+            <div className="bg-[#0F1319] border-b border-gray-800 px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-amber-600 rounded-lg flex items-center justify-center font-bold text-black shadow-lg shadow-amber-600/30 shrink-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-amber-600 rounded-lg flex items-center justify-center font-bold text-black shadow-lg shadow-amber-600/30 shrink-0">
                   <AlertTriangle className="w-5 h-5 text-black" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-sm sm:text-base text-gray-100">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold text-sm sm:text-base text-gray-100 font-sans">
                       Surat Peringatan & Disiplin Personel (SP)
                     </h3>
-                    <span className="text-[9px] bg-amber-950 text-amber-300 border border-amber-800 px-1.5 py-0.5 rounded font-bold">
+                    <span className="text-[9px] bg-amber-950 text-amber-300 border border-amber-700 px-2 py-0.5 rounded font-bold">
                       MAKS 3 STRIKE
                     </span>
                   </div>
-                  <p className="text-[11px] text-gray-400">
-                    {warningOfficer.name} (Badge: {warningOfficer.badge}) • {warningOfficer.rank}
+                  <p className="text-[11px] text-gray-400 font-mono">
+                    {warningOfficer.name} • Badge: <strong className="text-amber-300">{warningOfficer.badge}</strong> • {warningOfficer.rank}
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setWarningOfficer(null)}
-                className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
+
+              {/* Header Right Action Group */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                {onNavigateToSettings && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWarningOfficer(null);
+                      onNavigateToSettings('section-pin-webhook');
+                    }}
+                    className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-950/70 hover:bg-amber-900/80 text-amber-300 border border-amber-700/70 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                    title="Buka Pengaturan Webhook & Otoritas di Settings"
+                  >
+                    <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Pengaturan di Setting</span>
+                  </button>
+                )}
+
+                {/* Fullscreen Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setIsWarningModalFullscreen(!isWarningModalFullscreen)}
+                  className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 border border-gray-700 cursor-pointer"
+                  title={isWarningModalFullscreen ? "Kembalikan ke ukuran normal" : "Tampilkan mode layar penuh (Full Screen)"}
+                >
+                  {isWarningModalFullscreen ? (
+                    <>
+                      <Minimize2 className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="hidden sm:inline">Normal</span>
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="hidden sm:inline">Full Screen</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setWarningOfficer(null)}
+                  className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer"
+                  title="Tutup Modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            {/* Body */}
-            <div className="p-5 space-y-4 overflow-y-auto flex-1">
+            {/* Modal Body: 2-Column Responsive Layout */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
               {warningModalNotice && (
                 <div className="p-3 bg-blue-950/80 border border-blue-700 rounded-lg text-blue-200 text-xs flex items-center gap-2 font-bold animate-in fade-in">
                   <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />
@@ -1800,215 +1948,259 @@ export const RosterManagement: React.FC<Props> = ({
                 </div>
               )}
 
-              {/* Strikes Counter Meter */}
-              <div className="p-3.5 bg-[#0D1117] border border-gray-800 rounded-lg space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-gray-400 font-bold uppercase">Akumulasi Strike Saat Ini:</span>
-                  <span className={`font-bold px-2 py-0.5 rounded text-xs border ${
-                    (warningOfficer.warnings?.length || 0) === 0
-                      ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800'
-                      : (warningOfficer.warnings?.length || 0) === 1
-                      ? 'bg-amber-950/80 text-amber-300 border-amber-700'
-                      : (warningOfficer.warnings?.length || 0) === 2
-                      ? 'bg-orange-950/80 text-orange-300 border-orange-600'
-                      : 'bg-rose-950 text-rose-300 border-rose-600 animate-pulse'
-                  }`}>
-                    {(warningOfficer.warnings?.length || 0)} / 3 STRIKE
-                  </span>
-                </div>
-
-                {/* Visual meter blocks */}
-                <div className="grid grid-cols-3 gap-2 pt-1">
-                  {[1, 2, 3].map((step) => {
-                    const isIssued = (warningOfficer.warnings?.length || 0) >= step;
-                    return (
-                      <div
-                        key={step}
-                        className={`p-2.5 rounded-lg border text-center transition ${
-                          isIssued
-                            ? step === 1
-                              ? 'bg-amber-950/70 border-amber-600 text-amber-300'
-                              : step === 2
-                              ? 'bg-orange-950/70 border-orange-600 text-orange-300'
-                              : 'bg-rose-950 border-rose-500 text-rose-300 font-bold'
-                            : 'bg-gray-900/40 border-gray-800 text-gray-600'
-                        }`}
-                      >
-                        <div className="text-[10px] font-bold">SP {step}</div>
-                        <div className="text-[9px] mt-0.5">
-                          {isIssued ? '⚠️ TERBIT' : '⚪ Kosong'}
-                        </div>
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                {/* Left Column: Identitas & Riwayat SP */}
+                <div className="lg:col-span-6 space-y-4">
+                  {/* Officer Info Card */}
+                  <div className="p-3.5 bg-[#0D1117] border border-gray-800 rounded-xl space-y-2">
+                    <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">
+                      Identitas Personel Terperiksa:
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-gray-500 block text-[10px]">Nama Petugas:</span>
+                        <span className="font-bold text-gray-100">{warningOfficer.name}</span>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Section 1: Active Warnings History */}
-              <div className="space-y-2">
-                <div className="text-[11px] uppercase font-bold text-gray-400 tracking-wider flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Daftar Riwayat Surat Peringatan Personel ({warningOfficer.warnings?.length || 0})</span>
-                </div>
-
-                {(!warningOfficer.warnings || warningOfficer.warnings.length === 0) ? (
-                  <div className="p-4 bg-[#0D1117] border border-gray-800 rounded-lg text-center text-gray-500 text-xs">
-                    Personel ini memiliki rekam jejak bersih (Belum pernah menerima SP).
+                      <div>
+                        <span className="text-gray-500 block text-[10px]">No. Badge / Lencana:</span>
+                        <span className="font-bold text-amber-300 font-mono">{warningOfficer.badge}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block text-[10px]">Pangkat Saat Ini:</span>
+                        <span className="font-bold text-gray-200">{warningOfficer.rank}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block text-[10px]">Divisi Operasional:</span>
+                        <span className="font-bold text-gray-300">{warningOfficer.division || 'Patrol Bureau'}</span>
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  <div className="space-y-2">
-                    {warningOfficer.warnings.map((warn, idx) => (
-                      <div 
-                        key={warn.id || idx}
-                        className="p-3 bg-[#0D1117] border border-gray-800 rounded-lg space-y-2 relative group hover:border-gray-700 transition"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                              warn.strikeNumber === 1
-                                ? 'bg-amber-950 text-amber-300 border-amber-700'
-                                : warn.strikeNumber === 2
-                                ? 'bg-orange-950 text-orange-300 border-orange-600'
-                                : 'bg-rose-950 text-rose-300 border-rose-600'
-                            }`}>
-                              STRIKE {warn.strikeNumber} (SP{warn.strikeNumber})
-                            </span>
-                            <span className="text-[10px] text-gray-400 flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {new Date(warn.timestamp || Date.now()).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
-                            </span>
-                          </div>
 
-                          {/* Revoke / Pardon button */}
-                          <button
-                            type="button"
-                            onClick={() => handleRevokeWarning(warn.id)}
-                            className="text-[10px] text-gray-500 hover:text-rose-400 bg-gray-900 hover:bg-rose-950/60 px-2 py-0.5 rounded border border-gray-800 hover:border-rose-700 transition flex items-center gap-1"
-                            title="Cabut Surat Peringatan ini (Pardon)"
+                  {/* Strikes Counter Meter */}
+                  <div className="p-3.5 bg-[#0D1117] border border-gray-800 rounded-xl space-y-2.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-gray-400 font-bold uppercase">Akumulasi Strike Saat Ini:</span>
+                      <span className={`font-bold px-2.5 py-0.5 rounded text-xs border ${
+                        (warningOfficer.warnings?.length || 0) === 0
+                          ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800'
+                          : (warningOfficer.warnings?.length || 0) === 1
+                          ? 'bg-amber-950/80 text-amber-300 border-amber-700'
+                          : (warningOfficer.warnings?.length || 0) === 2
+                          ? 'bg-orange-950/80 text-orange-300 border-orange-600'
+                          : 'bg-rose-950 text-rose-300 border-rose-600 animate-pulse'
+                      }`}>
+                        {(warningOfficer.warnings?.length || 0)} / 3 STRIKE
+                      </span>
+                    </div>
+
+                    {/* Visual meter blocks */}
+                    <div className="grid grid-cols-3 gap-2 pt-1">
+                      {[1, 2, 3].map((step) => {
+                        const isIssued = (warningOfficer.warnings?.length || 0) >= step;
+                        return (
+                          <div
+                            key={step}
+                            className={`p-2.5 rounded-lg border text-center transition ${
+                              isIssued
+                                ? step === 1
+                                  ? 'bg-amber-950/70 border-amber-600 text-amber-300'
+                                  : step === 2
+                                  ? 'bg-orange-950/70 border-orange-600 text-orange-300'
+                                  : 'bg-rose-950 border-rose-500 text-rose-300 font-bold'
+                                : 'bg-gray-900/40 border-gray-800 text-gray-600'
+                            }`}
                           >
-                            <RotateCcw className="w-3 h-3" />
-                            <span>Cabut SP</span>
-                          </button>
-                        </div>
+                            <div className="text-[10px] font-bold">SP {step}</div>
+                            <div className="text-[9px] mt-0.5">
+                              {isIssued ? '⚠️ TERBIT' : '⚪ Kosong'}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-                        <div className="text-gray-200 text-xs bg-black/40 p-2 rounded border border-gray-800/80">
-                          {warn.reason}
-                        </div>
+                  {/* Section: Active Warnings History */}
+                  <div className="space-y-2">
+                    <div className="text-[11px] uppercase font-bold text-gray-300 tracking-wider flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <FileText className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Riwayat Surat Peringatan ({warningOfficer.warnings?.length || 0})</span>
+                      </span>
+                      <span className="text-[10px] text-gray-500">Maksimal 3 SP</span>
+                    </div>
 
-                        <div className="text-[10px] text-gray-500 flex items-center justify-between">
-                          <span>Diterbitkan oleh: <strong className="text-gray-400">{warn.issuedBy} ({warn.issuedByRank})</strong></span>
-                          <span>Badge Atasan: <strong className="text-gray-400">{warn.issuedByBadge}</strong></span>
-                        </div>
+                    {(!warningOfficer.warnings || warningOfficer.warnings.length === 0) ? (
+                      <div className="p-4 bg-[#0D1117] border border-gray-800 rounded-xl text-center text-gray-500 text-xs">
+                        Personel ini memiliki rekam jejak bersih (Belum pernah menerima SP).
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Section 2: Issue New Warning Form (if < 3 strikes) */}
-              {(warningOfficer.warnings?.length || 0) < 3 ? (
-                <form onSubmit={handleIssueWarning} className="p-3.5 bg-amber-950/20 border border-amber-800/60 rounded-lg space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-[11px] uppercase font-bold text-amber-300 flex items-center gap-1.5">
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Terbitkan Surat Peringatan Ke-{(warningOfficer.warnings?.length || 0) + 1} (SP{(warningOfficer.warnings?.length || 0) + 1})</span>
-                    </div>
-                    <span className="text-[10px] bg-amber-900/60 text-amber-200 border border-amber-700 px-1.5 py-0.5 rounded">
-                      Strike {(warningOfficer.warnings?.length || 0) + 1} dari 3
-                    </span>
-                  </div>
-
-                  {/* Preset Dropdown */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-300 uppercase block">
-                      Klasifikasi Pelanggaran:
-                    </label>
-                    <select
-                      value={warningPresetReason}
-                      onChange={(e) => setWarningPresetReason(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded text-xs text-gray-100 outline-none"
-                    >
-                      {PRESET_WARNING_REASONS.map((reason) => (
-                        <option key={reason} value={reason}>{reason}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Detail Description */}
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-gray-300 uppercase block">
-                      Keterangan & Kronologi Pelanggaran:
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={warningDetailReason}
-                      onChange={(e) => setWarningDetailReason(e.target.value)}
-                      placeholder="Contoh: Tidak merespon panggilan radio 10-20 saat situasi darurat bank robbery, mengabaikan komando supervisor..."
-                      className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded text-xs text-gray-100 placeholder:text-gray-600 outline-none resize-none"
-                    />
-                  </div>
-
-                  {/* Webhook Option */}
-                  <div className="flex items-center justify-between p-2 bg-[#0D1117] border border-gray-800 rounded">
-                    <div className="flex items-center gap-2">
-                      <Send className="w-3.5 h-3.5 text-amber-400" />
-                      <span className="text-[11px] text-gray-300">Kirim Notifikasi SP ke Discord Webhook</span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={warningSendWebhook}
-                      onChange={(e) => setWarningSendWebhook(e.target.checked)}
-                      className="w-4 h-4 rounded border-gray-700 text-amber-600 focus:ring-0 cursor-pointer"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isSubmittingWarning}
-                    className="w-full py-2 bg-amber-600 hover:bg-amber-500 text-black font-bold rounded text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-amber-600/30 disabled:opacity-50"
-                  >
-                    {isSubmittingWarning ? (
-                      <span>Memproses Surat Peringatan...</span>
                     ) : (
-                      <>
-                        <AlertTriangle className="w-4 h-4" />
-                        <span>TERBITKAN SP {(warningOfficer.warnings?.length || 0) + 1} / 3 SEKARANG</span>
-                      </>
+                      <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                        {warningOfficer.warnings.map((warn, idx) => (
+                          <div 
+                            key={warn.id || idx}
+                            className="p-3 bg-[#0D1117] border border-gray-800 rounded-lg space-y-2 relative group hover:border-gray-700 transition"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                  warn.strikeNumber === 1
+                                    ? 'bg-amber-950 text-amber-300 border-amber-700'
+                                    : warn.strikeNumber === 2
+                                    ? 'bg-orange-950 text-orange-300 border-orange-600'
+                                    : 'bg-rose-950 text-rose-300 border-rose-600'
+                                }`}>
+                                  STRIKE {warn.strikeNumber} (SP{warn.strikeNumber})
+                                </span>
+                                <span className="text-[10px] text-gray-400 flex items-center gap-1">
+                                  <Clock className="w-3 h-3" />
+                                  {new Date(warn.timestamp || Date.now()).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+                                </span>
+                              </div>
+
+                              {/* Revoke / Pardon button */}
+                              <button
+                                type="button"
+                                onClick={() => handleRevokeWarning(warn.id)}
+                                className="text-[10px] text-gray-400 hover:text-rose-300 bg-gray-900 hover:bg-rose-950/80 px-2 py-1 rounded border border-gray-800 hover:border-rose-700 transition flex items-center gap-1 cursor-pointer"
+                                title="Cabut Surat Peringatan ini (Pardon)"
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                                <span>Cabut SP</span>
+                              </button>
+                            </div>
+
+                            <div className="text-gray-200 text-xs bg-black/40 p-2.5 rounded border border-gray-800/80 leading-relaxed">
+                              {warn.reason}
+                            </div>
+
+                            <div className="text-[10px] text-gray-500 flex items-center justify-between">
+                              <span>Diterbitkan oleh: <strong className="text-gray-400">{warn.issuedBy} ({warn.issuedByRank})</strong></span>
+                              <span>Badge: <strong className="text-gray-400">{warn.issuedByBadge}</strong></span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
-                  </button>
-                </form>
-              ) : (
-                /* MAX STRIKES REACHED ALERT */
-                <div className="p-4 bg-rose-950/60 border border-rose-700 rounded-lg space-y-3 text-rose-200">
-                  <div className="flex items-center gap-2 font-bold text-sm text-rose-300">
-                    <AlertOctagon className="w-5 h-5 text-rose-400 shrink-0" />
-                    <span>BATAS MAKSIMAL 3 STRIKE TERCAPAI (SP3)</span>
                   </div>
-                  <p className="text-xs text-rose-300/90 leading-relaxed">
-                    Personel ini telah menerima akumulasi 3 Surat Peringatan. Berdasarkan regulasi kedisiplinan kepolisian, personel ini direkomendasikan untuk segera <strong>diberhentikan dari dinas kepolisian (dipecat)</strong>.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const officerToDischarge = warningOfficer;
-                      setWarningOfficer(null);
-                      handleStartDelete(officerToDischarge);
-                    }}
-                    className="w-full py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-rose-600/40"
-                  >
-                    <UserX className="w-4 h-4" />
-                    <span>LANGSUNG PROSES PEMECATAN SEKARANG</span>
-                  </button>
                 </div>
-              )}
+
+                {/* Right Column: Form Terbitkan SP Baru atau Tombol Pemecatan */}
+                <div className="lg:col-span-6 space-y-4">
+                  {(warningOfficer.warnings?.length || 0) < 3 ? (
+                    <form onSubmit={handleIssueWarning} className="p-4 sm:p-5 bg-amber-950/20 border border-amber-800/70 rounded-xl space-y-3.5">
+                      <div className="flex items-center justify-between pb-2 border-b border-amber-800/50">
+                        <div className="text-xs uppercase font-bold text-amber-300 flex items-center gap-1.5">
+                          <Plus className="w-4 h-4 text-amber-400" />
+                          <span>Terbitkan Surat Peringatan Ke-{(warningOfficer.warnings?.length || 0) + 1}</span>
+                        </div>
+                        <span className="text-[10px] font-bold bg-amber-900/80 text-amber-200 border border-amber-700 px-2 py-0.5 rounded">
+                          Strike {(warningOfficer.warnings?.length || 0) + 1} dari 3
+                        </span>
+                      </div>
+
+                      {/* Preset Dropdown */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-gray-300 uppercase block">
+                          Klasifikasi Pelanggaran SOP:
+                        </label>
+                        <select
+                          value={warningPresetReason}
+                          onChange={(e) => setWarningPresetReason(e.target.value)}
+                          className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-100 outline-none"
+                        >
+                          {PRESET_WARNING_REASONS.map((reason) => (
+                            <option key={reason} value={reason}>{reason}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Detail Description */}
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-bold text-gray-300 uppercase block">
+                          Kronologi & Keterangan Tambahan:
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={warningDetailReason}
+                          onChange={(e) => setWarningDetailReason(e.target.value)}
+                          placeholder="Contoh: Tidak merespon panggilan radio 10-20 saat situasi darurat bank robbery, mengabaikan komando supervisor..."
+                          className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-100 placeholder:text-gray-600 outline-none resize-none"
+                        />
+                      </div>
+
+                      {/* Webhook Option */}
+                      <div className="flex items-center justify-between p-3 bg-[#0D1117] border border-gray-800 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Send className="w-4 h-4 text-amber-400" />
+                          <div>
+                            <div className="text-xs text-gray-200 font-bold">Kirim Notifikasi SP ke Discord Webhook</div>
+                            <div className="text-[10px] text-gray-500">Saluran disiplin akan menerima rekaman SP resmi</div>
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={warningSendWebhook}
+                          onChange={(e) => setWarningSendWebhook(e.target.checked)}
+                          className="w-4 h-4 rounded border-gray-700 text-amber-600 focus:ring-0 cursor-pointer"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isSubmittingWarning}
+                        className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 disabled:opacity-50 cursor-pointer"
+                      >
+                        {isSubmittingWarning ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin text-black" />
+                            <span>Memproses Surat Peringatan...</span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle className="w-4 h-4 text-black" />
+                            <span>TERBITKAN SP {(warningOfficer.warnings?.length || 0) + 1} / 3 SEKARANG</span>
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  ) : (
+                    /* MAX STRIKES REACHED ALERT */
+                    <div className="p-5 bg-rose-950/60 border border-rose-700 rounded-xl space-y-4 text-rose-200">
+                      <div className="flex items-center gap-2.5 font-bold text-sm text-rose-300">
+                        <AlertOctagon className="w-6 h-6 text-rose-400 shrink-0" />
+                        <span>BATAS MAKSIMAL 3 STRIKE TERCAPAI (SP3)</span>
+                      </div>
+                      <p className="text-xs text-rose-300/90 leading-relaxed">
+                        Personel ini telah menerima akumulasi 3 Surat Peringatan. Berdasarkan regulasi kedisiplinan kepolisian, personel ini direkomendasikan untuk segera <strong>diberhentikan dari dinas kepolisian (dipecat)</strong>.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const officerToDischarge = warningOfficer;
+                          setWarningOfficer(null);
+                          handleStartDelete(officerToDischarge);
+                        }}
+                        className="w-full py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-rose-600/40 cursor-pointer"
+                      >
+                        <UserX className="w-4 h-4" />
+                        <span>LANGSUNG PROSES PEMECATAN SEKARANG</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Footer */}
-            <div className="bg-[#0D1117] border-t border-gray-800 p-4 flex items-center justify-end">
+            <div className="bg-[#0D1117] border-t border-gray-800 px-5 py-3 flex items-center justify-between shrink-0">
+              <div className="text-[11px] text-gray-500">
+                Data SP tersinkronisasi otomatis ke Markas Besar HSPD.
+              </div>
               <button
                 type="button"
                 onClick={() => setWarningOfficer(null)}
-                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded font-bold transition text-xs"
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-bold transition text-xs cursor-pointer"
               >
                 Tutup Jendela SP
               </button>
@@ -2019,129 +2211,222 @@ export const RosterManagement: React.FC<Props> = ({
 
       {/* DISCHARGE / PECAT ANGGOTA CONFIRMATION MODAL */}
       {deletingOfficer && (
-        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-[#161B22] border border-rose-800/80 rounded-xl max-w-lg w-full p-5 shadow-2xl space-y-4 font-mono text-xs">
+        <div className={
+          isDeleteModalFullscreen
+            ? "fixed inset-0 z-50 bg-black/90 backdrop-blur-xs flex p-0 font-mono text-xs animate-in fade-in duration-150"
+            : modalDisplayPref === 'spacious'
+            ? "fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-2 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150 font-mono text-xs"
+            : "fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150 font-mono text-xs"
+        }>
+          <div className={
+            isDeleteModalFullscreen
+              ? "w-full h-full rounded-none border-0 bg-[#161B22] shadow-2xl flex flex-col overflow-hidden"
+              : modalDisplayPref === 'spacious'
+              ? "bg-[#161B22] border border-rose-700/80 rounded-2xl max-w-4xl xl:max-w-5xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[94vh]"
+              : "bg-[#161B22] border border-rose-800/80 rounded-xl max-w-3xl xl:max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+          }>
             {/* Header Modal */}
-            <div className="flex items-center justify-between pb-3 border-b border-gray-800">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 bg-rose-950 border border-rose-600 rounded-lg flex items-center justify-center text-rose-400 shadow-md shadow-rose-950/40">
+            <div className="bg-[#0F1319] border-b border-gray-800 px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-rose-950 border border-rose-600 rounded-lg flex items-center justify-center text-rose-400 shadow-md shadow-rose-950/40 shrink-0">
                   <UserX className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-gray-100 flex items-center gap-2">
+                  <h3 className="font-bold text-sm sm:text-base text-gray-100 flex items-center gap-2 font-sans">
                     <span>Surat Keputusan Pemecatan Personel</span>
+                    <span className="text-[9px] font-mono bg-rose-950 text-rose-300 border border-rose-700 px-2 py-0.5 rounded font-bold">
+                      PERMANEN
+                    </span>
                   </h3>
-                  <p className="text-[11px] text-rose-400">
+                  <p className="text-[11px] text-rose-400/90 font-mono">
                     Pemberhentian dinas & pencabutan hak akses sistem kepolisian secara permanen.
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setDeletingOfficer(null)}
-                className="p-1 text-gray-400 hover:text-white rounded"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
 
-            {/* Officer Information Card */}
-            <div className="p-3.5 bg-[#0D1117] border border-rose-900/50 rounded-lg space-y-2">
-              <div className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Identitas Personel yang Diberhentikan:</div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <span className="text-gray-500 block text-[10px]">Nama Petugas:</span>
-                  <span className="font-bold text-gray-100">{deletingOfficer.name}</span>
-                </div>
-                <div>
-                  <span className="text-gray-500 block text-[10px]">Nomor Lencana / Badge:</span>
-                  <span className="font-bold text-gray-200">{deletingOfficer.badge}</span>
-                </div>
-                <div>
-                  <span className="text-gray-500 block text-[10px]">Pangkat Terakhir:</span>
-                  <span className="font-bold text-amber-300">{deletingOfficer.rank}</span>
-                </div>
-                <div>
-                  <span className="text-gray-500 block text-[10px]">Akumulasi SP:</span>
-                  <span className="font-bold text-rose-400">
-                    {deletingOfficer.warnings?.length || 0} / 3 Strikes
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Reason Selection / Input */}
-            <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-gray-300 uppercase block">
-                Alasan Pemecatan / Pemberhentian Dinas:
-              </label>
-              <select
-                value={deletePresetReason}
-                onChange={(e) => setDeletePresetReason(e.target.value)}
-                className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-rose-500 rounded text-xs text-gray-100 outline-none mb-1.5"
-              >
-                {PRESET_DISCHARGE_REASONS.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-              <textarea
-                rows={2}
-                value={deleteDetailReason}
-                onChange={(e) => setDeleteDetailReason(e.target.value)}
-                placeholder="Tuliskan keterangan detail / keputusan High Command..."
-                className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-rose-500 rounded text-xs text-rose-200 outline-none resize-none"
-              />
-            </div>
-
-            {/* Discord Webhook Toggle */}
-            <div className="flex items-center justify-between p-2.5 bg-[#0D1117] border border-gray-800 rounded">
-              <div className="flex items-center gap-2">
-                <Send className="w-3.5 h-3.5 text-rose-400" />
-                <div>
-                  <div className="text-[11px] text-gray-200 font-bold">Kirim Surat Pemecatan ke Discord Webhook</div>
-                  <div className="text-[10px] text-gray-500">Kirim embed pengumuman resmi pemberhentian personel ke Discord</div>
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={deleteSendWebhook}
-                onChange={(e) => setDeleteSendWebhook(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-700 text-rose-600 focus:ring-0 cursor-pointer"
-              />
-            </div>
-
-            {/* Warning Box */}
-            <div className="p-3 bg-rose-950/40 border border-rose-800/80 rounded-lg text-rose-300 text-[11px] flex items-start gap-2">
-              <AlertOctagon className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              <div>
-                <strong>Peringatan Tegas High Command:</strong> Akun ini akan segera dihapus dari daftar roster kepolisian. Yang bersangkutan tidak akan dapat login lagi menggunakan PIN sebelumnya ke dalam sistem CAD HSPD.
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-800">
-              <button
-                type="button"
-                onClick={() => setDeletingOfficer(null)}
-                disabled={isSubmittingDelete}
-                className="px-3.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-xs transition"
-              >
-                Batalkan
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                disabled={isSubmittingDelete}
-                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded text-xs transition flex items-center gap-1.5 shadow-lg shadow-rose-600/30 disabled:opacity-50"
-              >
-                {isSubmittingDelete ? (
-                  <span>Memproses Pemecatan...</span>
-                ) : (
-                  <>
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>KONFIRMASI PECAT & HAPUS DARI ROSTER</span>
-                  </>
+              {/* Header Right Action Group */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                {onNavigateToSettings && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeletingOfficer(null);
+                      onNavigateToSettings('section-pin-webhook');
+                    }}
+                    className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-950/70 hover:bg-rose-900/80 text-rose-300 border border-rose-700/70 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                    title="Buka Pengaturan di Settings"
+                  >
+                    <Sliders className="w-3.5 h-3.5 text-rose-400" />
+                    <span>Pengaturan di Setting</span>
+                  </button>
                 )}
-              </button>
+
+                {/* Fullscreen Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteModalFullscreen(!isDeleteModalFullscreen)}
+                  className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 border border-gray-700 cursor-pointer"
+                  title={isDeleteModalFullscreen ? "Kembalikan ke ukuran normal" : "Tampilkan mode layar penuh (Full Screen)"}
+                >
+                  {isDeleteModalFullscreen ? (
+                    <>
+                      <Minimize2 className="w-3.5 h-3.5 text-rose-400" />
+                      <span className="hidden sm:inline">Normal</span>
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 className="w-3.5 h-3.5 text-rose-400" />
+                      <span className="hidden sm:inline">Full Screen</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setDeletingOfficer(null)}
+                  className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer"
+                  title="Tutup Modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body: 2-Column Responsive Layout */}
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                {/* Left Column: Identitas Personel & Peringatan */}
+                <div className="lg:col-span-5 space-y-4">
+                  {/* Officer Information Card */}
+                  <div className="p-4 bg-[#0D1117] border border-rose-900/50 rounded-xl space-y-3">
+                    <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">
+                      Identitas Personel yang Diberhentikan:
+                    </div>
+                    <div className="space-y-2 text-xs">
+                      <div>
+                        <span className="text-gray-500 block text-[10px]">Nama Petugas:</span>
+                        <span className="font-bold text-gray-100 text-sm">{deletingOfficer.name}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-800/80">
+                        <div>
+                          <span className="text-gray-500 block text-[10px]">No. Badge:</span>
+                          <span className="font-bold text-amber-300 font-mono">{deletingOfficer.badge}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 block text-[10px]">Akumulasi SP:</span>
+                          <span className="font-bold text-rose-400 font-mono">
+                            {deletingOfficer.warnings?.length || 0} / 3 Strikes
+                          </span>
+                        </div>
+                      </div>
+                      <div className="pt-1 border-t border-gray-800/80">
+                        <span className="text-gray-500 block text-[10px]">Pangkat Terakhir:</span>
+                        <span className="font-bold text-gray-200">{deletingOfficer.rank}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block text-[10px]">Divisi Terakhir:</span>
+                        <span className="font-bold text-gray-300">{deletingOfficer.division || 'Patrol Bureau'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Warning Box */}
+                  <div className="p-3.5 bg-rose-950/40 border border-rose-800/80 rounded-xl text-rose-300 text-xs flex items-start gap-2.5 leading-relaxed">
+                    <AlertOctagon className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="block text-rose-200 mb-1">Peringatan Tegas High Command:</strong>
+                      Akun ini akan segera dihapus dari daftar anggota kepolisian dan statusnya dicatat di Arsip Pemecatan. Yang bersangkutan tidak akan dapat login lagi menggunakan PIN sebelumnya ke dalam sistem CAD HSPD.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Reason & Webhook Broadcast */}
+                <div className="lg:col-span-7 space-y-4">
+                  {/* Reason Selection / Input */}
+                  <div className="p-4 sm:p-5 bg-[#0D1117] border border-gray-800 rounded-xl space-y-3.5">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-gray-300 uppercase block">
+                        Alasan Pemecatan / Pemberhentian Dinas:
+                      </label>
+                      <select
+                        value={deletePresetReason}
+                        onChange={(e) => setDeletePresetReason(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-rose-500 rounded-lg text-xs text-gray-100 outline-none"
+                      >
+                        {PRESET_DISCHARGE_REASONS.map((r) => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-gray-300 uppercase block">
+                        Keterangan Detail / Keputusan Tertulis High Command:
+                      </label>
+                      <textarea
+                        rows={4}
+                        value={deleteDetailReason}
+                        onChange={(e) => setDeleteDetailReason(e.target.value)}
+                        placeholder="Tuliskan keterangan detail / pertimbangan High Command (SK Pemberhentian)..."
+                        className="w-full px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-rose-500 rounded-lg text-xs text-rose-200 outline-none resize-none leading-relaxed placeholder:text-gray-600"
+                      />
+                    </div>
+
+                    {/* Discord Webhook Toggle */}
+                    <div className="flex items-center justify-between p-3 bg-[#161B22] border border-gray-800 rounded-lg">
+                      <div className="flex items-center gap-2.5">
+                        <Send className="w-4 h-4 text-rose-400" />
+                        <div>
+                          <div className="text-xs text-gray-200 font-bold">Kirim Surat Pemecatan ke Discord Webhook</div>
+                          <div className="text-[10px] text-gray-500">Kirim embed pengumuman resmi pemberhentian personel ke Discord</div>
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={deleteSendWebhook}
+                        onChange={(e) => setDeleteSendWebhook(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-700 text-rose-600 focus:ring-0 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className="bg-[#0D1117] border-t border-gray-800 px-5 py-3 flex items-center justify-between shrink-0">
+              <div className="text-[11px] text-gray-500">
+                Pemberhentian akan dicatat permanen dalam arsip.
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeletingOfficer(null)}
+                  disabled={isSubmittingDelete}
+                  className="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg text-xs transition cursor-pointer"
+                >
+                  Batalkan
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={isSubmittingDelete}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow-lg shadow-rose-600/30 disabled:opacity-50 cursor-pointer"
+                >
+                  {isSubmittingDelete ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Memproses Pemecatan...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>KONFIRMASI PECAT & HAPUS DARI ROSTER</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2149,304 +2434,370 @@ export const RosterManagement: React.FC<Props> = ({
 
       {/* EDIT RANK / PROMOTION MODAL */}
       {editingOfficer && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-[#161B22] border border-amber-700/60 rounded-xl max-w-lg w-full p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-gray-800">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-amber-950 border border-amber-600 rounded-lg flex items-center justify-center text-amber-400">
-                  <Award className="w-4 h-4" />
+        <div className={
+          isEditRankModalFullscreen
+            ? "fixed inset-0 z-50 bg-black/90 backdrop-blur-xs flex p-0 font-mono text-xs animate-in fade-in duration-150"
+            : modalDisplayPref === 'spacious'
+            ? "fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-2 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150 font-mono text-xs"
+            : "fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150 font-mono text-xs"
+        }>
+          <div className={
+            isEditRankModalFullscreen
+              ? "w-full h-full rounded-none border-0 bg-[#161B22] shadow-2xl flex flex-col overflow-hidden"
+              : modalDisplayPref === 'spacious'
+              ? "bg-[#161B22] border border-amber-600/80 rounded-2xl max-w-4xl xl:max-w-5xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[94vh]"
+              : "bg-[#161B22] border border-amber-700/70 rounded-xl max-w-3xl xl:max-w-4xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+          }>
+            {/* Header Modal */}
+            <div className="bg-[#0F1319] border-b border-gray-800 px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-amber-950 border border-amber-600 rounded-lg flex items-center justify-center text-amber-400 shadow-md shadow-amber-950/40 shrink-0">
+                  <Award className="w-5 h-5 text-amber-400" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-gray-100">
-                    Edit Pangkat & Pengaturan PIN Petugas
+                  <h3 className="font-bold text-sm sm:text-base text-gray-100 flex items-center gap-2 font-sans">
+                    <span>Edit Pangkat & Pengaturan PIN Petugas</span>
+                    <span className="text-[9px] font-mono bg-amber-950 text-amber-300 border border-amber-700 px-2 py-0.5 rounded font-bold">
+                      HIGH COMMAND
+                    </span>
                   </h3>
                   <p className="text-[11px] text-gray-400 font-mono">
-                    {editingOfficer.name} ({editingOfficer.badge})
+                    {editingOfficer.name} • Badge: <strong className="text-amber-300">{editingOfficer.badge}</strong>
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setEditingOfficer(null)}
-                className="p-1 text-gray-400 hover:text-white rounded"
-              >
-                <X className="w-4 h-4" />
-              </button>
+
+              {/* Header Right Action Group */}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                {onNavigateToSettings && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingOfficer(null);
+                      onNavigateToSettings('section-pin-webhook');
+                    }}
+                    className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-950/70 hover:bg-amber-900/80 text-amber-300 border border-amber-700/70 rounded-lg text-xs font-bold transition shadow-xs cursor-pointer"
+                    title="Buka Pengaturan di Settings"
+                  >
+                    <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Pengaturan di Setting</span>
+                  </button>
+                )}
+
+                {/* Fullscreen Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setIsEditRankModalFullscreen(!isEditRankModalFullscreen)}
+                  className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 border border-gray-700 cursor-pointer"
+                  title={isEditRankModalFullscreen ? "Kembalikan ke ukuran normal" : "Tampilkan mode layar penuh (Full Screen)"}
+                >
+                  {isEditRankModalFullscreen ? (
+                    <>
+                      <Minimize2 className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="hidden sm:inline">Normal</span>
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="hidden sm:inline">Full Screen</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Close Button */}
+                <button
+                  type="button"
+                  onClick={() => setEditingOfficer(null)}
+                  className="p-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white rounded-lg transition cursor-pointer"
+                  title="Tutup Modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            <form onSubmit={handleSaveRankUpdate} className="space-y-4 font-mono text-xs">
-              <div className="p-3 bg-blue-950/20 border border-blue-900/40 rounded-lg text-[11px] text-gray-300">
-                <div className="font-bold text-blue-400 mb-1">OTORISASI HIGH COMMAND AKTIF:</div>
-                Hanya rank <strong>CHIEF OF POLICE [COP]</strong>, <strong>ASSISTANT CHIEF [A/C]</strong>, <strong>DEPUTY CHIEF [D/C]</strong>, dan <strong>COMMANDER [CDR]</strong> yang memiliki akses penuh untuk promosi, demosi, mutasi divisi, serta mengatur PIN login personal anggota.
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-gray-300 uppercase block mb-1.5">
-                  Pangkat / Rank Baru:
-                </label>
-                <select
-                  value={newRank}
-                  onChange={(e) => setNewRank(e.target.value as OfficerRankLevel)}
-                  className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded text-xs text-gray-100 outline-none"
-                >
-                  <optgroup label="👑 HIGH COMMAND (AKSES PENUH)">
-                    <option value="CHIEF OF POLICE [COP]">★ CHIEF OF POLICE [COP] (Akses Penuh)</option>
-                    <option value="ASSISTANT CHIEF [A/C]">★ ASSISTANT CHIEF [A/C] (Akses Penuh)</option>
-                    <option value="DEPUTY CHIEF [D/C]">★ DEPUTY CHIEF [D/C] (Akses Penuh)</option>
-                    <option value="COMMANDER [CDR]">★ COMMANDER [CDR] (Akses Penuh)</option>
-                  </optgroup>
-                  <optgroup label="👮 SUPERVISORY & FIELD PATROL RANKS">
-                    <option value="CAPTAIN [CPT]">CAPTAIN [CPT]</option>
-                    <option value="LIEUTENANT [LT]">LIEUTENANT [LT]</option>
-                    <option value="SERGEANT [SGT]">SERGEANT [SGT]</option>
-                    <option value="SENIOR LEAD OFFICER [SLO]">SENIOR LEAD OFFICER [SLO]</option>
-                    <option value="POLICE OFFICER III [PO III]">POLICE OFFICER III [PO III]</option>
-                    <option value="POLICE OFFICER II [PO II]">POLICE OFFICER II [PO II]</option>
-                    <option value="POLICE OFFICER I [PO I]">POLICE OFFICER I [PO I]</option>
-                    <option value="CADET [CDT]">CADET [CDT]</option>
-                  </optgroup>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-bold text-gray-300 uppercase block mb-1.5">
-                    Divisi / Unit Penugasan:
-                  </label>
-                  <select
-                    value={newDivision}
-                    onChange={(e) => setNewDivision(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded text-xs text-gray-100 outline-none"
-                  >
-                    <option value="Patrol Division">Patrol Division (General Patrol)</option>
-                    <option value="Traffic Enforcement Division">Traffic Enforcement Division (TED)</option>
-                    <option value="Detective Bureau / CID">Detective Bureau / Investigation (CID)</option>
-                    <option value="Special Enforcement Bureau (SEB/SWAT)">Special Enforcement Bureau (SEB / SWAT)</option>
-                    <option value="Air Support Division (ASD)">Air Support Division (ASD)</option>
-                    <option value="High Command Staff">High Command Staff (HQ)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-[11px] font-bold text-amber-300 uppercase flex items-center gap-1">
-                      <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                      <span>PIN Anggota (Diberikan Atasan):</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowEditPin(!showEditPin)}
-                      className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1 font-bold bg-amber-950/70 hover:bg-amber-900/70 px-1.5 py-0.5 rounded border border-amber-800/60 transition"
-                      title={showEditPin ? "Sembunyikan PIN" : "Tampilkan PIN"}
-                    >
-                      {showEditPin ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                      <span>{showEditPin ? 'Hide' : 'Show'}</span>
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type={showEditPin ? 'text' : 'password'}
-                      value={newPin}
-                      onChange={(e) => setNewPin(e.target.value)}
-                      placeholder="Contoh: 8462100 / 30210"
-                      className="w-full px-3 py-2 pr-9 bg-[#0D1117] border border-amber-700/60 focus:border-amber-500 rounded text-xs text-amber-200 outline-none font-mono font-bold"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowEditPin(!showEditPin)}
-                      className="absolute right-2.5 top-2.5 text-gray-400 hover:text-amber-300 transition"
-                      title={showEditPin ? "Sembunyikan PIN" : "Tampilkan PIN"}
-                    >
-                      {showEditPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Discord Tag & No. Telepon / Radio */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-indigo-950/20 border border-indigo-900/50 rounded-lg">
-                <div>
-                  <label className="text-[11px] font-bold text-indigo-300 uppercase flex items-center gap-1 mb-1">
-                    <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Akun / Tag Discord Petugas:</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={editDiscordTag}
-                    onChange={(e) => setEditDiscordTag(e.target.value)}
-                    placeholder="Contoh: @nexia / 842019283719001"
-                    className="w-full px-3 py-2 bg-[#0D1117] border border-indigo-700/60 focus:border-indigo-400 rounded text-xs text-indigo-200 outline-none font-mono"
-                  />
-                  <span className="text-[9px] text-gray-400 mt-0.5 block">
-                    Digunakan untuk mention & bot pengirim akun login
-                  </span>
-                </div>
-
-                <div>
-                  <label className="text-[11px] font-bold text-gray-300 uppercase flex items-center gap-1 mb-1">
-                    <Phone className="w-3.5 h-3.5 text-gray-400" />
-                    <span>No. Kontak / Radio (Opsional):</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
-                    placeholder="Contoh: 555-0199 / Freq 1111"
-                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded text-xs text-gray-200 outline-none font-mono"
-                  />
-                  <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5">
-                    {/* Bot PM Direct Message Button */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!editingOfficer) return;
-                        handleOpenBotDmModal({
-                          ...editingOfficer,
-                          rank: newRank,
-                          division: newDivision || editingOfficer.division,
-                          pin: newPin.trim() || editingOfficer.pin,
-                          discordTag: editDiscordTag.trim() || editingOfficer.discordTag
-                        });
-                      }}
-                      className="text-[10px] bg-sky-900/80 hover:bg-sky-700 text-sky-200 px-2 py-1 rounded border border-sky-600 transition flex items-center gap-1 font-bold cursor-pointer"
-                      title="Kirim kredensial login (UCP & PIN) langsung ke Pesan Pribadi (PM / DM) Discord anggota ini"
-                    >
-                      <Bot className="w-3 h-3 text-sky-400" />
-                      <span>Kirim PM Bot (DM)</span>
-                    </button>
-
-                    {/* Webhook Broadcast Button Group with Settings */}
-                    <div className="flex items-center -space-x-px">
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (!editingOfficer) return;
-                          setIsSendingCredentials(true);
-                          try {
-                            const res = await sendOfficerLoginCredentialsToDiscord({
-                              officerName: editingOfficer.name,
-                              officerBadge: editingOfficer.badge,
-                              officerRank: newRank,
-                              officerDivision: newDivision || editingOfficer.division,
-                              pin: newPin.trim() || editingOfficer.pin || '10-4',
-                              discordTag: editDiscordTag.trim() || undefined,
-                              sentBy: currentOfficerName || 'High Command',
-                              sentByBadge: currentOfficerBadge || '#001',
-                              sentByRank: currentOfficerRank || 'HIGH COMMAND'
-                            });
-                            if (res.success) {
-                              setSuccessNotice(`✅ Kredensial login ${editingOfficer.name} berhasil dikirim ke Saluran Webhook Discord!`);
-                            } else {
-                              alert(res.message);
-                            }
-                            setTimeout(() => setSuccessNotice(''), 5000);
-                          } catch (e: any) {
-                            alert(`Gagal mengirim kredensial: ${e.message}`);
-                          } finally {
-                            setIsSendingCredentials(false);
-                          }
-                        }}
-                        disabled={isSendingCredentials}
-                        className="text-[10px] bg-indigo-900/80 hover:bg-indigo-700 text-indigo-200 px-2 py-1 rounded-l border border-indigo-600 transition flex items-center gap-1 font-bold disabled:opacity-50 cursor-pointer"
-                        title="Kirim detail akun login (UCP & PIN) ke Saluran Webhook Discord"
-                      >
-                        {isSendingCredentials ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3 text-indigo-300" />}
-                        <span>Kirim ke Webhook</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleOpenWebhookConfigModal}
-                        className="p-1 bg-indigo-800/90 hover:bg-indigo-600 text-indigo-200 hover:text-white border-y border-r border-indigo-600 rounded-r text-[10px] font-bold transition flex items-center justify-center shadow-sm cursor-pointer group"
-                        title="Ubah Webhook di Pengaturan Sistem & Otoritas Komando"
-                      >
-                        <Settings className="w-3 h-3 text-indigo-300 group-hover:rotate-90 transition-transform duration-300" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* PROMOTION / RANK CHANGE REASON & WEBHOOK DISPATCH SECTION */}
-              {newRank !== editingOfficer.rank ? (
-                <div className="p-3.5 bg-amber-950/40 border border-amber-600/70 rounded-lg space-y-2.5">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-amber-800/60">
-                    <div className="font-bold text-amber-300 flex items-center gap-1.5 text-xs">
-                      <Award className="w-4 h-4 text-amber-400 shrink-0" />
-                      <span>PERUBAHAN PANGKAT / PROMOSI JABATAN</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[10px] font-mono bg-black/40 px-2 py-0.5 rounded border border-amber-900/60">
-                      <span className="text-gray-400">{editingOfficer.rank}</span>
-                      <span className="text-amber-400 font-bold">➔</span>
-                      <span className="text-amber-300 font-bold">{newRank}</span>
-                    </div>
-                  </div>
-
+            {/* Modal Body & Form */}
+            <form onSubmit={handleSaveRankUpdate} className="flex flex-col flex-1 overflow-hidden font-mono text-xs">
+              <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
+                <div className="p-3 bg-blue-950/30 border border-blue-900/50 rounded-xl text-xs text-gray-300 flex items-start gap-2.5">
+                  <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
                   <div>
-                    <label className="text-[10px] font-bold text-gray-300 uppercase block mb-1">
-                      Dasar / Alasan Kenaikan Pangkat (SK Kepolisian):
-                    </label>
-                    <select
-                      value={promotionPresetReason}
-                      onChange={(e) => setPromotionPresetReason(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded text-[11px] text-gray-200 outline-none mb-1.5"
-                    >
-                      {PRESET_PROMOTION_REASONS.map((r) => (
-                        <option key={r} value={r}>{r}</option>
-                      ))}
-                    </select>
-
-                    <input
-                      type="text"
-                      value={promotionDetailReason}
-                      onChange={(e) => setPromotionDetailReason(e.target.value)}
-                      placeholder="Catatan tambahan promosi (opsional / nomor SK khusus)..."
-                      className="w-full px-2.5 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded text-[11px] text-gray-200 outline-none"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between pt-1">
-                    <label className="flex items-center gap-2 cursor-pointer text-[11px] text-amber-200">
-                      <input
-                        type="checkbox"
-                        checked={promotionSendWebhook}
-                        onChange={(e) => setPromotionSendWebhook(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded border-gray-700 text-amber-600 focus:ring-0 cursor-pointer"
-                      />
-                      <span>Kirim Pengumuman Kenaikan Pangkat Resmi ke Webhook Discord</span>
-                    </label>
-                    <span className="text-[10px] font-bold text-amber-400 bg-amber-950 px-1.5 py-0.5 rounded border border-amber-700">
-                      📢 SK DISCORD
-                    </span>
+                    <strong className="text-blue-300 block mb-0.5">OTORISASI HIGH COMMAND AKTIF</strong>
+                    Perubahan pangkat, mutasi divisi, atau pengaturan ulang PIN personal anggota akan langsung tersinkronisasi ke basis data roster dan laporan resmi.
                   </div>
                 </div>
-              ) : (
-                <div className="p-2.5 bg-gray-900/60 border border-gray-800 rounded-lg text-[11px] text-gray-400 flex items-center justify-between">
-                  <span>Pangkat saat ini tidak berubah ({editingOfficer.rank}).</span>
-                  <span className="text-[10px] text-gray-500">Hanya update Divisi/PIN</span>
-                </div>
-              )}
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-800">
+                {/* 2-Column Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                  {/* Left Column: Pangkat, Divisi, PIN */}
+                  <div className="lg:col-span-6 space-y-4">
+                    <div className="p-4 bg-[#0D1117] border border-gray-800 rounded-xl space-y-3.5">
+                      <div>
+                        <label className="text-xs font-bold text-gray-300 uppercase block mb-1.5">
+                          Pangkat / Rank Baru:
+                        </label>
+                        <select
+                          value={newRank}
+                          onChange={(e) => setNewRank(e.target.value as OfficerRankLevel)}
+                          className="w-full px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-100 outline-none"
+                        >
+                          <optgroup label="👑 HIGH COMMAND (AKSES PENUH)">
+                            <option value="CHIEF OF POLICE [COP]">★ CHIEF OF POLICE [COP] (Akses Penuh)</option>
+                            <option value="ASSISTANT CHIEF [A/C]">★ ASSISTANT CHIEF [A/C] (Akses Penuh)</option>
+                            <option value="DEPUTY CHIEF [D/C]">★ DEPUTY CHIEF [D/C] (Akses Penuh)</option>
+                            <option value="COMMANDER [CDR]">★ COMMANDER [CDR] (Akses Penuh)</option>
+                          </optgroup>
+                          <optgroup label="👮 SUPERVISORY & FIELD PATROL RANKS">
+                            <option value="CAPTAIN [CPT]">CAPTAIN [CPT]</option>
+                            <option value="LIEUTENANT [LT]">LIEUTENANT [LT]</option>
+                            <option value="SERGEANT [SGT]">SERGEANT [SGT]</option>
+                            <option value="SENIOR LEAD OFFICER [SLO]">SENIOR LEAD OFFICER [SLO]</option>
+                            <option value="POLICE OFFICER III [PO III]">POLICE OFFICER III [PO III]</option>
+                            <option value="POLICE OFFICER II [PO II]">POLICE OFFICER II [PO II]</option>
+                            <option value="POLICE OFFICER I [PO I]">POLICE OFFICER I [PO I]</option>
+                            <option value="CADET [CDT]">CADET [CDT]</option>
+                          </optgroup>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-gray-300 uppercase block mb-1.5">
+                          Divisi / Unit Penugasan:
+                        </label>
+                        <select
+                          value={newDivision}
+                          onChange={(e) => setNewDivision(e.target.value)}
+                          className="w-full px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-100 outline-none"
+                        >
+                          <option value="Patrol Division">Patrol Division (General Patrol)</option>
+                          <option value="Traffic Enforcement Division">Traffic Enforcement Division (TED)</option>
+                          <option value="Detective Bureau / CID">Detective Bureau / Investigation (CID)</option>
+                          <option value="Special Enforcement Bureau (SEB/SWAT)">Special Enforcement Bureau (SEB / SWAT)</option>
+                          <option value="Air Support Division (ASD)">Air Support Division (ASD)</option>
+                          <option value="High Command Staff">High Command Staff (HQ)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label className="text-xs font-bold text-amber-300 uppercase flex items-center gap-1.5">
+                            <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                            <span>PIN Anggota (Diberikan Atasan):</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShowEditPin(!showEditPin)}
+                            className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1 font-bold bg-amber-950/70 hover:bg-amber-900/70 px-2 py-0.5 rounded border border-amber-800/60 transition cursor-pointer"
+                            title={showEditPin ? "Sembunyikan PIN" : "Tampilkan PIN"}
+                          >
+                            {showEditPin ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                            <span>{showEditPin ? 'Hide' : 'Show'}</span>
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type={showEditPin ? 'text' : 'password'}
+                            value={newPin}
+                            onChange={(e) => setNewPin(e.target.value)}
+                            placeholder="Contoh: 8462100 / 30210"
+                            className="w-full px-3 py-2 pr-9 bg-[#161B22] border border-amber-700/60 focus:border-amber-500 rounded-lg text-xs text-amber-200 outline-none font-mono font-bold"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowEditPin(!showEditPin)}
+                            className="absolute right-2.5 top-2.5 text-gray-400 hover:text-amber-300 transition"
+                            title={showEditPin ? "Sembunyikan PIN" : "Tampilkan PIN"}
+                          >
+                            {showEditPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Kontak, Discord & SK Promosi */}
+                  <div className="lg:col-span-6 space-y-4">
+                    <div className="p-4 bg-[#0D1117] border border-indigo-950/80 rounded-xl space-y-3.5">
+                      <div>
+                        <label className="text-xs font-bold text-indigo-300 uppercase flex items-center gap-1.5 mb-1.5">
+                          <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>Akun / Tag Discord Petugas:</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={editDiscordTag}
+                          onChange={(e) => setEditDiscordTag(e.target.value)}
+                          placeholder="Contoh: @nexia / 842019283719001"
+                          className="w-full px-3 py-2 bg-[#161B22] border border-indigo-700/60 focus:border-indigo-400 rounded-lg text-xs text-indigo-200 outline-none font-mono"
+                        />
+                        <span className="text-[10px] text-gray-400 mt-1 block">
+                          Digunakan untuk mention & bot pengirim akun login
+                        </span>
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-gray-300 uppercase flex items-center gap-1.5 mb-1.5">
+                          <Phone className="w-3.5 h-3.5 text-gray-400" />
+                          <span>No. Kontak / Radio (Opsional):</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={editPhone}
+                          onChange={(e) => setEditPhone(e.target.value)}
+                          placeholder="Contoh: 555-0199 / Freq 1111"
+                          className="w-full px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-200 outline-none font-mono"
+                        />
+                      </div>
+
+                      {/* Fast Send Shortcuts */}
+                      <div className="pt-2 border-t border-gray-800/80 flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[10px] text-gray-400 font-bold uppercase">Kirim Kredensial Langsung:</span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!editingOfficer) return;
+                              handleOpenBotDmModal({
+                                ...editingOfficer,
+                                rank: newRank,
+                                division: newDivision || editingOfficer.division,
+                                pin: newPin.trim() || editingOfficer.pin,
+                                discordTag: editDiscordTag.trim() || editingOfficer.discordTag
+                              });
+                            }}
+                            className="px-2.5 py-1.5 bg-sky-950/90 hover:bg-sky-800 text-sky-200 border border-sky-600/80 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                            title="Kirim kredensial login langsung ke Pesan Pribadi (PM / DM) Discord"
+                          >
+                            <Bot className="w-3.5 h-3.5 text-sky-400" />
+                            <span>PM Bot (DM)</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!editingOfficer) return;
+                              setIsSendingCredentials(true);
+                              try {
+                                const res = await sendOfficerLoginCredentialsToDiscord({
+                                  officerName: editingOfficer.name,
+                                  officerBadge: editingOfficer.badge,
+                                  officerRank: newRank,
+                                  officerDivision: newDivision || editingOfficer.division,
+                                  pin: newPin.trim() || editingOfficer.pin || '10-4',
+                                  discordTag: editDiscordTag.trim() || undefined,
+                                  sentBy: currentOfficerName || 'High Command',
+                                  sentByBadge: currentOfficerBadge || '#001',
+                                  sentByRank: currentOfficerRank || 'HIGH COMMAND'
+                                });
+                                if (res.success) {
+                                  setSuccessNotice(`✅ Kredensial login ${editingOfficer.name} berhasil dikirim ke Saluran Webhook Discord!`);
+                                } else {
+                                  alert(res.message);
+                                }
+                                setTimeout(() => setSuccessNotice(''), 5000);
+                              } catch (e: any) {
+                                alert(`Gagal mengirim kredensial: ${e.message}`);
+                              } finally {
+                                setIsSendingCredentials(false);
+                              }
+                            }}
+                            disabled={isSendingCredentials}
+                            className="px-2.5 py-1.5 bg-indigo-950/90 hover:bg-indigo-800 text-indigo-200 border border-indigo-600/80 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                            title="Kirim detail akun login ke Saluran Webhook Discord"
+                          >
+                            {isSendingCredentials ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5 text-indigo-400" />}
+                            <span>Webhook</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* PROMOTION / RANK CHANGE REASON & WEBHOOK DISPATCH SECTION */}
+                    {newRank !== editingOfficer.rank ? (
+                      <div className="p-4 bg-amber-950/40 border border-amber-600/70 rounded-xl space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-amber-800/60">
+                          <div className="font-bold text-amber-300 flex items-center gap-1.5 text-xs">
+                            <Award className="w-4 h-4 text-amber-400 shrink-0" />
+                            <span>PERUBAHAN PANGKAT / PROMOSI JABATAN</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px] font-mono bg-black/40 px-2 py-0.5 rounded border border-amber-900/60">
+                            <span className="text-gray-400">{editingOfficer.rank}</span>
+                            <span className="text-amber-400 font-bold">➔</span>
+                            <span className="text-amber-300 font-bold">{newRank}</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] font-bold text-gray-300 uppercase block">
+                            Dasar / Alasan Kenaikan Pangkat (SK Kepolisian):
+                          </label>
+                          <select
+                            value={promotionPresetReason}
+                            onChange={(e) => setPromotionPresetReason(e.target.value)}
+                            className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-200 outline-none"
+                          >
+                            {PRESET_PROMOTION_REASONS.map((r) => (
+                              <option key={r} value={r}>{r}</option>
+                            ))}
+                          </select>
+
+                          <input
+                            type="text"
+                            value={promotionDetailReason}
+                            onChange={(e) => setPromotionDetailReason(e.target.value)}
+                            placeholder="Catatan tambahan promosi (opsional / nomor SK khusus)..."
+                            className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-200 outline-none"
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1">
+                          <label className="flex items-center gap-2 cursor-pointer text-xs text-amber-200">
+                            <input
+                              type="checkbox"
+                              checked={promotionSendWebhook}
+                              onChange={(e) => setPromotionSendWebhook(e.target.checked)}
+                              className="w-4 h-4 rounded border-gray-700 text-amber-600 focus:ring-0 cursor-pointer"
+                            />
+                            <span>Kirim Pengumuman Kenaikan Pangkat Resmi ke Webhook Discord</span>
+                          </label>
+                          <span className="text-[10px] font-bold text-amber-400 bg-amber-950 px-2 py-0.5 rounded border border-amber-700">
+                            📢 SK DISCORD
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-gray-900/60 border border-gray-800 rounded-xl text-xs text-gray-400 flex items-center justify-between">
+                        <span>Pangkat saat ini tidak berubah ({editingOfficer.rank}).</span>
+                        <span className="text-[10px] text-gray-500 font-mono">Hanya update Divisi/PIN</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="bg-[#0D1117] border-t border-gray-800 px-5 py-3 flex items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setEditingOfficer(null)}
                   disabled={isSubmittingRankUpdate}
-                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-xs transition disabled:opacity-50"
+                  className="px-3.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg text-xs transition cursor-pointer disabled:opacity-50"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingRankUpdate}
-                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-black font-bold rounded text-xs transition flex items-center gap-1.5 shadow-md shadow-amber-600/30 disabled:opacity-50"
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow-md shadow-amber-500/20 disabled:opacity-50 cursor-pointer"
                 >
                   {isSubmittingRankUpdate ? (
                     <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-black" />
                       <span>Menyimpan & Mengirim Webhook...</span>
                     </>
                   ) : (
                     <>
-                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-black" />
                       <span>SIMPAN PERUBAHAN PANGKAT & PIN</span>
                     </>
                   )}
@@ -2858,613 +3209,744 @@ export const RosterManagement: React.FC<Props> = ({
 
       {/* ================= MODAL QUICK SEND PM BOT DISCORD ================= */}
       {targetDmOfficer && (
-        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-3 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-[#161B22] border border-sky-600/80 rounded-xl max-w-2xl w-full shadow-2xl overflow-hidden flex flex-col font-mono text-xs max-h-[92vh]">
-            <div className="bg-[#0D1117] border-b border-gray-800 px-4 py-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Bot className="w-4 h-4 text-sky-400" />
-                <h3 className="font-bold text-gray-100 uppercase tracking-wide">
-                  Kirim & Kustomisasi Pesan Pribadi (PM / DM) Discord
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setTargetDmOfficer(null)}
-                className="text-gray-400 hover:text-white transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleExecuteSendBotDm} className="p-4 space-y-4 overflow-y-auto">
-              {/* Officer Target Badge Card */}
-              <div className="p-3 bg-sky-950/40 border border-sky-800/80 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div className={`fixed inset-0 z-50 bg-black/85 backdrop-blur-xs flex ${
+          isPmModalFullscreen ? 'p-0' : 'items-center justify-center p-2 sm:p-4'
+        } animate-in fade-in duration-150`}>
+          <div className={`bg-[#161B22] border border-sky-600/80 shadow-2xl overflow-hidden flex flex-col font-mono text-xs transition-all duration-200 ${
+            isPmModalFullscreen 
+              ? 'w-full h-full rounded-none border-0' 
+              : 'w-full max-w-5xl xl:max-w-6xl rounded-xl max-h-[94vh]'
+          }`}>
+            {/* Modal Header */}
+            <div className="bg-[#0D1117] border-b border-gray-800 px-4 py-3 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-sky-950 border border-sky-600/60 flex items-center justify-center text-sky-400">
+                  <Bot className="w-4 h-4" />
+                </div>
                 <div>
-                  <div className="text-[10px] text-gray-400 uppercase font-bold">Penerima Pesan:</div>
-                  <div className="text-sm font-bold text-gray-100">{targetDmOfficer.name}</div>
-                  <div className="text-[11px] text-sky-300">
-                    Badge: <strong>{targetDmOfficer.badge}</strong> • Pangkat: <strong>{targetDmOfficer.rank}</strong>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold bg-sky-900/60 text-sky-300 px-2 py-1 rounded border border-sky-700">
-                    UCP: {targetDmOfficer.name}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowAdvancedDmSettings(!showAdvancedDmSettings)}
-                    className="text-[11px] font-bold px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-sky-300 border border-sky-800 rounded transition flex items-center gap-1.5"
-                  >
-                    <Palette className="w-3.5 h-3.5" />
-                    <span>{showAdvancedDmSettings ? 'Tutup Kustomisasi' : 'Kustomisasi Desain & Logo'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Mode Pengiriman Pesan oleh Atasan */}
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-gray-300 uppercase">
-                  PILIH MODE PENGIRIMAN PESAN:
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTargetDmMessageType('credentials');
-                      setTargetDmEmbedTitle('✅ Berhasil!');
-                      setTargetDmEmbedDescription('Berikut adalah detail dari akun UCP Anda:');
-                    }}
-                    className={`p-2 rounded-lg border text-left flex items-start gap-2.5 transition ${
-                      targetDmMessageType === 'credentials'
-                        ? 'bg-sky-950/80 border-sky-500 ring-1 ring-sky-500 text-sky-100'
-                        : 'bg-[#0D1117] border-gray-800 hover:border-gray-700 text-gray-400'
-                    }`}
-                  >
-                    <KeyRound className={`w-4 h-4 mt-0.5 shrink-0 ${targetDmMessageType === 'credentials' ? 'text-sky-400' : 'text-gray-500'}`} />
-                    <div>
-                      <div className="text-xs font-bold">Kredensial Login + Pesan Atasan</div>
-                      <div className="text-[10px] text-gray-400 mt-0.5">Kirim UCP, PIN keamanan & pesan khusus dinas</div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTargetDmMessageType('custom_chat');
-                      setTargetDmEmbedTitle('📢 Pesan Dinas dari Atasan');
-                      setTargetDmEmbedDescription('Anda menerima pesan dinas resmi dari jajaran Komando / Atasan:');
-                    }}
-                    className={`p-2 rounded-lg border text-left flex items-start gap-2.5 transition ${
-                      targetDmMessageType === 'custom_chat'
-                        ? 'bg-sky-950/80 border-sky-500 ring-1 ring-sky-500 text-sky-100'
-                        : 'bg-[#0D1117] border-gray-800 hover:border-gray-700 text-gray-400'
-                    }`}
-                  >
-                    <MessageSquare className={`w-4 h-4 mt-0.5 shrink-0 ${targetDmMessageType === 'custom_chat' ? 'text-sky-400' : 'text-gray-500'}`} />
-                    <div>
-                      <div className="text-xs font-bold">Chat / Memo Bebas dari Atasan</div>
-                      <div className="text-[10px] text-gray-400 mt-0.5">Surat tugas, briefing, panggilan apel, atau evaluasi (tanpa PIN)</div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Discord User ID Input */}
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="block text-[11px] font-bold text-gray-200 uppercase">
-                    DISCORD USER ID TARGET: <span className="text-rose-400">*</span>
-                  </label>
-                  <span className="text-[10px] text-sky-400">Numerik 17-20 digit</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={targetDmUserId}
-                    onChange={(e) => setTargetDmUserId(e.target.value)}
-                    placeholder="Contoh: 842019283719001 (17-20 digit angka)"
-                    className="flex-1 px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-sky-500 rounded text-xs text-sky-200 outline-none font-mono"
-                    required
-                  />
-                  <button
-                    id="btn-save-target-discord-user-id"
-                    type="button"
-                    onClick={handleSaveTargetDiscordUserId}
-                    disabled={isSavingTargetDiscordId || !targetDmUserId.trim()}
-                    className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 disabled:bg-gray-800 disabled:text-gray-500 text-white rounded text-xs font-mono font-bold flex items-center gap-1.5 transition shadow-sm whitespace-nowrap cursor-pointer"
-                    title="Simpan Discord User ID ini secara permanen ke akun anggota ini di database"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>{isSavingTargetDiscordId ? 'Menyimpan...' : 'Simpan ID Target'}</span>
-                  </button>
-                </div>
-                {discordIdSaveNotice && (
-                  <div className={`p-2 rounded text-xs font-mono border ${
-                    discordIdSaveNotice.includes('✅')
-                      ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
-                      : 'bg-rose-950/80 border-rose-500 text-rose-300'
-                  }`}>
-                    {discordIdSaveNotice}
-                  </div>
-                )}
-                <div className="text-[10px] text-gray-400 flex flex-wrap items-center justify-between gap-1">
-                  <span>💡 <strong>Cara dapat User ID:</strong> Buka Discord &gt; <em>Settings &gt; Advanced &gt; Aktifkan Developer Mode</em> &gt; Klik kanan profil pengguna &gt; <strong>Copy User ID</strong>.</span>
-                  {targetDmOfficer?.discordTag && (
-                    <span className="text-sky-300 font-mono text-[10px]">Tersimpan di Akun: {targetDmOfficer.discordTag}</span>
-                  )}
-                </div>
-              </div>
-
-              {/* CHAT / PESAN KHUSUS DARI ATASAN (CUSTOM MESSAGE) */}
-              <div className="space-y-2 p-3 bg-sky-950/30 border border-sky-900/60 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <label className="block text-[11px] font-bold text-sky-300 uppercase flex items-center gap-1.5">
-                    <MessageSquare className="w-3.5 h-3.5 text-sky-400" />
-                    <span>CHAT / PESAN KHUSUS DARI ATASAN (CUSTOM MESSAGE):</span>
-                  </label>
-                  <span className="text-[10px] text-gray-400">Dapat diedit bebas & disimpan oleh atasan</span>
-                </div>
-                <textarea
-                  value={targetDmCustomMessage}
-                  onChange={(e) => setTargetDmCustomMessage(e.target.value)}
-                  rows={3}
-                  placeholder="Ketik instruksi dinas, pesan tugas, panggilan apel, ucapan promosi, atau catatan kedisiplinan dari atasan..."
-                  className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-100 outline-none resize-y font-sans leading-relaxed"
-                />
-
-                {/* TOMBOL SIMPAN PESAN YANG DIBUAT ATASAN */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <button
-                      type="button"
-                      id="btn-save-superior-msg-default"
-                      onClick={handleSaveCurrentMessageAsDefault}
-                      disabled={!targetDmCustomMessage.trim()}
-                      className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded text-[11px] font-bold transition flex items-center gap-1.5 shadow-sm shadow-emerald-900/40 active:scale-95 cursor-pointer"
-                      title="Simpan pesan saat ini sebagai pesan default yang akan otomatis dimuat untuk PM Discord berikutnya"
-                    >
-                      <Save className="w-3 h-3" />
-                      <span>Simpan Pesan Atasan (Default)</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      id="btn-toggle-add-preset"
-                      onClick={() => setShowAddPresetInput(!showAddPresetInput)}
-                      disabled={!targetDmCustomMessage.trim()}
-                      className="px-2.5 py-1.5 bg-[#161B22] hover:bg-gray-800 disabled:opacity-40 text-sky-300 hover:text-sky-200 border border-sky-800/80 rounded text-[11px] font-bold transition flex items-center gap-1.5 active:scale-95 cursor-pointer"
-                      title="Simpan pesan ini sebagai template preset baru dengan judul khusus"
-                    >
-                      <Bookmark className="w-3 h-3 text-sky-400" />
-                      <span>+ Simpan ke Template</span>
-                    </button>
-                  </div>
-
-                  <span className="text-[10px] text-gray-400 font-mono">
-                    {targetDmCustomMessage.length} karakter
-                  </span>
-                </div>
-
-                {/* Save Feedback Notice */}
-                {saveMessageNotice && (
-                  <div className="p-2 bg-emerald-950/90 border border-emerald-500/80 rounded text-xs text-emerald-200 flex items-center gap-2 animate-in fade-in duration-200">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    <span className="font-medium text-[11px]">{saveMessageNotice}</span>
-                  </div>
-                )}
-
-                {/* Form Tambah Template Preset Baru */}
-                {showAddPresetInput && (
-                  <div className="p-2.5 bg-[#0D1117] border border-sky-700/80 rounded space-y-2 animate-in fade-in duration-200">
-                    <div className="text-[10px] font-bold text-sky-300 uppercase">
-                      Beri Judul Template Pesan Baru:
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <input
-                        type="text"
-                        value={newPresetTitle}
-                        onChange={(e) => setNewPresetTitle(e.target.value)}
-                        placeholder="Contoh: Pengarahan Shift Malam / Apel Khusus..."
-                        className="flex-1 px-2.5 py-1 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleSaveCurrentMessageAsPreset();
-                          }
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={handleSaveCurrentMessageAsPreset}
-                        className="px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded text-xs transition"
-                      >
-                        Simpan
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowAddPresetInput(false)}
-                        className="px-2 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-xs transition"
-                      >
-                        Batal
-                      </button>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Template Cepat Pesan Atasan */}
-                <div className="space-y-1 pt-1 border-t border-sky-900/40">
-                  <div className="text-[10px] text-gray-400 font-bold uppercase flex items-center justify-between">
-                    <span>Template & Pesan Tersimpan dari Atasan:</span>
-                    <span className="text-[9px] text-sky-400/80">Klik untuk memuat pesan</span>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {superiorDmPresets.map((preset) => {
-                      const isCustom = !preset.id.startsWith('preset-');
-                      return (
-                        <div
-                          key={preset.id}
-                          className="inline-flex items-center bg-[#161B22] hover:bg-sky-950/80 text-sky-300 hover:text-sky-200 border border-gray-700 hover:border-sky-600 rounded text-[10.5px] transition group overflow-hidden"
-                        >
-                          <button
-                            type="button"
-                            onClick={() => setTargetDmCustomMessage(preset.text)}
-                            className="px-2 py-1 text-left font-medium truncate max-w-[200px]"
-                            title={preset.text}
-                          >
-                            {preset.title}
-                          </button>
-                          {isCustom && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleDeletePreset(preset.id, e)}
-                              className="px-1.5 py-1 text-gray-500 hover:text-rose-400 hover:bg-rose-950/50 transition border-l border-gray-800"
-                              title="Hapus template ini"
-                            >
-                              <Trash2 className="w-2.5 h-2.5" />
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                    <button
-                      type="button"
-                      onClick={() => setTargetDmCustomMessage('')}
-                      className="text-[10.5px] px-2 py-1 bg-[#161B22] hover:bg-gray-800 text-gray-400 hover:text-gray-200 border border-gray-700 rounded transition"
-                    >
-                      📝 Kosongkan
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* ADVANCED CUSTOMIZATION: EDIT MESSAGE & LOGO (BY ATASAN / ADMIN) */}
-              {showAdvancedDmSettings && (
-                <div className="p-3.5 bg-[#0D1117] border border-sky-800/80 rounded-lg space-y-3 animate-in fade-in duration-200">
-                  <div className="flex items-center justify-between border-b border-gray-800 pb-2">
-                    <div className="font-bold text-sky-300 text-xs flex items-center gap-1.5">
-                      <Sliders className="w-3.5 h-3.5" />
-                      <span>KUSTOMISASI LOGO & KONTEN PESAN OLEH ATASAN:</span>
-                    </div>
-                    <span className="text-[10px] text-gray-400">Dapat diedit manual sebelum dikirim</span>
-                  </div>
-
-                  {/* LOGO CHANGER */}
-                  <div className="space-y-2">
-                    <label className="block text-[10px] font-bold text-gray-300 uppercase">
-                      PILIH LOGO / AVATAR PESAN BOT:
-                    </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                      {PRESET_DISCORD_BOT_LOGOS.map((preset, idx) => {
-                        const isSelected = targetDmLogoUrl === preset.url;
-                        return (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => setTargetDmLogoUrl(preset.url)}
-                            className={`p-1.5 rounded border text-left flex items-center gap-1.5 transition ${
-                              isSelected 
-                                ? 'bg-sky-950/80 border-sky-500 ring-1 ring-sky-500 text-sky-200' 
-                                : 'bg-[#161B22] border-gray-800 hover:border-gray-700 text-gray-400'
-                            }`}
-                          >
-                            <img
-                              src={preset.url}
-                              alt={preset.name}
-                              referrerPolicy="no-referrer"
-                              className="w-6 h-6 rounded-full object-cover bg-black/40 p-0.5 border border-gray-700 shrink-0"
-                            />
-                            <span className="text-[10px] font-bold truncate">{preset.name}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-                      <input
-                        type="url"
-                        value={targetDmLogoUrl}
-                        onChange={(e) => setTargetDmLogoUrl(e.target.value)}
-                        placeholder="Link URL Logo Kustom..."
-                        className="sm:col-span-2 px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none font-mono"
-                      />
-                      <label className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 rounded text-[11px] font-bold cursor-pointer transition">
-                        <Upload className="w-3 h-3 text-sky-400" />
-                        <span>Upload Logo</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (loadEvt) => {
-                                const dataUrl = loadEvt.target?.result as string;
-                                if (dataUrl) setTargetDmLogoUrl(dataUrl);
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                        />
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* EDIT EMBED TITLES & DESCRIPTIONS */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 mb-1">
-                        Header Author / Bot:
-                      </label>
-                      <input
-                        type="text"
-                        value={targetDmBotName}
-                        onChange={(e) => setTargetDmBotName(e.target.value)}
-                        placeholder="Cek Akun | High State"
-                        className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 mb-1">
-                        Judul Pesan Embed:
-                      </label>
-                      <input
-                        type="text"
-                        value={targetDmEmbedTitle}
-                        onChange={(e) => setTargetDmEmbedTitle(e.target.value)}
-                        placeholder="✅ Berhasil!"
-                        className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-400 mb-1">
-                      Deskripsi / Sub-Header:
-                    </label>
-                    <input
-                      type="text"
-                      value={targetDmEmbedDescription}
-                      onChange={(e) => setTargetDmEmbedDescription(e.target.value)}
-                      placeholder="Berikut adalah detail dari akun UCP Anda:"
-                      className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
-                    />
-                  </div>
-
-                  {/* EDIT CREDENTIAL FIELDS & COLORS */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 mb-1">
-                        UCP Name:
-                      </label>
-                      <input
-                        type="text"
-                        value={targetDmOfficerName}
-                        onChange={(e) => setTargetDmOfficerName(e.target.value)}
-                        className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 mb-1">
-                        PIN Code:
-                      </label>
-                      <input
-                        type="text"
-                        value={targetDmPin}
-                        onChange={(e) => setTargetDmPin(e.target.value)}
-                        disabled={targetDmMessageType === 'custom_chat'}
-                        className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-amber-300 font-bold outline-none disabled:opacity-40"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 mb-1">
-                        Warna Embed:
-                      </label>
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="color"
-                          value={targetDmEmbedColor.startsWith('#') ? targetDmEmbedColor : '#00A8FF'}
-                          onChange={(e) => setTargetDmEmbedColor(e.target.value)}
-                          className="w-7 h-7 rounded border border-gray-700 bg-transparent cursor-pointer shrink-0"
-                        />
-                        <input
-                          type="text"
-                          value={targetDmEmbedColor}
-                          onChange={(e) => setTargetDmEmbedColor(e.target.value)}
-                          placeholder="#00A8FF"
-                          className="w-full px-2 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none font-mono"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Note / Catatan Kustom */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-gray-300 uppercase">
-                  Catatan Privasi (Footer Note):
-                </label>
-                <input
-                  type="text"
-                  value={targetDmCustomNote}
-                  onChange={(e) => setTargetDmCustomNote(e.target.value)}
-                  placeholder="Jangan beritahu informasi ini kepada orang lain!"
-                  className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
-                />
-              </div>
-
-              {/* Embed Live Preview */}
-              <div className="space-y-1.5">
-                <div className="text-[10px] font-bold text-gray-400 uppercase flex items-center justify-between">
-                  <span>PREVIEW PESAN DISCORD PM (REAL-TIME):</span>
-                  <span className="text-[10px] text-sky-400">● Tampilan Sesuai Kustomisasi</span>
-                </div>
-                <div 
-                  className="bg-[#2B2D31] rounded-r-lg p-3.5 space-y-2.5 text-white font-sans text-xs shadow-inner"
-                  style={{ borderLeft: `4px solid ${targetDmEmbedColor || '#00A8FF'}` }}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <img
-                      src={targetDmLogoUrl || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
-                      alt="Bot Icon"
-                      referrerPolicy="no-referrer"
-                      className="w-4 h-4 rounded-full object-cover"
-                    />
-                    <span className="font-bold text-[11px] text-gray-200">
-                      {targetDmBotName || 'Cek Akun | High State'}
+                  <h3 className="font-bold text-gray-100 uppercase tracking-wide flex items-center gap-2 text-xs sm:text-sm">
+                    <span>Kirim & Kustomisasi Pesan Pribadi (PM / DM) Discord</span>
+                    <span className="hidden sm:inline-block text-[10px] bg-sky-950 text-sky-300 font-mono px-2 py-0.5 rounded border border-sky-700">
+                      DISCORD BOT GATEWAY
                     </span>
-                  </div>
-                  <div>
-                    <div className="font-bold text-white text-xs">
-                      {targetDmEmbedTitle || (targetDmMessageType === 'custom_chat' ? '📢 Pesan Dinas dari Atasan' : '✅ Berhasil!')}
-                    </div>
-                    <p className="text-gray-300 text-[11px]">
-                      {targetDmEmbedDescription || (targetDmMessageType === 'custom_chat' ? 'Anda menerima pesan dinas resmi dari jajaran Komando / Atasan:' : 'Berikut adalah detail dari akun UCP Anda:')}
-                    </p>
-                  </div>
-                  <div className="space-y-1.5 pt-0.5 font-mono text-[11px]">
-                    {targetDmMessageType === 'credentials' ? (
-                      <>
-                        <div>
-                          <div className="text-[9.5px] font-bold text-gray-400 uppercase">UCP</div>
-                          <div className="text-gray-100 font-semibold font-sans">
-                            {targetDmOfficerName || targetDmOfficer.name}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[9.5px] font-bold text-gray-400 uppercase">Pin Code</div>
-                          <div className="text-amber-300 font-bold bg-[#1E1F22] px-2 py-0.5 rounded inline-block">
-                            {targetDmPin || targetDmOfficer.pin || '10-4'}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[9.5px] font-bold text-gray-400 uppercase">No. Badge & Pangkat</div>
-                          <div className="text-gray-200 font-sans text-xs">
-                            `{targetDmBadge || targetDmOfficer.badge}` • {targetDmRank || targetDmOfficer.rank}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[9.5px] font-bold text-gray-400 uppercase">Divisi</div>
-                          <div className="text-sky-300 font-sans text-xs">
-                            {targetDmDivision || targetDmOfficer.division || 'Patrol Bureau'}
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div>
-                          <div className="text-[9.5px] font-bold text-gray-400 uppercase">Penerima Pesan</div>
-                          <div className="text-gray-100 font-semibold font-sans">
-                            {targetDmOfficerName || targetDmOfficer.name} (`{targetDmBadge || targetDmOfficer.badge}`)
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[9.5px] font-bold text-gray-400 uppercase">Pangkat & Divisi</div>
-                          <div className="text-gray-200 font-sans text-xs">
-                            {targetDmRank || targetDmOfficer.rank} • {targetDmDivision || targetDmOfficer.division || 'Patrol Bureau'}
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    {/* Highlighted Custom Message from Superior in Embed */}
-                    {targetDmCustomMessage.trim() && (
-                      <div className="bg-[#1E1F22] p-2.5 rounded border-l-2 border-sky-400 my-1 font-sans">
-                        <div className="text-[9.5px] font-bold text-sky-300 uppercase flex items-center gap-1">
-                          <MessageSquare className="w-3 h-3" />
-                          <span>Pesan / Instruksi dari Atasan:</span>
-                        </div>
-                        <div className="text-gray-100 text-xs mt-1 whitespace-pre-wrap leading-relaxed">
-                          {targetDmCustomMessage}
-                        </div>
-                      </div>
-                    )}
-
-                    <div>
-                      <div className="text-[9.5px] font-bold text-gray-400 uppercase">Note</div>
-                      <div className="text-gray-300 text-[10.5px] font-sans">
-                        {targetDmCustomNote || 'Jangan beritahu informasi ini kepada orang lain!'}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="border-t border-gray-700/50 pt-1.5 text-[9.5px] text-gray-400 font-sans flex items-center justify-between">
-                    <span>{targetDmFooterText || 'Bot High State'} • Hari ini pukul 12:40 AM</span>
-                    <img
-                      src={targetDmLogoUrl || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
-                      alt="Footer Logo"
-                      className="w-3 h-3 rounded-full object-cover"
-                    />
-                  </div>
+                  </h3>
                 </div>
               </div>
 
-              {/* Result Notice */}
-              {botDmResultNotice && (
-                <div className={`p-2.5 rounded border text-xs flex items-center gap-2 animate-in fade-in ${
-                  botDmResultNotice.success 
-                    ? 'bg-emerald-950/80 border-emerald-600 text-emerald-200' 
-                    : 'bg-rose-950/80 border-rose-600 text-rose-200'
-                }`}>
-                  {botDmResultNotice.success ? (
-                    <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-                  ) : (
-                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                  )}
-                  <span>{botDmResultNotice.message}</span>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                {onNavigateToSettings && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetDmOfficer(null);
+                      onNavigateToSettings('section-discord-bot-pm');
+                    }}
+                    className="px-2.5 py-1.5 bg-[#161B22] hover:bg-sky-950/80 text-sky-300 hover:text-white border border-sky-800 hover:border-sky-500 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                    title="Buka Pengaturan Lengkap Bot & Desain PM di Menu Setting & Otoritas"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-sky-400" />
+                    <span className="hidden sm:inline">Pengaturan di Setting</span>
+                  </button>
+                )}
 
-              {/* Action Buttons */}
-              <div className="pt-2 border-t border-gray-800 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPmModalFullscreen(!isPmModalFullscreen)}
+                  className="p-1.5 sm:px-2.5 sm:py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg text-xs font-mono transition flex items-center gap-1 cursor-pointer"
+                  title={isPmModalFullscreen ? 'Perkecil Modal (Tampilan Normal)' : 'Perbesar / Layar Penuh (Full Screen)'}
+                >
+                  {isPmModalFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                  <span className="hidden md:inline">{isPmModalFullscreen ? 'Normal' : 'Full Screen'}</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setTargetDmOfficer(null)}
-                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded font-bold transition"
+                  className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition cursor-pointer"
+                  title="Tutup"
                 >
-                  Batal
+                  <X className="w-4 h-4" />
                 </button>
-                <button
-                  type="submit"
-                  disabled={isSendingBotDm || !targetDmUserId.trim()}
-                  className="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded transition flex items-center gap-2 disabled:opacity-40 shadow-lg shadow-sky-600/30"
-                >
-                  {isSendingBotDm ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>Mengirim PM Discord...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Bot className="w-3.5 h-3.5" />
-                      <span>
-                        {targetDmMessageType === 'custom_chat'
-                          ? 'KIRIM PESAN CHAT KE PM DISCORD'
-                          : 'KIRIM SEKARANG KE PM DISCORD'}
+              </div>
+            </div>
+
+            <form onSubmit={handleExecuteSendBotDm} className="flex-1 overflow-hidden flex flex-col min-h-0">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                  
+                  {/* LEFT COLUMN: Controls & Input Form (7 Cols on LG) */}
+                  <div className="lg:col-span-7 space-y-3.5">
+                    
+                    {/* Officer Target Badge Card */}
+                    <div className="p-3 bg-sky-950/40 border border-sky-800/80 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div>
+                        <div className="text-[10px] text-gray-400 uppercase font-bold">Penerima Pesan:</div>
+                        <div className="text-sm font-bold text-gray-100">{targetDmOfficer.name}</div>
+                        <div className="text-[11px] text-sky-300 flex items-center gap-2 mt-0.5">
+                          <span>Badge: <strong className="text-white">{targetDmOfficer.badge}</strong></span>
+                          <span>•</span>
+                          <span>Pangkat: <strong className="text-white">{targetDmOfficer.rank}</strong></span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-bold bg-sky-900/60 text-sky-300 px-2 py-1 rounded border border-sky-700">
+                          UCP: {targetDmOfficer.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setShowAdvancedDmSettings(!showAdvancedDmSettings)}
+                          className="text-[11px] font-bold px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-sky-300 border border-sky-800 rounded transition flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Palette className="w-3.5 h-3.5" />
+                          <span>{showAdvancedDmSettings ? 'Tutup Kustomisasi' : 'Kustomisasi Desain & Logo'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Mode Pengiriman Pesan oleh Atasan */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-gray-300 uppercase">
+                        PILIH MODE PENGIRIMAN PESAN:
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTargetDmMessageType('credentials');
+                            setTargetDmEmbedTitle('✅ Berhasil!');
+                            setTargetDmEmbedDescription('Berikut adalah detail dari akun UCP Anda:');
+                          }}
+                          className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition cursor-pointer ${
+                            targetDmMessageType === 'credentials'
+                              ? 'bg-sky-950/80 border-sky-500 ring-1 ring-sky-500 text-sky-100 shadow-md shadow-sky-950/40'
+                              : 'bg-[#0D1117] border-gray-800 hover:border-gray-700 text-gray-400'
+                          }`}
+                        >
+                          <KeyRound className={`w-4 h-4 mt-0.5 shrink-0 ${targetDmMessageType === 'credentials' ? 'text-sky-400' : 'text-gray-500'}`} />
+                          <div>
+                            <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <span>Kredensial Login + Pesan</span>
+                              {targetDmMessageType === 'credentials' && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-gray-400 mt-0.5">Kirim UCP, PIN keamanan & pesan khusus dinas</div>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTargetDmMessageType('custom_chat');
+                            setTargetDmEmbedTitle('📢 Pesan Dinas dari Atasan');
+                            setTargetDmEmbedDescription('Anda menerima pesan dinas resmi dari jajaran Komando / Atasan:');
+                          }}
+                          className={`p-2.5 rounded-lg border text-left flex items-start gap-2.5 transition cursor-pointer ${
+                            targetDmMessageType === 'custom_chat'
+                              ? 'bg-sky-950/80 border-sky-500 ring-1 ring-sky-500 text-sky-100 shadow-md shadow-sky-950/40'
+                              : 'bg-[#0D1117] border-gray-800 hover:border-gray-700 text-gray-400'
+                          }`}
+                        >
+                          <MessageSquare className={`w-4 h-4 mt-0.5 shrink-0 ${targetDmMessageType === 'custom_chat' ? 'text-sky-400' : 'text-gray-500'}`} />
+                          <div>
+                            <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                              <span>Chat / Memo Bebas Atasan</span>
+                              {targetDmMessageType === 'custom_chat' && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-gray-400 mt-0.5">Surat tugas, briefing, apel, atau evaluasi (tanpa PIN)</div>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Discord User ID Input */}
+                    <div className="space-y-1.5 p-3 bg-[#0D1117]/80 border border-sky-900/50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[11px] font-bold text-gray-200 uppercase flex items-center gap-1.5">
+                          <span>DISCORD USER ID TARGET:</span>
+                          <span className="text-rose-400">*</span>
+                          {targetDmOfficer && (
+                            <span className="text-[10px] px-2 py-0.5 bg-sky-950/80 border border-sky-700/60 rounded text-sky-300 font-normal">
+                              Khusus untuk: <strong className="text-white">{targetDmOfficer.name}</strong> ({targetDmOfficer.badge})
+                            </span>
+                          )}
+                        </label>
+                        <span className="text-[10px] text-sky-400">Numerik 17-20 digit</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={targetDmUserId}
+                          onChange={(e) => setTargetDmUserId(e.target.value)}
+                          placeholder="Contoh: 842019283719001 (17-20 digit angka)"
+                          className="flex-1 px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-sky-200 outline-none font-mono"
+                          required
+                        />
+                        <button
+                          id="btn-save-target-discord-user-id"
+                          type="button"
+                          onClick={handleSaveTargetDiscordUserId}
+                          disabled={isSavingTargetDiscordId || !targetDmUserId.trim()}
+                          className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 disabled:bg-gray-800 disabled:text-gray-500 text-white rounded text-xs font-mono font-bold flex items-center gap-1.5 transition shadow-sm whitespace-nowrap cursor-pointer"
+                          title={`Simpan Discord User ID ini secara permanen HANYA ke akun ${targetDmOfficer?.name || 'anggota ini'}`}
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>{isSavingTargetDiscordId ? 'Menyimpan...' : 'Simpan ID Target'}</span>
+                        </button>
+                        {targetDmOfficer?.discordTag && (
+                          <button
+                            id="btn-clear-target-discord-user-id"
+                            type="button"
+                            onClick={handleClearTargetDiscordUserId}
+                            disabled={isSavingTargetDiscordId}
+                            className="px-2.5 py-2 bg-rose-950/60 hover:bg-rose-900 border border-rose-800/80 text-rose-300 hover:text-white rounded text-xs font-mono font-bold flex items-center gap-1 transition whitespace-nowrap cursor-pointer"
+                            title={`Hapus Discord User ID dari akun ${targetDmOfficer.name} (${targetDmOfficer.badge})`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Hapus ID</span>
+                          </button>
+                        )}
+                      </div>
+                      {discordIdSaveNotice && (
+                        <div className={`p-2 rounded text-xs font-mono border ${
+                          discordIdSaveNotice.includes('✅')
+                            ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
+                            : 'bg-rose-950/80 border-rose-500 text-rose-300'
+                        }`}>
+                          {discordIdSaveNotice}
+                        </div>
+                      )}
+                      <div className="text-[10px] text-gray-400 flex flex-wrap items-center justify-between gap-1 pt-0.5">
+                        <span>💡 <strong>Cara dapat User ID:</strong> Buka Discord &gt; <em>Settings &gt; Advanced &gt; Aktifkan Developer Mode</em> &gt; Klik kanan profil &gt; <strong>Copy User ID</strong>.</span>
+                        {targetDmOfficer?.discordTag ? (
+                          <span className="text-emerald-400 font-mono text-[10px] font-semibold">Tersimpan di Akun {targetDmOfficer.badge}: {targetDmOfficer.discordTag}</span>
+                        ) : (
+                          <span className="text-amber-400/80 font-mono text-[10px]">Belum tersimpan di akun ini</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* CHAT / PESAN KHUSUS DARI ATASAN (CUSTOM MESSAGE) */}
+                    <div className="space-y-2 p-3 bg-sky-950/30 border border-sky-900/60 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[11px] font-bold text-sky-300 uppercase flex items-center gap-1.5">
+                          <MessageSquare className="w-3.5 h-3.5 text-sky-400" />
+                          <span>CHAT / PESAN KHUSUS DARI ATASAN (CUSTOM MESSAGE):</span>
+                        </label>
+                        <span className="text-[10px] text-gray-400">Dapat diedit bebas & disimpan oleh atasan</span>
+                      </div>
+                      <textarea
+                        value={targetDmCustomMessage}
+                        onChange={(e) => setTargetDmCustomMessage(e.target.value)}
+                        rows={3}
+                        placeholder="Ketik instruksi dinas, pesan tugas, panggilan apel, ucapan promosi, atau catatan kedisiplinan dari atasan..."
+                        className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-100 outline-none resize-y font-sans leading-relaxed"
+                      />
+
+                      {/* TOMBOL SIMPAN PESAN YANG DIBUAT ATASAN */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            id="btn-save-superior-msg-default"
+                            onClick={handleSaveCurrentMessageAsDefault}
+                            disabled={!targetDmCustomMessage.trim()}
+                            className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded text-[11px] font-bold transition flex items-center gap-1.5 shadow-sm shadow-emerald-900/40 active:scale-95 cursor-pointer"
+                            title="Simpan pesan saat ini sebagai pesan default yang akan otomatis dimuat untuk PM Discord berikutnya"
+                          >
+                            <Save className="w-3 h-3" />
+                            <span>Simpan Pesan Atasan (Default)</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            id="btn-toggle-add-preset"
+                            onClick={() => setShowAddPresetInput(!showAddPresetInput)}
+                            disabled={!targetDmCustomMessage.trim()}
+                            className="px-2.5 py-1.5 bg-[#161B22] hover:bg-gray-800 disabled:opacity-40 text-sky-300 hover:text-sky-200 border border-sky-800/80 rounded text-[11px] font-bold transition flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                            title="Simpan pesan ini sebagai template preset baru dengan judul khusus"
+                          >
+                            <Bookmark className="w-3 h-3 text-sky-400" />
+                            <span>+ Simpan ke Template</span>
+                          </button>
+                        </div>
+
+                        <span className="text-[10px] text-gray-400 font-mono">
+                          {targetDmCustomMessage.length} karakter
+                        </span>
+                      </div>
+
+                      {/* Save Feedback Notice */}
+                      {saveMessageNotice && (
+                        <div className="p-2 bg-emerald-950/90 border border-emerald-500/80 rounded text-xs text-emerald-200 flex items-center gap-2 animate-in fade-in duration-200">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span className="font-medium text-[11px]">{saveMessageNotice}</span>
+                        </div>
+                      )}
+
+                      {/* Form Tambah Template Preset Baru */}
+                      {showAddPresetInput && (
+                        <div className="p-2.5 bg-[#0D1117] border border-sky-700/80 rounded space-y-2 animate-in fade-in duration-200">
+                          <div className="text-[10px] font-bold text-sky-300 uppercase">
+                            Beri Judul Template Pesan Baru:
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={newPresetTitle}
+                              onChange={(e) => setNewPresetTitle(e.target.value)}
+                              placeholder="Contoh: Pengarahan Shift Malam / Apel Khusus..."
+                              className="flex-1 px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleSaveCurrentMessageAsPreset();
+                                }
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={handleSaveCurrentMessageAsPreset}
+                              className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded text-xs transition cursor-pointer"
+                            >
+                              Simpan
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setShowAddPresetInput(false)}
+                              className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-xs transition cursor-pointer"
+                            >
+                              Batal
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Template Cepat Pesan Atasan */}
+                      <div className="space-y-1.5 pt-1 border-t border-sky-900/40">
+                        <div className="text-[10px] text-gray-400 font-bold uppercase flex items-center justify-between">
+                          <span>Template & Pesan Tersimpan dari Atasan:</span>
+                          <span className="text-[9px] text-sky-400/80">Klik untuk memuat pesan</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {superiorDmPresets.map((preset) => {
+                            const isCustom = !preset.id.startsWith('preset-');
+                            return (
+                              <div
+                                key={preset.id}
+                                className="inline-flex items-center bg-[#161B22] hover:bg-sky-950/80 text-sky-300 hover:text-sky-200 border border-gray-700 hover:border-sky-600 rounded text-[10.5px] transition group overflow-hidden"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => setTargetDmCustomMessage(preset.text)}
+                                  className="px-2.5 py-1 text-left font-medium truncate max-w-[200px] cursor-pointer"
+                                  title={preset.text}
+                                >
+                                  {preset.title}
+                                </button>
+                                {isCustom && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleDeletePreset(preset.id, e)}
+                                    className="px-1.5 py-1 text-gray-500 hover:text-rose-400 hover:bg-rose-950/50 transition border-l border-gray-800 cursor-pointer"
+                                    title="Hapus template ini"
+                                  >
+                                    <Trash2 className="w-2.5 h-2.5" />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                          <button
+                            type="button"
+                            onClick={() => setTargetDmCustomMessage('')}
+                            className="text-[10.5px] px-2.5 py-1 bg-[#161B22] hover:bg-gray-800 text-gray-400 hover:text-gray-200 border border-gray-700 rounded transition cursor-pointer"
+                          >
+                            📝 Kosongkan
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Note / Catatan Kustom */}
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-bold text-gray-300 uppercase">
+                        Catatan Privasi (Footer Note):
+                      </label>
+                      <input
+                        type="text"
+                        value={targetDmCustomNote}
+                        onChange={(e) => setTargetDmCustomNote(e.target.value)}
+                        placeholder="Jangan beritahu informasi ini kepada orang lain!"
+                        className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                      />
+                    </div>
+
+                    {/* ADVANCED CUSTOMIZATION: EDIT MESSAGE & LOGO (BY ATASAN / ADMIN) */}
+                    {showAdvancedDmSettings && (
+                      <div className="p-3.5 bg-[#0D1117] border border-sky-800/80 rounded-lg space-y-3 animate-in fade-in duration-200">
+                        <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+                          <div className="font-bold text-sky-300 text-xs flex items-center gap-1.5">
+                            <Sliders className="w-3.5 h-3.5" />
+                            <span>KUSTOMISASI LOGO & KONTEN PESAN OLEH ATASAN:</span>
+                          </div>
+                          <span className="text-[10px] text-gray-400">Dapat diedit manual sebelum dikirim</span>
+                        </div>
+
+                        {/* LOGO CHANGER */}
+                        <div className="space-y-2">
+                          <label className="block text-[10px] font-bold text-gray-300 uppercase">
+                            PILIH LOGO / AVATAR PESAN BOT:
+                          </label>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                            {PRESET_DISCORD_BOT_LOGOS.map((preset, idx) => {
+                              const isSelected = targetDmLogoUrl === preset.url;
+                              return (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => setTargetDmLogoUrl(preset.url)}
+                                  className={`p-1.5 rounded border text-left flex items-center gap-1.5 transition cursor-pointer ${
+                                    isSelected 
+                                      ? 'bg-sky-950/80 border-sky-500 ring-1 ring-sky-500 text-sky-200' 
+                                      : 'bg-[#161B22] border-gray-800 hover:border-gray-700 text-gray-400'
+                                  }`}
+                                >
+                                  <img
+                                    src={preset.url}
+                                    alt={preset.name}
+                                    referrerPolicy="no-referrer"
+                                    className="w-6 h-6 rounded-full object-cover bg-black/40 p-0.5 border border-gray-700 shrink-0"
+                                  />
+                                  <span className="text-[10px] font-bold truncate">{preset.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                            <input
+                              type="url"
+                              value={targetDmLogoUrl}
+                              onChange={(e) => setTargetDmLogoUrl(e.target.value)}
+                              placeholder="Link URL Logo Kustom..."
+                              className="sm:col-span-2 px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none font-mono"
+                            />
+                            <label className="flex items-center justify-center gap-1 px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 rounded text-[11px] font-bold cursor-pointer transition">
+                              <Upload className="w-3 h-3 text-sky-400" />
+                              <span>Upload Logo</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onload = (loadEvt) => {
+                                      const dataUrl = loadEvt.target?.result as string;
+                                      if (dataUrl) setTargetDmLogoUrl(dataUrl);
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+
+                        {/* EDIT EMBED TITLES & DESCRIPTIONS */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                              Header Author / Bot:
+                            </label>
+                            <input
+                              type="text"
+                              value={targetDmBotName}
+                              onChange={(e) => setTargetDmBotName(e.target.value)}
+                              placeholder="Cek Akun | High State"
+                              className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                              Judul Pesan Embed:
+                            </label>
+                            <input
+                              type="text"
+                              value={targetDmEmbedTitle}
+                              onChange={(e) => setTargetDmEmbedTitle(e.target.value)}
+                              placeholder="✅ Berhasil!"
+                              className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                            Deskripsi / Sub-Header:
+                          </label>
+                          <input
+                            type="text"
+                            value={targetDmEmbedDescription}
+                            onChange={(e) => setTargetDmEmbedDescription(e.target.value)}
+                            placeholder="Berikut adalah detail dari akun UCP Anda:"
+                            className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                          />
+                        </div>
+
+                        {/* EDIT CREDENTIAL FIELDS & COLORS */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                              UCP Name:
+                            </label>
+                            <input
+                              type="text"
+                              value={targetDmOfficerName}
+                              onChange={(e) => setTargetDmOfficerName(e.target.value)}
+                              className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                              PIN Code:
+                            </label>
+                            <input
+                              type="text"
+                              value={targetDmPin}
+                              onChange={(e) => setTargetDmPin(e.target.value)}
+                              disabled={targetDmMessageType === 'custom_chat'}
+                              className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-amber-300 font-bold outline-none disabled:opacity-40"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                              Warna Embed:
+                            </label>
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="color"
+                                value={targetDmEmbedColor.startsWith('#') ? targetDmEmbedColor : '#00A8FF'}
+                                onChange={(e) => setTargetDmEmbedColor(e.target.value)}
+                                className="w-7 h-7 rounded border border-gray-700 bg-transparent cursor-pointer shrink-0"
+                              />
+                              <input
+                                type="text"
+                                value={targetDmEmbedColor}
+                                onChange={(e) => setTargetDmEmbedColor(e.target.value)}
+                                placeholder="#00A8FF"
+                                className="w-full px-2 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none font-mono"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* RIGHT COLUMN: Real-Time Sticky Preview & Info (5 Cols on LG) */}
+                  <div className="lg:col-span-5 space-y-3 lg:sticky lg:top-0">
+                    
+                    {/* Embed Live Preview Header */}
+                    <div className="flex items-center justify-between pb-1 border-b border-gray-800">
+                      <span className="text-[11px] font-bold text-gray-300 uppercase flex items-center gap-1.5">
+                        <Bot className="w-3.5 h-3.5 text-sky-400" />
+                        <span>PREVIEW DISCORD PM (REAL-TIME):</span>
                       </span>
-                    </>
+                      <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span>Live Sync</span>
+                      </span>
+                    </div>
+
+                    {/* Discord Mockup Container */}
+                    <div className="bg-[#1E1F22] border border-[#313338] rounded-xl p-3 shadow-xl">
+                      {/* Discord User Header */}
+                      <div className="flex items-center gap-2 pb-2.5 mb-2.5 border-b border-gray-800/60 text-xs">
+                        <img
+                          src={targetDmLogoUrl || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
+                          alt="Bot Icon"
+                          referrerPolicy="no-referrer"
+                          className="w-5 h-5 rounded-full object-cover bg-black/40"
+                        />
+                        <span className="font-bold text-white">
+                          {targetDmBotName || 'Cek Akun | High State'}
+                        </span>
+                        <span className="bg-[#5865F2] text-[9px] text-white px-1.5 py-0.2 rounded font-bold uppercase tracking-wider">
+                          BOT
+                        </span>
+                        <span className="text-[10px] text-gray-400 ml-auto">Hari ini pukul {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+
+                      {/* Embed Body */}
+                      <div 
+                        className="bg-[#2B2D31] rounded-r-lg p-3.5 space-y-2.5 text-white font-sans text-xs shadow-inner"
+                        style={{ borderLeft: `4px solid ${targetDmEmbedColor || '#00A8FF'}` }}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <img
+                            src={targetDmLogoUrl || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
+                            alt="Bot Icon"
+                            referrerPolicy="no-referrer"
+                            className="w-4 h-4 rounded-full object-cover"
+                          />
+                          <span className="font-bold text-[11px] text-gray-200">
+                            {targetDmBotName || 'Cek Akun | High State'}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="font-bold text-white text-xs">
+                            {targetDmEmbedTitle || (targetDmMessageType === 'custom_chat' ? '📢 Pesan Dinas dari Atasan' : '✅ Berhasil!')}
+                          </div>
+                          <p className="text-gray-300 text-[11px]">
+                            {targetDmEmbedDescription || (targetDmMessageType === 'custom_chat' ? 'Anda menerima pesan dinas resmi dari jajaran Komando / Atasan:' : 'Berikut adalah detail dari akun UCP Anda:')}
+                          </p>
+                        </div>
+                        <div className="space-y-1.5 pt-0.5 font-mono text-[11px]">
+                          {targetDmMessageType === 'credentials' ? (
+                            <>
+                              <div>
+                                <div className="text-[9.5px] font-bold text-gray-400 uppercase">UCP</div>
+                                <div className="text-gray-100 font-semibold font-sans">
+                                  {targetDmOfficerName || targetDmOfficer.name}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[9.5px] font-bold text-gray-400 uppercase">Pin Code</div>
+                                <div className="text-amber-300 font-bold bg-[#1E1F22] px-2 py-0.5 rounded inline-block">
+                                  {targetDmPin || targetDmOfficer.pin || '10-4'}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[9.5px] font-bold text-gray-400 uppercase">No. Badge & Pangkat</div>
+                                <div className="text-gray-200 font-sans text-xs">
+                                  `{targetDmBadge || targetDmOfficer.badge}` • {targetDmRank || targetDmOfficer.rank}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[9.5px] font-bold text-gray-400 uppercase">Divisi</div>
+                                <div className="text-sky-300 font-sans text-xs">
+                                  {targetDmDivision || targetDmOfficer.division || 'Patrol Bureau'}
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div>
+                                <div className="text-[9.5px] font-bold text-gray-400 uppercase">Penerima Pesan</div>
+                                <div className="text-gray-100 font-semibold font-sans">
+                                  {targetDmOfficerName || targetDmOfficer.name} (`{targetDmBadge || targetDmOfficer.badge}`)
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-[9.5px] font-bold text-gray-400 uppercase">Pangkat & Divisi</div>
+                                <div className="text-gray-200 font-sans text-xs">
+                                  {targetDmRank || targetDmOfficer.rank} • {targetDmDivision || targetDmOfficer.division || 'Patrol Bureau'}
+                                </div>
+                              </div>
+                            </>
+                          )}
+
+                          {/* Highlighted Custom Message from Superior in Embed */}
+                          {targetDmCustomMessage.trim() && (
+                            <div className="bg-[#1E1F22] p-2.5 rounded border-l-2 border-sky-400 my-1 font-sans">
+                              <div className="text-[9.5px] font-bold text-sky-300 uppercase flex items-center gap-1">
+                                <MessageSquare className="w-3 h-3" />
+                                <span>Pesan / Instruksi dari Atasan:</span>
+                              </div>
+                              <div className="text-gray-100 text-xs mt-1 whitespace-pre-wrap leading-relaxed">
+                                {targetDmCustomMessage}
+                              </div>
+                            </div>
+                          )}
+
+                          <div>
+                            <div className="text-[9.5px] font-bold text-gray-400 uppercase">Note</div>
+                            <div className="text-gray-300 text-[10.5px] font-sans">
+                              {targetDmCustomNote || 'Jangan beritahu informasi ini kepada orang lain!'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="border-t border-gray-700/50 pt-1.5 text-[9.5px] text-gray-400 font-sans flex items-center justify-between">
+                          <span>{targetDmFooterText || 'Bot High State'} • Hari ini pukul {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
+                          <img
+                            src={targetDmLogoUrl || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
+                            alt="Footer Logo"
+                            className="w-3 h-3 rounded-full object-cover"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Guidance Box */}
+                    <div className="p-3 bg-black/40 border border-gray-800 rounded-lg text-[11px] space-y-1 text-gray-400">
+                      <div className="text-sky-300 font-bold flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Koneksi Bot PM Discord Terproteksi</span>
+                      </div>
+                      <p className="leading-relaxed text-[10.5px]">
+                        Pesan akan dikirim langsung oleh Bot ke akun Discord penerima secara privat. Personel disarankan mengaktifkan opsi <em>"Allow direct messages from server members"</em> pada server Discord kepolisian.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer Toolbar */}
+              <div className="bg-[#0D1117] border-t border-gray-800 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                {/* Status / Result Notice */}
+                <div className="flex-1 w-full sm:w-auto">
+                  {botDmResultNotice && (
+                    <div className={`p-2 rounded border text-xs flex items-center gap-2 animate-in fade-in ${
+                      botDmResultNotice.success 
+                        ? 'bg-emerald-950/80 border-emerald-600 text-emerald-200' 
+                        : 'bg-rose-950/80 border-rose-600 text-rose-200'
+                    }`}>
+                      {botDmResultNotice.success ? (
+                        <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                      )}
+                      <span className="font-sans font-medium">{botDmResultNotice.message}</span>
+                    </div>
                   )}
-                </button>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setTargetDmOfficer(null)}
+                    className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-lg font-bold text-xs transition cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSendingBotDm || !targetDmUserId.trim()}
+                    className="px-5 py-2 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white font-bold rounded-lg transition flex items-center gap-2 disabled:opacity-40 shadow-lg shadow-sky-950/60 active:scale-95 cursor-pointer text-xs"
+                  >
+                    {isSendingBotDm ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Mengirim PM Discord...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Bot className="w-3.5 h-3.5" />
+                        <span>
+                          {targetDmMessageType === 'custom_chat'
+                            ? 'Kirim Pesan Chat ke PM Discord'
+                            : 'Kirim Sekarang ke PM Discord'}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
