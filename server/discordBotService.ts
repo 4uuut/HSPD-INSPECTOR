@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import fs from 'fs';
 import path from 'path';
+import { discordRosterService, DiscordUserContext } from './discordRosterService';
 
 interface BotUserInfo {
   id: string;
@@ -148,11 +149,24 @@ class DiscordGatewayManager {
       this.reconnectTimer = null;
     }
     if (this.ws) {
-      try {
-        this.ws.removeAllListeners();
-        this.ws.close(1000, 'Shutting down');
-      } catch {}
+      const socket = this.ws;
       this.ws = null;
+      try {
+        // Remove normal operational listeners so we don't handle messages or close events twice
+        socket.removeAllListeners('open');
+        socket.removeAllListeners('message');
+        socket.removeAllListeners('close');
+        // ALWAYS attach a no-op error handler. In ws, if a socket is closed while still CONNECTING,
+        // it emits an 'error' event ("WebSocket was closed before the connection was established").
+        // Without an active error listener, Node's EventEmitter crashes with "Unhandled 'error' event".
+        socket.on('error', () => {});
+
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.close(1000, 'Shutting down');
+        } else {
+          socket.terminate();
+        }
+      } catch {}
     }
   }
 
@@ -166,18 +180,25 @@ class DiscordGatewayManager {
       : 'wss://gateway.discord.gg/?v=10&encoding=json';
 
     try {
-      this.ws = new WebSocket(gatewayEndpoint);
+      const ws = new WebSocket(gatewayEndpoint);
+      this.ws = ws;
 
-      this.ws.on('open', () => {
+      // Attach 'error' handler IMMEDIATELY to prevent unhandled 'error' event crashes
+      ws.on('error', (err: Error) => {
+        console.warn('[Discord Gateway] WebSocket error:', err?.message || err);
+        this.state.lastError = err?.message || 'WebSocket error';
+      });
+
+      ws.on('open', () => {
         console.log('[Discord Gateway] WebSocket connection opened.');
       });
 
-      this.ws.on('message', (data: WebSocket.RawData) => {
+      ws.on('message', (data: WebSocket.RawData) => {
         this.handleMessage(data);
       });
 
-      this.ws.on('close', (code: number, reason: Buffer) => {
-        const reasonStr = reason.toString();
+      ws.on('close', (code: number, reason: Buffer) => {
+        const reasonStr = reason ? reason.toString() : '';
         console.warn(`[Discord Gateway] Closed with code ${code}: ${reasonStr}`);
         this.state.isOnline = false;
 
@@ -200,11 +221,6 @@ class DiscordGatewayManager {
         if (!this.isExplicitlyStopped) {
           this.scheduleReconnect();
         }
-      });
-
-      this.ws.on('error', (err: Error) => {
-        console.error('[Discord Gateway] WebSocket error:', err.message);
-        this.state.lastError = err.message;
       });
 
     } catch (e: any) {
@@ -269,7 +285,15 @@ class DiscordGatewayManager {
         // Opcode 7: Reconnect requested by Discord
         case 7: {
           console.log('[Discord Gateway] Discord requested Reconnect (Opcode 7).');
-          this.ws?.close(1012, 'Service Restart');
+          if (this.ws) {
+            try {
+              if (this.ws.readyState === WebSocket.OPEN) {
+                this.ws.close(1012, 'Service Restart');
+              } else {
+                this.ws.terminate();
+              }
+            } catch {}
+          }
           break;
         }
 
@@ -328,7 +352,15 @@ class DiscordGatewayManager {
       if (this.heartbeatTimeoutTimer) clearTimeout(this.heartbeatTimeoutTimer);
       this.heartbeatTimeoutTimer = setTimeout(() => {
         console.warn('[Discord Gateway] Heartbeat ACK timed out (zombie connection). Reconnecting...');
-        this.ws?.close(4000, 'Heartbeat ACK timeout');
+        if (this.ws) {
+          try {
+            if (this.ws.readyState === WebSocket.OPEN) {
+              this.ws.close(4000, 'Heartbeat ACK timeout');
+            } else {
+              this.ws.terminate();
+            }
+          } catch {}
+        }
       }, 15000);
     } catch (e) {
       console.warn('[Discord Gateway] Failed to send heartbeat:', e);
@@ -393,7 +425,7 @@ class DiscordGatewayManager {
     }
   }
 
-  private handleDispatch(eventType: string, data: any) {
+  private async handleDispatch(eventType: string, data: any) {
     if (eventType === 'READY') {
       this.sessionId = data.session_id;
       this.resumeGatewayUrl = data.resume_gateway_url || null;
@@ -418,6 +450,393 @@ class DiscordGatewayManager {
       this.state.isOnline = true;
       this.state.lastError = null;
       console.log('[Discord Gateway] ✅ Session successfully resumed (Online).');
+    } else if (eventType === 'INTERACTION_CREATE') {
+      // Handle interactive Discord Components (Buttons and Modals)
+      try {
+        const interactionId = data.id;
+        const interactionToken = data.token;
+        const interactionType = data.type; // 2 = MESSAGE_COMPONENT, 5 = MODAL_SUBMIT
+        const customId = data.data?.custom_id;
+        
+        const rawUser = data.member?.user || data.user || {};
+        const discordUser: DiscordUserContext = {
+          id: rawUser.id || 'unknown',
+          username: rawUser.username || 'user',
+          globalName: rawUser.global_name || null,
+          discriminator: rawUser.discriminator || '0',
+          avatarUrl: rawUser.avatar 
+            ? `https://cdn.discordapp.com/avatars/${rawUser.id}/${rawUser.avatar}.png`
+            : 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+        };
+
+        const userTag = `<@${discordUser.id}>`;
+
+        // Helper: send interaction callback response to Discord
+        const sendCallback = async (payload: any) => {
+          try {
+            await fetch(`https://discord.com/api/v10/interactions/${interactionId}/${interactionToken}/callback`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+          } catch (e: any) {
+            console.warn('[Discord Gateway] Failed to send interaction callback:', e?.message || e);
+          }
+        };
+
+        // =========================================================================
+        // 1. BUTTON CLICKS (type: 2)
+        // =========================================================================
+        if (interactionType === 2 || data.data?.component_type === 2) {
+          
+          // [ BUTTON: REGISTER ] -> Open Modal Form in Discord!
+          if (customId === 'mdt_btn_register') {
+            const modalPayload = {
+              type: 9, // MODAL
+              data: {
+                custom_id: 'mdt_modal_register',
+                title: 'Pendaftaran Akun MDT Kepolisian',
+                components: [
+                  {
+                    type: 1, // Action Row
+                    components: [
+                      {
+                        type: 4, // Text Input
+                        custom_id: 'reg_ic_name',
+                        label: 'Nama IC Karakter (Firstname Lastname)',
+                        style: 1, // Short
+                        min_length: 3,
+                        max_length: 40,
+                        placeholder: 'Contoh: Alex_Vance atau John Walker',
+                        required: true
+                      }
+                    ]
+                  },
+                  {
+                    type: 1, // Action Row
+                    components: [
+                      {
+                        type: 4, // Text Input
+                        custom_id: 'reg_pin',
+                        label: 'PIN Keamanan Akun MDT (4-8 Digit)',
+                        style: 1, // Short
+                        min_length: 4,
+                        max_length: 10,
+                        placeholder: 'Contoh: 123456 (Hafalkan PIN untuk login)',
+                        required: true
+                      }
+                    ]
+                  }
+                ]
+              }
+            };
+            return await sendCallback(modalPayload);
+          }
+
+          // [ BUTTON: RESEND CODE / CEK STATUS ]
+          if (customId === 'mdt_btn_resend_code') {
+            const matchedOfficer = await discordRosterService.findOfficer({
+              discordId: discordUser.id,
+              discordUsername: discordUser.username
+            });
+
+            if (matchedOfficer) {
+              const now = new Date();
+              const dateFormatted = now.toLocaleDateString('en-US', {
+                month: 'numeric',
+                day: 'numeric',
+                year: '2-digit',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              });
+
+              // Send DM directly to the officer's Discord inbox
+              const botToken = this.token || process.env.DISCORD_BOT_TOKEN || '';
+              if (botToken) {
+                await discordRosterService.sendDirectMessageToUser(botToken, discordUser.id, {
+                  content: `<@${discordUser.id}> Halo! Berikut adalah detail dari akun UCP Anda:`,
+                  embeds: [
+                    {
+                      author: {
+                        name: 'Cek Akun | High State',
+                        icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                      },
+                      title: '✅ Berhasil!',
+                      description: 'Berikut adalah detail dari akun UCP Anda:',
+                      color: 0x00A8FF,
+                      fields: [
+                        { name: 'UCP', value: matchedOfficer.name, inline: false },
+                        { name: 'Pin Code', value: matchedOfficer.pin || '10-4', inline: false },
+                        { name: 'No. Badge & Pangkat', value: `\`${matchedOfficer.badge || '-'}\` • ${matchedOfficer.rank || '-'}`, inline: false },
+                        { name: 'Divisi', value: matchedOfficer.division || 'Patrol Division', inline: false },
+                        { name: 'Note', value: 'Jangan beritahu informasi ini kepada orang lain!\n*Gunakan nama UCP / Badge dan Pin Code di atas untuk login ke Terminal MDT Kepolisian.*', inline: false }
+                      ],
+                      footer: {
+                        text: `Bot High State • ${dateFormatted}`,
+                        icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                      }
+                    }
+                  ]
+                });
+              }
+
+              return await sendCallback({
+                type: 4,
+                data: {
+                  flags: 64, // Ephemeral
+                  content: `♻️ **Informasi Akun Ditemukan!**\nDetail kredensial untuk **${matchedOfficer.name}** (${matchedOfficer.badge} - ${matchedOfficer.rank}) telah dikirimkan ke **Pesan Pribadi (DM) Discord** Anda!\n\n📋 **Salinan Kredensial Langsung:**\n• **Nama UCP:** \`${matchedOfficer.name}\`\n• **Lencana & Pangkat:** \`${matchedOfficer.badge}\` • ${matchedOfficer.rank}\n• **PIN Login:** ||**${matchedOfficer.pin}**|| *(Klik untuk membuka)*`
+                }
+              });
+            } else {
+              return await sendCallback({
+                type: 4,
+                data: {
+                  flags: 64,
+                  content: `⚠️ **Akun Discord Anda Belum Terdaftar:**\nAkun Discord ${userTag} belum tercatat di database personel kepolisian. Silakan klik tombol **[ 📄 Register ]** untuk membuat akun UCP / MDT baru.`
+                }
+              });
+            }
+          }
+
+          // [ BUTTON: LUPA PASSWORD ] -> Open Modal
+          if (customId === 'mdt_btn_forgot_password') {
+            const modalPayload = {
+              type: 9, // MODAL
+              data: {
+                custom_id: 'mdt_modal_forgot_password',
+                title: 'Permohonan Lupa Password / PIN',
+                components: [
+                  {
+                    type: 1,
+                    components: [
+                      {
+                        type: 4,
+                        custom_id: 'fp_ic_name',
+                        label: 'Nama IC Karakter Anda',
+                        style: 1,
+                        min_length: 3,
+                        max_length: 40,
+                        placeholder: 'Masukkan nama IC karakter Anda yang terdaftar',
+                        required: true
+                      }
+                    ]
+                  },
+                  {
+                    type: 1,
+                    components: [
+                      {
+                        type: 4,
+                        custom_id: 'fp_reason',
+                        label: 'Alasan / Keterangan Permohonan Reset',
+                        style: 2, // Paragraph
+                        min_length: 5,
+                        max_length: 300,
+                        placeholder: 'Jelaskan kendala login Anda (misal: Lupa PIN lama / ganti nomor PIN baru)',
+                        required: true
+                      }
+                    ]
+                  }
+                ]
+              }
+            };
+            return await sendCallback(modalPayload);
+          }
+
+          // [ BUTTON: TAKE ROLE ]
+          if (customId === 'mdt_btn_take_role') {
+            const matchedOfficer = await discordRosterService.findOfficer({
+              discordId: discordUser.id,
+              discordUsername: discordUser.username
+            });
+
+            if (matchedOfficer) {
+              return await sendCallback({
+                type: 4,
+                data: {
+                  flags: 64,
+                  content: `⚙️ **Status Dinas Terverifikasi:**\nAkun Anda tercatat sebagai personel resmi: **${matchedOfficer.name}** (${matchedOfficer.badge} - ${matchedOfficer.rank}). Role operasional Anda aktif di server kepolisian!`
+                }
+              });
+            } else {
+              return await sendCallback({
+                type: 4,
+                data: {
+                  flags: 64,
+                  content: `⚠️ **Belum Terdaftar:**\nAnda belum memiliki akun MDT terdaftar. Harap klik **[ 📄 Register ]** terlebih dahulu untuk membuat akun dinas baru.`
+                }
+              });
+            }
+          }
+        }
+
+        // =========================================================================
+        // 2. MODAL SUBMISSIONS (type: 5)
+        // =========================================================================
+        if (interactionType === 5) {
+
+          // [ MODAL SUBMISSION: REGISTRATION ]
+          if (customId === 'mdt_modal_register') {
+            let icName = '';
+            let pin = '';
+            let badge = '';
+            let phone = '';
+
+            if (Array.isArray(data.data?.components)) {
+              for (const row of data.data.components) {
+                if (Array.isArray(row.components)) {
+                  for (const comp of row.components) {
+                    if (comp.custom_id === 'reg_ic_name') icName = comp.value?.trim() || '';
+                    if (comp.custom_id === 'reg_pin') pin = comp.value?.trim() || '';
+                    if (comp.custom_id === 'reg_badge') badge = comp.value?.trim() || '';
+                    if (comp.custom_id === 'reg_phone') phone = comp.value?.trim() || '';
+                  }
+                }
+              }
+            }
+
+            console.log(`[Discord Gateway] Received Registration Modal Submit from @${discordUser.username}: IC="${icName}", Badge="${badge}"`);
+
+            const regResult = await discordRosterService.registerOfficer({
+              icName,
+              pin,
+              badge,
+              phone,
+              discordUser
+            });
+
+            if (!regResult.success) {
+              return await sendCallback({
+                type: 4,
+                data: {
+                  flags: 64, // Ephemeral
+                  content: `❌ **Pendaftaran Gagal:**\n${regResult.message}`
+                }
+              });
+            }
+
+            const off = regResult.officer!;
+
+            // 1. Respond immediately with Ephemeral Embed in Channel
+            await sendCallback({
+              type: 4,
+              data: {
+                flags: 64,
+                embeds: [
+                  {
+                    author: {
+                      name: 'MDT Panel High State Police Department',
+                      icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                    },
+                    title: '✅ Registrasi Akun MDT Kepolisian Berhasil!',
+                    description: `Selamat datang di jajaran kepolisian, **Cadet ${off.name}**!\nAkun dinas Anda telah berhasil dibuat dan otomatis langsung tersimpan di database resmi & Roster Anggota Kepolisian High State.`,
+                    color: 0x00A8FF,
+                    fields: [
+                      { name: '📄 Nama IC Karakter', value: `\`${off.name}\``, inline: true },
+                      { name: '🎖️ Nomor Lencana', value: `\`${off.badge}\``, inline: true },
+                      { name: '⭐ Pangkat Dinas', value: `\`${off.rank}\``, inline: true },
+                      { name: '🏢 Divisi Penugasan', value: `\`${off.division}\``, inline: true },
+                      { name: '📱 Kontak / HP IC', value: `\`${off.phone || '-'}\``, inline: true },
+                      { name: '💬 Akun Discord', value: `${userTag}`, inline: true },
+                      { name: '🔒 PIN Keamanan Login', value: `||**${off.pin}**|| *(Klik untuk melihat PIN)*`, inline: false }
+                    ],
+                    footer: {
+                      text: 'Pemberitahuan resmi • Salinan akun juga dikirimkan ke DM Anda'
+                    },
+                    timestamp: new Date().toISOString()
+                  }
+                ]
+              }
+            });
+
+            // 2. Also send permanent copy via DM to the user
+            const botToken = this.token || process.env.DISCORD_BOT_TOKEN || '';
+            if (botToken) {
+              const now = new Date();
+              const dateFormatted = now.toLocaleDateString('en-US', {
+                month: 'numeric',
+                day: 'numeric',
+                year: '2-digit',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              });
+
+              discordRosterService.sendDirectMessageToUser(botToken, discordUser.id, {
+                content: `<@${discordUser.id}> Halo! Berikut adalah detail dari akun UCP Anda:`,
+                embeds: [
+                  {
+                    author: {
+                      name: 'Cek Akun | High State',
+                      icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                    },
+                    title: '✅ Berhasil!',
+                    description: 'Berikut adalah detail dari akun UCP Anda:',
+                    color: 0x00A8FF,
+                    fields: [
+                      { name: 'UCP', value: off.name, inline: false },
+                      { name: 'Pin Code', value: off.pin || '10-4', inline: false },
+                      { name: 'No. Badge & Pangkat', value: `\`${off.badge}\` • ${off.rank}`, inline: false },
+                      { name: 'Divisi', value: off.division || 'Patrol Division', inline: false },
+                      { name: 'Note', value: 'Jangan beritahu informasi ini kepada orang lain!\n*Gunakan nama UCP / Badge dan Pin Code di atas untuk login ke Terminal MDT Kepolisian.*', inline: false }
+                    ],
+                    footer: {
+                      text: `Bot High State • ${dateFormatted}`,
+                      icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                    }
+                  }
+                ]
+              }).catch((e) => {
+                console.warn('[Discord Gateway] Warning sending registration DM to user:', e);
+              });
+            }
+
+            return;
+          }
+
+          // [ MODAL SUBMISSION: FORGOT PASSWORD ]
+          if (customId === 'mdt_modal_forgot_password') {
+            let icName = '';
+            let reason = '';
+
+            if (Array.isArray(data.data?.components)) {
+              for (const row of data.data.components) {
+                if (Array.isArray(row.components)) {
+                  for (const comp of row.components) {
+                    if (comp.custom_id === 'fp_ic_name') icName = comp.value?.trim() || '';
+                    if (comp.custom_id === 'fp_reason') reason = comp.value?.trim() || '';
+                  }
+                }
+              }
+            }
+
+            const ticketRes = await discordRosterService.submitPinResetTicket({
+              icName,
+              reason,
+              discordUser
+            });
+
+            return await sendCallback({
+              type: 4,
+              data: {
+                flags: 64,
+                embeds: [
+                  {
+                    title: '🚨 Permohonan Reset PIN Diterima',
+                    description: `Permohonan reset PIN untuk karakter **${icName}** telah diteruskan ke jajaran High Command / Atasan Divisi Kepolisian.\n\nAtasan akan memverifikasi permohonan Anda dan menghubungi Anda via Discord ${userTag}.`,
+                    color: 0xEF4444,
+                    footer: { text: 'Tiket Permohonan Login • High State MDT' },
+                    timestamp: new Date().toISOString()
+                  }
+                ]
+              }
+            });
+          }
+        }
+
+      } catch (err) {
+        console.error('[Discord Gateway] Error processing INTERACTION_CREATE:', err);
+      }
     }
   }
 

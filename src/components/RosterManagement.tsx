@@ -20,6 +20,7 @@ import {
   sendNewOfficerRegistrationToDiscord,
   sendOfficerLoginCredentialsToDiscord,
   sendOfficerDirectMessageViaBot,
+  lookupDiscordUser,
   getSavedWarningWebhookConfig,
   getSavedDischargeWebhookConfig,
   getSavedPromotionWebhookConfig,
@@ -440,6 +441,8 @@ export const RosterManagement: React.FC<Props> = ({
   // Quick Direct Message (PM via Bot Discord) Modal State
   const [targetDmOfficer, setTargetDmOfficer] = useState<OfficerAccount | null>(null);
   const [targetDmUserId, setTargetDmUserId] = useState('');
+  const [verifiedDiscordUser, setVerifiedDiscordUser] = useState<{ id: string; username: string; globalName?: string | null; tag?: string; avatarUrl?: string } | null>(null);
+  const [isVerifyingDiscordUser, setIsVerifyingDiscordUser] = useState(false);
   const [targetDmBotName, setTargetDmBotName] = useState('Cek Akun | High State');
   const [targetDmLogoUrl, setTargetDmLogoUrl] = useState('https://cdn-icons-png.flaticon.com/512/1022/1022382.png');
   const [targetDmEmbedTitle, setTargetDmEmbedTitle] = useState('✅ Berhasil!');
@@ -961,8 +964,9 @@ export const RosterManagement: React.FC<Props> = ({
   const handleOpenBotDmModal = (officer: OfficerAccount) => {
     setTargetDmOfficer(officer);
     const rawTag = (officer.discordTag || '').trim();
-    const digitsOnly = rawTag.replace(/\D/g, '');
-    setTargetDmUserId(digitsOnly || rawTag);
+    // Support Discord Username (e.g. aguy or @aguy) as well as numeric IDs
+    setTargetDmUserId(rawTag);
+    setVerifiedDiscordUser(null);
     
     const botCfg = getSavedDiscordBotConfig();
     setTargetDmBotName(botCfg.botName || 'Cek Akun | High State');
@@ -1022,12 +1026,34 @@ export const RosterManagement: React.FC<Props> = ({
     saveSuperiorDmPresets(updated);
   };
 
-  // Explicitly Save Target Discord User ID to Officer Account & Storage
+  // Check / Verify Discord Username / ID via Bot
+  const handleVerifyDiscordTarget = async () => {
+    if (!targetDmUserId.trim()) return;
+    setIsVerifyingDiscordUser(true);
+    setVerifiedDiscordUser(null);
+    try {
+      const res = await lookupDiscordUser(targetDmUserId.trim());
+      if (res.success && res.user) {
+        setVerifiedDiscordUser(res.user);
+        setDiscordIdSaveNotice(`✅ Akun Discord Terdeteksi: ${res.user.globalName || res.user.username} (@${res.user.username}) [ID: ${res.user.id}]`);
+      } else {
+        setDiscordIdSaveNotice(`⚠️ Username "${targetDmUserId}" belum terdeteksi di cache server bot (bisa langsung coba kirim).`);
+      }
+      setTimeout(() => setDiscordIdSaveNotice(null), 5000);
+    } catch (e: any) {
+      setDiscordIdSaveNotice(`❌ Gagal mendeteksi akun: ${e?.message || e}`);
+      setTimeout(() => setDiscordIdSaveNotice(null), 5000);
+    } finally {
+      setIsVerifyingDiscordUser(false);
+    }
+  };
+
+  // Explicitly Save Target Discord Username / ID to Officer Account & Storage
   const handleSaveTargetDiscordUserId = () => {
     if (!targetDmOfficer) return;
     const cleanId = targetDmUserId.trim();
     if (!cleanId) {
-      setDiscordIdSaveNotice('⚠️ Masukkan Discord User ID terlebih dahulu sebelum menyimpan!');
+      setDiscordIdSaveNotice('⚠️ Masukkan Username atau ID Discord terlebih dahulu sebelum menyimpan!');
       setTimeout(() => setDiscordIdSaveNotice(null), 4000);
       return;
     }
@@ -1052,14 +1078,14 @@ export const RosterManagement: React.FC<Props> = ({
       );
       saveRosterToStorage(nextRoster);
 
-      setDiscordIdSaveNotice(`✅ DISCORD USER ID (${cleanId}) BERHASIL DISIMPAN ke akun ${targetDmOfficer.name} (${targetDmOfficer.badge})!`);
-      setSuccessNotice(`✅ Discord User ID ${targetDmOfficer.name} (${targetDmOfficer.badge}) berhasil diperbarui: ${cleanId}`);
+      setDiscordIdSaveNotice(`✅ USERNAME / ID DISCORD (${cleanId}) BERHASIL DISIMPAN ke akun ${targetDmOfficer.name} (${targetDmOfficer.badge})!`);
+      setSuccessNotice(`✅ Username Discord ${targetDmOfficer.name} (${targetDmOfficer.badge}) berhasil diperbarui: ${cleanId}`);
       setTimeout(() => {
         setDiscordIdSaveNotice(null);
         setSuccessNotice('');
       }, 5000);
     } catch (err: any) {
-      setDiscordIdSaveNotice(`❌ Gagal menyimpan Discord User ID: ${err?.message || err}`);
+      setDiscordIdSaveNotice(`❌ Gagal menyimpan Username Discord: ${err?.message || err}`);
       setTimeout(() => setDiscordIdSaveNotice(null), 5000);
     } finally {
       setIsSavingTargetDiscordId(false);
@@ -1168,6 +1194,8 @@ export const RosterManagement: React.FC<Props> = ({
     try {
       const res = await sendOfficerDirectMessageViaBot({
         discordUserId: targetDmUserId.trim(),
+        discordUsername: targetDmUserId.trim(),
+        username: targetDmUserId.trim(),
         officerName: targetDmOfficerName.trim() || targetDmOfficer.name,
         pin: targetDmMessageType === 'custom_chat' ? undefined : (targetDmPin.trim() || targetDmOfficer.pin || '10-4'),
         badge: targetDmBadge.trim() || targetDmOfficer.badge,
@@ -2621,17 +2649,17 @@ export const RosterManagement: React.FC<Props> = ({
                       <div>
                         <label className="text-xs font-bold text-indigo-300 uppercase flex items-center gap-1.5 mb-1.5">
                           <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
-                          <span>Akun / Tag Discord Petugas:</span>
+                          <span>Username Discord Petugas:</span>
                         </label>
                         <input
                           type="text"
                           value={editDiscordTag}
                           onChange={(e) => setEditDiscordTag(e.target.value)}
-                          placeholder="Contoh: @nexia / 842019283719001"
+                          placeholder="Contoh: aguy atau @aguy"
                           className="w-full px-3 py-2 bg-[#161B22] border border-indigo-700/60 focus:border-indigo-400 rounded-lg text-xs text-indigo-200 outline-none font-mono"
                         />
                         <span className="text-[10px] text-gray-400 mt-1 block">
-                          Digunakan untuk mention & bot pengirim akun login
+                          Masukkan username Discord (contoh: aguy). Bot otomatis mendeteksi tanpa repot mencari User ID angka.
                         </span>
                       </div>
 
@@ -3001,17 +3029,17 @@ export const RosterManagement: React.FC<Props> = ({
                 <div className="sm:col-span-6 space-y-1">
                   <label className="text-[10px] font-bold text-indigo-300 uppercase flex items-center gap-1">
                     <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Nama / Discord User ID (Untuk PM Langsung)</span>
+                    <span>Username Discord (Untuk PM Langsung)</span>
                   </label>
                   <input
                     type="text"
                     value={addDiscordTag}
                     onChange={(e) => setAddDiscordTag(e.target.value)}
-                    placeholder="Contoh: 842019283719001 / @nexia"
+                    placeholder="Contoh: aguy atau @aguy"
                     className="w-full px-3 py-2 bg-[#0D1117] border border-indigo-700/60 focus:border-indigo-400 rounded-lg text-xs text-indigo-200 placeholder:text-gray-600 outline-none font-mono"
                   />
                   <span className="text-[9px] text-indigo-400/80 block">
-                    Gunakan <strong>User ID angka</strong> (Copy ID) agar bot dapat langsung mengirim PM
+                    Cukup ketik <strong>Username Discord</strong> (contoh: aguy). Bot otomatis mendeteksi tanpa repot mencari User ID angka.
                   </span>
                 </div>
 
@@ -3361,11 +3389,11 @@ export const RosterManagement: React.FC<Props> = ({
                       </div>
                     </div>
 
-                    {/* Discord User ID Input */}
-                    <div className="space-y-1.5 p-3 bg-[#0D1117]/80 border border-sky-900/50 rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-[11px] font-bold text-gray-200 uppercase flex items-center gap-1.5">
-                          <span>DISCORD USER ID TARGET:</span>
+                    {/* Discord Username / User ID Target Input */}
+                    <div className="space-y-2 p-3.5 bg-[#0D1117]/90 border border-sky-600/60 rounded-xl shadow-inner">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <label className="block text-[11px] font-bold text-sky-200 uppercase flex items-center gap-1.5 font-mono">
+                          <span>USERNAME DISCORD TARGET:</span>
                           <span className="text-rose-400">*</span>
                           {targetDmOfficer && (
                             <span className="text-[10px] px-2 py-0.5 bg-sky-950/80 border border-sky-700/60 rounded text-sky-300 font-normal">
@@ -3373,44 +3401,90 @@ export const RosterManagement: React.FC<Props> = ({
                             </span>
                           )}
                         </label>
-                        <span className="text-[10px] text-sky-400">Numerik 17-20 digit</span>
+                        <span className="text-[10px] text-emerald-400 font-mono font-semibold">
+                          ✨ Deteksi Otomatis Username / Tag
+                        </span>
                       </div>
+
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
                           value={targetDmUserId}
-                          onChange={(e) => setTargetDmUserId(e.target.value)}
-                          placeholder="Contoh: 842019283719001 (17-20 digit angka)"
-                          className="flex-1 px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-sky-200 outline-none font-mono"
+                          onChange={(e) => {
+                            setTargetDmUserId(e.target.value);
+                            if (verifiedDiscordUser) setVerifiedDiscordUser(null);
+                          }}
+                          placeholder="Ketik Username Discord (contoh: aguy atau @aguy)"
+                          className="flex-1 px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-sky-400 focus:ring-1 focus:ring-sky-400 rounded-lg text-xs text-sky-100 outline-none font-mono placeholder:text-gray-500"
                           required
                         />
+
+                        <button
+                          type="button"
+                          onClick={handleVerifyDiscordTarget}
+                          disabled={isVerifyingDiscordUser || !targetDmUserId.trim()}
+                          className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition whitespace-nowrap cursor-pointer active:scale-95"
+                          title="Cek apakah username ini terdeteksi di server bot Discord"
+                        >
+                          {isVerifyingDiscordUser ? (
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Search className="w-3.5 h-3.5" />
+                          )}
+                          <span>Deteksi Akun</span>
+                        </button>
+
                         <button
                           id="btn-save-target-discord-user-id"
                           type="button"
                           onClick={handleSaveTargetDiscordUserId}
                           disabled={isSavingTargetDiscordId || !targetDmUserId.trim()}
-                          className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 disabled:bg-gray-800 disabled:text-gray-500 text-white rounded text-xs font-mono font-bold flex items-center gap-1.5 transition shadow-sm whitespace-nowrap cursor-pointer"
-                          title={`Simpan Discord User ID ini secara permanen HANYA ke akun ${targetDmOfficer?.name || 'anggota ini'}`}
+                          className="px-3.5 py-2 bg-sky-600 hover:bg-sky-500 disabled:bg-gray-800 disabled:text-gray-500 text-white rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 transition shadow-sm whitespace-nowrap cursor-pointer active:scale-95"
+                          title={`Simpan Username Discord ini ke akun ${targetDmOfficer?.name || 'anggota ini'}`}
                         >
                           <Save className="w-3.5 h-3.5" />
-                          <span>{isSavingTargetDiscordId ? 'Menyimpan...' : 'Simpan ID Target'}</span>
+                          <span>{isSavingTargetDiscordId ? 'Menyimpan...' : 'Simpan'}</span>
                         </button>
+
                         {targetDmOfficer?.discordTag && (
                           <button
                             id="btn-clear-target-discord-user-id"
                             type="button"
                             onClick={handleClearTargetDiscordUserId}
                             disabled={isSavingTargetDiscordId}
-                            className="px-2.5 py-2 bg-rose-950/60 hover:bg-rose-900 border border-rose-800/80 text-rose-300 hover:text-white rounded text-xs font-mono font-bold flex items-center gap-1 transition whitespace-nowrap cursor-pointer"
-                            title={`Hapus Discord User ID dari akun ${targetDmOfficer.name} (${targetDmOfficer.badge})`}
+                            className="px-2.5 py-2 bg-rose-950/60 hover:bg-rose-900 border border-rose-800/80 text-rose-300 hover:text-white rounded-lg text-xs font-mono font-bold flex items-center gap-1 transition whitespace-nowrap cursor-pointer"
+                            title={`Hapus Username Discord dari akun ${targetDmOfficer.name} (${targetDmOfficer.badge})`}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
-                            <span>Hapus ID</span>
+                            <span>Hapus</span>
                           </button>
                         )}
                       </div>
+
+                      {/* Verified User Pill if detected */}
+                      {verifiedDiscordUser && (
+                        <div className="p-2 bg-emerald-950/70 border border-emerald-500/70 rounded-lg flex items-center justify-between gap-2 text-xs text-emerald-200 font-mono animate-in fade-in">
+                          <div className="flex items-center gap-2">
+                            {verifiedDiscordUser.avatarUrl && (
+                              <img
+                                src={verifiedDiscordUser.avatarUrl}
+                                alt=""
+                                className="w-5 h-5 rounded-full object-contain bg-black/40"
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
+                            <span>
+                              <strong>{verifiedDiscordUser.globalName || verifiedDiscordUser.username}</strong> (@{verifiedDiscordUser.username})
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-emerald-400 bg-emerald-900/60 px-2 py-0.5 rounded border border-emerald-700/50">
+                            ID: {verifiedDiscordUser.id}
+                          </span>
+                        </div>
+                      )}
+
                       {discordIdSaveNotice && (
-                        <div className={`p-2 rounded text-xs font-mono border ${
+                        <div className={`p-2 rounded-lg text-xs font-mono border ${
                           discordIdSaveNotice.includes('✅')
                             ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300'
                             : 'bg-rose-950/80 border-rose-500 text-rose-300'
@@ -3418,12 +3492,19 @@ export const RosterManagement: React.FC<Props> = ({
                           {discordIdSaveNotice}
                         </div>
                       )}
-                      <div className="text-[10px] text-gray-400 flex flex-wrap items-center justify-between gap-1 pt-0.5">
-                        <span>💡 <strong>Cara dapat User ID:</strong> Buka Discord &gt; <em>Settings &gt; Advanced &gt; Aktifkan Developer Mode</em> &gt; Klik kanan profil &gt; <strong>Copy User ID</strong>.</span>
+
+                      <div className="text-[10.5px] text-gray-400 flex flex-wrap items-center justify-between gap-1 pt-0.5 font-mono">
+                        <span>
+                          💡 <strong>Tidak perlu repot cari User ID:</strong> Cukup ketik Username Discord personel (contoh: <code>aguy</code> atau <code>@aguy</code>). Bot otomatis mendeteksi dan mengirim ke DM Discord miliknya.
+                        </span>
                         {targetDmOfficer?.discordTag ? (
-                          <span className="text-emerald-400 font-mono text-[10px] font-semibold">Tersimpan di Akun {targetDmOfficer.badge}: {targetDmOfficer.discordTag}</span>
+                          <span className="text-emerald-400 font-mono text-[10px] font-semibold">
+                            Tersimpan di Akun {targetDmOfficer.badge}: {targetDmOfficer.discordTag}
+                          </span>
                         ) : (
-                          <span className="text-amber-400/80 font-mono text-[10px]">Belum tersimpan di akun ini</span>
+                          <span className="text-amber-400/80 font-mono text-[10px]">
+                            Belum tersimpan di akun ini
+                          </span>
                         )}
                       </div>
                     </div>

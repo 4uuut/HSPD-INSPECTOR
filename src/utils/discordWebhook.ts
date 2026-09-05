@@ -95,6 +95,33 @@ export const DISCORD_BOT_EMBED_DESC_KEY = 'hspd_discord_bot_embed_desc';
 export const DISCORD_BOT_EMBED_COLOR_KEY = 'hspd_discord_bot_embed_color';
 export const DISCORD_BOT_FOOTER_TEXT_KEY = 'hspd_discord_bot_footer_text';
 
+// Dedicated Discord Registration Panel Channel & Content Keys (Sesuai Gambar Referensi)
+export const DISCORD_REGISTRATION_CHANNEL_ID_KEY = 'hspd_discord_reg_channel_id';
+export const DISCORD_REGISTRATION_TITLE_KEY = 'hspd_discord_reg_title';
+export const DISCORD_REGISTRATION_DESC_KEY = 'hspd_discord_reg_desc';
+export const DISCORD_REGISTRATION_COLOR_KEY = 'hspd_discord_reg_color';
+export const DISCORD_REGISTRATION_THUMBNAIL_KEY = 'hspd_discord_reg_thumbnail';
+export const DISCORD_REGISTRATION_FOOTER_KEY = 'hspd_discord_reg_footer';
+export const DISCORD_REGISTRATION_URL_KEY = 'hspd_discord_reg_url';
+
+export const DEFAULT_REGISTRATION_PANEL_DESC = 
+`Channel ini merupakan tempat dimana kamu dapat mengatur akun UCP kamu sendiri. Terdapat beberapa hal yang harus kamu ketahui, diantaranya:
+
+[ 📄 Register UCP ]
+Informasi Sebagaimana dengan judulnya, ini merupakan tombol dimana kamu dapat mengambil Tiket (membuat akun UCP). Sebelum kamu bermain peran di High State maka Tiket adalah kewajiban utama yang harus kamu miliki, disinilah tempatnya!
+
+[ ♻️ Resend Code ]
+Informasi Kamu dapat melihat status Tiketmu apakah sudah terverifikasi ataukah belum, kamu juga dapat melihat informasi kode verifikasi melalui ini jikalau kamu belum menerima DM dari BOT @High State Roleplay
+
+[ 🚨 Lupa Password ]
+Sesuai dengan namanya, tombol ini merupakan tempat apabila kamu lupa kata sandi atau ingin mengganti kata sandi.
+
+[ ⚙️ Fix Role ]
+Informasi ini adalah tempat dimana ketika kalian sudah melakukan register/ambil tiket dan tidak mendapatkan role @unknown-role maka silahkan gunakan Reff Role, dan disini juga tempat dimana ketika kalian tidak sengaja ataupun sengaja keluar dari discord High State dan ingin main lagi di High State maka silahkan gunakan tombol Reff Role untuk mengambil role @unknown-role!
+
+[ ⚠️ Penting ]
+Jangan lupa untuk hidupin direct message agar pm bot mengirim ucp bisa masuk! Dan Pastikan Akun Discord kamu sudah dibuat lebih dari 7Hari!`;
+
 export const PRESET_DISCORD_BOT_LOGOS = [
   {
     name: 'High State Blue Robot',
@@ -137,6 +164,13 @@ export interface DiscordBotConfig {
   embedDescription: string;
   embedColor: string;
   footerText: string;
+  registrationChannelId?: string;
+  registrationEmbedTitle?: string;
+  registrationEmbedDesc?: string;
+  registrationEmbedColor?: string;
+  registrationThumbnail?: string;
+  registrationFooter?: string;
+  registrationRegisterUrl?: string;
 }
 
 export function getSavedDiscordBotConfig(): DiscordBotConfig {
@@ -149,7 +183,14 @@ export function getSavedDiscordBotConfig(): DiscordBotConfig {
       embedTitle: localStorage.getItem(DISCORD_BOT_EMBED_TITLE_KEY) || '✅ Berhasil!',
       embedDescription: localStorage.getItem(DISCORD_BOT_EMBED_DESC_KEY) || 'Berikut adalah detail dari akun UCP Anda:',
       embedColor: localStorage.getItem(DISCORD_BOT_EMBED_COLOR_KEY) || '#00A8FF',
-      footerText: localStorage.getItem(DISCORD_BOT_FOOTER_TEXT_KEY) || 'Bot High State'
+      footerText: localStorage.getItem(DISCORD_BOT_FOOTER_TEXT_KEY) || 'Bot High State',
+      registrationChannelId: localStorage.getItem(DISCORD_REGISTRATION_CHANNEL_ID_KEY) || '',
+      registrationEmbedTitle: localStorage.getItem(DISCORD_REGISTRATION_TITLE_KEY) || 'UCP Panel High State',
+      registrationEmbedDesc: localStorage.getItem(DISCORD_REGISTRATION_DESC_KEY) || DEFAULT_REGISTRATION_PANEL_DESC,
+      registrationEmbedColor: localStorage.getItem(DISCORD_REGISTRATION_COLOR_KEY) || '#00A8FF',
+      registrationThumbnail: localStorage.getItem(DISCORD_REGISTRATION_THUMBNAIL_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      registrationFooter: localStorage.getItem(DISCORD_REGISTRATION_FOOTER_KEY) || 'Bot High State',
+      registrationRegisterUrl: localStorage.getItem(DISCORD_REGISTRATION_URL_KEY) || ''
     };
   } catch {
     return {
@@ -160,7 +201,14 @@ export function getSavedDiscordBotConfig(): DiscordBotConfig {
       embedTitle: '✅ Berhasil!',
       embedDescription: 'Berikut adalah detail dari akun UCP Anda:',
       embedColor: '#00A8FF',
-      footerText: 'Bot High State'
+      footerText: 'Bot High State',
+      registrationChannelId: '',
+      registrationEmbedTitle: 'UCP Panel High State',
+      registrationEmbedDesc: DEFAULT_REGISTRATION_PANEL_DESC,
+      registrationEmbedColor: '#00A8FF',
+      registrationThumbnail: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      registrationFooter: 'Bot High State',
+      registrationRegisterUrl: ''
     };
   }
 }
@@ -175,6 +223,16 @@ export function saveDiscordBotConfig(config: Partial<DiscordBotConfig>) {
     if (config.embedDescription !== undefined) localStorage.setItem(DISCORD_BOT_EMBED_DESC_KEY, config.embedDescription.trim());
     if (config.embedColor !== undefined) localStorage.setItem(DISCORD_BOT_EMBED_COLOR_KEY, config.embedColor.trim());
     if (config.footerText !== undefined) localStorage.setItem(DISCORD_BOT_FOOTER_TEXT_KEY, config.footerText.trim());
+
+    // Registration Panel Settings
+    if (config.registrationChannelId !== undefined) localStorage.setItem(DISCORD_REGISTRATION_CHANNEL_ID_KEY, config.registrationChannelId.trim());
+    if (config.registrationEmbedTitle !== undefined) localStorage.setItem(DISCORD_REGISTRATION_TITLE_KEY, config.registrationEmbedTitle.trim());
+    if (config.registrationEmbedDesc !== undefined) localStorage.setItem(DISCORD_REGISTRATION_DESC_KEY, config.registrationEmbedDesc.trim());
+    if (config.registrationEmbedColor !== undefined) localStorage.setItem(DISCORD_REGISTRATION_COLOR_KEY, config.registrationEmbedColor.trim());
+    if (config.registrationThumbnail !== undefined) localStorage.setItem(DISCORD_REGISTRATION_THUMBNAIL_KEY, config.registrationThumbnail.trim());
+    if (config.registrationFooter !== undefined) localStorage.setItem(DISCORD_REGISTRATION_FOOTER_KEY, config.registrationFooter.trim());
+    if (config.registrationRegisterUrl !== undefined) localStorage.setItem(DISCORD_REGISTRATION_URL_KEY, config.registrationRegisterUrl.trim());
+
     syncAllWebhooksToFirestore();
 
     // Auto-connect / Keep bot online (Green) 24/7 whenever token is provided
@@ -2470,18 +2528,18 @@ export async function sendOfficerDirectMessageViaBot(params: {
   footerText?: string;
   customMessage?: string;
   messageType?: 'credentials' | 'custom_chat';
+  discordUsername?: string;
+  username?: string;
+  discordTag?: string;
 }): Promise<{ success: boolean; message: string }> {
   const botConfig = getSavedDiscordBotConfig();
   const token = (params.customBotToken || botConfig.botToken || '').trim();
-  const rawId = params.discordUserId || params.userId || '';
+  const rawTarget = (params.discordUsername || params.username || params.discordTag || params.discordUserId || params.userId || '').toString().trim();
 
-  // Extract clean numeric digits
-  const cleanId = rawId.toString().replace(/[^0-9]/g, '');
-
-  if (!cleanId || cleanId.length < 16) {
+  if (!rawTarget) {
     return {
       success: false,
-      message: `ID Discord '${rawId || ''}' tidak valid. Untuk mengirim Pesan Pribadi (PM) otomatis via Bot, masukkan Discord User ID numerik (17-20 digit angka, contoh: 842019283719001). Caranya: Aktifkan Developer Mode di Discord Settings -> Advanced -> Klik kanan profil -> Copy User ID.`
+      message: 'Username atau ID Discord tujuan tidak boleh kosong! Masukkan username Discord anggota (contoh: aguy atau @aguy).'
     };
   }
 
@@ -2491,7 +2549,8 @@ export async function sendOfficerDirectMessageViaBot(params: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         botToken: token,
-        userId: cleanId,
+        userId: rawTarget,
+        username: rawTarget,
         officerName: params.officerName,
         pin: params.pin || '10-4',
         badge: params.officerBadge || params.badge,
@@ -2525,6 +2584,96 @@ export async function sendOfficerDirectMessageViaBot(params: {
     return {
       success: false,
       message: `Gagal menghubungi server: ${err.message || err}`
+    };
+  }
+}
+
+/**
+ * Search/Lookup Discord User profile by Username or ID
+ */
+export async function lookupDiscordUser(query: string, customBotToken?: string): Promise<{
+  success: boolean;
+  user?: {
+    id: string;
+    username: string;
+    globalName: string | null;
+    tag: string;
+    avatarUrl: string;
+  };
+  message?: string;
+}> {
+  try {
+    const botConfig = getSavedDiscordBotConfig();
+    const token = (customBotToken || botConfig.botToken || '').trim();
+    const res = await fetch('/api/discord/lookup-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, botToken: token })
+    });
+    return await res.json();
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Gagal menghubungi server pencarian akun Discord' };
+  }
+}
+
+/**
+ * Fetch available text channels from Bot's Discord Guilds
+ */
+export async function fetchDiscordChannels(customBotToken?: string): Promise<Array<{ id: string; name: string; guildName: string; type: number }>> {
+  try {
+    const botConfig = getSavedDiscordBotConfig();
+    const token = (customBotToken || botConfig.botToken || '').trim();
+    if (!token) return [];
+    const res = await fetch(`/api/discord/channels?botToken=${encodeURIComponent(token)}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.channels || [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Send interactive registration panel embed to designated Discord channel
+ */
+export async function sendRegistrationPanelToDiscord(params: {
+  channelId: string;
+  embedTitle?: string;
+  embedDescription?: string;
+  embedColor?: string;
+  footerText?: string;
+  thumbnailUrl?: string;
+  registerUrl?: string;
+  botName?: string;
+  botToken?: string;
+}): Promise<{ success: boolean; message: string; messageId?: string }> {
+  try {
+    const cfg = getSavedDiscordBotConfig();
+    const res = await fetch('/api/discord/send-registration-panel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channelId: params.channelId,
+        embedTitle: params.embedTitle || cfg.registrationEmbedTitle || 'UCP Panel High State',
+        embedDescription: params.embedDescription || cfg.registrationEmbedDesc || DEFAULT_REGISTRATION_PANEL_DESC,
+        embedColor: params.embedColor || cfg.registrationEmbedColor || '#00A8FF',
+        footerText: params.footerText || cfg.registrationFooter || 'Bot High State',
+        thumbnailUrl: params.thumbnailUrl || cfg.registrationThumbnail || cfg.botAvatar,
+        registerUrl: params.registerUrl || cfg.registrationRegisterUrl || '',
+        botName: params.botName || cfg.botName,
+        botToken: params.botToken || cfg.botToken
+      })
+    });
+    const data = await res.json();
+    return {
+      success: res.ok && data.success,
+      message: data.message || (res.ok ? 'Panel registrasi berhasil dikirim!' : 'Gagal mengirim panel.'),
+      messageId: data.messageId
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `Error jaringan: ${err?.message || err}`
     };
   }
 }

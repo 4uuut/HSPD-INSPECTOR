@@ -89,24 +89,23 @@ export const BatchPinBroadcastModal: React.FC<Props> = ({
 
   if (!isOpen) return null;
 
-  // Filter accounts with clean numeric Discord IDs
-  const officersWithValidId = roster.filter(o => {
+  // Check if officer has valid Discord target (numeric ID or username)
+  const isOfficerTargetValid = (o: OfficerAccount) => {
     const raw = (o.discordTag || '').trim();
+    if (!raw || raw === '-' || raw === 'none' || raw === 'Belum Ada' || raw === 'Tidak Ada') return false;
     const cleanId = raw.replace(/\D/g, '');
-    return cleanId.length >= 16;
-  });
+    if (cleanId.length >= 16) return true;
+    const cleanUsername = raw.replace(/^@+/, '').trim();
+    return cleanUsername.length >= 2;
+  };
 
-  const officersWithoutId = roster.filter(o => {
-    const raw = (o.discordTag || '').trim();
-    const cleanId = raw.replace(/\D/g, '');
-    return cleanId.length < 16;
-  });
+  // Filter accounts with valid Discord targets
+  const officersWithValidId = roster.filter(isOfficerTargetValid);
+  const officersWithoutId = roster.filter(o => !isOfficerTargetValid(o));
 
   // Displayed officers list
   const filteredOfficers = roster.filter(o => {
-    const raw = (o.discordTag || '').trim();
-    const cleanId = raw.replace(/\D/g, '');
-    const hasValid = cleanId.length >= 16;
+    const hasValid = isOfficerTargetValid(o);
 
     if (filterType === 'valid_id' && !hasValid) return false;
     if (filterType === 'missing_id' && hasValid) return false;
@@ -177,15 +176,15 @@ export const BatchPinBroadcastModal: React.FC<Props> = ({
       const officer = roster[i];
       setCurrentIndex(i + 1);
 
-      const raw = (officer.discordTag || '').trim();
-      const cleanId = raw.replace(/\D/g, '');
+      const rawTarget = (officer.discordTag || '').trim();
+      const hasValidTarget = isOfficerTargetValid(officer);
 
-      if (!cleanId || cleanId.length < 16) {
+      if (!hasValidTarget) {
         localSkipped++;
         setSkippedCount(localSkipped);
         addLog(
           'warning', 
-          `[${officer.badge}] ${officer.name}: DILEWATI (Tidak memiliki Discord User ID numerik: "${officer.discordTag || 'KOSONG'}")`,
+          `[${officer.badge}] ${officer.name}: DILEWATI (Tidak memiliki akun Discord: "${officer.discordTag || 'KOSONG'}")`,
           officer.badge,
           officer.name
         );
@@ -194,9 +193,10 @@ export const BatchPinBroadcastModal: React.FC<Props> = ({
 
       // Send Bot PM
       try {
-        addLog('info', `[${officer.badge}] Mengirim kredensial PIN ke ${officer.name} (Discord ID: ${cleanId})...`);
+        addLog('info', `[${officer.badge}] Mengirim kredensial PIN ke ${officer.name} (${rawTarget})...`);
         const res = await sendOfficerDirectMessageViaBot({
-          userId: cleanId,
+          userId: rawTarget,
+          discordUsername: rawTarget,
           officerName: officer.name,
           pin: officer.pin || '10-4',
           badge: officer.badge,
@@ -211,7 +211,7 @@ export const BatchPinBroadcastModal: React.FC<Props> = ({
           setSuccessCount(localSuccess);
           addLog(
             'success', 
-            `[${officer.badge}] ${officer.name}: BERHASIL TERKIRIM KE PM DISCORD (${cleanId})`,
+            `[${officer.badge}] ${officer.name}: BERHASIL TERKIRIM KE PM DISCORD (${rawTarget})`,
             officer.badge,
             officer.name
           );

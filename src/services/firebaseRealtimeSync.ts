@@ -65,8 +65,8 @@ const notifyStatus = (partial: Partial<FirebaseSyncStatus>) => {
 export const SYNC_COLLECTIONS = {
   ROSTER: {
     name: 'roster',
-    storageKey: 'hspd_roster_database_v4',
-    altStorageKeys: ['hspd_roster_database_v3', 'hspd_roster_database_v2', 'hspd_roster_accounts_v1'],
+    storageKey: 'hspd_roster_database_v5',
+    altStorageKeys: [],
     event: 'hspd-roster-updated'
   },
   ARREST_RECORDS: {
@@ -492,6 +492,16 @@ export async function pullLatestFromFirestore<T = any>(collectionKey: Collection
 
     let finalItems = items;
     if (collectionKey === 'ROSTER') {
+      try {
+        const apiRes = await fetch('/api/discord/roster').then(r => r.json()).catch(() => null);
+        if (apiRes?.success && Array.isArray(apiRes.officers) && apiRes.officers.length > 0) {
+          apiRes.officers.forEach((off: any) => {
+            if (!items.some(it => it.badge === off.badge || (it.name && off.name && it.name.toLowerCase() === off.name.toLowerCase()))) {
+              items.push(off);
+            }
+          });
+        }
+      } catch {}
       finalItems = mergeWithOfficialRoster(items);
     } else {
       finalItems.sort((a, b) => {

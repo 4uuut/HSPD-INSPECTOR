@@ -3,8 +3,24 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 import { discordGatewayManager } from './server/discordBotService.ts';
+import { discordRosterService } from './server/discordRosterService.ts';
 
 dotenv.config();
+
+// Prevent unhandled WebSocket / network events from crashing the server
+process.on('uncaughtException', (err: any) => {
+  const msg = err?.message || String(err);
+  if (msg.includes('WebSocket') || err?.code === 'ECONNRESET' || err?.code === 'ETIMEDOUT') {
+    console.warn('[Server Gateway] Suppressed non-fatal WebSocket/network exception:', msg);
+    return;
+  }
+  console.error('[Server] Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason: any) => {
+  const msg = reason?.message || String(reason);
+  console.warn('[Server] Handled unhandled promise rejection:', msg);
+});
 
 async function startServer() {
   const app = express();
@@ -58,12 +74,249 @@ async function startServer() {
     res.json({ success: true, message: 'Discord Bot Gateway dinonaktifkan (status offline).' });
   });
 
-  // Discord Bot Direct Message (PM / DM) API
+  // Get all Discord registered officers from database / backup
+  app.get('/api/discord/roster', async (req, res) => {
+    try {
+      const officers = await discordRosterService.getAllOfficers();
+      res.json({ success: true, officers });
+    } catch (e: any) {
+      res.status(500).json({ success: false, message: e.message, officers: [] });
+    }
+  });
+
+  // Register officer directly via API (mirrors Discord modal)
+  app.post('/api/discord/register-officer', async (req, res) => {
+    try {
+      const { icName, pin, badge, phone, discordUsername, discordUserId } = req.body;
+      const result = await discordRosterService.registerOfficer({
+        icName,
+        pin,
+        badge,
+        phone,
+        discordUser: {
+          id: discordUserId || 'api_user',
+          username: discordUsername || 'api_user'
+        }
+      });
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ success: false, message: e.message });
+    }
+  });
+
+  // Helper: Resolve Discord Username or User ID to full profile & numeric ID
+  interface ResolvedDiscordUser {
+    id: string;
+    username: string;
+    globalName: string | null;
+    tag: string;
+    avatarUrl: string;
+  }
+
+  async function resolveDiscordUser(query: string, token: string): Promise<{ success: boolean; user?: ResolvedDiscordUser; message?: string }> {
+    if (!query || !query.trim()) {
+      return { success: false, message: 'Username atau ID Discord target tidak boleh kosong!' };
+    }
+
+    const clean = query.trim();
+    const numericOnly = clean.replace(/[^0-9]/g, '');
+
+    // 1. If it's a numeric ID (17-22 digits, strictly numeric without @ or spaces)
+    if (numericOnly.length >= 16 && numericOnly.length <= 22 && !clean.includes('@') && !clean.includes(' ') && /^\d+$/.test(clean)) {
+      try {
+        const userRes = await fetch(`https://discord.com/api/v10/users/${numericOnly}`, {
+          headers: { Authorization: `Bot ${token}` }
+        });
+        if (userRes.ok) {
+          const u = await userRes.json() as any;
+          const avatarUrl = u.avatar
+            ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png`
+            : `https://cdn.discordapp.com/embed/avatars/${(parseInt(u.discriminator || '0', 10) || 0) % 5}.png`;
+          return {
+            success: true,
+            user: {
+              id: u.id,
+              username: u.username,
+              globalName: u.global_name || null,
+              tag: u.discriminator && u.discriminator !== '0' ? `${u.username}#${u.discriminator}` : `@${u.username}`,
+              avatarUrl
+            }
+          };
+        }
+      } catch {}
+      return {
+        success: true,
+        user: {
+          id: numericOnly,
+          username: numericOnly,
+          globalName: null,
+          tag: numericOnly,
+          avatarUrl: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+        }
+      };
+    }
+
+    // 2. Query is a username (e.g. "@aguy", "aguy", "aguy#1234")
+    const stripped = clean.replace(/^@+/, '').trim();
+    const [targetUsername] = stripped.split('#');
+    const targetLower = targetUsername.toLowerCase().trim();
+
+    try {
+      const guildsRes = await fetch('https://discord.com/api/v10/users/@me/guilds', {
+        headers: { Authorization: `Bot ${token}` }
+      });
+
+      if (!guildsRes.ok) {
+        const errJson = await guildsRes.json().catch(() => ({}));
+        return { 
+          success: false, 
+          message: `Gagal mengakses server Discord Bot: ${errJson.message || guildsRes.statusText}. Pastikan Bot Token valid.` 
+        };
+      }
+
+      const guilds = await guildsRes.json() as Array<{ id: string; name: string }>;
+      if (!guilds || guilds.length === 0) {
+        return {
+          success: false,
+          message: 'Bot belum diundang ke server/guild Discord manapun! Undang bot ke server Discord Anda terlebih dahulu.'
+        };
+      }
+
+      let candidateUser: ResolvedDiscordUser | null = null;
+
+      for (const guild of guilds) {
+        try {
+          const searchRes = await fetch(
+            `https://discord.com/api/v10/guilds/${guild.id}/members/search?query=${encodeURIComponent(targetUsername)}&limit=10`,
+            { headers: { Authorization: `Bot ${token}` } }
+          );
+
+          if (!searchRes.ok) continue;
+
+          const members = await searchRes.json() as Array<{
+            nick?: string;
+            user: {
+              id: string;
+              username: string;
+              discriminator?: string;
+              global_name?: string;
+              avatar?: string;
+            }
+          }>;
+
+          for (const m of members) {
+            const u = m.user;
+            const uNameLower = (u.username || '').toLowerCase();
+            const gNameLower = (u.global_name || '').toLowerCase();
+            const nickLower = (m.nick || '').toLowerCase();
+
+            const isExact = uNameLower === targetLower || gNameLower === targetLower || nickLower === targetLower;
+            const avatarUrl = u.avatar
+              ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png`
+              : `https://cdn.discordapp.com/embed/avatars/${(parseInt(u.discriminator || '0', 10) || 0) % 5}.png`;
+
+            const resolved: ResolvedDiscordUser = {
+              id: u.id,
+              username: u.username,
+              globalName: u.global_name || m.nick || null,
+              tag: u.discriminator && u.discriminator !== '0' ? `${u.username}#${u.discriminator}` : `@${u.username}`,
+              avatarUrl
+            };
+
+            if (isExact) {
+              return { success: true, user: resolved };
+            }
+            if (!candidateUser) {
+              candidateUser = resolved;
+            }
+          }
+        } catch (err) {
+          console.warn(`[Discord Lookup] Error searching in guild ${guild.id}:`, err);
+        }
+      }
+
+      if (candidateUser) {
+        return { success: true, user: candidateUser };
+      }
+
+      return {
+        success: false,
+        message: `User Discord dengan username '${clean}' tidak ditemukan di server/guild tempat Bot berada. Pastikan akun tersebut sudah berada di server yang sama dengan Bot!`
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: `Gagal mencari user di Discord: ${err.message || err}`
+      };
+    }
+  }
+
+  // Lookup Discord User endpoint (Finds by Username or ID)
+  app.post('/api/discord/lookup-user', async (req, res) => {
+    try {
+      const { query, botToken } = req.body;
+      const token = (botToken || discordGatewayManager.getActiveToken() || process.env.DISCORD_BOT_TOKEN || '').trim();
+      if (!token) {
+        return res.status(400).json({ success: false, message: 'Bot token belum dikonfigurasi.' });
+      }
+      const result = await resolveDiscordUser(query, token);
+      return res.json(result);
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err.message || 'Error mencari user Discord' });
+    }
+  });
+
+  // Get Discord Guild Channels
+  app.get('/api/discord/channels', async (req, res) => {
+    try {
+      const token = (req.query.botToken as string || discordGatewayManager.getActiveToken() || process.env.DISCORD_BOT_TOKEN || '').trim();
+      if (!token) {
+        return res.status(400).json({ success: false, message: 'Bot Token belum diisi!' });
+      }
+
+      const guildsRes = await fetch('https://discord.com/api/v10/users/@me/guilds', {
+        headers: { Authorization: `Bot ${token}` }
+      });
+      if (!guildsRes.ok) {
+        return res.status(400).json({ success: false, message: 'Gagal mengambil daftar server bot.' });
+      }
+      const guilds = await guildsRes.json() as Array<{ id: string; name: string }>;
+      const channelsList: Array<{ id: string; name: string; guildName: string; type: number }> = [];
+
+      for (const g of guilds) {
+        const chRes = await fetch(`https://discord.com/api/v10/guilds/${g.id}/channels`, {
+          headers: { Authorization: `Bot ${token}` }
+        });
+        if (chRes.ok) {
+          const chs = await chRes.json() as Array<any>;
+          for (const c of chs) {
+            // Type 0 is GUILD_TEXT, 5 is GUILD_ANNOUNCEMENT
+            if (c.type === 0 || c.type === 5) {
+              channelsList.push({
+                id: c.id,
+                name: c.name,
+                guildName: g.name,
+                type: c.type
+              });
+            }
+          }
+        }
+      }
+
+      res.json({ success: true, channels: channelsList });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message || 'Error fetching channels' });
+    }
+  });
+
+  // Discord Bot Direct Message (PM / DM) API (Now supports Username directly!)
   app.post('/api/discord/send-bot-dm', async (req, res) => {
     try {
       const { 
         botToken, 
-        userId, 
+        userId,
+        discordUsername,
+        username,
         officerName, 
         pin, 
         badge, 
@@ -96,20 +349,33 @@ async function startServer() {
         });
       }
 
-      if (!userId) {
+      const rawTarget = (userId || discordUsername || username || '').toString().trim();
+      if (!rawTarget) {
         return res.status(400).json({
           success: false,
-          message: 'Discord User ID tujuan tidak boleh kosong! Harap masukkan User ID Discord (angka 17-20 digit).'
+          message: 'Username atau User ID Discord tujuan tidak boleh kosong! Masukkan username Discord (contoh: aguy atau @aguy).'
         });
       }
 
-      // Extract numeric Discord User ID
-      const cleanUserId = userId.toString().replace(/[^0-9]/g, '');
-      if (!cleanUserId || cleanUserId.length < 16) {
-        return res.status(400).json({
-          success: false,
-          message: `ID Discord '${userId}' tidak valid. Pastikan menggunakan Discord User ID numerik (17-20 digit angka, contoh: 842019283719001). Caranya: Aktifkan Developer Mode di Discord Settings -> Advanced -> Klik kanan profil -> Copy User ID.`
-        });
+      // Automatically resolve username or extract numeric ID
+      let cleanUserId = '';
+      let resolvedUsernameTag = '';
+
+      // Check if rawTarget contains a 17-22 digit numeric ID anywhere (e.g. "@user (ID: 1426197728249122957)" or "<@1426197728249122957>")
+      const numericMatch = rawTarget.match(/(\d{17,22})/);
+      if (numericMatch && numericMatch[1]) {
+        cleanUserId = numericMatch[1];
+      } else {
+        // Target is a username (e.g. "@aguy", "aguy", "aguy#1234") -> Look it up via Bot
+        const lookup = await resolveDiscordUser(rawTarget, token);
+        if (!lookup.success || !lookup.user) {
+          return res.status(400).json({
+            success: false,
+            message: lookup.message || `Tidak dapat mendeteksi akun Discord untuk '${rawTarget}'. Pastikan akun tersebut sudah berada di server yang sama dengan Bot.`
+          });
+        }
+        cleanUserId = lookup.user.id;
+        resolvedUsernameTag = lookup.user.tag || `@${lookup.user.username}`;
       }
 
       // 1. Create / Open DM Channel with recipient
@@ -128,9 +394,9 @@ async function startServer() {
         if (createDmRes.status === 401) {
           reason = 'Bot Token Discord tidak valid atau salah. Silakan periksa kembali Token di Discord Developer Portal.';
         } else if (createDmRes.status === 404 || errJson.code === 10013) {
-          reason = `Akun Discord dengan ID ${cleanUserId} tidak ditemukan di sistem Discord.`;
+          reason = `Akun Discord '${rawTarget}' tidak ditemukan di sistem Discord.`;
         } else if (errJson.code === 50007) {
-          reason = `Penerima (${officerName || 'User'}) menutup Pesan Pribadi (DM) atau belum berada di server yang sama dengan bot.`;
+          reason = `Penerima (${rawTarget}) menutup Pesan Pribadi (DM) atau belum berada di server yang sama dengan bot.`;
         }
         return res.status(400).json({
           success: false,
@@ -261,7 +527,7 @@ async function startServer() {
 
         fields.push({
           name: 'Note',
-          value: customNote || 'Jangan beritahu informasi ini kepada orang lain!',
+          value: customNote || 'Jangan beritahu informasi ini kepada orang lain!\n*Gunakan nama UCP / Badge dan Pin Code di atas untuk login ke Terminal MDT Kepolisian.*',
           inline: false
         });
       }
@@ -289,6 +555,10 @@ async function startServer() {
         }
       };
 
+      const messageContent = isCustomChatOnly
+        ? `<@${cleanUserId}> 📨 **Pesan Resmi dari Komando / Atasan HSPD:**`
+        : `<@${cleanUserId}> Halo! Berikut adalah detail dari akun UCP Anda:`;
+
       // 3. Send direct message embed with tag in content
       const sendMsgRes = await fetch(`https://discord.com/api/v10/channels/${dmChannelId}/messages`, {
         method: 'POST',
@@ -297,7 +567,7 @@ async function startServer() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          content: `<@${cleanUserId}> 📨 **Pesan Resmi dari Komando / Atasan HSPD:**`,
+          content: messageContent,
           embeds: [embedObj]
         })
       });
@@ -329,8 +599,8 @@ async function startServer() {
       return res.json({
         success: true,
         message: isCustomChatOnly
-          ? `✅ Pesan khusus dari atasan berhasil dikirimkan ke Pesan Pribadi (PM/DM) Discord milik ${officerName || 'anggota'}!`
-          : `✅ Kredensial akun UCP & PIN berhasil dikirim ke Pesan Pribadi (PM/DM) Discord milik ${officerName || 'anggota'}!`
+          ? `✅ Pesan khusus dari atasan berhasil dikirimkan ke Pesan Pribadi (PM/DM) Discord milik ${resolvedUsernameTag || officerName || 'anggota'}!`
+          : `✅ Kredensial akun UCP & PIN berhasil dikirim ke Pesan Pribadi (PM/DM) Discord milik ${resolvedUsernameTag || officerName || 'anggota'}!`
       });
 
     } catch (err: any) {
@@ -338,6 +608,196 @@ async function startServer() {
       return res.status(500).json({
         success: false,
         message: `Terjadi kendala server saat menghubungi Discord API: ${err.message || err}`
+      });
+    }
+  });
+
+  // Discord Bot Registration Panel API (Sends the UCP / MDT login registration embed to a designated channel)
+  app.post('/api/discord/send-registration-panel', async (req, res) => {
+    try {
+      const {
+        botToken,
+        channelId,
+        embedTitle,
+        embedDescription,
+        embedColor,
+        footerText,
+        thumbnailUrl,
+        registerUrl,
+        botName
+      } = req.body;
+
+      const token = (botToken || discordGatewayManager.getActiveToken() || process.env.DISCORD_BOT_TOKEN || '').trim();
+      if (!token) {
+        return res.status(400).json({
+          success: false,
+          message: 'Discord Bot Token belum dikonfigurasi! Harap masukkan Bot Token di menu Pengaturan.'
+        });
+      }
+
+      if (!channelId || !channelId.toString().trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID Channel Discord tujuan wajib diisi! Masukkan ID Channel Discord (contoh: 1234567890123456789).'
+        });
+      }
+
+      const cleanChannelId = channelId.toString().replace(/[^0-9]/g, '');
+      if (!cleanChannelId || cleanChannelId.length < 16) {
+        return res.status(400).json({
+          success: false,
+          message: `ID Channel '${channelId}' tidak valid! ID Channel Discord harus terdiri dari 17-20 digit angka.`
+        });
+      }
+
+      // Color parsing
+      let parsedColor = 0x00A8FF; // Default High State blue
+      if (embedColor) {
+        if (typeof embedColor === 'number') {
+          parsedColor = Math.min(Math.max(0, embedColor), 0xFFFFFF);
+        } else if (typeof embedColor === 'string') {
+          const cleanHex = embedColor.replace('#', '').trim();
+          const parsed = parseInt(cleanHex, 16);
+          if (!isNaN(parsed)) {
+            parsedColor = Math.min(Math.max(0, parsed), 0xFFFFFF);
+          }
+        }
+      }
+
+      const DEFAULT_THUMBNAIL = 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png';
+      let safeThumbnail = DEFAULT_THUMBNAIL;
+      if (thumbnailUrl && typeof thumbnailUrl === 'string') {
+        const trimmed = thumbnailUrl.trim();
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+          safeThumbnail = trimmed;
+        }
+      }
+
+      const DEFAULT_DESCRIPTION = 
+`Channel ini merupakan tempat dimana kamu dapat mengatur akun UCP kamu sendiri. Terdapat beberapa hal yang harus kamu ketahui, diantaranya:
+
+[ 📄 Register UCP ]
+Informasi Sebagaimana dengan judulnya, ini merupakan tombol dimana kamu dapat mengambil Tiket (membuat akun UCP). Sebelum kamu bermain peran di High State maka Tiket adalah kewajiban utama yang harus kamu miliki, disinilah tempatnya!
+
+[ ♻️ Resend Code ]
+Informasi Kamu dapat melihat status Tiketmu apakah sudah terverifikasi ataukah belum, kamu juga dapat melihat informasi kode verifikasi melalui ini jikalau kamu belum menerima DM dari BOT @High State Roleplay
+
+[ 🚨 Lupa Password ]
+Sesuai dengan namanya, tombol ini merupakan tempat apabila kamu lupa kata sandi atau ingin mengganti kata sandi.
+
+[ ⚙️ Fix Role ]
+Informasi ini adalah tempat dimana ketika kalian sudah melakukan register/ambil tiket dan tidak mendapatkan role @unknown-role maka silahkan gunakan Reff Role, dan disini juga tempat dimana ketika kalian tidak sengaja ataupun sengaja keluar dari discord High State dan ingin main lagi di High State maka silahkan gunakan tombol Reff Role untuk mengambil role @unknown-role!
+
+[ ⚠️ Penting ]
+Jangan lupa untuk hidupin direct message agar pm bot mengirim ucp bisa masuk! Dan Pastikan Akun Discord kamu sudah dibuat lebih dari 7Hari!`;
+
+      const desc = (embedDescription && embedDescription.trim()) ? embedDescription.trim() : DEFAULT_DESCRIPTION;
+      const title = (embedTitle && embedTitle.trim()) ? embedTitle.trim() : 'UCP Panel High State';
+      const footer = (footerText && footerText.trim()) ? footerText.trim() : 'Bot High State';
+      const authorName = (botName && botName.trim()) ? botName.trim() : 'High State Roleplay';
+
+      const now = new Date();
+      const dateFormatted = now.toLocaleDateString('en-US', {
+        month: 'numeric',
+        day: 'numeric',
+        year: '2-digit',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+      });
+
+      // 4 Interactive Buttons matching reference image (Register pops up Discord Modal)
+      const registerButton = {
+        type: 2,
+        style: 2, // SECONDARY (Grey/Dark) exactly matching reference image
+        label: 'Register',
+        emoji: { name: '📄' },
+        custom_id: 'mdt_btn_register'
+      };
+
+      const actionRow = {
+        type: 1, // ACTION_ROW
+        components: [
+          registerButton,
+          {
+            type: 2,
+            style: 1, // PRIMARY (Blurple)
+            label: 'Resend Code',
+            emoji: { name: '♻️' },
+            custom_id: 'mdt_btn_resend_code'
+          },
+          {
+            type: 2,
+            style: 4, // DANGER (Red)
+            label: 'Lupa Password',
+            emoji: { name: '⚠️' },
+            custom_id: 'mdt_btn_forgot_password'
+          },
+          {
+            type: 2,
+            style: 2, // SECONDARY (Grey)
+            label: 'Take Role',
+            emoji: { name: '⚙️' },
+            custom_id: 'mdt_btn_take_role'
+          }
+        ]
+      };
+
+      const embedObj = {
+        author: {
+          name: authorName.substring(0, 256),
+          icon_url: safeThumbnail
+        },
+        title: title.substring(0, 256),
+        description: desc.substring(0, 4096),
+        color: parsedColor,
+        thumbnail: {
+          url: safeThumbnail
+        },
+        footer: {
+          text: `${footer} • ${dateFormatted}`.substring(0, 2048),
+          icon_url: safeThumbnail
+        }
+      };
+
+      const sendRes = await fetch(`https://discord.com/api/v10/channels/${cleanChannelId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bot ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          embeds: [embedObj],
+          components: [actionRow]
+        })
+      });
+
+      if (!sendRes.ok) {
+        const errJson = await sendRes.json().catch(() => ({}));
+        let reason = errJson.message || `HTTP ${sendRes.status}`;
+        if (errJson.code === 50001 || sendRes.status === 403) {
+          reason = `Bot tidak memiliki izin akses (Missing Access/Permissions) di Channel ID '${cleanChannelId}'. Pastikan bot sudah diundang ke server dan memiliki izin 'View Channel', 'Send Messages', dan 'Embed Links' di channel tersebut.`;
+        } else if (errJson.code === 10003) {
+          reason = `Channel dengan ID '${cleanChannelId}' tidak ditemukan di server bot.`;
+        }
+        return res.status(400).json({
+          success: false,
+          message: `Gagal mengirim panel ke channel: ${reason}`
+        });
+      }
+
+      const sentMsg = await sendRes.json();
+      return res.json({
+        success: true,
+        messageId: sentMsg.id,
+        channelId: cleanChannelId,
+        message: `✅ Panel Registrasi Anggota & Login MDT berhasil dikirim ke Channel Discord (ID: ${cleanChannelId})!`
+      });
+    } catch (err: any) {
+      console.error('Discord Bot Send Registration Panel Error:', err);
+      return res.status(500).json({
+        success: false,
+        message: `Error server saat mengirim panel registrasi: ${err.message || err}`
       });
     }
   });

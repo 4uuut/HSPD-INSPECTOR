@@ -64,7 +64,7 @@ import { recordOfficerDischarge, isOfficerDischarged } from './utils/dischargeSt
 
 const STORAGE_KEY = 'hspd_arrest_records_v1';
 const OFFICER_STORAGE_KEY = 'hspd_active_officer_v1';
-const ROSTER_STORAGE_KEY = 'hspd_roster_database_v4';
+const ROSTER_STORAGE_KEY = 'hspd_roster_database_v5';
 const DUTY_STATUS_STORAGE_KEY = 'hspd_is_duty_v1';
 const DUTY_START_TIME_KEY = 'hspd_duty_start_time_v1';
 
@@ -72,9 +72,12 @@ export default function App() {
   // Active Roster Database with official Command / Atasan personnel
   const [roster, setRoster] = useState<OfficerAccount[]>(() => {
     try {
-      let saved = localStorage.getItem(ROSTER_STORAGE_KEY) || 
-                  localStorage.getItem('hspd_roster_database_v3') || 
-                  localStorage.getItem('hspd_roster_database_v2');
+      // Clean up legacy storage keys containing deleted member accounts
+      ['hspd_roster_database_v4', 'hspd_roster_database_v3', 'hspd_roster_database_v2'].forEach(k => {
+        try { localStorage.removeItem(k); } catch {}
+      });
+
+      let saved = localStorage.getItem(ROSTER_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
