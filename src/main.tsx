@@ -13,9 +13,19 @@ if (typeof window !== 'undefined') {
       lower.includes('ethereum') ||
       lower.includes('wallet') ||
       lower.includes('web3') ||
-      lower.includes('receiving end does not exist') ||
-      lower.includes('broadcast channel unavailable') ||
+      lower.includes('tonadapter') ||
+      lower.includes('solanaadapter') ||
+      lower.includes('tronadapter') ||
+      lower.includes('bitcoinadapter') ||
+      lower.includes('binanceinjectedprovider') ||
+      lower.includes('web3rpcprovider') ||
+      lower.includes('extendedbroadcastmessage') ||
+      lower.includes('broadcast system') ||
+      lower.includes('unable to find node id') ||
+      lower.includes('unable to obtain channel secret') ||
       lower.includes('channel secret not available') ||
+      lower.includes('broadcast channel unavailable') ||
+      lower.includes('receiving end does not exist') ||
       lower.includes('usecache') ||
       lower.includes('inpage.js') ||
       lower.includes('contentscript.js') ||

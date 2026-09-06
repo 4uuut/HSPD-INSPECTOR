@@ -152,13 +152,13 @@ class DiscordGatewayManager {
       const socket = this.ws;
       this.ws = null;
       try {
-        // Remove normal operational listeners so we don't handle messages or close events twice
+        // Remove ALL listeners including error before terminating or closing
         socket.removeAllListeners('open');
         socket.removeAllListeners('message');
         socket.removeAllListeners('close');
-        // ALWAYS attach a no-op error handler. In ws, if a socket is closed while still CONNECTING,
+        socket.removeAllListeners('error');
+        // Attach a silent no-op error handler. In ws, if a socket is closed or terminated while still CONNECTING,
         // it emits an 'error' event ("WebSocket was closed before the connection was established").
-        // Without an active error listener, Node's EventEmitter crashes with "Unhandled 'error' event".
         socket.on('error', () => {});
 
         if (socket.readyState === WebSocket.OPEN) {
@@ -185,8 +185,13 @@ class DiscordGatewayManager {
 
       // Attach 'error' handler IMMEDIATELY to prevent unhandled 'error' event crashes
       ws.on('error', (err: Error) => {
-        console.warn('[Discord Gateway] WebSocket error:', err?.message || err);
-        this.state.lastError = err?.message || 'WebSocket error';
+        const msg = err?.message || String(err);
+        // Suppress expected transient socket abort / close before connection established
+        if (msg.includes('closed before the connection was established') || msg.includes('ECONNRESET') || msg.includes('ETIMEDOUT')) {
+          return;
+        }
+        console.warn('[Discord Gateway] WebSocket error:', msg);
+        this.state.lastError = msg;
       });
 
       ws.on('open', () => {
@@ -199,7 +204,9 @@ class DiscordGatewayManager {
 
       ws.on('close', (code: number, reason: Buffer) => {
         const reasonStr = reason ? reason.toString() : '';
-        console.warn(`[Discord Gateway] Closed with code ${code}: ${reasonStr}`);
+        if (!this.isExplicitlyStopped && code !== 1000) {
+          console.warn(`[Discord Gateway] Closed with code ${code}: ${reasonStr}`);
+        }
         this.state.isOnline = false;
 
         // Specific fatal Discord Gateway close codes
@@ -285,15 +292,8 @@ class DiscordGatewayManager {
         // Opcode 7: Reconnect requested by Discord
         case 7: {
           console.log('[Discord Gateway] Discord requested Reconnect (Opcode 7).');
-          if (this.ws) {
-            try {
-              if (this.ws.readyState === WebSocket.OPEN) {
-                this.ws.close(1012, 'Service Restart');
-              } else {
-                this.ws.terminate();
-              }
-            } catch {}
-          }
+          this.cleanupSocket();
+          this.scheduleReconnect();
           break;
         }
 
@@ -352,15 +352,8 @@ class DiscordGatewayManager {
       if (this.heartbeatTimeoutTimer) clearTimeout(this.heartbeatTimeoutTimer);
       this.heartbeatTimeoutTimer = setTimeout(() => {
         console.warn('[Discord Gateway] Heartbeat ACK timed out (zombie connection). Reconnecting...');
-        if (this.ws) {
-          try {
-            if (this.ws.readyState === WebSocket.OPEN) {
-              this.ws.close(4000, 'Heartbeat ACK timeout');
-            } else {
-              this.ws.terminate();
-            }
-          } catch {}
-        }
+        this.cleanupSocket();
+        this.scheduleReconnect();
       }, 15000);
     } catch (e) {
       console.warn('[Discord Gateway] Failed to send heartbeat:', e);
@@ -489,8 +482,51 @@ class DiscordGatewayManager {
         // =========================================================================
         if (interactionType === 2 || data.data?.component_type === 2) {
           
-          // [ BUTTON: REGISTER ] -> Open Modal Form in Discord!
+          // [ BUTTON: REGISTER ] -> Open Modal Form in Discord (or reject if already registered)!
           if (customId === 'mdt_btn_register') {
+            const existingOfficer = await discordRosterService.findOfficer({
+              discordId: discordUser.id,
+              discordUsername: discordUser.username
+            });
+
+            if (existingOfficer) {
+              return await sendCallback({
+                type: 4, // CHANNEL_MESSAGE_WITH_SOURCE
+                data: {
+                  flags: 64, // Ephemeral (hanya terlihat oleh pengguna yang menekan tombol)
+                  embeds: [
+                    {
+                      author: {
+                        name: 'Sistem Keamanan Registrasi MDT Kepolisian HSPD',
+                        icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                      },
+                      title: '⛔ Pendaftaran Ditolak: Anda Sudah Terdaftar!',
+                      description: `Halo <@${discordUser.id}>, akun Discord Anda **sudah memiliki akun dinas MDT** yang tercatat aktif di Database & Roster Anggota Kepolisian.\n\n⚠️ **Ketentuan Sistem:** Satu akun Discord hanya diperbolehkan mendaftarkan **1 akun MDT**, sehingga Anda **tidak dapat mendaftar lagi**.`,
+                      color: 0xE11D48, // Rose / Danger Red
+                      fields: [
+                        { name: '👤 Nama Karakter IC', value: `\`${existingOfficer.name}\``, inline: true },
+                        { name: '🎖️ Nomor Lencana', value: `\`${existingOfficer.badge}\``, inline: true },
+                        { name: '⭐ Pangkat Dinas', value: `\`${existingOfficer.rank}\``, inline: true },
+                        { name: '🏢 Divisi Penugasan', value: `\`${existingOfficer.division || 'Patrol Division'}\``, inline: true },
+                        { name: '📱 Kontak / No HP', value: `\`${existingOfficer.phone || '-'}\``, inline: true },
+                        { name: '💬 Akun Discord', value: `<@${discordUser.id}>`, inline: true },
+                        { 
+                          name: '💡 Butuh Kredensial / Lupa PIN?', 
+                          value: '• Tekan tombol **[ ♻️ Resend Code ]** agar bot mengirimkan kembali PIN & data login ke DM Discord Anda.\n• Jika lupa password, gunakan tombol **[ 🚨 Lupa Password ]** untuk mengajukan tiket reset PIN ke pimpinan.', 
+                          inline: false 
+                        }
+                      ],
+                      footer: {
+                        text: 'High State Police Department • Anti-Duplicate Registration Security'
+                      },
+                      timestamp: new Date().toISOString()
+                    }
+                  ]
+                }
+              });
+            }
+
+            // Jika belum terdaftar, buka modal form pendaftaran
             const modalPayload = {
               type: 9, // MODAL
               data: {
@@ -599,25 +635,61 @@ class DiscordGatewayManager {
             }
           }
 
-          // [ BUTTON: LUPA PASSWORD ] -> Open Modal
+          // [ BUTTON: LUPA PASSWORD ] -> Check if registered, then show Modal with new PIN input
           if (customId === 'mdt_btn_forgot_password') {
+            const matchedOfficer = await discordRosterService.findOfficer({
+              discordId: discordUser.id,
+              discordUsername: discordUser.username
+            });
+
+            // If account does NOT exist in database, reject and ask to register first!
+            if (!matchedOfficer) {
+              return await sendCallback({
+                type: 4, // CHANNEL_MESSAGE_WITH_SOURCE
+                data: {
+                  flags: 64, // Ephemeral
+                  embeds: [
+                    {
+                      author: {
+                        name: 'Sistem Keamanan MDT Kepolisian HSPD',
+                        icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                      },
+                      title: '⚠️ Akun Belum Terdaftar di Database!',
+                      description: `Halo <@${discordUser.id}>, akun Discord Anda **belum terdaftar** di sistem Database & Roster Kepolisian High State.\n\nKarena belum memiliki akun dinas MDT, Anda **tidak dapat mereset PIN**.\n\n👉 **Silakan klik tombol [ 📄 Register ]** terlebih dahulu pada panel ini untuk mendaftarkan akun dinas MDT baru Anda.`,
+                      color: 0xF59E0B, // Amber
+                      fields: [
+                        { name: '💬 Akun Discord', value: `<@${discordUser.id}>`, inline: true },
+                        { name: '📌 Status Database', value: '`Belum Terdaftar`', inline: true },
+                        { name: '💡 Solusi Registrasi', value: 'Tekan tombol **[ 📄 Register ]** di panel Discord untuk membuat akun kepolisian.', inline: false }
+                      ],
+                      footer: {
+                        text: 'High State Police Department • Portal Pelayanan Personel'
+                      },
+                      timestamp: new Date().toISOString()
+                    }
+                  ]
+                }
+              });
+            }
+
+            // Account exists! Show modal to enter the NEW PIN
             const modalPayload = {
               type: 9, // MODAL
               data: {
                 custom_id: 'mdt_modal_forgot_password',
-                title: 'Permohonan Lupa Password / PIN',
+                title: `Reset PIN: ${matchedOfficer.name.substring(0, 24)}`,
                 components: [
                   {
                     type: 1,
                     components: [
                       {
                         type: 4,
-                        custom_id: 'fp_ic_name',
-                        label: 'Nama IC Karakter Anda',
-                        style: 1,
-                        min_length: 3,
-                        max_length: 40,
-                        placeholder: 'Masukkan nama IC karakter Anda yang terdaftar',
+                        custom_id: 'fp_new_pin',
+                        label: 'PIN Baru Akun MDT (4-10 Digit/Karakter)',
+                        style: 1, // Short
+                        min_length: 4,
+                        max_length: 10,
+                        placeholder: 'Contoh: 123456 (Hafalkan PIN untuk login MDT)',
                         required: true
                       }
                     ]
@@ -627,12 +699,12 @@ class DiscordGatewayManager {
                     components: [
                       {
                         type: 4,
-                        custom_id: 'fp_reason',
-                        label: 'Alasan / Keterangan Permohonan Reset',
-                        style: 2, // Paragraph
-                        min_length: 5,
-                        max_length: 300,
-                        placeholder: 'Jelaskan kendala login Anda (misal: Lupa PIN lama / ganti nomor PIN baru)',
+                        custom_id: 'fp_confirm_pin',
+                        label: 'Konfirmasi Ulang PIN Baru',
+                        style: 1, // Short
+                        min_length: 4,
+                        max_length: 10,
+                        placeholder: 'Ketik ulang PIN baru yang sama persis',
                         required: true
                       }
                     ]
@@ -794,43 +866,140 @@ class DiscordGatewayManager {
             return;
           }
 
-          // [ MODAL SUBMISSION: FORGOT PASSWORD ]
+          // [ MODAL SUBMISSION: FORGOT PASSWORD -> SET NEW PIN ]
           if (customId === 'mdt_modal_forgot_password') {
-            let icName = '';
-            let reason = '';
+            let newPin = '';
+            let confirmPin = '';
 
             if (Array.isArray(data.data?.components)) {
               for (const row of data.data.components) {
                 if (Array.isArray(row.components)) {
                   for (const comp of row.components) {
-                    if (comp.custom_id === 'fp_ic_name') icName = comp.value?.trim() || '';
-                    if (comp.custom_id === 'fp_reason') reason = comp.value?.trim() || '';
+                    if (comp.custom_id === 'fp_new_pin') newPin = comp.value?.trim() || '';
+                    if (comp.custom_id === 'fp_confirm_pin') confirmPin = comp.value?.trim() || '';
                   }
                 }
               }
             }
 
-            const ticketRes = await discordRosterService.submitPinResetTicket({
-              icName,
-              reason,
-              discordUser
+            // Validation
+            if (!newPin || newPin.length < 4) {
+              return await sendCallback({
+                type: 4,
+                data: {
+                  flags: 64, // Ephemeral
+                  content: '❌ **Gagal Menyimpan PIN:** PIN baru harus minimal 4 karakter / angka!'
+                }
+              });
+            }
+
+            if (confirmPin && newPin !== confirmPin) {
+              return await sendCallback({
+                type: 4,
+                data: {
+                  flags: 64, // Ephemeral
+                  content: '❌ **Konfirmasi PIN Tidak Cocok:** Kedua kolom PIN yang Anda masukkan tidak sama. Harap coba lagi dan pastikan PIN sama.'
+                }
+              });
+            }
+
+            const updateRes = await discordRosterService.updateOfficerPin({
+              discordId: discordUser.id,
+              discordUsername: discordUser.username,
+              newPin: newPin
             });
 
-            return await sendCallback({
+            if (!updateRes.success || !updateRes.officer) {
+              return await sendCallback({
+                type: 4,
+                data: {
+                  flags: 64,
+                  content: `❌ **Pembaruan PIN Gagal:**\n${updateRes.message}`
+                }
+              });
+            }
+
+            const off = updateRes.officer;
+
+            // 1. Reply with ephemeral embed
+            await sendCallback({
               type: 4,
               data: {
                 flags: 64,
                 embeds: [
                   {
-                    title: '🚨 Permohonan Reset PIN Diterima',
-                    description: `Permohonan reset PIN untuk karakter **${icName}** telah diteruskan ke jajaran High Command / Atasan Divisi Kepolisian.\n\nAtasan akan memverifikasi permohonan Anda dan menghubungi Anda via Discord ${userTag}.`,
-                    color: 0xEF4444,
-                    footer: { text: 'Tiket Permohonan Login • High State MDT' },
+                    author: {
+                      name: 'MDT Panel High State Police Department',
+                      icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                    },
+                    title: '✅ PIN Akun Berhasil Diperbarui!',
+                    description: `PIN akun MDT untuk perwira **${off.name}** (${off.badge} - ${off.rank}) telah berhasil diubah dan **langsung aktif** di Database Firestore & Roster Anggota Kepolisian.`,
+                    color: 0x10B981, // Emerald Green
+                    fields: [
+                      { name: '👤 Nama Karakter IC', value: `\`${off.name}\``, inline: true },
+                      { name: '🎖️ Nomor Lencana', value: `\`${off.badge}\``, inline: true },
+                      { name: '⭐ Pangkat Dinas', value: `\`${off.rank}\``, inline: true },
+                      { name: '🏢 Divisi Penugasan', value: `\`${off.division || 'Patrol Division'}\``, inline: true },
+                      { name: '💬 Akun Discord', value: `<@${discordUser.id}>`, inline: true },
+                      { name: '🔑 PIN Baru MDT', value: `||**${off.pin}**|| *(Klik untuk membuka)*`, inline: false },
+                      { 
+                        name: '🌐 Status Login MDT', 
+                        value: 'PIN baru Anda sudah tersinkronisasi otomatis. Anda kini dapat langsung login ke Terminal MDT Kepolisian menggunakan PIN baru tersebut!', 
+                        inline: false 
+                      }
+                    ],
+                    footer: {
+                      text: 'High State Police Department • Salinan PIN baru juga dikirim ke DM Discord Anda'
+                    },
                     timestamp: new Date().toISOString()
                   }
                 ]
               }
             });
+
+            // 2. Send direct message (DM) to officer's Discord inbox
+            const botToken = this.token || process.env.DISCORD_BOT_TOKEN || '';
+            if (botToken) {
+              const now = new Date();
+              const dateFormatted = now.toLocaleDateString('en-US', {
+                month: 'numeric',
+                day: 'numeric',
+                year: '2-digit',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true
+              });
+
+              discordRosterService.sendDirectMessageToUser(botToken, discordUser.id, {
+                content: `<@${discordUser.id}> Halo! PIN akun MDT Anda telah berhasil direset dan diperbarui:`,
+                embeds: [
+                  {
+                    author: {
+                      name: 'Update Kredensial | High State Police',
+                      icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                    },
+                    title: '🔑 PIN Baru Berhasil Ditetapkan!',
+                    description: 'Berikut adalah detail akun dinas dan PIN baru Anda:',
+                    color: 0x10B981,
+                    fields: [
+                      { name: 'UCP / Nama IC', value: off.name, inline: false },
+                      { name: 'PIN Baru', value: `||${off.pin}||`, inline: false },
+                      { name: 'No. Badge & Pangkat', value: `\`${off.badge}\` • ${off.rank}`, inline: false },
+                      { name: 'Divisi', value: off.division || 'Patrol Division', inline: false },
+                      { name: 'Instruksi', value: 'Gunakan Nama IC / Badge dan PIN baru di atas untuk login ke Terminal MDT Kepolisian.', inline: false }
+                    ],
+                    footer: {
+                      text: `Bot High State • ${dateFormatted}`,
+                      icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                    }
+                  }
+                ]
+              }).catch((e) => {
+                console.warn('[Discord Gateway] Warning sending reset PIN DM to user:', e);
+              });
+            }
+
+            return;
           }
         }
 

@@ -244,6 +244,107 @@ export function saveDiscordBotConfig(config: Partial<DiscordBotConfig>) {
   }
 }
 
+export const BACKEND_SERVER_STORAGE_KEY = 'hspd_backend_server_url';
+export const CLOUD_RUN_API_URL = 'https://ais-dev-hfcwdemzm76lbgjvtwpnf6-80098255775.asia-southeast1.run.app';
+
+/**
+ * Get configured backend server base URL.
+ * Defaults to relative '' (same origin). If user is on Vercel or wants to use Cloud Run,
+ * they can configure it in settings or set custom URL.
+ */
+export function getApiBaseUrl(): string {
+  if (typeof window === 'undefined') return '';
+  const custom = localStorage.getItem(BACKEND_SERVER_STORAGE_KEY);
+  if (custom && custom.trim()) {
+    return custom.trim().replace(/\/+$/, '');
+  }
+  return '';
+}
+
+export function setCustomBackendUrl(url: string) {
+  if (typeof window === 'undefined') return;
+  const clean = (url || '').trim().replace(/\/+$/, '');
+  if (clean) {
+    localStorage.setItem(BACKEND_SERVER_STORAGE_KEY, clean);
+  } else {
+    localStorage.removeItem(BACKEND_SERVER_STORAGE_KEY);
+  }
+}
+
+export function buildApiUrl(endpoint: string): string {
+  const base = getApiBaseUrl();
+  const clean = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  if (!base) return clean;
+  return `${base}${clean}`;
+}
+
+/**
+ * Safely parse JSON from response preventing syntax errors when server returns HTML 404
+ */
+export async function safeFetchJson<T = any>(res: Response): Promise<{ ok: boolean; data: T | null; error?: string }> {
+  const contentType = res.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+
+  if (!res.ok) {
+    if (!isJson) {
+      const text = await res.text().catch(() => '');
+      if (text.includes('404') || text.includes('The page could not be found') || res.status === 404) {
+        return {
+          ok: false,
+          data: null,
+          error: `Server backend merespons 404 (Not Found). Jika Anda membuka via Vercel, pastikan menghubungkan URL Backend Server di menu Pengaturan Bot Discord.`
+        };
+      }
+      return {
+        ok: false,
+        data: null,
+        error: `Server merespons status ${res.status}: ${text.substring(0, 100)}`
+      };
+    }
+    try {
+      const errData = await res.json();
+      return {
+        ok: false,
+        data: errData,
+        error: errData.message || `Server merespons error status ${res.status}`
+      };
+    } catch {
+      return {
+        ok: false,
+        data: null,
+        error: `Server error status ${res.status}`
+      };
+    }
+  }
+
+  if (!isJson) {
+    const text = await res.text().catch(() => '');
+    if (text.includes('404') || text.includes('The page could not be found')) {
+      return {
+        ok: false,
+        data: null,
+        error: `Server backend tidak ditemukan (HTTP 404). Silakan periksa URL Backend Server di menu Pengaturan.`
+      };
+    }
+    return {
+      ok: false,
+      data: null,
+      error: `Format respons dari server bukan JSON valid: ${text.substring(0, 80)}`
+    };
+  }
+
+  try {
+    const data = await res.json();
+    return { ok: true, data };
+  } catch (e: any) {
+    return {
+      ok: false,
+      data: null,
+      error: `Format JSON tidak valid: ${e?.message || e}`
+    };
+  }
+}
+
 /**
  * Check if the Discord Bot is currently online (green circle) on Gateway
  */
@@ -256,9 +357,19 @@ export async function getDiscordBotGatewayStatus(): Promise<{
   hasToken: boolean;
 }> {
   try {
-    const res = await fetch('/api/discord/bot-status');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
+    const res = await fetch(buildApiUrl('/api/discord/bot-status'));
+    const parsed = await safeFetchJson(res);
+    if (!parsed.ok || !parsed.data) {
+      return {
+        isOnline: false,
+        botUser: null,
+        status: 'offline',
+        uptimeSeconds: 0,
+        lastError: parsed.error || `HTTP ${res.status}`,
+        hasToken: false
+      };
+    }
+    return parsed.data;
   } catch (err: any) {
     return {
       isOnline: false,
@@ -281,13 +392,16 @@ export async function startDiscordBotGateway(token?: string): Promise<{ success:
     if (!tokenToUse) {
       return { success: false, message: 'Bot Token belum diisi! Masukkan Bot Token di menu Pengaturan Bot Discord.' };
     }
-    const res = await fetch('/api/discord/bot-start', {
+    const res = await fetch(buildApiUrl('/api/discord/bot-start'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ botToken: tokenToUse })
     });
-    const data = await res.json();
-    return data;
+    const parsed = await safeFetchJson(res);
+    if (!parsed.ok || !parsed.data) {
+      return { success: false, message: parsed.error || `Gagal menyalakan bot (HTTP ${res.status})` };
+    }
+    return parsed.data;
   } catch (err: any) {
     return { success: false, message: err.message || 'Gagal menyalakan status online Discord Bot' };
   }
@@ -298,8 +412,12 @@ export async function startDiscordBotGateway(token?: string): Promise<{ success:
  */
 export async function stopDiscordBotGateway(): Promise<{ success: boolean; message: string }> {
   try {
-    const res = await fetch('/api/discord/bot-stop', { method: 'POST' });
-    return await res.json();
+    const res = await fetch(buildApiUrl('/api/discord/bot-stop'), { method: 'POST' });
+    const parsed = await safeFetchJson(res);
+    if (!parsed.ok || !parsed.data) {
+      return { success: false, message: parsed.error || 'Gagal mematikan bot' };
+    }
+    return parsed.data;
   } catch (err: any) {
     return { success: false, message: err.message || 'Gagal mematikan bot' };
   }
@@ -2544,7 +2662,7 @@ export async function sendOfficerDirectMessageViaBot(params: {
   }
 
   try {
-    const res = await fetch('/api/discord/send-bot-dm', {
+    const res = await fetch(buildApiUrl('/api/discord/send-bot-dm'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2568,17 +2686,17 @@ export async function sendOfficerDirectMessageViaBot(params: {
       })
     });
 
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
+    const parsed = await safeFetchJson(res);
+    if (!parsed.ok || !parsed.data) {
       return {
         success: false,
-        message: data.message || `HTTP ${res.status}: Gagal mengirim PM Discord.`
+        message: parsed.error || `HTTP ${res.status}: Gagal mengirim PM Discord.`
       };
     }
 
     return {
       success: true,
-      message: data.message || `✅ Pesan Pribadi (PM) berhasil dikirim ke akun Discord ${params.officerName}!`
+      message: parsed.data.message || `✅ Pesan Pribadi (PM) berhasil dikirim ke akun Discord ${params.officerName}!`
     };
   } catch (err: any) {
     return {
@@ -2605,12 +2723,16 @@ export async function lookupDiscordUser(query: string, customBotToken?: string):
   try {
     const botConfig = getSavedDiscordBotConfig();
     const token = (customBotToken || botConfig.botToken || '').trim();
-    const res = await fetch('/api/discord/lookup-user', {
+    const res = await fetch(buildApiUrl('/api/discord/lookup-user'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, botToken: token })
     });
-    return await res.json();
+    const parsed = await safeFetchJson(res);
+    if (!parsed.ok || !parsed.data) {
+      return { success: false, message: parsed.error || 'Gagal mencari akun Discord' };
+    }
+    return parsed.data;
   } catch (err: any) {
     return { success: false, message: err?.message || 'Gagal menghubungi server pencarian akun Discord' };
   }
@@ -2624,10 +2746,10 @@ export async function fetchDiscordChannels(customBotToken?: string): Promise<Arr
     const botConfig = getSavedDiscordBotConfig();
     const token = (customBotToken || botConfig.botToken || '').trim();
     if (!token) return [];
-    const res = await fetch(`/api/discord/channels?botToken=${encodeURIComponent(token)}`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.channels || [];
+    const res = await fetch(buildApiUrl(`/api/discord/channels?botToken=${encodeURIComponent(token)}`));
+    const parsed = await safeFetchJson(res);
+    if (!parsed.ok || !parsed.data) return [];
+    return parsed.data.channels || [];
   } catch {
     return [];
   }
@@ -2649,7 +2771,7 @@ export async function sendRegistrationPanelToDiscord(params: {
 }): Promise<{ success: boolean; message: string; messageId?: string }> {
   try {
     const cfg = getSavedDiscordBotConfig();
-    const res = await fetch('/api/discord/send-registration-panel', {
+    const res = await fetch(buildApiUrl('/api/discord/send-registration-panel'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2664,11 +2786,17 @@ export async function sendRegistrationPanelToDiscord(params: {
         botToken: params.botToken || cfg.botToken
       })
     });
-    const data = await res.json();
+    const parsed = await safeFetchJson(res);
+    if (!parsed.ok || !parsed.data) {
+      return {
+        success: false,
+        message: parsed.error || `Gagal mengirim panel (HTTP ${res.status})`
+      };
+    }
     return {
-      success: res.ok && data.success,
-      message: data.message || (res.ok ? 'Panel registrasi berhasil dikirim!' : 'Gagal mengirim panel.'),
-      messageId: data.messageId
+      success: parsed.data.success !== false,
+      message: parsed.data.message || 'Panel registrasi berhasil dikirim!',
+      messageId: parsed.data.messageId
     };
   } catch (err: any) {
     return {

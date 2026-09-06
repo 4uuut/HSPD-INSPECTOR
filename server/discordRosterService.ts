@@ -47,14 +47,18 @@ export interface OfficerRecord {
   pin: string;
   phone?: string;
   discordTag?: string;
+  discordId?: string;
+  discordUsername?: string;
   registeredAt: number;
   promotedBy?: string;
   isDuty?: boolean;
   dutyStatus?: string;
+  warnings?: any[];
   _updatedAt?: number;
 }
 
 const LOCAL_ROSTER_BACKUP_PATH = path.join(process.cwd(), '.discord_registered_officers.json');
+const LOCAL_DISCORD_USERS_MAP_PATH = path.join(process.cwd(), '.discord_registered_users.json');
 
 class DiscordRosterService {
   private db: any = null;
@@ -92,6 +96,28 @@ class DiscordRosterService {
       .split(/\s+/)
       .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
       .join(' ');
+  }
+
+  private saveDiscordUserMap(discordId: string, info: { name: string; badge: string; officerId: string; username: string }) {
+    try {
+      let map: Record<string, any> = {};
+      if (fs.existsSync(LOCAL_DISCORD_USERS_MAP_PATH)) {
+        map = JSON.parse(fs.readFileSync(LOCAL_DISCORD_USERS_MAP_PATH, 'utf-8'));
+      }
+      map[discordId] = { ...info, timestamp: Date.now() };
+      fs.writeFileSync(LOCAL_DISCORD_USERS_MAP_PATH, JSON.stringify(map, null, 2), 'utf-8');
+    } catch (e) {
+      console.warn('[Discord Roster Service] Failed to save discord user map:', e);
+    }
+  }
+
+  private getDiscordUserMap(): Record<string, any> {
+    try {
+      if (fs.existsSync(LOCAL_DISCORD_USERS_MAP_PATH)) {
+        return JSON.parse(fs.readFileSync(LOCAL_DISCORD_USERS_MAP_PATH, 'utf-8'));
+      }
+    } catch {}
+    return {};
   }
 
   private saveLocalBackup(officer: OfficerRecord) {
@@ -158,7 +184,9 @@ class DiscordRosterService {
     for (const off of officers) {
       const offName = (off.name || '').toLowerCase();
       const offBadge = (off.badge || '').replace(/[^0-9a-zA-Z]/g, '').toLowerCase();
-      const offDiscord = (off.discordTag || '').replace('@', '').toLowerCase();
+      const offDiscord = (off.discordTag || '').toLowerCase();
+      const offDiscordId = (off.discordId || '').trim();
+      const offDiscordUser = (off.discordUsername || '').replace('@', '').toLowerCase().trim();
 
       if (cleanQueryName && (offName === cleanQueryName || offName.replace(/\s+/g, '') === cleanQueryName.replace(/\s+/g, ''))) {
         return off;
@@ -166,13 +194,36 @@ class DiscordRosterService {
       if (cleanBadge && offBadge === cleanBadge) {
         return off;
       }
-      if (discordId && off.discordTag && off.discordTag.includes(discordId)) {
-        return off;
+      // Exact Discord ID check (Primary Unique Identifier)
+      if (discordId) {
+        if (offDiscordId && offDiscordId === discordId) {
+          return off;
+        }
+        if (offDiscord && offDiscord.includes(discordId)) {
+          return off;
+        }
       }
-      if (discordUsername && offDiscord.includes(discordUsername)) {
-        return off;
+      // Discord Username check
+      if (discordUsername) {
+        if (offDiscordUser && offDiscordUser === discordUsername) {
+          return off;
+        }
+        if (offDiscord && offDiscord.includes(discordUsername)) {
+          return off;
+        }
       }
     }
+
+    // Secondary check in fast local mapping
+    if (discordId) {
+      const userMap = this.getDiscordUserMap();
+      if (userMap[discordId]) {
+        const mappedBadge = userMap[discordId].badge;
+        const matched = officers.find(o => o.badge === mappedBadge);
+        if (matched) return matched;
+      }
+    }
+
     return null;
   }
 
@@ -211,6 +262,8 @@ class DiscordRosterService {
   }> {
     const rawName = data.icName?.trim();
     const rawPin = data.pin?.trim();
+    const discordId = data.discordUser?.id?.trim();
+    const discordUsername = data.discordUser?.username?.trim();
 
     if (!rawName || rawName.length < 3) {
       return { success: false, message: 'Nama IC tidak valid! Minimal 3 karakter (contoh: Alex Vance atau John_Doe).' };
@@ -220,14 +273,29 @@ class DiscordRosterService {
       return { success: false, message: 'PIN login akun minimal harus 4 karakter/angka!' };
     }
 
+    // 1. STRICT DEDUPLICATION: Check if this Discord user is ALREADY registered
+    if (discordId) {
+      const existingByDiscord = await this.findOfficer({
+        discordId: discordId,
+        discordUsername: discordUsername
+      });
+
+      if (existingByDiscord) {
+        return {
+          success: false,
+          message: `Akun Discord Anda (@${discordUsername || discordId}) sudah memiliki akun MDT terdaftar sebagai "${existingByDiscord.name}" (Badge: ${existingByDiscord.badge} - ${existingByDiscord.rank}). Satu akun Discord hanya dapat memiliki 1 akun MDT dan tidak dapat mendaftar lagi!`
+        };
+      }
+    }
+
     const formattedName = this.cleanName(rawName);
 
-    // Check if officer with same name already exists
-    const existingOfficer = await this.findOfficer({ name: formattedName });
-    if (existingOfficer) {
+    // 2. Check if officer with same IC name already exists
+    const existingByName = await this.findOfficer({ name: formattedName });
+    if (existingByName) {
       return {
         success: false,
-        message: `Nama IC "${formattedName}" sudah terdaftar di Roster Kepolisian dengan Badge ${existingOfficer.badge}. Jika ini akun Anda, silakan hubungi atasan atau gunakan tombol 'Resend Code'.`
+        message: `Nama IC "${formattedName}" sudah terdaftar di Roster Kepolisian dengan Badge ${existingByName.badge}. Jika ini akun Anda, silakan hubungi atasan atau gunakan tombol 'Resend Code'.`
       };
     }
 
@@ -245,21 +313,32 @@ class DiscordRosterService {
       pin: rawPin,
       phone: data.phone?.trim() || `555-${badge.replace(/[^0-9]/g, '').padStart(4, '0')}`,
       discordTag: `@${data.discordUser.username} (ID: ${data.discordUser.id})`,
+      discordId: data.discordUser.id,
+      discordUsername: data.discordUser.username,
       registeredAt: Date.now(),
       promotedBy: 'Discord Bot UCP Registration Panel',
       isDuty: false,
       dutyStatus: '8-1-0',
+      warnings: [],
       _updatedAt: Date.now()
     };
 
-    // 1. Save local backup
+    // 1. Save to local mapping & backup
+    if (discordId) {
+      this.saveDiscordUserMap(discordId, {
+        name: formattedName,
+        badge: badge,
+        officerId: officerId,
+        username: discordUsername || ''
+      });
+    }
     this.saveLocalBackup(newOfficer);
 
     // 2. Commit directly to Firestore collection 'roster'
     this.initDb();
     if (this.db) {
       try {
-        const docKey = this.sanitizeDocId(badge);
+        const docKey = officerId || this.sanitizeDocId(badge);
         const docRef = doc(this.db, 'roster', docKey);
         await setDoc(docRef, newOfficer, { merge: true });
         console.log(`[Discord Roster Service] ✅ Officer ${formattedName} (${badge}) saved to Firestore!`);
@@ -270,8 +349,69 @@ class DiscordRosterService {
 
     return {
       success: true,
-      message: `Akun MDT untuk ${formattedName} (${badge}) berhasil dibuat dan disimpan ke database!`,
+      message: `Akun MDT untuk ${formattedName} (${badge}) berhasil dibuat dan disimpan otomatis ke database & Roster Anggota!`,
       officer: newOfficer
+    };
+  }
+
+  public async updateOfficerPin(params: {
+    discordId: string;
+    discordUsername?: string;
+    newPin: string;
+  }): Promise<{ success: boolean; message: string; officer?: OfficerRecord }> {
+    const cleanPin = params.newPin?.trim();
+    if (!cleanPin || cleanPin.length < 4) {
+      return { success: false, message: 'PIN baru minimal harus 4 karakter/angka!' };
+    }
+
+    // 1. Cari officer yang sesuai berdasarkan discordId / discordUsername
+    const officer = await this.findOfficer({
+      discordId: params.discordId,
+      discordUsername: params.discordUsername
+    });
+
+    if (!officer) {
+      return {
+        success: false,
+        message: 'Akun kepolisian Anda tidak ditemukan di database. Harap daftar terlebih dahulu melalui tombol [ 📄 Register ].'
+      };
+    }
+
+    // 2. Perbarui PIN officer
+    const updatedOfficer: OfficerRecord = {
+      ...officer,
+      pin: cleanPin,
+      _updatedAt: Date.now()
+    };
+
+    // 3. Simpan ke local backup & user map
+    this.saveLocalBackup(updatedOfficer);
+    if (params.discordId) {
+      this.saveDiscordUserMap(params.discordId, {
+        name: updatedOfficer.name,
+        badge: updatedOfficer.badge,
+        officerId: updatedOfficer.id,
+        username: params.discordUsername || ''
+      });
+    }
+
+    // 4. Update langsung ke Firestore collection 'roster'
+    this.initDb();
+    if (this.db) {
+      try {
+        const docKey = officer.id || this.sanitizeDocId(officer.badge);
+        const docRef = doc(this.db, 'roster', docKey);
+        await setDoc(docRef, updatedOfficer, { merge: true });
+        console.log(`[Discord Roster Service] ✅ PIN updated successfully in Firestore for ${officer.name} (${officer.badge})!`);
+      } catch (err: any) {
+        console.error('[Discord Roster Service] Error updating PIN in Firestore:', err?.message || err);
+      }
+    }
+
+    return {
+      success: true,
+      message: `PIN akun MDT untuk ${officer.name} (${officer.badge}) berhasil diperbarui dan aktif di database & Roster Anggota!`,
+      officer: updatedOfficer
     };
   }
 

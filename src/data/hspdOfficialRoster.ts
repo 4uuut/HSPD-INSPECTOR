@@ -210,15 +210,25 @@ export function mergeWithOfficialRoster(
         };
         officersMap.set(existingKey, updated);
       } else {
-        // Only accept if officer is an Atasan rank OR newly registered from Discord
-        // Old static subordinate officers (PO I, PO II, PO III, SGT, Cadet) are discarded
-        const isAtasan = isAtasanRank(item.rank);
-        const isNewlyDiscordRegistered = Boolean(
-          (item.promotedBy?.includes('Discord') || item.discordTag) &&
-          (item.registeredAt ? item.registeredAt > 1788632600000 : false)
-        );
+        // Exclude old hardcoded mock names that were purged
+        const normName = (item.name || '').toLowerCase().trim();
+        const isOldMock = [
+          'alvert canizares', 'bian alexander', 'boris layasa', 'briella bimantara',
+          'carlos gallarado', 'cecep alexsander', 'corvin gravermourn', 'dadang darmawan',
+          'dendi pablo', 'edes fernandes', 'eiser romanov', 'eliel gravermourn',
+          'gerry roach', 'gondrong carregado', 'gorgon xianlao', 'jack kingston',
+          'jalisco michoacana', 'jeesyln claurissa', 'jems giantenk', 'jimmy hops',
+          'jon oliver', 'keii claude', 'kenzo velows', 'kyle satorue', 'kyloo askara',
+          'leoanrd neave', 'lexa arvella', 'luix ziyen', 'luna haller', 'marchel leonerd',
+          'michaell anderson', 'moeses clausius', 'moji junior', 'morale lammar',
+          'omar bradley', 'oscar hernandez', 'peter schmaicel', 'rafa gharui',
+          'rafferty linnix', 'ramsey beningthon', 'rejjie kei', 'rize izumi',
+          'shalom cuirras', 'shiko alexanderz', 'stephen oscar', 'syns askara',
+          'theo leviathan', 'thomas olise', 'udin phystachio', 'van tamayuki',
+          'viggo bonapattem', 'wesley gravemourn', 'yukai escobar', 'zaydan kusuma', 'zayy choper'
+        ].includes(normName);
 
-        if (isAtasan || isNewlyDiscordRegistered) {
+        if (!isOldMock || isAtasanRank(item.rank) || item.promotedBy?.includes('Discord')) {
           const newKey = getCanonicalKey(item);
           officersMap.set(newKey, {
             ...item,

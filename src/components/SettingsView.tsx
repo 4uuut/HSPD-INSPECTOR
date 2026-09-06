@@ -9,7 +9,8 @@ import {
   Layers, HardDrive, Database, Bell, Terminal, Zap, Bot,
   Save, Upload, Image, Link, Check, Send, Maximize2, Minimize2,
   Eye, EyeOff, ShieldAlert, UserPlus, UserCheck, ChevronRight,
-  MessageSquare, UserX, Award, HelpCircle, CheckCheck, Play, Square
+  MessageSquare, UserX, Award, HelpCircle, CheckCheck, Play, Square,
+  Globe, Activity
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from '../assets/logo';
 import { 
@@ -29,7 +30,12 @@ import {
   sendOfficerDirectMessageViaBot,
   fetchDiscordChannels,
   sendRegistrationPanelToDiscord,
-  DEFAULT_REGISTRATION_PANEL_DESC
+  DEFAULT_REGISTRATION_PANEL_DESC,
+  getApiBaseUrl,
+  setCustomBackendUrl,
+  CLOUD_RUN_API_URL,
+  buildApiUrl,
+  safeFetchJson
 } from '../utils/discordWebhook';
 import { BatchPinBroadcastModal } from './BatchPinBroadcastModal';
 
@@ -182,6 +188,53 @@ export const SettingsView: React.FC<Props> = ({
       setIsBotGatewayOnline(false);
     });
   }, []);
+
+  // Backend Server Connection State (Express / Cloud Run / Vercel Serverless)
+  const [customBackendUrl, setCustomBackendUrlState] = useState(getApiBaseUrl());
+  const [isTestingBackend, setIsTestingBackend] = useState(false);
+  const [backendTestStatus, setBackendTestStatus] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleTestBackendConnection = async (urlToTest?: string) => {
+    setIsTestingBackend(true);
+    setBackendTestStatus(null);
+    const targetUrl = (urlToTest !== undefined ? urlToTest : customBackendUrl).trim().replace(/\/+$/, '');
+    const endpoint = targetUrl ? `${targetUrl}/api/health` : '/api/health';
+    try {
+      const res = await fetch(endpoint, { method: 'GET' });
+      const parsed = await safeFetchJson(res);
+      if (parsed.ok && parsed.data && parsed.data.status === 'ok') {
+        setBackendTestStatus({
+          success: true,
+          message: `✅ Terhubung sempurna ke Server Backend (${endpoint})! Status: HTTP 200 OK`
+        });
+      } else {
+        setBackendTestStatus({
+          success: false,
+          message: parsed.error || `Koneksi gagal (${res.status}): Server tidak mengembalikan status ok.`
+        });
+      }
+    } catch (err: any) {
+      setBackendTestStatus({
+        success: false,
+        message: `Gagal menghubungi server di ${endpoint}: ${err.message || err}`
+      });
+    } finally {
+      setIsTestingBackend(false);
+    }
+  };
+
+  const handleApplyBackendUrl = (newUrl: string) => {
+    const clean = newUrl.trim().replace(/\/+$/, '');
+    setCustomBackendUrl(clean);
+    setCustomBackendUrlState(clean);
+    handleTestBackendConnection(clean);
+    setTimeout(() => {
+      getDiscordBotGatewayStatus().then(res => {
+        setIsBotGatewayOnline(res.isOnline);
+        setBotGatewayInfo(res);
+      }).catch(() => setIsBotGatewayOnline(false));
+    }, 500);
+  };
 
   const handleSaveBotConfig = () => {
     setIsSavingBotConfig(true);
@@ -1049,6 +1102,105 @@ export const SettingsView: React.FC<Props> = ({
               <span>{botNotice.message}</span>
             </div>
           )}
+
+          {/* BACKEND SERVER CONNECTION CONFIGURATION BOX (Solusi 404 Vercel & Multi-Host) */}
+          <div className="bg-[#0B0F19] border border-cyan-900/60 rounded-xl p-3.5 sm:p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-cyan-950 border border-cyan-700/60 flex items-center justify-center text-cyan-400">
+                  <Globe className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-cyan-300 font-mono flex items-center gap-1.5">
+                    <span>KONEKSI SERVER BACKEND DISCORD API</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-950/80 border border-cyan-700/50 text-cyan-300">
+                      Port 3000 / Cloud Run / Vercel
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-gray-400">
+                    Menghubungkan frontend ke server Express untuk mengeksekusi bot Discord, kirim PM, panel registrasi, dan status bot online.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleTestBackendConnection()}
+                  disabled={isTestingBackend}
+                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-cyan-300 border border-gray-700 rounded-lg text-xs font-mono transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isTestingBackend ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
+                  <span>Tes Koneksi</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Action Presets */}
+            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-gray-800/80">
+              <span className="text-[10.5px] font-mono text-gray-400">Pilihan Server:</span>
+              <button
+                type="button"
+                onClick={() => handleApplyBackendUrl(CLOUD_RUN_API_URL)}
+                className={`px-2.5 py-1 rounded text-xs font-mono transition flex items-center gap-1 border ${
+                  customBackendUrl === CLOUD_RUN_API_URL
+                    ? 'bg-cyan-950 text-cyan-200 border-cyan-500 font-bold'
+                    : 'bg-gray-900/90 text-gray-300 border-gray-700 hover:border-gray-500'
+                }`}
+              >
+                <span>⚡ Cloud Run AI Studio (Online 24/7)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleApplyBackendUrl('')}
+                className={`px-2.5 py-1 rounded text-xs font-mono transition flex items-center gap-1 border ${
+                  !customBackendUrl
+                    ? 'bg-indigo-950 text-indigo-200 border-indigo-500 font-bold'
+                    : 'bg-gray-900/90 text-gray-300 border-gray-700 hover:border-gray-500'
+                }`}
+              >
+                <span>🏠 Host Saat Ini (Default / Relative)</span>
+              </button>
+            </div>
+
+            {/* Custom URL Input */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="flex-1 relative">
+                <input
+                  type="url"
+                  value={customBackendUrl}
+                  onChange={(e) => setCustomBackendUrlState(e.target.value)}
+                  placeholder="Default: Kosong (Menggunakan relative '/api/...')"
+                  className="w-full px-3 py-2 bg-[#080B11] border border-gray-700 focus:border-cyan-500 rounded-lg text-xs text-cyan-200 font-mono outline-none"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => handleApplyBackendUrl(customBackendUrl)}
+                className="px-3.5 py-2 bg-cyan-700 hover:bg-cyan-600 text-white rounded-lg text-xs font-mono font-bold transition flex items-center justify-center gap-1 cursor-pointer"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Terapkan URL</span>
+              </button>
+            </div>
+
+            {/* Backend Test Status Result */}
+            {backendTestStatus && (
+              <div className={`p-2.5 rounded-lg border text-xs flex items-center gap-2 font-mono ${
+                backendTestStatus.success
+                  ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-200'
+                  : 'bg-rose-950/80 border-rose-500/80 text-rose-200'
+              }`}>
+                {backendTestStatus.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                )}
+                <span>{backendTestStatus.message}</span>
+              </div>
+            )}
+          </div>
 
           {/* 2-Column Responsive Layout: Inputs on Left, Real-time Discord Preview on Right */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">

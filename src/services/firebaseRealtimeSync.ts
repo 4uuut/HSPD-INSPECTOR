@@ -14,6 +14,7 @@ import { db } from '../firebase';
 import { mergeWithOfficialRoster, HSPD_OFFICIAL_ROSTER } from '../data/hspdOfficialRoster';
 import { isAtasanRank } from '../types';
 import { isOfficerDischarged, getDischargedOfficers } from '../utils/dischargeStorage';
+import { buildApiUrl, safeFetchJson } from '../utils/discordWebhook';
 
 export interface FirebaseSyncStatus {
   connected: boolean;
@@ -493,7 +494,9 @@ export async function pullLatestFromFirestore<T = any>(collectionKey: Collection
     let finalItems = items;
     if (collectionKey === 'ROSTER') {
       try {
-        const apiRes = await fetch('/api/discord/roster').then(r => r.json()).catch(() => null);
+        const response = await fetch(buildApiUrl('/api/discord/roster'));
+        const parsed = await safeFetchJson(response);
+        const apiRes = parsed.ok ? parsed.data : null;
         if (apiRes?.success && Array.isArray(apiRes.officers) && apiRes.officers.length > 0) {
           apiRes.officers.forEach((off: any) => {
             if (!items.some(it => it.badge === off.badge || (it.name && off.name && it.name.toLowerCase() === off.name.toLowerCase()))) {

@@ -310,14 +310,17 @@ end
 -- ==============================================================================
 -- MAIN IMGUI RENDER FRAME
 -- ==============================================================================
-imgui.OnFrame(function() return window_state[0] end, function()
-    imgui.PushStyleColor(imgui.Col.WindowBg, imgui.ImVec4(0.06, 0.09, 0.14, 0.98))
-    imgui.PushStyleColor(imgui.Col.ChildBg, imgui.ImVec4(0.04, 0.06, 0.10, 1.0))
-    imgui.PushStyleColor(imgui.Col.HeaderHovered, imgui.ImVec4(0.12, 0.35, 0.65, 0.5))
-    imgui.PushStyleColor(imgui.Col.Header, imgui.ImVec4(0.12, 0.35, 0.65, 0.8))
+imgui.OnFrame(function()
+    return window_state[0] or show_miranda_popup[0] or show_rp_action_popup[0] or show_HSPD_cmd_popup[0] or show_sop_hspd_popup[0] or show_megaphone_popup[0] or show_regulasi_popup[0] or show_sop_persenjataan_popup[0] or show_sop_pursuit_popup[0] or show_sop_radio_popup[0] or show_kode_etik_popup[0]
+end, function()
+    if window_state[0] then
+        imgui.PushStyleColor(imgui.Col.WindowBg, imgui.ImVec4(0.06, 0.09, 0.14, 0.98))
+        imgui.PushStyleColor(imgui.Col.ChildBg, imgui.ImVec4(0.04, 0.06, 0.10, 1.0))
+        imgui.PushStyleColor(imgui.Col.HeaderHovered, imgui.ImVec4(0.12, 0.35, 0.65, 0.5))
+        imgui.PushStyleColor(imgui.Col.Header, imgui.ImVec4(0.12, 0.35, 0.65, 0.8))
 
-    imgui.SetNextWindowSize(imgui.ImVec2(1040, 560), imgui.Cond.FirstUseEver)
-    imgui.Begin(u8("HIGHSTATE ROLEPLAY - HSPD POLICE ASSISTANT V2.5"), window_state, imgui.WindowFlags.NoCollapse)
+        imgui.SetNextWindowSize(imgui.ImVec2(1040, 560), imgui.Cond.FirstUseEver)
+        if imgui.Begin(u8("HIGHSTATE ROLEPLAY - HSPD POLICE ASSISTANT V2.5"), window_state, imgui.WindowFlags.NoCollapse) then
 
     -- Tab Kategori Utama
     if imgui.Button(u8("ALL"), imgui.ImVec2(0, 25)) then selected_category = "ALL" end
@@ -508,7 +511,11 @@ imgui.OnFrame(function() return window_state[0] end, function()
     end
     imgui.PopStyleColor(1)
 
-    imgui.Columns(1)
+        imgui.Columns(1)
+        end
+        imgui.End()
+        imgui.PopStyleColor(4)
+    end
 
     -- POPUP HAK MIRANDA
     if show_miranda_popup[0] then
@@ -542,8 +549,8 @@ imgui.OnFrame(function() return window_state[0] end, function()
             if imgui.Button(u8("Tutup"), imgui.ImVec2(-1, 26)) then
                 show_miranda_popup[0] = false
             end
-            imgui.End()
         end
+        imgui.End()
     end
 
     -- POPUP QUICK ROLEPLAY ACTIONS (/me & /do)
@@ -581,8 +588,8 @@ imgui.OnFrame(function() return window_state[0] end, function()
             if imgui.Button(u8("Tutup"), imgui.ImVec2(-1, 26)) then
                 show_rp_action_popup[0] = false
             end
-            imgui.End()
         end
+        imgui.End()
     end
 
     -- POPUP STANDAR OPERASIONAL PROSEDUR (SOP)
@@ -610,8 +617,8 @@ imgui.OnFrame(function() return window_state[0] end, function()
 
             imgui.Spacing()
             if imgui.Button(u8("Tutup"), imgui.ImVec2(-1, 28)) then show_sop_hspd_popup[0] = false end
-            imgui.End()
         end
+        imgui.End()
     end
 
     -- POPUP MEGAPHONE QUICK-ACTION
@@ -697,8 +704,8 @@ imgui.OnFrame(function() return window_state[0] end, function()
 
             imgui.Spacing(); imgui.Separator(); imgui.Spacing()
             if imgui.Button(u8("Tutup"), imgui.ImVec2(-1, 25)) then show_megaphone_popup[0] = false end
-            imgui.End()
         end
+        imgui.End()
     end
 
     -- POPUP PERINTAH CEPAT HSPD
@@ -722,8 +729,8 @@ imgui.OnFrame(function() return window_state[0] end, function()
 
             imgui.Spacing(); imgui.Separator(); imgui.Spacing()
             if imgui.Button(u8("Tutup"), imgui.ImVec2(-1, 26)) then show_HSPD_cmd_popup[0] = false end
-            imgui.End()
         end
+        imgui.End()
     end
 
     -- POPUP REGULASI & BIAYA LAYANAN
@@ -754,8 +761,8 @@ imgui.OnFrame(function() return window_state[0] end, function()
             
             imgui.Spacing(); imgui.Spacing()
             if imgui.Button(u8("Tutup"), imgui.ImVec2(-1, 28)) then show_regulasi_popup[0] = false end
-            imgui.End()
         end
+        imgui.End()
     end
 
     -- POPUP SOP PERSENJATAAN
@@ -773,8 +780,8 @@ imgui.OnFrame(function() return window_state[0] end, function()
             imgui.Text(u8("OFF-DUTY: Hanya bawa 1 senjata dinas (Colt/Deagle) + 5 clip cadangan."))
             imgui.Spacing()
             if imgui.Button(u8("Tutup"), imgui.ImVec2(-1, 26)) then show_sop_persenjataan_popup[0] = false end
-            imgui.End()
         end
+        imgui.End()
     end
 
     -- POPUP SOP PURSUIT & VCB
@@ -788,8 +795,8 @@ imgui.OnFrame(function() return window_state[0] end, function()
             imgui.Text(u8("3. Visual Broken (VCB): Waktu pencarian 10-15 menit. Jika ditemukan kembali, 2 menit pertama polisi berhak langsung tembak ban."))
             imgui.Spacing(); imgui.Separator(); imgui.Spacing()
             if imgui.Button(u8("Tutup"), imgui.ImVec2(-1, 26)) then show_sop_pursuit_popup[0] = false end
-            imgui.End()
         end
+        imgui.End()
     end
 
     -- POPUP SOP RADIO & FREKUENSI
@@ -806,8 +813,8 @@ imgui.OnFrame(function() return window_state[0] end, function()
             imgui.TextWrapped(u8("Dilarang keras trolling, spam, atau berbicara hal OOC di frekuensi radio IC."))
             imgui.Spacing()
             if imgui.Button(u8("Tutup"), imgui.ImVec2(-1, 26)) then show_sop_radio_popup[0] = false end
-            imgui.End()
         end
+        imgui.End()
     end
 
     -- POPUP KODE ETIK
@@ -822,12 +829,10 @@ imgui.OnFrame(function() return window_state[0] end, function()
             imgui.Text(u8("4. Kerahasiaan: Menjaga kerahasiaan taktis penyerbuan dari radio umum."))
             imgui.Spacing(); imgui.Separator(); imgui.Spacing()
             if imgui.Button(u8("Tutup"), imgui.ImVec2(-1, 26)) then show_kode_etik_popup[0] = false end
-            imgui.End()
         end
+        imgui.End()
     end
 
-    imgui.End()
-    imgui.PopStyleColor(4)
 end)
 
 -- ==============================================================================
@@ -867,7 +872,6 @@ function main()
             window_state[0] = not window_state[0]
         end
 
-        imgui.Process = window_state[0]
     end
 end
 `;
