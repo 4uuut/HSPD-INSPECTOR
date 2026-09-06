@@ -1,7 +1,7 @@
 import WebSocket from 'ws';
 import fs from 'fs';
 import path from 'path';
-import { discordRosterService, DiscordUserContext } from './discordRosterService';
+import { discordRosterService, type DiscordUserContext } from './discordRosterService.ts';
 
 interface BotUserInfo {
   id: string;

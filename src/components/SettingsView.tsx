@@ -203,9 +203,10 @@ export const SettingsView: React.FC<Props> = ({
       const res = await fetch(endpoint, { method: 'GET' });
       const parsed = await safeFetchJson(res);
       if (parsed.ok && parsed.data && parsed.data.status === 'ok') {
+        const platformLabel = parsed.data.platform ? `[Platform: ${parsed.data.platform.toUpperCase()}] ` : '';
         setBackendTestStatus({
           success: true,
-          message: `✅ Terhubung sempurna ke Server Backend (${endpoint})! Status: HTTP 200 OK`
+          message: `✅ ${platformLabel}Terhubung sempurna ke Server Backend (${endpoint})! Status: HTTP 200 OK`
         });
       } else {
         setBackendTestStatus({
@@ -214,9 +215,14 @@ export const SettingsView: React.FC<Props> = ({
         });
       }
     } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      let helpfulTip = '';
+      if (errMsg.includes('Failed to fetch') && (targetUrl.includes('run.app') || targetUrl.includes('ais-dev') || targetUrl.includes('ais-pre'))) {
+        helpfulTip = ' ⚠️ CATATAN: URL Google Cloud Run / AI Studio memiliki proteksi internal (auth cookie check) yang memblokir akses fetch dari domain luar seperti Vercel (CORS). Silakan klik tombol "🏠 Host Saat Ini (Rekomendasi Vercel)" di bawah agar frontend Vercel langsung terhubung ke backend bawaan domain Anda!';
+      }
       setBackendTestStatus({
         success: false,
-        message: `Gagal menghubungi server di ${endpoint}: ${err.message || err}`
+        message: `Gagal menghubungi server di ${endpoint}: ${errMsg}.${helpfulTip}`
       });
     } finally {
       setIsTestingBackend(false);
@@ -1141,6 +1147,18 @@ export const SettingsView: React.FC<Props> = ({
               <span className="text-[10.5px] font-mono text-gray-400">Pilihan Server:</span>
               <button
                 type="button"
+                onClick={() => handleApplyBackendUrl('')}
+                className={`px-2.5 py-1 rounded text-xs font-mono transition flex items-center gap-1 border ${
+                  !customBackendUrl
+                    ? 'bg-emerald-950 text-emerald-200 border-emerald-500 font-bold shadow-sm'
+                    : 'bg-gray-900/90 text-gray-300 border-gray-700 hover:border-gray-500'
+                }`}
+              >
+                <span>🏠 Host Saat Ini (Rekomendasi Vercel / Same-Origin)</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => handleApplyBackendUrl(CLOUD_RUN_API_URL)}
                 className={`px-2.5 py-1 rounded text-xs font-mono transition flex items-center gap-1 border ${
                   customBackendUrl === CLOUD_RUN_API_URL
@@ -1148,19 +1166,7 @@ export const SettingsView: React.FC<Props> = ({
                     : 'bg-gray-900/90 text-gray-300 border-gray-700 hover:border-gray-500'
                 }`}
               >
-                <span>⚡ Cloud Run AI Studio (Online 24/7)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleApplyBackendUrl('')}
-                className={`px-2.5 py-1 rounded text-xs font-mono transition flex items-center gap-1 border ${
-                  !customBackendUrl
-                    ? 'bg-indigo-950 text-indigo-200 border-indigo-500 font-bold'
-                    : 'bg-gray-900/90 text-gray-300 border-gray-700 hover:border-gray-500'
-                }`}
-              >
-                <span>🏠 Host Saat Ini (Default / Relative)</span>
+                <span>⚡ Cloud Run AI Studio (Khusus Sandbox Internal)</span>
               </button>
             </div>
 
@@ -1171,7 +1177,7 @@ export const SettingsView: React.FC<Props> = ({
                   type="url"
                   value={customBackendUrl}
                   onChange={(e) => setCustomBackendUrlState(e.target.value)}
-                  placeholder="Default: Kosong (Menggunakan relative '/api/...')"
+                  placeholder="Default: Kosong (Menggunakan relative host saat ini '/api/...')"
                   className="w-full px-3 py-2 bg-[#080B11] border border-gray-700 focus:border-cyan-500 rounded-lg text-xs text-cyan-200 font-mono outline-none"
                 />
               </div>
@@ -1185,19 +1191,37 @@ export const SettingsView: React.FC<Props> = ({
               </button>
             </div>
 
-            {/* Backend Test Status Result */}
+            {/* Backend Test Status Result & One-Click Fix */}
             {backendTestStatus && (
-              <div className={`p-2.5 rounded-lg border text-xs flex items-center gap-2 font-mono ${
+              <div className={`p-2.5 rounded-lg border text-xs flex flex-col gap-2 font-mono ${
                 backendTestStatus.success
                   ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-200'
                   : 'bg-rose-950/80 border-rose-500/80 text-rose-200'
               }`}>
-                {backendTestStatus.success ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                ) : (
-                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+                <div className="flex items-start gap-2">
+                  {backendTestStatus.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  )}
+                  <span className="leading-relaxed">{backendTestStatus.message}</span>
+                </div>
+
+                {!backendTestStatus.success && customBackendUrl && (
+                  <div className="pt-1.5 border-t border-rose-900/60 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleApplyBackendUrl('')}
+                      className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Atasi Otomatis: Beralih ke Host Saat Ini (Vercel)</span>
+                    </button>
+                    <span className="text-[10.5px] text-gray-400">
+                      Menghapus URL eksternal agar frontend Vercel langsung memakai backend domain Vercel.
+                    </span>
+                  </div>
                 )}
-                <span>{backendTestStatus.message}</span>
               </div>
             )}
           </div>
