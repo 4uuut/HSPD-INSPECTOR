@@ -76,7 +76,10 @@ class DiscordRosterService {
         const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
         const app = getApps().length === 0 ? initializeApp(config) : getApp();
         const dbId = config.firestoreDatabaseId || '(default)';
-        this.db = initializeFirestore(app, {}, dbId);
+        this.db = initializeFirestore(app, {
+          experimentalForceLongPolling: true,
+          ignoreUndefinedProperties: true,
+        }, dbId);
         this.isInitialized = true;
         console.log('[Discord Roster Service] Firestore initialized successfully.');
       }
@@ -342,6 +345,28 @@ class DiscordRosterService {
         const docRef = doc(this.db, 'roster', docKey);
         await setDoc(docRef, newOfficer, { merge: true });
         console.log(`[Discord Roster Service] ✅ Officer ${formattedName} (${badge}) saved to Firestore!`);
+
+        // If officer was previously marked as discharged, remove them from discharged_officers
+        try {
+          const dischargeDocRef = doc(this.db, 'system_configs', 'discharged_officers');
+          const dSnap = await getDoc(dischargeDocRef);
+          if (dSnap.exists()) {
+            const dData = dSnap.data();
+            const dList = dData.data?.list || dData.list || [];
+            const cleanDigits = badge.replace(/[^0-9]/g, '');
+            const filtered = dList.filter((item: any) => {
+              const itemBadge = (item.badge || '').replace(/[^0-9]/g, '');
+              const itemName = (item.name || '').toLowerCase().trim();
+              return itemBadge !== cleanDigits && itemName !== formattedName.toLowerCase();
+            });
+            if (filtered.length !== dList.length) {
+              await setDoc(dischargeDocRef, { ...dData, data: { list: filtered }, updatedAt: Date.now() }, { merge: true });
+              console.log(`[Discord Roster Service] Removed ${formattedName} from discharged_officers archive.`);
+            }
+          }
+        } catch (dErr) {
+          console.warn('[Discord Roster Service] Notice checking discharged archive:', dErr);
+        }
       } catch (err: any) {
         console.error('[Discord Roster Service] Error writing to Firestore:', err?.message || err);
       }
