@@ -1038,14 +1038,21 @@ export const RosterManagement: React.FC<Props> = ({
       const res = await lookupDiscordUser(targetDmUserId.trim());
       if (res.success && res.user) {
         setVerifiedDiscordUser(res.user);
-        setDiscordIdSaveNotice(`✅ Akun Discord Terdeteksi: ${res.user.globalName || res.user.username} (@${res.user.username}) [ID: ${res.user.id}]`);
+        const typedClean = targetDmUserId.replace(/^@/, '').trim().toLowerCase();
+        const foundUsername = res.user.username.toLowerCase();
+        if (typedClean !== foundUsername) {
+          setDiscordIdSaveNotice(`✅ Akun Discord Terdeteksi (Koreksi otomatis): @${res.user.username} [ID: ${res.user.id}]`);
+          setTargetDmUserId(`@${res.user.username}`);
+        } else {
+          setDiscordIdSaveNotice(`✅ Akun Discord Terdeteksi: ${res.user.globalName || res.user.username} (@${res.user.username}) [ID: ${res.user.id}]`);
+        }
       } else {
-        setDiscordIdSaveNotice(`⚠️ Username "${targetDmUserId}" belum terdeteksi di cache server bot (bisa langsung coba kirim).`);
+        setDiscordIdSaveNotice(res.message || `⚠️ Username "${targetDmUserId}" belum terdeteksi di server bot. Pastikan bot sudah diundang ke server Discord atau masukkan ID Discord angka.`);
       }
-      setTimeout(() => setDiscordIdSaveNotice(null), 5000);
+      setTimeout(() => setDiscordIdSaveNotice(null), 6000);
     } catch (e: any) {
       setDiscordIdSaveNotice(`❌ Gagal mendeteksi akun: ${e?.message || e}`);
-      setTimeout(() => setDiscordIdSaveNotice(null), 5000);
+      setTimeout(() => setDiscordIdSaveNotice(null), 6000);
     } finally {
       setIsVerifyingDiscordUser(false);
     }

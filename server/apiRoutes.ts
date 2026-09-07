@@ -24,6 +24,24 @@ interface ResolvedDiscordUser {
   avatarUrl: string;
 }
 
+function levenshtein(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (a[i - 1] === b[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1];
+      } else {
+        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+      }
+    }
+  }
+  return dp[m][n];
+}
+
 async function resolveDiscordUser(query: string, token: string): Promise<{ success: boolean; user?: ResolvedDiscordUser; message?: string }> {
   if (!query || !query.trim()) {
     return { success: false, message: 'Username atau ID Discord target tidak boleh kosong!' };
@@ -139,6 +157,72 @@ async function resolveDiscordUser(query: string, token: string): Promise<{ succe
           }
           if (!candidateUser) {
             candidateUser = resolved;
+          }
+        }
+
+        // Fallback: If no match from /members/search, fetch recent guild members (up to 100) and compare fuzzy
+        if (!candidateUser) {
+          const listRes = await fetch(
+            `https://discord.com/api/v10/guilds/${guild.id}/members?limit=100`,
+            { headers: { Authorization: `Bot ${token}` } }
+          );
+          if (listRes.ok) {
+            const listMembers = await listRes.json() as Array<{
+              nick?: string;
+              user: {
+                id: string;
+                username: string;
+                discriminator?: string;
+                global_name?: string;
+                avatar?: string;
+              }
+            }>;
+
+            let closestUser: ResolvedDiscordUser | null = null;
+            let lowestDist = 999;
+
+            for (const m of listMembers) {
+              const u = m.user;
+              const uNameLower = (u.username || '').toLowerCase();
+              const gNameLower = (u.global_name || '').toLowerCase();
+              const nickLower = (m.nick || '').toLowerCase();
+
+              const avatarUrl = u.avatar
+                ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png`
+                : `https://cdn.discordapp.com/embed/avatars/${(parseInt(u.discriminator || '0', 10) || 0) % 5}.png`;
+
+              const resUser: ResolvedDiscordUser = {
+                id: u.id,
+                username: u.username,
+                globalName: u.global_name || m.nick || null,
+                tag: u.discriminator && u.discriminator !== '0' ? `${u.username}#${u.discriminator}` : `@${u.username}`,
+                avatarUrl
+              };
+
+              // Exact match
+              if (uNameLower === targetLower || gNameLower === targetLower || nickLower === targetLower) {
+                return { success: true, user: resUser };
+              }
+
+              // Substring match
+              if (uNameLower.includes(targetLower) || targetLower.includes(uNameLower)) {
+                if (!candidateUser) candidateUser = resUser;
+              }
+
+              // Typo tolerance: Levenshtein distance check (e.g. 'lunuxsamp' vs 'linuxsamp' dist=1)
+              const d1 = Math.abs(uNameLower.length - targetLower.length) <= 3 ? levenshtein(uNameLower, targetLower) : 999;
+              const d2 = gNameLower ? levenshtein(gNameLower, targetLower) : 999;
+              const bestD = Math.min(d1, d2);
+
+              if (bestD <= 2 && bestD < lowestDist) {
+                lowestDist = bestD;
+                closestUser = resUser;
+              }
+            }
+
+            if (!candidateUser && closestUser) {
+              candidateUser = closestUser;
+            }
           }
         }
       } catch (err) {
