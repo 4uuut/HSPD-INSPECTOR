@@ -34,7 +34,10 @@ export interface NewOfficerRegistrationData {
   icName: string;
   pin: string;
   badge?: string;
+  rank?: string;
+  division?: string;
   phone?: string;
+  promotedBy?: string;
   discordUser: DiscordUserContext;
 }
 
@@ -264,7 +267,10 @@ class DiscordRosterService {
     officer?: OfficerRecord;
   }> {
     const rawName = data.icName?.trim();
-    const rawPin = data.pin?.trim();
+    let rawPin = data.pin?.trim();
+    if (!rawPin) {
+      rawPin = Math.floor(1000 + Math.random() * 9000).toString();
+    }
     const discordId = data.discordUser?.id?.trim();
     const discordUsername = data.discordUser?.username?.trim();
 
@@ -272,7 +278,7 @@ class DiscordRosterService {
       return { success: false, message: 'Nama IC tidak valid! Minimal 3 karakter (contoh: Alex Vance atau John_Doe).' };
     }
 
-    if (!rawPin || rawPin.length < 4) {
+    if (rawPin.length < 4) {
       return { success: false, message: 'PIN login akun minimal harus 4 karakter/angka!' };
     }
 
@@ -303,23 +309,32 @@ class DiscordRosterService {
     }
 
     // Determine badge
-    const badge = await this.getNextAvailableBadge(data.badge);
+    let badge = data.badge?.trim();
+    if (badge) {
+      if (!badge.startsWith('#')) badge = `#${badge}`;
+    } else {
+      badge = await this.getNextAvailableBadge();
+    }
 
-    const officerId = `roster-cadet-${formattedName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${badge.replace(/[^0-9]/g, '')}`;
+    const cleanDigits = badge.replace(/[^0-9]/g, '') || Math.floor(100 + Math.random() * 900).toString();
+    const officerId = `roster-${formattedName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${cleanDigits}`;
+    const assignedRank = data.rank?.trim() || 'CADET [CDT]';
+    const assignedDivision = data.division?.trim() || 'Patrol Division';
+    const assignedPromotedBy = data.promotedBy?.trim() || 'Discord Bot UCP Registration Panel';
 
     const newOfficer: OfficerRecord = {
       id: officerId,
       name: formattedName,
       badge: badge,
-      rank: 'CADET [CDT]',
-      division: 'Patrol Division',
+      rank: assignedRank,
+      division: assignedDivision,
       pin: rawPin,
-      phone: data.phone?.trim() || `555-${badge.replace(/[^0-9]/g, '').padStart(4, '0')}`,
-      discordTag: `@${data.discordUser.username} (ID: ${data.discordUser.id})`,
-      discordId: data.discordUser.id,
-      discordUsername: data.discordUser.username,
+      phone: data.phone?.trim() || `555-${cleanDigits.padStart(4, '0')}`,
+      discordTag: data.discordUser?.username ? `@${data.discordUser.username} (ID: ${data.discordUser.id})` : undefined,
+      discordId: data.discordUser?.id,
+      discordUsername: data.discordUser?.username,
       registeredAt: Date.now(),
-      promotedBy: 'Discord Bot UCP Registration Panel',
+      promotedBy: assignedPromotedBy,
       isDuty: false,
       dutyStatus: '8-1-0',
       warnings: [],
@@ -483,6 +498,7 @@ class DiscordRosterService {
     payload: {
       content?: string;
       embeds?: any[];
+      components?: any[];
     }
   ): Promise<{ success: boolean; message?: string }> {
     try {

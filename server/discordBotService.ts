@@ -587,12 +587,27 @@ class DiscordGatewayManager {
                         { name: 'Pin Code', value: matchedOfficer.pin || '10-4', inline: false },
                         { name: 'No. Badge & Pangkat', value: `\`${matchedOfficer.badge || '-'}\` • ${matchedOfficer.rank || '-'}`, inline: false },
                         { name: 'Divisi', value: matchedOfficer.division || 'Patrol Division', inline: false },
+                        { name: '🌐 Akses Terminal MDT Web', value: 'Buka aplikasi web MDT di browser Anda untuk mulai bertugas:\n👉 [Klik di Sini untuk Buka Terminal MDT](https://mdc-hspd-inspector.vercel.app/)', inline: false },
                         { name: 'Note', value: 'Jangan beritahu informasi ini kepada orang lain!\n*Gunakan nama UCP / Badge dan Pin Code di atas untuk login ke Terminal MDT Kepolisian.*', inline: false }
                       ],
                       footer: {
                         text: `Bot High State • ${dateFormatted}`,
                         icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
                       }
+                    }
+                  ],
+                  components: [
+                    {
+                      type: 1, // Action Row
+                      components: [
+                        {
+                          type: 2, // Button
+                          style: 5, // Link
+                          label: 'Akses Terminal MDT Web',
+                          url: 'https://mdc-hspd-inspector.vercel.app/',
+                          emoji: { name: '🌐' }
+                        }
+                      ]
                     }
                   ]
                 });
@@ -858,12 +873,27 @@ class DiscordGatewayManager {
                       { name: 'PIN Baru', value: `||${off.pin}||`, inline: false },
                       { name: 'No. Badge & Pangkat', value: `\`${off.badge}\` • ${off.rank}`, inline: false },
                       { name: 'Divisi', value: off.division || 'Patrol Division', inline: false },
+                      { name: '🌐 Akses Terminal MDT Web', value: 'Buka aplikasi web MDT di browser Anda untuk mulai bertugas:\n👉 [Klik di Sini untuk Buka Terminal MDT](https://mdc-hspd-inspector.vercel.app/)', inline: false },
                       { name: 'Instruksi', value: 'Gunakan Nama IC / Badge dan PIN baru di atas untuk login ke Terminal MDT Kepolisian.', inline: false }
                     ],
                     footer: {
                       text: `Bot High State • ${dateFormatted}`,
                       icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
                     }
+                  }
+                ],
+                components: [
+                  {
+                    type: 1, // Action Row
+                    components: [
+                      {
+                        type: 2, // Button
+                        style: 5, // Link
+                        label: 'Akses Terminal MDT Web',
+                        url: 'https://mdc-hspd-inspector.vercel.app/',
+                        emoji: { name: '🌐' }
+                      }
+                    ]
                   }
                 ]
               }).catch((e) => {

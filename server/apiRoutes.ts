@@ -299,18 +299,21 @@ apiRouter.get('/discord/roster', async (req, res) => {
   }
 });
 
-// Register officer directly via API (mirrors Discord modal)
+// Register officer directly via API (mirrors Discord modal / Web Roster)
 apiRouter.post('/discord/register-officer', async (req, res) => {
   try {
-    const { icName, pin, badge, phone, discordUsername, discordUserId } = req.body;
+    const { icName, pin, badge, rank, division, phone, promotedBy, discordUsername, discordUserId } = req.body;
     const result = await discordRosterService.registerOfficer({
       icName,
       pin,
       badge,
+      rank,
+      division,
       phone,
+      promotedBy,
       discordUser: {
-        id: discordUserId || 'api_user',
-        username: discordUsername || 'api_user'
+        id: discordUserId || 'web_registration',
+        username: discordUsername || 'web_roster'
       }
     });
     res.json(result);
@@ -551,7 +554,7 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
           inline: true
         });
       }
-      const appWebUrl = loginUrl || 'https://mdc-hspd-inspector.vercel.app';
+      const appWebUrl = (loginUrl && loginUrl.trim()) ? loginUrl.trim() : 'https://mdc-hspd-inspector.vercel.app/';
       fields.push({
         name: '🌐 Akses Terminal MDT Web',
         value: `Buka aplikasi web MDT di browser Anda untuk mulai bertugas:\n👉 [Klik di Sini untuk Buka Terminal MDT](${appWebUrl})`,
@@ -570,6 +573,8 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
         inline: false
       });
     }
+
+    const appWebUrl = (loginUrl && loginUrl.trim()) ? loginUrl.trim() : 'https://mdc-hspd-inspector.vercel.app/';
 
     const defaultTitle = isCustomChatOnly 
       ? 'Pesan Resmi Komando Kepolisian' 
@@ -605,6 +610,21 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       ? `<@${cleanUserId}> 📨 **Pesan Resmi dari Komando / Atasan HSPD:**`
       : `<@${cleanUserId}> Halo! Berikut adalah detail dari akun UCP Anda:`;
 
+    const messageComponents = [
+      {
+        type: 1, // ACTION_ROW
+        components: [
+          {
+            type: 2, // BUTTON
+            style: 5, // LINK
+            label: 'Akses Terminal MDT Web',
+            url: appWebUrl,
+            emoji: { name: '🌐' }
+          }
+        ]
+      }
+    ];
+
     const sendMsgRes = await fetch(`https://discord.com/api/v10/channels/${dmChannelId}/messages`, {
       method: 'POST',
       headers: {
@@ -613,7 +633,8 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       },
       body: JSON.stringify({
         content: messageContent,
-        embeds: [embedObj]
+        embeds: [embedObj],
+        components: messageComponents
       })
     });
 

@@ -32,7 +32,7 @@ import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch, isSame
 import { getSavedDetectiveCases, saveDetectiveCases } from './utils/detectiveCaseStorage';
 import { getSavedBoloAlerts, saveBoloAlerts, getSavedImpounds, saveImpounds } from './utils/boloImpoundStorage';
 import { getOfficerDutyState, saveOfficerDutyState, formatDutyDuration } from './utils/officerDutyStorage';
-import { getDiscordWebhookConfig, getSavedDiscordBotConfig, startDiscordBotGateway } from './utils/discordWebhook';
+import { getDiscordWebhookConfig, getSavedDiscordBotConfig, startDiscordBotGateway, buildApiUrl } from './utils/discordWebhook';
 import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from './utils/brandingStorage';
 import { checkDirectRankClearance, hasActiveUnlockedSession } from './utils/otpClearanceStorage';
 import { 
@@ -504,12 +504,48 @@ export default function App() {
   };
 
   const handleRegisterOfficer = (newAccount: OfficerAccount) => {
+    const cleanAccount: OfficerAccount = {
+      ...newAccount,
+      pin: newAccount.pin ? String(newAccount.pin).trim() : '10-4',
+      _updatedAt: Date.now()
+    };
+
     setRoster(prev => {
-      const exists = prev.some(a => a.badge.toLowerCase() === newAccount.badge.toLowerCase());
-      if (exists) {
-        return prev.map(a => a.badge.toLowerCase() === newAccount.badge.toLowerCase() ? newAccount : a);
-      }
-      return [newAccount, ...prev];
+      const exists = prev.some(a => isSameOfficerAccount(a, cleanAccount));
+      const next = exists
+        ? prev.map(a => isSameOfficerAccount(a, cleanAccount) ? cleanAccount : a)
+        : [cleanAccount, ...prev];
+
+      // Instant local persistence across all storage keys & broadcast event
+      saveRosterToStorage(next);
+      return next;
+    });
+
+    // Explicitly update PIN registry
+    if (cleanAccount.pin) {
+      updateOfficerPinInRoster(cleanAccount.badge, cleanAccount.pin, cleanAccount.name);
+    }
+
+    // Direct push to Cloud Firestore
+    pushToFirestore('ROSTER', cleanAccount).catch(() => {});
+
+    // Sync to backend Discord Bot & Roster database
+    fetch(buildApiUrl('/api/discord/register-officer'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        icName: cleanAccount.name,
+        pin: cleanAccount.pin,
+        badge: cleanAccount.badge,
+        rank: cleanAccount.rank,
+        division: cleanAccount.division,
+        phone: cleanAccount.phone,
+        promotedBy: cleanAccount.promotedBy,
+        discordUsername: cleanAccount.discordTag?.replace(/^@/, '') || cleanAccount.name,
+        discordUserId: cleanAccount.discordTag?.match(/\d{17,20}/)?.[0] || cleanAccount.discordTag || ''
+      })
+    }).catch(err => {
+      console.warn('[RosterSync] Server registration sync notice:', err);
     });
   };
 

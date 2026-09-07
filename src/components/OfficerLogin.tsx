@@ -13,9 +13,11 @@ import { RecruitmentInfoPanel } from './RecruitmentInfoPanel';
 import { RequestPinDiscordModal } from './RequestPinDiscordModal';
 import { CaptchaVerification } from './CaptchaVerification';
 import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from '../utils/brandingStorage';
-import { isOfficerMatch, getPinResetRequests, updateOfficerPinInRoster, getRosterFromStorage } from '../utils/pinResetStorage';
+import { isOfficerMatch, getPinResetRequests, updateOfficerPinInRoster, getRosterFromStorage, saveRosterToStorage } from '../utils/pinResetStorage';
 import { HSPD_OFFICIAL_ROSTER, mergeWithOfficialRoster } from '../data/hspdOfficialRoster';
 import { isOfficerDischarged } from '../utils/dischargeStorage';
+import { pullLatestFromFirestore } from '../services/firebaseRealtimeSync';
+import { buildApiUrl, safeFetchJson } from '../utils/discordWebhook';
 
 interface Props {
   onLogin: (officer: OfficerProfile) => void;
@@ -51,7 +53,7 @@ export const OfficerLogin: React.FC<Props> = ({
   const [isDiscordModalOpen, setIsDiscordModalOpen] = useState(false);
 
   // 1. DIRECT CREDENTIALS LOGIN SUBMIT
-  const handleDirectLoginSubmit = (e: React.FormEvent) => {
+  const handleDirectLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     setLoginSuccess('');
@@ -77,7 +79,7 @@ export const OfficerLogin: React.FC<Props> = ({
 
     // Find officer in roster by exact or partial name, or badge across multiple layers
     const freshestRoster = getRosterFromStorage();
-    const candidateRosters = mergeWithOfficialRoster([...(roster || []), ...freshestRoster, ...HSPD_OFFICIAL_ROSTER]);
+    let candidateRosters = mergeWithOfficialRoster([...(roster || []), ...freshestRoster, ...HSPD_OFFICIAL_ROSTER]);
     
     // First attempt to match from current candidate pool
     let matched = candidateRosters.find(acc => isOfficerMatch(acc, loginIdentifier));
@@ -86,6 +88,35 @@ export const OfficerLogin: React.FC<Props> = ({
       // Fallback attempt against freshest storage
       matched = freshestRoster.find(acc => isOfficerMatch(acc, loginIdentifier)) ||
                 HSPD_OFFICIAL_ROSTER.find(acc => isOfficerMatch(acc, loginIdentifier));
+    }
+
+    // If still not matched locally, attempt real-time check from Cloud Firestore & Server Roster database
+    if (!matched) {
+      try {
+        const cloudOfficers = await pullLatestFromFirestore<OfficerAccount>('ROSTER');
+        if (cloudOfficers && Array.isArray(cloudOfficers) && cloudOfficers.length > 0) {
+          candidateRosters = mergeWithOfficialRoster([...candidateRosters, ...cloudOfficers]);
+          matched = candidateRosters.find(acc => isOfficerMatch(acc, loginIdentifier));
+          if (matched) {
+            saveRosterToStorage(candidateRosters);
+          }
+        }
+      } catch {}
+    }
+
+    if (!matched) {
+      try {
+        const response = await fetch(buildApiUrl('/api/discord/roster'));
+        const parsed = await safeFetchJson(response);
+        if (parsed.ok && parsed.data?.success && Array.isArray(parsed.data.officers)) {
+          const serverOfficers: OfficerAccount[] = parsed.data.officers;
+          candidateRosters = mergeWithOfficialRoster([...candidateRosters, ...serverOfficers]);
+          matched = candidateRosters.find(acc => isOfficerMatch(acc, loginIdentifier));
+          if (matched) {
+            saveRosterToStorage(candidateRosters);
+          }
+        }
+      } catch {}
     }
 
     if (!matched) {

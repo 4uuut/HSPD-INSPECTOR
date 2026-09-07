@@ -2690,7 +2690,7 @@ export async function sendOfficerDirectMessageViaBot(params: {
         registeredBy: params.registeredBy,
         registeredByRank: params.registeredByRank,
         registeredByBadge: params.registeredByBadge,
-        loginUrl: params.loginUrl || (typeof window !== 'undefined' ? window.location.origin : undefined)
+        loginUrl: params.loginUrl || 'https://mdc-hspd-inspector.vercel.app/'
       })
     });
 
