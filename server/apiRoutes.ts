@@ -314,7 +314,11 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       embedColor,
       footerText,
       customMessage,
-      messageType
+      messageType,
+      registeredBy,
+      registeredByRank,
+      registeredByBadge,
+      loginUrl
     } = req.body;
 
     const token = (botToken || discordGatewayManager.getActiveToken() || process.env.DISCORD_BOT_TOKEN || '').trim();
@@ -453,12 +457,25 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       }
       fields.push({
         name: '🔑 Kredensial UCP & PIN Anda',
-        value: `\`\`\`yaml\nNama UCP: ${officerName || 'Officer'}\nPIN MDT: ${pin || '10-4'}\n\`\`\``,
+        value: `\`\`\`yaml\nNama UCP: ${officerName || 'Officer'}\nNomor Badge: ${badge || '-'}\nPIN Login MDT: ${pin || '10-4'}\n\`\`\``,
+        inline: false
+      });
+      if (registeredBy) {
+        fields.push({
+          name: '🎖️ Diresmikan Oleh Atasan',
+          value: `**${registeredBy}** ${registeredByRank ? `(${registeredByRank})` : ''} ${registeredByBadge ? `\`${registeredByBadge}\`` : ''}`.trim(),
+          inline: true
+        });
+      }
+      const appWebUrl = loginUrl || 'https://mdc-hspd-inspector.vercel.app';
+      fields.push({
+        name: '🌐 Akses Terminal MDT Web',
+        value: `Buka aplikasi web MDT di browser Anda untuk mulai bertugas:\n👉 [Klik di Sini untuk Buka Terminal MDT](${appWebUrl})`,
         inline: false
       });
       if (customMessage) {
         fields.push({
-          name: '💬 Pesan Tambahan dari Atasan',
+          name: '💬 Pesan / Arahan dari Atasan',
           value: `>>> ${customMessage}`,
           inline: false
         });
@@ -470,11 +487,20 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       });
     }
 
-    const defaultTitle = isCustomChatOnly ? 'Pesan Resmi Komando Kepolisian' : 'Kredensial Akun UCP High State';
+    const defaultTitle = isCustomChatOnly 
+      ? 'Pesan Resmi Komando Kepolisian' 
+      : (registeredBy ? 'Kredensial Akun Dinas Kepolisian HSPD' : 'Kredensial Akun UCP High State');
     const finalTitle = (embedTitle && embedTitle.trim()) ? embedTitle.trim() : defaultTitle;
+    
+    let defaultDesc = 'Berikut adalah detail dari akun UCP Anda:';
+    if (isCustomChatOnly) {
+      defaultDesc = 'Anda menerima pesan dinas resmi dari jajaran Komando / Atasan:';
+    } else if (registeredBy) {
+      defaultDesc = `Halo **${officerName || 'Officer'}**, akun dinas Anda telah resmi didaftarkan oleh Jajaran Atasan (**${registeredByRank || 'High Command'} ${registeredBy}**). Berikut adalah detail akun dan PIN login Terminal MDT Anda:`;
+    }
     const finalDescription = (embedDescription && embedDescription.trim())
       ? embedDescription.trim() 
-      : (isCustomChatOnly ? 'Anda menerima pesan dinas resmi dari jajaran Komando / Atasan:' : 'Berikut adalah detail dari akun UCP Anda:');
+      : defaultDesc;
 
     const embedObj: any = {
       author: {
@@ -547,190 +573,10 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
   }
 });
 
-// Discord Bot Registration Panel API
+// Discord Bot Registration Panel API (Pendaftaran Mandiri Ditutup - Khusus Atasan via Roster)
 apiRouter.post('/discord/send-registration-panel', async (req, res) => {
-  try {
-    const {
-      botToken,
-      channelId,
-      embedTitle,
-      embedDescription,
-      embedColor,
-      footerText,
-      thumbnailUrl,
-      registerUrl,
-      botName
-    } = req.body;
-
-    const token = (botToken || discordGatewayManager.getActiveToken() || process.env.DISCORD_BOT_TOKEN || '').trim();
-    if (!token) {
-      return res.status(400).json({
-        success: false,
-        message: 'Discord Bot Token belum dikonfigurasi! Harap masukkan Bot Token di menu Pengaturan.'
-      });
-    }
-
-    if (!channelId || !channelId.toString().trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'ID Channel Discord tujuan wajib diisi! Masukkan ID Channel Discord (contoh: 1234567890123456789).'
-      });
-    }
-
-    const cleanChannelId = channelId.toString().replace(/[^0-9]/g, '');
-    if (!cleanChannelId || cleanChannelId.length < 16) {
-      return res.status(400).json({
-        success: false,
-        message: `ID Channel '${channelId}' tidak valid! ID Channel Discord harus terdiri dari 17-20 digit angka.`
-      });
-    }
-
-    let parsedColor = 0x00A8FF;
-    if (embedColor) {
-      if (typeof embedColor === 'number') {
-        parsedColor = Math.min(Math.max(0, embedColor), 0xFFFFFF);
-      } else if (typeof embedColor === 'string') {
-        const cleanHex = embedColor.replace('#', '').trim();
-        const parsed = parseInt(cleanHex, 16);
-        if (!isNaN(parsed)) {
-          parsedColor = Math.min(Math.max(0, parsed), 0xFFFFFF);
-        }
-      }
-    }
-
-    const DEFAULT_THUMBNAIL = 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png';
-    let safeThumbnail = DEFAULT_THUMBNAIL;
-    if (thumbnailUrl && typeof thumbnailUrl === 'string') {
-      const trimmed = thumbnailUrl.trim();
-      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-        safeThumbnail = trimmed;
-      }
-    }
-
-    const DEFAULT_DESCRIPTION = 
-`Channel ini merupakan tempat dimana kamu dapat mengatur akun UCP kamu sendiri. Terdapat beberapa hal yang harus kamu ketahui, diantaranya:
-
-[ 📄 Register UCP ]
-Informasi Sebagaimana dengan judulnya, ini merupakan tombol dimana kamu dapat mengambil Tiket (membuat akun UCP). Sebelum kamu bermain peran di High State maka Tiket adalah kewajiban utama yang harus kamu miliki, disinilah tempatnya!
-
-[ ♻️ Resend Code ]
-Informasi Kamu dapat melihat status Tiketmu apakah sudah terverifikasi ataukah belum, kamu juga dapat melihat informasi kode verifikasi melalui ini jikalau kamu belum menerima DM dari BOT @High State Roleplay
-
-[ 🚨 Lupa Password ]
-Sesuai dengan namanya, tombol ini merupakan tempat apabila kamu lupa kata sandi atau ingin mengganti kata sandi.
-
-[ ⚙️ Fix Role ]
-Informasi ini adalah tempat dimana ketika kalian sudah melakukan register/ambil tiket dan tidak mendapatkan role @unknown-role maka silahkan gunakan Reff Role, dan disini juga tempat dimana ketika kalian tidak sengaja ataupun sengaja keluar dari discord High State dan ingin main lagi di High State maka silahkan gunakan tombol Reff Role untuk mengambil role @unknown-role!
-
-[ ⚠️ Penting ]
-Jangan lupa untuk hidupin direct message agar pm bot mengirim ucp bisa masuk! Dan Pastikan Akun Discord kamu sudah dibuat lebih dari 7Hari!`;
-
-    const desc = (embedDescription && embedDescription.trim()) ? embedDescription.trim() : DEFAULT_DESCRIPTION;
-    const title = (embedTitle && embedTitle.trim()) ? embedTitle.trim() : 'UCP Panel High State';
-    const footer = (footerText && footerText.trim()) ? footerText.trim() : 'Bot High State';
-    const authorName = (botName && botName.trim()) ? botName.trim() : 'High State Roleplay';
-
-    const now = new Date();
-    const dateFormatted = now.toLocaleDateString('en-US', {
-      month: 'numeric',
-      day: 'numeric',
-      year: '2-digit',
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
-
-    const registerButton = {
-      type: 2,
-      style: 2,
-      label: 'Register',
-      emoji: { name: '📄' },
-      custom_id: 'mdt_btn_register'
-    };
-
-    const actionRow = {
-      type: 1,
-      components: [
-        registerButton,
-        {
-          type: 2,
-          style: 1,
-          label: 'Resend Code',
-          emoji: { name: '♻️' },
-          custom_id: 'mdt_btn_resend_code'
-        },
-        {
-          type: 2,
-          style: 4,
-          label: 'Lupa Password',
-          emoji: { name: '⚠️' },
-          custom_id: 'mdt_btn_forgot_password'
-        },
-        {
-          type: 2,
-          style: 2,
-          label: 'Take Role',
-          emoji: { name: '⚙️' },
-          custom_id: 'mdt_btn_take_role'
-        }
-      ]
-    };
-
-    const embedObj = {
-      author: {
-        name: authorName.substring(0, 256),
-        icon_url: safeThumbnail
-      },
-      title: title.substring(0, 256),
-      description: desc.substring(0, 4096),
-      color: parsedColor,
-      thumbnail: {
-        url: safeThumbnail
-      },
-      footer: {
-        text: `${footer} • ${dateFormatted}`.substring(0, 2048),
-        icon_url: safeThumbnail
-      }
-    };
-
-    const sendRes = await fetch(`https://discord.com/api/v10/channels/${cleanChannelId}/messages`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bot ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        embeds: [embedObj],
-        components: [actionRow]
-      })
-    });
-
-    if (!sendRes.ok) {
-      const errJson = await sendRes.json().catch(() => ({}));
-      let reason = errJson.message || `HTTP ${sendRes.status}`;
-      if (errJson.code === 50001 || sendRes.status === 403) {
-        reason = `Bot tidak memiliki izin akses (Missing Access/Permissions) di Channel ID '${cleanChannelId}'. Pastikan bot sudah diundang ke server dan memiliki izin 'View Channel', 'Send Messages', dan 'Embed Links' di channel tersebut.`;
-      } else if (errJson.code === 10003) {
-        reason = `Channel dengan ID '${cleanChannelId}' tidak ditemukan di server bot.`;
-      }
-      return res.status(400).json({
-        success: false,
-        message: `Gagal mengirim panel ke channel: ${reason}`
-      });
-    }
-
-    const sentMsg = await sendRes.json();
-    return res.json({
-      success: true,
-      messageId: sentMsg.id,
-      channelId: cleanChannelId,
-      message: `✅ Panel Registrasi Anggota & Login MDT berhasil dikirim ke Channel Discord (ID: ${cleanChannelId})!`
-    });
-  } catch (err: any) {
-    console.error('Discord Bot Send Registration Panel Error:', err);
-    return res.status(500).json({
-      success: false,
-      message: `Error server saat mengirim panel registrasi: ${err.message || err}`
-    });
-  }
+  return res.status(403).json({
+    success: false,
+    message: 'Fitur pendaftaran akun mandiri melalui Discord panel telah dinonaktifkan. Pembuatan akun dinas kini sepenuhnya dilakukan oleh Jajaran Atasan (High Command) melalui menu Roster Anggota.'
+  });
 });

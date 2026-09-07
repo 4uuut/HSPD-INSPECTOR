@@ -2649,6 +2649,10 @@ export async function sendOfficerDirectMessageViaBot(params: {
   discordUsername?: string;
   username?: string;
   discordTag?: string;
+  registeredBy?: string;
+  registeredByRank?: string;
+  registeredByBadge?: string;
+  loginUrl?: string;
 }): Promise<{ success: boolean; message: string }> {
   const botConfig = getSavedDiscordBotConfig();
   const token = (params.customBotToken || botConfig.botToken || '').trim();
@@ -2682,7 +2686,11 @@ export async function sendOfficerDirectMessageViaBot(params: {
         embedColor: params.embedColor || params.color || botConfig.embedColor,
         footerText: params.footerText || botConfig.footerText,
         customMessage: params.customMessage,
-        messageType: params.messageType || 'credentials'
+        messageType: params.messageType || 'credentials',
+        registeredBy: params.registeredBy,
+        registeredByRank: params.registeredByRank,
+        registeredByBadge: params.registeredByBadge,
+        loginUrl: params.loginUrl || (typeof window !== 'undefined' ? window.location.origin : undefined)
       })
     });
 

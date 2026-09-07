@@ -482,7 +482,7 @@ class DiscordGatewayManager {
         // =========================================================================
         if (interactionType === 2 || data.data?.component_type === 2) {
           
-          // [ BUTTON: REGISTER ] -> Open Modal Form in Discord (or reject if already registered)!
+          // [ BUTTON: REGISTER ] -> Self-registration is closed! Only Atasan can create accounts via Roster
           if (customId === 'mdt_btn_register') {
             const existingOfficer = await discordRosterService.findOfficer({
               discordId: discordUser.id,
@@ -493,16 +493,16 @@ class DiscordGatewayManager {
               return await sendCallback({
                 type: 4, // CHANNEL_MESSAGE_WITH_SOURCE
                 data: {
-                  flags: 64, // Ephemeral (hanya terlihat oleh pengguna yang menekan tombol)
+                  flags: 64, // Ephemeral
                   embeds: [
                     {
                       author: {
-                        name: 'Sistem Keamanan Registrasi MDT Kepolisian HSPD',
+                        name: 'Sistem Keamanan Personel MDT HSPD',
                         icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
                       },
-                      title: '⛔ Pendaftaran Ditolak: Anda Sudah Terdaftar!',
-                      description: `Halo <@${discordUser.id}>, akun Discord Anda **sudah memiliki akun dinas MDT** yang tercatat aktif di Database & Roster Anggota Kepolisian.\n\n⚠️ **Ketentuan Sistem:** Satu akun Discord hanya diperbolehkan mendaftarkan **1 akun MDT**, sehingga Anda **tidak dapat mendaftar lagi**.`,
-                      color: 0xE11D48, // Rose / Danger Red
+                      title: '✅ Anda Sudah Terdaftar di Roster Dinas!',
+                      description: `Halo <@${discordUser.id}>, akun Discord Anda **sudah terdaftar resmi** sebagai personel Kepolisian High State.\n\nDetail akun dan PIN login Anda telah otomatis dikirimkan ke **Pesan Pribadi (PM / DM) Discord** saat didaftarkan oleh atasan.`,
+                      color: 0x00A8FF,
                       fields: [
                         { name: '👤 Nama Karakter IC', value: `\`${existingOfficer.name}\``, inline: true },
                         { name: '🎖️ Nomor Lencana', value: `\`${existingOfficer.badge}\``, inline: true },
@@ -512,12 +512,12 @@ class DiscordGatewayManager {
                         { name: '💬 Akun Discord', value: `<@${discordUser.id}>`, inline: true },
                         { 
                           name: '💡 Butuh Kredensial / Lupa PIN?', 
-                          value: '• Tekan tombol **[ ♻️ Resend Code ]** agar bot mengirimkan kembali PIN & data login ke DM Discord Anda.\n• Jika lupa password, gunakan tombol **[ 🚨 Lupa Password ]** untuk mengajukan tiket reset PIN ke pimpinan.', 
+                          value: 'Tekan tombol **[ ♻️ Resend Code ]** agar bot mengirimkan kembali salinan PIN & data login langsung ke DM Discord Anda.', 
                           inline: false 
                         }
                       ],
                       footer: {
-                        text: 'High State Police Department • Anti-Duplicate Registration Security'
+                        text: 'High State Police Department • Official Personnel System'
                       },
                       timestamp: new Date().toISOString()
                     }
@@ -526,47 +526,28 @@ class DiscordGatewayManager {
               });
             }
 
-            // Jika belum terdaftar, buka modal form pendaftaran
-            const modalPayload = {
-              type: 9, // MODAL
+            // Reject self-registration: Only Atasan (High Command) can create accounts
+            return await sendCallback({
+              type: 4,
               data: {
-                custom_id: 'mdt_modal_register',
-                title: 'Pendaftaran Akun MDT Kepolisian',
-                components: [
+                flags: 64, // Ephemeral
+                embeds: [
                   {
-                    type: 1, // Action Row
-                    components: [
-                      {
-                        type: 4, // Text Input
-                        custom_id: 'reg_ic_name',
-                        label: 'Nama IC Karakter (Firstname Lastname)',
-                        style: 1, // Short
-                        min_length: 3,
-                        max_length: 40,
-                        placeholder: 'Contoh: Alex_Vance atau John Walker',
-                        required: true
-                      }
-                    ]
-                  },
-                  {
-                    type: 1, // Action Row
-                    components: [
-                      {
-                        type: 4, // Text Input
-                        custom_id: 'reg_pin',
-                        label: 'PIN Keamanan Akun MDT (4-8 Digit)',
-                        style: 1, // Short
-                        min_length: 4,
-                        max_length: 10,
-                        placeholder: 'Contoh: 123456 (Hafalkan PIN untuk login)',
-                        required: true
-                      }
-                    ]
+                    author: {
+                      name: 'Sistem Personel MDT Kepolisian HSPD',
+                      icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                    },
+                    title: '⛔ Pendaftaran Akun Mandiri Telah Ditutup',
+                    description: `Halo <@${discordUser.id}>, pendaftaran akun dinas MDT Kepolisian HSPD **saat ini sepenuhnya dilakukan oleh Jajaran Atasan (High Command)** melalui menu **Roster Anggota**.\n\nAkun dinas dan kredensial login (PIN) akan **otomatis dikirimkan langsung oleh Bot ini ke Pesan Pribadi (PM / DM) Discord Anda** begitu akun Anda selesai didaftarkan oleh atasan.\n\nSilakan melapor atau menghubungi pimpinan divisi / atasan Anda untuk proses pembuatan akun dinas.`,
+                    color: 0xE11D48,
+                    footer: {
+                      text: 'High State Police Department • Akun Dibuat Eksklusif oleh Atasan'
+                    },
+                    timestamp: new Date().toISOString()
                   }
                 ]
               }
-            };
-            return await sendCallback(modalPayload);
+            });
           }
 
           // [ BUTTON: RESEND CODE / CEK STATUS ]
@@ -629,7 +610,7 @@ class DiscordGatewayManager {
                 type: 4,
                 data: {
                   flags: 64,
-                  content: `⚠️ **Akun Discord Anda Belum Terdaftar:**\nAkun Discord ${userTag} belum tercatat di database personel kepolisian. Silakan klik tombol **[ 📄 Register ]** untuk membuat akun UCP / MDT baru.`
+                  content: `⚠️ **Akun Discord Anda Belum Terdaftar:**\nAkun Discord ${userTag} belum tercatat di Roster Anggota Kepolisian. Pembuatan akun dinas dilakukan secara resmi oleh Jajaran Atasan (High Command) melalui menu **Roster Anggota**. Silakan hubungi atasan dinas Anda untuk didaftarkan.`
                 }
               });
             }
@@ -642,7 +623,7 @@ class DiscordGatewayManager {
               discordUsername: discordUser.username
             });
 
-            // If account does NOT exist in database, reject and ask to register first!
+            // If account does NOT exist in database, reject and ask to contact High Command
             if (!matchedOfficer) {
               return await sendCallback({
                 type: 4, // CHANNEL_MESSAGE_WITH_SOURCE
@@ -654,16 +635,15 @@ class DiscordGatewayManager {
                         name: 'Sistem Keamanan MDT Kepolisian HSPD',
                         icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
                       },
-                      title: '⚠️ Akun Belum Terdaftar di Database!',
-                      description: `Halo <@${discordUser.id}>, akun Discord Anda **belum terdaftar** di sistem Database & Roster Kepolisian High State.\n\nKarena belum memiliki akun dinas MDT, Anda **tidak dapat mereset PIN**.\n\n👉 **Silakan klik tombol [ 📄 Register ]** terlebih dahulu pada panel ini untuk mendaftarkan akun dinas MDT baru Anda.`,
+                      title: '⚠️ Akun Belum Terdaftar di Roster Dinas!',
+                      description: `Halo <@${discordUser.id}>, akun Discord Anda **belum tercatat** di sistem Database & Roster Kepolisian High State.\n\nKarena belum memiliki akun dinas MDT, Anda **tidak dapat mereset PIN**.\n\nPembuatan akun kepolisian saat ini sepenuhnya dilakukan oleh **Jajaran Atasan (High Command)** melalui menu Roster Anggota. Silakan hubungi atasan dinas Anda.`,
                       color: 0xF59E0B, // Amber
                       fields: [
                         { name: '💬 Akun Discord', value: `<@${discordUser.id}>`, inline: true },
-                        { name: '📌 Status Database', value: '`Belum Terdaftar`', inline: true },
-                        { name: '💡 Solusi Registrasi', value: 'Tekan tombol **[ 📄 Register ]** di panel Discord untuk membuat akun kepolisian.', inline: false }
+                        { name: '📌 Status Roster', value: '`Belum Terdaftar`', inline: true }
                       ],
                       footer: {
-                        text: 'High State Police Department • Portal Pelayanan Personel'
+                        text: 'High State Police Department • High Command Only'
                       },
                       timestamp: new Date().toISOString()
                     }
@@ -735,7 +715,7 @@ class DiscordGatewayManager {
                 type: 4,
                 data: {
                   flags: 64,
-                  content: `⚠️ **Belum Terdaftar:**\nAnda belum memiliki akun MDT terdaftar. Harap klik **[ 📄 Register ]** terlebih dahulu untuk membuat akun dinas baru.`
+                  content: `⚠️ **Belum Terdaftar:**\nAkun Discord Anda belum terdaftar di Roster Kepolisian. Pembuatan akun dinas dilakukan oleh Jajaran Atasan (High Command) melalui menu Roster Anggota.`
                 }
               });
             }
@@ -747,123 +727,15 @@ class DiscordGatewayManager {
         // =========================================================================
         if (interactionType === 5) {
 
-          // [ MODAL SUBMISSION: REGISTRATION ]
+          // [ MODAL SUBMISSION: REGISTRATION ] -> Self-registration disabled!
           if (customId === 'mdt_modal_register') {
-            let icName = '';
-            let pin = '';
-            let badge = '';
-            let phone = '';
-
-            if (Array.isArray(data.data?.components)) {
-              for (const row of data.data.components) {
-                if (Array.isArray(row.components)) {
-                  for (const comp of row.components) {
-                    if (comp.custom_id === 'reg_ic_name') icName = comp.value?.trim() || '';
-                    if (comp.custom_id === 'reg_pin') pin = comp.value?.trim() || '';
-                    if (comp.custom_id === 'reg_badge') badge = comp.value?.trim() || '';
-                    if (comp.custom_id === 'reg_phone') phone = comp.value?.trim() || '';
-                  }
-                }
-              }
-            }
-
-            console.log(`[Discord Gateway] Received Registration Modal Submit from @${discordUser.username}: IC="${icName}", Badge="${badge}"`);
-
-            const regResult = await discordRosterService.registerOfficer({
-              icName,
-              pin,
-              badge,
-              phone,
-              discordUser
-            });
-
-            if (!regResult.success) {
-              return await sendCallback({
-                type: 4,
-                data: {
-                  flags: 64, // Ephemeral
-                  content: `❌ **Pendaftaran Gagal:**\n${regResult.message}`
-                }
-              });
-            }
-
-            const off = regResult.officer!;
-
-            // 1. Respond immediately with Ephemeral Embed in Channel
-            await sendCallback({
+            return await sendCallback({
               type: 4,
               data: {
                 flags: 64,
-                embeds: [
-                  {
-                    author: {
-                      name: 'MDT Panel High State Police Department',
-                      icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
-                    },
-                    title: '✅ Registrasi Akun MDT Kepolisian Berhasil!',
-                    description: `Selamat datang di jajaran kepolisian, **Cadet ${off.name}**!\nAkun dinas Anda telah berhasil dibuat dan otomatis langsung tersimpan di database resmi & Roster Anggota Kepolisian High State.`,
-                    color: 0x00A8FF,
-                    fields: [
-                      { name: '📄 Nama IC Karakter', value: `\`${off.name}\``, inline: true },
-                      { name: '🎖️ Nomor Lencana', value: `\`${off.badge}\``, inline: true },
-                      { name: '⭐ Pangkat Dinas', value: `\`${off.rank}\``, inline: true },
-                      { name: '🏢 Divisi Penugasan', value: `\`${off.division}\``, inline: true },
-                      { name: '📱 Kontak / HP IC', value: `\`${off.phone || '-'}\``, inline: true },
-                      { name: '💬 Akun Discord', value: `${userTag}`, inline: true },
-                      { name: '🔒 PIN Keamanan Login', value: `||**${off.pin}**|| *(Klik untuk melihat PIN)*`, inline: false }
-                    ],
-                    footer: {
-                      text: 'Pemberitahuan resmi • Salinan akun juga dikirimkan ke DM Anda'
-                    },
-                    timestamp: new Date().toISOString()
-                  }
-                ]
+                content: `⛔ **Pendaftaran Akun Mandiri Ditutup:**\nPembuatan akun dinas MDT saat ini sepenuhnya dilakukan oleh Jajaran Atasan (High Command) melalui menu Roster Anggota. Detail kredensial login akan otomatis dikirimkan ke PM Discord Anda oleh Bot setelah dibuatkan oleh atasan.`
               }
             });
-
-            // 2. Also send permanent copy via DM to the user
-            const botToken = this.token || process.env.DISCORD_BOT_TOKEN || '';
-            if (botToken) {
-              const now = new Date();
-              const dateFormatted = now.toLocaleDateString('en-US', {
-                month: 'numeric',
-                day: 'numeric',
-                year: '2-digit',
-                hour: 'numeric',
-                minute: '2-digit',
-                hour12: true
-              });
-
-              discordRosterService.sendDirectMessageToUser(botToken, discordUser.id, {
-                content: `<@${discordUser.id}> Halo! Berikut adalah detail dari akun UCP Anda:`,
-                embeds: [
-                  {
-                    author: {
-                      name: 'Cek Akun | High State',
-                      icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
-                    },
-                    title: '✅ Berhasil!',
-                    description: 'Berikut adalah detail dari akun UCP Anda:',
-                    color: 0x00A8FF,
-                    fields: [
-                      { name: 'UCP', value: off.name, inline: false },
-                      { name: 'Pin Code', value: off.pin || '10-4', inline: false },
-                      { name: 'No. Badge & Pangkat', value: `\`${off.badge}\` • ${off.rank}`, inline: false },
-                      { name: 'Divisi', value: off.division || 'Patrol Division', inline: false },
-                      { name: 'Note', value: 'Jangan beritahu informasi ini kepada orang lain!\n*Gunakan nama UCP / Badge dan Pin Code di atas untuk login ke Terminal MDT Kepolisian.*', inline: false }
-                    ],
-                    footer: {
-                      text: `Bot High State • ${dateFormatted}`,
-                      icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
-                    }
-                  }
-                ]
-              }).catch((e) => {
-                console.warn('[Discord Gateway] Warning sending registration DM to user:', e);
-              });
-            }
-
-            return;
           }
 
           // [ MODAL SUBMISSION: FORGOT PASSWORD -> SET NEW PIN ]

@@ -577,7 +577,10 @@ export const RosterManagement: React.FC<Props> = ({
             rank: addRank,
             division: finalDivision,
             customMessage: addCustomMessage.trim() || undefined,
-            note: 'Jangan beritahu informasi ini kepada orang lain!'
+            note: 'Jangan beritahu informasi ini kepada orang lain!',
+            registeredBy: currentOfficerName || 'High Command',
+            registeredByRank: currentOfficerRank || 'HIGH COMMAND',
+            registeredByBadge: currentOfficerBadge || undefined,
           });
           if (dmRes.success) {
             dmStatusText = ' & Kredensial & pesan atasan sukses terkirim ke PM Discord (Bot Online 🟢)!';
