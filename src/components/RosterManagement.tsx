@@ -623,7 +623,7 @@ export const RosterManagement: React.FC<Props> = ({
             loginUrl: 'https://mdc-hspd-inspector.vercel.app/',
           });
           if (dmRes.success) {
-            dmStatusText = ' & Kredensial & pesan atasan sukses terkirim ke PM Discord (Bot Online 🟢)!';
+            dmStatusText = ` & Kredensial Akun (UCP & PIN MDT) OTOMATIS terkirim ke PM Discord (@${addDiscordTag.trim()}) 🟢!`;
           } else {
             dmStatusText = ` (⚠️ Bot PM: ${dmRes.message})`;
           }
@@ -631,6 +631,8 @@ export const RosterManagement: React.FC<Props> = ({
           console.warn('Bot PM dispatch skipped or encountered error:', botErr);
           dmStatusText = ` (⚠️ Bot PM: ${botErr.message || 'Gagal mengirim PM'})`;
         }
+      } else if (!addDiscordTag.trim()) {
+        dmStatusText = ' (ℹ️ Catatan: Username Discord tidak diisi, kredensial dapat dikirim manual nanti)';
       }
 
       // 2. Send Discord Webhook Announcement & Credential Dispatch if enabled
@@ -3109,25 +3111,25 @@ export const RosterManagement: React.FC<Props> = ({
               </div>
 
               {/* Tag Discord & No. Telepon / Radio */}
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3 bg-indigo-950/20 border border-indigo-900/60 rounded-lg">
-                <div className="sm:col-span-6 space-y-1">
-                  <label className="text-[10px] font-bold text-indigo-300 uppercase flex items-center gap-1">
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3.5 bg-indigo-950/30 border border-indigo-700/60 rounded-lg">
+                <div className="sm:col-span-7 space-y-1.5">
+                  <label className="text-[10.5px] font-bold text-indigo-200 uppercase flex items-center gap-1.5">
                     <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Username Discord (Untuk PM Langsung)</span>
+                    <span>Username Discord Anggota (Kirim Akun & PIN Otomatis):</span>
                   </label>
                   <input
                     type="text"
                     value={addDiscordTag}
                     onChange={(e) => setAddDiscordTag(e.target.value)}
-                    placeholder="Contoh: aguy atau @aguy"
-                    className="w-full px-3 py-2 bg-[#0D1117] border border-indigo-700/60 focus:border-indigo-400 rounded-lg text-xs text-indigo-200 placeholder:text-gray-600 outline-none font-mono"
+                    placeholder="Contoh: aguy atau @aguy atau ID angka"
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-indigo-500/70 focus:border-indigo-400 rounded-lg text-xs text-indigo-100 placeholder:text-gray-500 outline-none font-mono"
                   />
-                  <span className="text-[9px] text-indigo-400/80 block">
-                    Cukup ketik <strong>Username Discord</strong> (contoh: aguy). Bot otomatis mendeteksi tanpa repot mencari User ID angka.
+                  <span className="text-[9.5px] text-indigo-300/90 block">
+                    ⚡ <strong>Otomatis:</strong> Bot akan langsung mengirimkan Nama UCP, Nomor Badge, Pangkat, Divisi, dan PIN Login MDT ke PM Discord anggota ini saat Anda menekan tombol <strong>Simpan & Sahkan Anggota</strong> di bawah.
                   </span>
                 </div>
 
-                <div className="sm:col-span-6 space-y-1">
+                <div className="sm:col-span-5 space-y-1.5">
                   <label className="text-[10px] font-bold text-gray-300 uppercase flex items-center gap-1">
                     <Phone className="w-3.5 h-3.5 text-gray-400" />
                     <span>No. Kontak / Radio (Opsional)</span>
@@ -3164,43 +3166,22 @@ export const RosterManagement: React.FC<Props> = ({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="text-[11px] font-bold text-sky-300 flex items-center gap-1.5">
                     <Bot className="w-4 h-4 text-sky-400" />
-                    <span>METODE PENGIRIMAN AKUN LOGIN KE ANGGOTA:</span>
+                    <span>PENGIRIMAN AKUN LOGIN OTOMATIS OLEH BOT:</span>
                   </div>
 
-                  {/* Live Bot Online Presence Indicator */}
-                  {isBotOnline ? (
-                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/60 text-[10px] text-emerald-300 font-bold">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-                      </span>
-                      <span>BOT ONLINE (MENYALA HIJAU)</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-gray-400">Bot: Offline</span>
-                      <button
-                        type="button"
-                        onClick={handleQuickStartBot}
-                        disabled={isConnectingBot}
-                        className="px-2 py-0.5 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-50 text-white rounded text-[10px] font-bold transition flex items-center gap-1"
-                      >
-                        {isConnectingBot ? (
-                          <>
-                            <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                            <span>Menyalakan...</span>
-                          </>
-                        ) : (
-                          <span>⚡ Nyalakan Hijau</span>
-                        )}
-                      </button>
-                    </div>
-                  )}
+                  {/* Live Bot Always Active Indicator */}
+                  <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/90 border border-emerald-500/70 text-[10px] text-emerald-300 font-bold">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                    </span>
+                    <span>🟢 BOT SELALU AKTIF OTOMATIS (SIAP 24/7)</span>
+                  </div>
                 </div>
 
-                <div className="space-y-2 pl-1">
+                <div className="space-y-2.5 pl-1">
                   {/* Option 1: Direct Message PM via Bot */}
-                  <label className="flex items-start gap-2 text-xs text-sky-200 cursor-pointer select-none">
+                  <label className="flex items-start gap-2.5 text-xs text-sky-200 cursor-pointer select-none bg-sky-950/40 p-2 rounded-lg border border-sky-800/40">
                     <input
                       type="checkbox"
                       checked={addSendDm}
@@ -3208,15 +3189,18 @@ export const RosterManagement: React.FC<Props> = ({
                       className="w-4 h-4 rounded border-gray-700 text-sky-600 focus:ring-0 cursor-pointer mt-0.5"
                     />
                     <div>
-                      <span className="font-bold text-gray-100">✉️ Kirim Kredensial Login Langsung ke Pesan Pribadi (PM / DM) Discord</span>
-                      <div className="text-[10px] text-gray-400">
-                        Bot <strong className="text-sky-300">Cek Akun | High State</strong> yang online akan mengirimkan pesan embed (UCP & PIN) langsung ke DM akun Discord anggota secara rahasia.
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-gray-100">✉️ Kirim Akun Login (UCP & PIN MDT) Langsung ke PM Discord Anggota</span>
+                        <span className="px-1.5 py-0.2 rounded bg-emerald-900/80 text-emerald-300 border border-emerald-600/60 text-[9.5px] font-bold">⚡ OTOMATIS</span>
+                      </div>
+                      <div className="text-[10.5px] text-gray-300 mt-0.5 leading-relaxed">
+                        Bot akan otomatis mengirimkan pesan embed rahasia berisi Nama UCP, Nomor Badge, Pangkat, Divisi, dan PIN Login MDT ke inbox Discord anggota seketika saat akun disahkan.
                       </div>
                     </div>
                   </label>
 
                   {/* Option 2: Channel Webhook */}
-                  <label className="flex items-start gap-2 text-xs text-indigo-200 cursor-pointer select-none">
+                  <label className="flex items-start gap-2 text-xs text-indigo-200 cursor-pointer select-none pl-1">
                     <input
                       type="checkbox"
                       checked={addSendWebhook}
@@ -3224,7 +3208,7 @@ export const RosterManagement: React.FC<Props> = ({
                       className="w-4 h-4 rounded border-gray-700 text-indigo-600 focus:ring-0 cursor-pointer mt-0.5"
                     />
                     <div>
-                      <span className="font-bold text-gray-100">📢 Kirim Pengumuman & Kredensial ke Saluran Webhook Discord</span>
+                      <span className="font-bold text-gray-100">📢 Kirim Pengumuman Anggota Baru ke Saluran Webhook Discord</span>
                       <div className="text-[10px] text-gray-400">
                         Mengirim embed pengumuman anggota baru ke saluran Discord Roster / Pendaftaran.
                       </div>

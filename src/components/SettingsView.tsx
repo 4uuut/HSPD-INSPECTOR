@@ -186,66 +186,13 @@ export const SettingsView: React.FC<Props> = ({
     });
   }, []);
 
-  // Backend Server Connection State (Express / Cloud Run / Vercel Serverless)
-  const [customBackendUrl, setCustomBackendUrlState] = useState(getApiBaseUrl());
-  const [isTestingBackend, setIsTestingBackend] = useState(false);
-  const [backendTestStatus, setBackendTestStatus] = useState<{ success: boolean; message: string } | null>(null);
-
-  const handleTestBackendConnection = async (urlToTest?: string) => {
-    setIsTestingBackend(true);
-    setBackendTestStatus(null);
-    const targetUrl = (urlToTest !== undefined ? urlToTest : customBackendUrl).trim().replace(/\/+$/, '');
-    const endpoint = targetUrl ? `${targetUrl}/api/health` : '/api/health';
-    try {
-      const res = await fetch(endpoint, { method: 'GET' });
-      const parsed = await safeFetchJson(res);
-      if (parsed.ok && parsed.data && parsed.data.status === 'ok') {
-        const platformLabel = parsed.data.platform ? `[Platform: ${parsed.data.platform.toUpperCase()}] ` : '';
-        setBackendTestStatus({
-          success: true,
-          message: `✅ ${platformLabel}Terhubung sempurna ke Server Backend (${endpoint})! Status: HTTP 200 OK`
-        });
-      } else {
-        setBackendTestStatus({
-          success: false,
-          message: parsed.error || `Koneksi gagal (${res.status}): Server tidak mengembalikan status ok.`
-        });
-      }
-    } catch (err: any) {
-      const errMsg = err?.message || String(err);
-      let helpfulTip = '';
-      if (errMsg.includes('Failed to fetch') && (targetUrl.includes('run.app') || targetUrl.includes('ais-dev') || targetUrl.includes('ais-pre'))) {
-        helpfulTip = ' ⚠️ CATATAN: URL Google Cloud Run / AI Studio memiliki proteksi internal (auth cookie check) yang memblokir akses fetch dari domain luar seperti Vercel (CORS). Silakan klik tombol "🏠 Host Saat Ini (Rekomendasi Vercel)" di bawah agar frontend Vercel langsung terhubung ke backend bawaan domain Anda!';
-      }
-      setBackendTestStatus({
-        success: false,
-        message: `Gagal menghubungi server di ${endpoint}: ${errMsg}.${helpfulTip}`
-      });
-    } finally {
-      setIsTestingBackend(false);
-    }
-  };
-
-  const handleApplyBackendUrl = (newUrl: string) => {
-    const clean = newUrl.trim().replace(/\/+$/, '');
-    setCustomBackendUrl(clean);
-    setCustomBackendUrlState(clean);
-    handleTestBackendConnection(clean);
-    setTimeout(() => {
-      getDiscordBotGatewayStatus().then(res => {
-        setIsBotGatewayOnline(res.isOnline);
-        setBotGatewayInfo(res);
-      }).catch(() => setIsBotGatewayOnline(false));
-    }, 500);
-  };
-
   const handleSaveBotConfig = () => {
     setIsSavingBotConfig(true);
     try {
       saveDiscordBotConfig(botConfig);
       setBotNotice({
         success: true,
-        message: '✅ Konfigurasi Discord Bot PM berhasil disimpan dan diterapkan!'
+        message: '✅ Konfigurasi Discord Bot PM berhasil disimpan dan diterapkan! Bot otomatis aktif siap mengirim akun login.'
       });
       setTimeout(() => setBotNotice(null), 5000);
     } catch (e: any) {
@@ -255,35 +202,6 @@ export const SettingsView: React.FC<Props> = ({
       });
     }
     setIsSavingBotConfig(false);
-  };
-
-  const handleToggleBotGateway = async () => {
-    setIsTogglingBotGateway(true);
-    setBotNotice(null);
-    try {
-      if (isBotGatewayOnline) {
-        const res = await stopDiscordBotGateway();
-        setIsBotGatewayOnline(false);
-        setBotNotice({
-          success: res.success,
-          message: res.message || 'Bot Gateway berhasil dinonaktifkan (Offline).'
-        });
-      } else {
-        const res = await startDiscordBotGateway(botConfig.botToken);
-        setIsBotGatewayOnline(res.success);
-        setBotNotice({
-          success: res.success,
-          message: res.message || (res.success ? '⚡ Bot Gateway Discord BERHASIL MENYALA (ONLINE HIJAU)!' : 'Gagal menyalakan bot.')
-        });
-      }
-      setTimeout(() => setBotNotice(null), 6000);
-    } catch (e: any) {
-      setBotNotice({
-        success: false,
-        message: `Error gateway bot: ${e.message}`
-      });
-    }
-    setIsTogglingBotGateway(false);
   };
 
   const handleSendTestDm = async () => {
@@ -908,42 +826,25 @@ export const SettingsView: React.FC<Props> = ({
                   <h3 className="text-sm font-bold text-white tracking-tight">
                     PENGATURAN DISCORD BOT PM & KUSTOMISASI EMBED
                   </h3>
-                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded border font-bold flex items-center gap-1 ${
-                    isBotGatewayOnline
-                      ? 'bg-emerald-950 text-emerald-300 border-emerald-500 animate-pulse'
-                      : 'bg-gray-800 text-gray-400 border-gray-700'
+                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded border font-bold flex items-center gap-1.5 ${
+                    botConfig.botToken
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-500'
+                      : 'bg-amber-950 text-amber-300 border-amber-500'
                   }`}>
-                    <span className={`w-2 h-2 rounded-full ${isBotGatewayOnline ? 'bg-emerald-400' : 'bg-gray-500'}`} />
-                    <span>{isBotGatewayOnline ? 'BOT ONLINE (HIJAU)' : 'BOT OFFLINE'}</span>
+                    <span className="relative flex h-2 w-2">
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${botConfig.botToken ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+                      <span className={`relative inline-flex rounded-full h-2 w-2 ${botConfig.botToken ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+                    </span>
+                    <span>{botConfig.botToken ? '🟢 BOT SELALU AKTIF OTOMATIS (SIAP 24/7)' : '⚠️ TOKEN BELUM DIISI'}</span>
                   </span>
                 </div>
                 <p className="text-xs text-gray-400 font-mono">
-                  Konfigurasi token bot, nama bot, avatar, warna aksen embed, dan pesan pembuka saat mengirim PM ke akun Discord personel
+                  Bot otomatis aktif mengirim kredensial login (UCP & PIN) ke PM Discord anggota baru saat Atasan mendaftarkannya di Roster.
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={handleToggleBotGateway}
-                disabled={isTogglingBotGateway}
-                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-50 ${
-                  isBotGatewayOnline
-                    ? 'bg-rose-950 hover:bg-rose-900 border border-rose-600 text-rose-200'
-                    : 'bg-emerald-600 hover:bg-emerald-500 border border-emerald-400 text-white'
-                }`}
-              >
-                {isTogglingBotGateway ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : isBotGatewayOnline ? (
-                  <Square className="w-3.5 h-3.5" />
-                ) : (
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                )}
-                <span>{isBotGatewayOnline ? 'Matikan Gateway Bot' : '⚡ Nyalakan Bot (Online Hijau)'}</span>
-              </button>
-
               <button
                 type="button"
                 onClick={handleResetBotDefault}
@@ -981,121 +882,12 @@ export const SettingsView: React.FC<Props> = ({
             </div>
           )}
 
-          {/* BACKEND SERVER CONNECTION CONFIGURATION BOX (Solusi 404 Vercel & Multi-Host) */}
-          <div className="bg-[#0B0F19] border border-cyan-900/60 rounded-xl p-3.5 sm:p-4 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-cyan-950 border border-cyan-700/60 flex items-center justify-center text-cyan-400">
-                  <Globe className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-cyan-300 font-mono flex items-center gap-1.5">
-                    <span>KONEKSI SERVER BACKEND DISCORD API</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-cyan-950/80 border border-cyan-700/50 text-cyan-300">
-                      Port 3000 / Cloud Run / Vercel
-                    </span>
-                  </h4>
-                  <p className="text-[11px] text-gray-400">
-                    Menghubungkan frontend ke server Express untuk mengeksekusi bot Discord, kirim PM, panel registrasi, dan status bot online.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleTestBackendConnection()}
-                  disabled={isTestingBackend}
-                  className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-cyan-300 border border-gray-700 rounded-lg text-xs font-mono transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  {isTestingBackend ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Activity className="w-3.5 h-3.5" />}
-                  <span>Tes Koneksi</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Quick Action Presets */}
-            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-gray-800/80">
-              <span className="text-[10.5px] font-mono text-gray-400">Pilihan Server:</span>
-              <button
-                type="button"
-                onClick={() => handleApplyBackendUrl('')}
-                className={`px-2.5 py-1 rounded text-xs font-mono transition flex items-center gap-1 border ${
-                  !customBackendUrl
-                    ? 'bg-emerald-950 text-emerald-200 border-emerald-500 font-bold shadow-sm'
-                    : 'bg-gray-900/90 text-gray-300 border-gray-700 hover:border-gray-500'
-                }`}
-              >
-                <span>🏠 Host Saat Ini (Rekomendasi Vercel / Same-Origin)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleApplyBackendUrl(CLOUD_RUN_API_URL)}
-                className={`px-2.5 py-1 rounded text-xs font-mono transition flex items-center gap-1 border ${
-                  customBackendUrl === CLOUD_RUN_API_URL
-                    ? 'bg-cyan-950 text-cyan-200 border-cyan-500 font-bold'
-                    : 'bg-gray-900/90 text-gray-300 border-gray-700 hover:border-gray-500'
-                }`}
-              >
-                <span>⚡ Cloud Run AI Studio (Khusus Sandbox Internal)</span>
-              </button>
-            </div>
-
-            {/* Custom URL Input */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <div className="flex-1 relative">
-                <input
-                  type="url"
-                  value={customBackendUrl}
-                  onChange={(e) => setCustomBackendUrlState(e.target.value)}
-                  placeholder="Default: Kosong (Menggunakan relative host saat ini '/api/...')"
-                  className="w-full px-3 py-2 bg-[#080B11] border border-gray-700 focus:border-cyan-500 rounded-lg text-xs text-cyan-200 font-mono outline-none"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => handleApplyBackendUrl(customBackendUrl)}
-                className="px-3.5 py-2 bg-cyan-700 hover:bg-cyan-600 text-white rounded-lg text-xs font-mono font-bold transition flex items-center justify-center gap-1 cursor-pointer"
-              >
-                <Save className="w-3.5 h-3.5" />
-                <span>Terapkan URL</span>
-              </button>
-            </div>
-
-            {/* Backend Test Status Result & One-Click Fix */}
-            {backendTestStatus && (
-              <div className={`p-2.5 rounded-lg border text-xs flex flex-col gap-2 font-mono ${
-                backendTestStatus.success
-                  ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-200'
-                  : 'bg-rose-950/80 border-rose-500/80 text-rose-200'
-              }`}>
-                <div className="flex items-start gap-2">
-                  {backendTestStatus.success ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                  ) : (
-                    <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                  )}
-                  <span className="leading-relaxed">{backendTestStatus.message}</span>
-                </div>
-
-                {!backendTestStatus.success && customBackendUrl && (
-                  <div className="pt-1.5 border-t border-rose-900/60 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleApplyBackendUrl('')}
-                      className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Atasi Otomatis: Beralih ke Host Saat Ini (Vercel)</span>
-                    </button>
-                    <span className="text-[10.5px] text-gray-400">
-                      Menghapus URL eksternal agar frontend Vercel langsung memakai backend domain Vercel.
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
+          {/* Auto Active Bot Notice Banner */}
+          <div className="p-3 bg-emerald-950/30 border border-emerald-700/50 rounded-lg flex items-center gap-2.5 text-xs text-emerald-200 font-mono">
+            <span className="text-base">⚡</span>
+            <span>
+              <strong>Bot Selalu Aktif Otomatis:</strong> Tidak perlu lagi menyalakan bot secara manual. Setiap kali Atasan mendaftarkan anggota baru di menu Roster Management, sistem bot langsung otomatis mengirimkan detail akun (Nama UCP, Nomor Badge, Pangkat, Divisi, dan PIN MDT) ke Pesan Pribadi (PM/DM) Discord anggota tersebut.
+            </span>
           </div>
 
           {/* 2-Column Responsive Layout: Inputs on Left, Real-time Discord Preview on Right */}

@@ -417,7 +417,8 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       });
     }
 
-    if (!discordGatewayManager.getStatus().isOnline) {
+    const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+    if (!isServerless && !discordGatewayManager.getStatus().isOnline) {
       discordGatewayManager.startWithToken(token).catch(e => {
         console.warn('[Server] Auto-connect bot gateway warning:', e);
       });
