@@ -572,7 +572,7 @@ class DiscordGatewayManager {
               const botToken = this.token || process.env.DISCORD_BOT_TOKEN || '';
               if (botToken) {
                 await discordRosterService.sendDirectMessageToUser(botToken, discordUser.id, {
-                  content: `<@${discordUser.id}> Halo! Berikut adalah detail dari akun UCP Anda:`,
+                  content: `<@${discordUser.id}> Halo! Berikut adalah detail dari akun MDT Anda:`,
                   embeds: [
                     {
                       author: {
@@ -580,7 +580,7 @@ class DiscordGatewayManager {
                         icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
                       },
                       title: '✅ Berhasil!',
-                      description: 'Berikut adalah detail dari akun UCP Anda:',
+                      description: 'Berikut adalah detail dari akun MDT Anda:',
                       color: 0x00A8FF,
                       fields: [
                         { name: 'UCP', value: matchedOfficer.name, inline: false },

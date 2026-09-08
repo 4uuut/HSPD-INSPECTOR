@@ -67,7 +67,7 @@ export const SYNC_COLLECTIONS = {
   ROSTER: {
     name: 'roster',
     storageKey: 'hspd_roster_database_v5',
-    altStorageKeys: [],
+    altStorageKeys: ['hspd_roster_database_v4', 'hspd_roster_database_v3', 'hspd_roster_database_v2'],
     event: 'hspd-roster-updated'
   },
   ARREST_RECORDS: {
@@ -939,7 +939,7 @@ export function initRealtimeFirebaseSync() {
 
           // Auto-reconcile any approved / resolved PIN resets into the local roster storage
           try {
-            const rawRoster = localStorage.getItem('hspd_roster_database_v4') || localStorage.getItem('hspd_roster_database_v3');
+            const rawRoster = localStorage.getItem('hspd_roster_database_v5') || localStorage.getItem('hspd_roster_database_v4') || localStorage.getItem('hspd_roster_database_v3');
             if (rawRoster) {
               const currentRoster: any[] = JSON.parse(rawRoster);
               let rosterModified = false;
@@ -971,7 +971,7 @@ export function initRealtimeFirebaseSync() {
 
               if (rosterModified) {
                 const serialized = JSON.stringify(currentRoster);
-                ['hspd_roster_database_v4', 'hspd_roster_database_v3', 'hspd_roster_database_v2', 'hspd_roster_accounts_v1'].forEach(k => {
+                ['hspd_roster_database_v5', 'hspd_roster_database_v4', 'hspd_roster_database_v3', 'hspd_roster_database_v2', 'hspd_roster_accounts_v1'].forEach(k => {
                   try { localStorage.setItem(k, serialized); } catch {}
                 });
                 window.dispatchEvent(new CustomEvent('hspd-roster-updated', { detail: currentRoster }));

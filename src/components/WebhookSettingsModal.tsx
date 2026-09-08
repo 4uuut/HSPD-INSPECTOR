@@ -2611,9 +2611,9 @@ export const WebhookSettingsModal: React.FC<Props> = ({
                   </label>
                   <input
                     type="text"
-                    value={botConfig.embedDescription || 'Berikut adalah detail dari akun UCP Anda:'}
+                    value={botConfig.embedDescription || 'Berikut adalah detail dari akun MDT Anda:'}
                     onChange={(e) => setBotConfig({ ...botConfig, embedDescription: e.target.value })}
-                    placeholder="Berikut adalah detail dari akun UCP Anda:"
+                    placeholder="Berikut adalah detail dari akun MDT Anda:"
                     className="w-full px-3 py-1.5 bg-[#161B22] border border-gray-700 focus:border-sky-500 rounded text-xs text-gray-200 outline-none"
                   />
                 </div>
@@ -2737,7 +2737,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
                             <span>{botConfig.embedTitle || '✅ Berhasil!'}</span>
                           </div>
                           <p className="text-gray-300 text-xs mt-0.5">
-                            {botConfig.embedDescription || 'Berikut adalah detail dari akun UCP Anda:'}
+                            {botConfig.embedDescription || 'Berikut adalah detail dari akun MDT Anda:'}
                           </p>
                         </div>
 

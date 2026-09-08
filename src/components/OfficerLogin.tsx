@@ -52,6 +52,26 @@ export const OfficerLogin: React.FC<Props> = ({
   // DISCORD PIN REQUEST MODAL STATE
   const [isDiscordModalOpen, setIsDiscordModalOpen] = useState(false);
 
+  // Live roster tracking so new members auto-appear immediately without refresh
+  const [liveRoster, setLiveRoster] = useState<OfficerAccount[]>(() => {
+    const storageRoster = getRosterFromStorage();
+    return mergeWithOfficialRoster([...(roster || []), ...storageRoster]);
+  });
+
+  useEffect(() => {
+    const syncRoster = () => {
+      const storageRoster = getRosterFromStorage();
+      setLiveRoster(mergeWithOfficialRoster([...(roster || []), ...storageRoster]));
+    };
+    syncRoster();
+    window.addEventListener('hspd-roster-updated', syncRoster);
+    window.addEventListener('storage', syncRoster);
+    return () => {
+      window.removeEventListener('hspd-roster-updated', syncRoster);
+      window.removeEventListener('storage', syncRoster);
+    };
+  }, [roster]);
+
   // 1. DIRECT CREDENTIALS LOGIN SUBMIT
   const handleDirectLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +99,7 @@ export const OfficerLogin: React.FC<Props> = ({
 
     // Find officer in roster by exact or partial name, or badge across multiple layers
     const freshestRoster = getRosterFromStorage();
-    let candidateRosters = mergeWithOfficialRoster([...(roster || []), ...freshestRoster, ...HSPD_OFFICIAL_ROSTER]);
+    let candidateRosters = mergeWithOfficialRoster([...(liveRoster || []), ...(roster || []), ...freshestRoster, ...HSPD_OFFICIAL_ROSTER]);
     
     // First attempt to match from current candidate pool
     let matched = candidateRosters.find(acc => isOfficerMatch(acc, loginIdentifier));
@@ -254,7 +274,7 @@ export const OfficerLogin: React.FC<Props> = ({
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                 SYSTEM ONLINE 10-8
               </span>
-              <span className="text-[9px] text-gray-500">{roster.length} Personel Terdaftar</span>
+              <span className="text-[9px] text-gray-500">{liveRoster.length} Personel Terdaftar</span>
             </div>
 
             {/* Mobile View Switcher */}

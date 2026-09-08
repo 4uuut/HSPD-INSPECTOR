@@ -60,7 +60,7 @@ import {
 } from './services/firebaseRealtimeSync';
 
 import { HSPD_OFFICIAL_ROSTER, mergeWithOfficialRoster } from './data/hspdOfficialRoster';
-import { recordOfficerDischarge, isOfficerDischarged } from './utils/dischargeStorage';
+import { recordOfficerDischarge, isOfficerDischarged, restoreDischargedOfficer } from './utils/dischargeStorage';
 
 const STORAGE_KEY = 'hspd_arrest_records_v1';
 const OFFICER_STORAGE_KEY = 'hspd_active_officer_v1';
@@ -72,17 +72,14 @@ export default function App() {
   // Active Roster Database with official Command / Atasan personnel
   const [roster, setRoster] = useState<OfficerAccount[]>(() => {
     try {
-      // Clean up legacy storage keys containing deleted member accounts
-      ['hspd_roster_database_v4', 'hspd_roster_database_v3', 'hspd_roster_database_v2'].forEach(k => {
-        try { localStorage.removeItem(k); } catch {}
-      });
-
-      let saved = localStorage.getItem(ROSTER_STORAGE_KEY);
+      let saved = localStorage.getItem(ROSTER_STORAGE_KEY) || localStorage.getItem('hspd_roster_database_v4') || localStorage.getItem('hspd_roster_database_v3');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const merged = mergeWithOfficialRoster(parsed);
           localStorage.setItem(ROSTER_STORAGE_KEY, JSON.stringify(merged));
+          localStorage.setItem('hspd_roster_database_v4', JSON.stringify(merged));
+          localStorage.setItem('hspd_roster_database_v3', JSON.stringify(merged));
           return merged;
         }
       }
@@ -504,6 +501,11 @@ export default function App() {
   };
 
   const handleRegisterOfficer = (newAccount: OfficerAccount) => {
+    // 0. Ensure officer is not rejected by any historical discharge records
+    restoreDischargedOfficer(newAccount.badge);
+    restoreDischargedOfficer(newAccount.name);
+    if (newAccount.id) restoreDischargedOfficer(newAccount.id);
+
     const cleanAccount: OfficerAccount = {
       ...newAccount,
       pin: newAccount.pin ? String(newAccount.pin).trim() : '10-4',

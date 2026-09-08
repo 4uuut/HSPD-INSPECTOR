@@ -255,7 +255,7 @@ export const SettingsView: React.FC<Props> = ({
       botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
       defaultNote: 'Jangan beritahu informasi ini kepada orang lain!',
       embedTitle: '✅ Berhasil!',
-      embedDescription: 'Berikut adalah detail dari akun UCP Anda:',
+      embedDescription: 'Berikut adalah detail dari akun MDT Anda:',
       embedColor: '#00A8FF',
       footerText: 'Bot High State'
     });
@@ -1019,7 +1019,7 @@ export const SettingsView: React.FC<Props> = ({
                 </label>
                 <input
                   type="text"
-                  value={botConfig.embedDescription || 'Berikut adalah detail dari akun UCP Anda:'}
+                  value={botConfig.embedDescription || 'Berikut adalah detail dari akun MDT Anda:'}
                   onChange={(e) => setBotConfig(prev => ({ ...prev, embedDescription: e.target.value }))}
                   className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-indigo-500 rounded-lg text-xs text-gray-100 font-mono outline-none"
                 />
@@ -1146,7 +1146,7 @@ export const SettingsView: React.FC<Props> = ({
 
                 {/* Simulated Mention Content */}
                 <div className="text-xs text-[#DBDEE1]">
-                  Halo! Berikut adalah detail dari akun UCP Anda:
+                  Halo! Berikut adalah detail dari akun MDT Anda:
                 </div>
 
                 {/* The Discord Embed Box */}
@@ -1158,7 +1158,7 @@ export const SettingsView: React.FC<Props> = ({
                     {botConfig.embedTitle || '✅ Berhasil!'}
                   </div>
                   <div className="text-xs text-[#DBDEE1]">
-                    {botConfig.embedDescription || 'Berikut adalah detail dari akun UCP Anda:'}
+                    {botConfig.embedDescription || 'Berikut adalah detail dari akun MDT Anda:'}
                   </div>
 
                   {/* Fields Grid */}

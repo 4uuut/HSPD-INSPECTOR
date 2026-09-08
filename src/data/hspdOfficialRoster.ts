@@ -228,7 +228,15 @@ export function mergeWithOfficialRoster(
           'viggo bonapattem', 'wesley gravemourn', 'yukai escobar', 'zaydan kusuma', 'zayy choper'
         ].includes(normName);
 
-        if (!isOldMock || isAtasanRank(item.rank) || item.promotedBy?.includes('Discord')) {
+        const isLegitNewMember = Boolean(
+          (item.registeredAt && item.registeredAt > 1700000000000) ||
+          item.promotedBy?.includes('SK Pengangkatan') ||
+          item.promotedBy?.includes('High Command') ||
+          item.id?.startsWith('roster-') ||
+          (item.pin && item.pin !== '10-4')
+        );
+
+        if (!isOldMock || isAtasanRank(item.rank) || item.promotedBy?.includes('Discord') || isLegitNewMember) {
           const newKey = getCanonicalKey(item);
           officersMap.set(newKey, {
             ...item,

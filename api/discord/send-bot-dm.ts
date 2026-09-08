@@ -427,7 +427,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const finalTitle = (embedTitle && embedTitle.trim()) ? embedTitle.trim() : defaultTitle;
     
-    let defaultDesc = 'Berikut adalah detail dari akun UCP Anda:';
+    let defaultDesc = 'Berikut adalah detail dari akun MDT Anda:';
     if (isCustomChatOnly) {
       defaultDesc = 'Anda menerima pesan dinas resmi dari jajaran Komando / Atasan:';
     } else if (registeredBy) {
@@ -452,7 +452,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const messageContent = isCustomChatOnly
       ? `<@${cleanUserId}> 📨 **Pesan Resmi dari Komando / Atasan HSPD:**`
-      : `<@${cleanUserId}> Halo! Berikut adalah detail dari akun UCP Anda:`;
+      : `<@${cleanUserId}> Halo! Berikut adalah detail dari akun MDT Anda:`;
 
     const messageComponents = [
       {

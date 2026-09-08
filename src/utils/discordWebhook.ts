@@ -181,7 +181,7 @@ export function getSavedDiscordBotConfig(): DiscordBotConfig {
       botAvatar: localStorage.getItem(DISCORD_BOT_CUSTOM_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
       defaultNote: localStorage.getItem(DISCORD_BOT_DEFAULT_NOTE_KEY) || 'Jangan beritahu informasi ini kepada orang lain!',
       embedTitle: localStorage.getItem(DISCORD_BOT_EMBED_TITLE_KEY) || '✅ Berhasil!',
-      embedDescription: localStorage.getItem(DISCORD_BOT_EMBED_DESC_KEY) || 'Berikut adalah detail dari akun UCP Anda:',
+      embedDescription: localStorage.getItem(DISCORD_BOT_EMBED_DESC_KEY) || 'Berikut adalah detail dari akun MDT Anda:',
       embedColor: localStorage.getItem(DISCORD_BOT_EMBED_COLOR_KEY) || '#00A8FF',
       footerText: localStorage.getItem(DISCORD_BOT_FOOTER_TEXT_KEY) || 'Bot High State',
       registrationChannelId: localStorage.getItem(DISCORD_REGISTRATION_CHANNEL_ID_KEY) || '',
@@ -199,7 +199,7 @@ export function getSavedDiscordBotConfig(): DiscordBotConfig {
       botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
       defaultNote: 'Jangan beritahu informasi ini kepada orang lain!',
       embedTitle: '✅ Berhasil!',
-      embedDescription: 'Berikut adalah detail dari akun UCP Anda:',
+      embedDescription: 'Berikut adalah detail dari akun MDT Anda:',
       embedColor: '#00A8FF',
       footerText: 'Bot High State',
       registrationChannelId: '',
@@ -2473,7 +2473,7 @@ export async function sendNewOfficerRegistrationToDiscord(params: {
 
   const embedObj = {
     title: `✅ Berhasil!`,
-    description: `Berikut adalah detail dari akun UCP Anda:`,
+    description: `Berikut adalah detail dari akun MDT Anda:`,
     color: 0x22C55E, // Emerald Green #22C55E
     fields,
     footer: {
@@ -2604,7 +2604,7 @@ export async function sendOfficerLoginCredentialsToDiscord(params: {
 
   const embedObj = {
     title: `✅ Berhasil!`,
-    description: `Berikut adalah detail dari akun UCP Anda:`,
+    description: `Berikut adalah detail dari akun MDT Anda:`,
     color: 0x22C55E,
     fields,
     footer: {
@@ -2621,7 +2621,7 @@ export async function sendOfficerLoginCredentialsToDiscord(params: {
   };
 
   if (mentionContent) {
-    payload.content = `${mentionContent} Halo! Berikut adalah detail kredensial akun UCP Anda yang dikirim oleh Atasan (${params.sentByRank} ${params.sentBy}):`;
+    payload.content = `${mentionContent} Halo! Berikut adalah detail kredensial akun MDT Anda yang dikirim oleh Atasan (${params.sentByRank} ${params.sentBy}):`;
   }
 
   try {

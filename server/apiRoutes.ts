@@ -582,7 +582,7 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       : (registeredBy ? 'Kredensial Akun Dinas Kepolisian HSPD' : 'Kredensial Akun UCP High State');
     const finalTitle = (embedTitle && embedTitle.trim()) ? embedTitle.trim() : defaultTitle;
     
-    let defaultDesc = 'Berikut adalah detail dari akun UCP Anda:';
+    let defaultDesc = 'Berikut adalah detail dari akun MDT Anda:';
     if (isCustomChatOnly) {
       defaultDesc = 'Anda menerima pesan dinas resmi dari jajaran Komando / Atasan:';
     } else if (registeredBy) {
@@ -609,7 +609,7 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
 
     const messageContent = isCustomChatOnly
       ? `<@${cleanUserId}> 📨 **Pesan Resmi dari Komando / Atasan HSPD:**`
-      : `<@${cleanUserId}> Halo! Berikut adalah detail dari akun UCP Anda:`;
+      : `<@${cleanUserId}> Halo! Berikut adalah detail dari akun MDT Anda:`;
 
     const messageComponents = [
       {

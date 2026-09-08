@@ -583,7 +583,31 @@ export const RosterManagement: React.FC<Props> = ({
     };
 
     try {
-      // 1. Send Direct Message (PM / DM) via Discord Bot directly to officer's Discord inbox if requested
+      // 0. Ensure officer is not blocked by any previous discharge history
+      restoreDischargedOfficer(newAccount.badge);
+      restoreDischargedOfficer(newAccount.name);
+      if (newAccount.id) restoreDischargedOfficer(newAccount.id);
+
+      // 1. Immediately persist new account and generated PIN to storage, PIN registry & Firestore
+      const updatedRosterPool = [newAccount, ...roster.filter(o => !isSameOfficerAccount(o, newAccount))];
+      saveRosterToStorage(updatedRosterPool);
+      updateOfficerPinInRoster(newAccount.badge, trimmedPin, newAccount.name);
+      pushToFirestore('ROSTER', newAccount).catch(() => {});
+
+      // 2. Call handler or update roster in App state
+      if (onRegisterOfficer) {
+        onRegisterOfficer(newAccount);
+      } else {
+        onUpdateOfficer(newAccount);
+      }
+
+      // 3. Ensure UI filters show the new officer immediately
+      if (filterRank === 'DISCHARGED') {
+        setFilterRank('ALL');
+      }
+      setSearchQuery('');
+
+      // 4. Send Direct Message (PM / DM) via Discord Bot directly to officer's Discord inbox if requested
       let dmStatusText = '';
       let dmFeedbackPayload: { success: boolean; title: string; message: string; details?: string } | null = null;
 
@@ -644,33 +668,24 @@ export const RosterManagement: React.FC<Props> = ({
         setAddDmFeedbackModal(dmFeedbackPayload);
       }
 
-      // 2. Send Discord Webhook Announcement & Credential Dispatch if enabled
+      // 5. Send Discord Webhook Announcement & Credential Dispatch if enabled
       if (addSendWebhook) {
-        await sendNewOfficerRegistrationToDiscord({
-          officerName: trimmedName,
-          officerBadge: trimmedBadge,
-          officerRank: addRank,
-          officerDivision: finalDivision,
-          officerPhone: addPhone.trim() || undefined,
-          discordTag: addDiscordTag.trim() || undefined,
-          initialPin: trimmedPin,
-          registeredBy: currentOfficerName || 'High Command',
-          registeredByBadge: currentOfficerBadge || '#001',
-          registeredByRank: currentOfficerRank || 'HIGH COMMAND',
-        });
-      }
-
-      // 3. Immediately persist new account and generated PIN to storage, PIN registry & Firestore
-      const updatedRosterPool = [...roster.filter(o => !isSameOfficerAccount(o, newAccount)), newAccount];
-      saveRosterToStorage(updatedRosterPool);
-      updateOfficerPinInRoster(newAccount.badge, trimmedPin, newAccount.name);
-      pushToFirestore('ROSTER', newAccount).catch(() => {});
-
-      // 4. Call handler or update roster in App state
-      if (onRegisterOfficer) {
-        onRegisterOfficer(newAccount);
-      } else {
-        onUpdateOfficer(newAccount);
+        try {
+          await sendNewOfficerRegistrationToDiscord({
+            officerName: trimmedName,
+            officerBadge: trimmedBadge,
+            officerRank: addRank,
+            officerDivision: finalDivision,
+            officerPhone: addPhone.trim() || undefined,
+            discordTag: addDiscordTag.trim() || undefined,
+            initialPin: trimmedPin,
+            registeredBy: currentOfficerName || 'High Command',
+            registeredByBadge: currentOfficerBadge || '#001',
+            registeredByRank: currentOfficerRank || 'HIGH COMMAND',
+          });
+        } catch (webhookErr: any) {
+          console.warn('Webhook dispatch error (non-fatal):', webhookErr);
+        }
       }
 
       if (addAnother) {

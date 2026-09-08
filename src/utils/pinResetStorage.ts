@@ -13,6 +13,7 @@ const AUTO_GRANT_CONFIG_KEY = 'HSPD_PIN_RESET_AUTO_GRANT_CONFIG_V1';
 const SUPERIOR_HEARTBEAT_KEY = 'HSPD_SUPERIOR_HEARTBEAT_TRACKER_V1';
 
 export const ROSTER_STORAGE_KEYS = [
+  'hspd_roster_database_v5',
   'hspd_roster_database_v4',
   'hspd_roster_database_v3',
   'hspd_roster_database_v2',
