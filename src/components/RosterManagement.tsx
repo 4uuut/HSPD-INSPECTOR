@@ -446,6 +446,12 @@ export const RosterManagement: React.FC<Props> = ({
   const [addFormError, setAddFormError] = useState('');
   const [addOfficerSuccessMsg, setAddOfficerSuccessMsg] = useState('');
   const [showAddPin, setShowAddPin] = useState(true);
+  const [addDmFeedbackModal, setAddDmFeedbackModal] = useState<{
+    success: boolean;
+    title: string;
+    message: string;
+    details?: string;
+  } | null>(null);
 
   // Check bot gateway status when Add Officer modal opens
   useEffect(() => {
@@ -579,6 +585,8 @@ export const RosterManagement: React.FC<Props> = ({
     try {
       // 1. Send Direct Message (PM / DM) via Discord Bot directly to officer's Discord inbox if requested
       let dmStatusText = '';
+      let dmFeedbackPayload: { success: boolean; title: string; message: string; details?: string } | null = null;
+
       if (addSendDm && addDiscordTag.trim()) {
         try {
           const dmRes = await sendOfficerDirectMessageViaBot({
@@ -597,15 +605,43 @@ export const RosterManagement: React.FC<Props> = ({
           });
           if (dmRes.success) {
             dmStatusText = ` & Kredensial Akun (UCP & PIN MDT) OTOMATIS terkirim ke PM Discord (@${addDiscordTag.trim()}) 🟢!`;
+            dmFeedbackPayload = {
+              success: true,
+              title: '🟢 Kredensial Berhasil Terkirim ke PM Discord!',
+              message: `Bot Discord berhasil mengirimkan Nama UCP, Nomor Badge, Pangkat, Divisi, dan PIN Login MDT (${trimmedPin}) langsung ke Pesan Pribadi (PM) Discord @${addDiscordTag.trim()}.`,
+              details: `Personel ${trimmedName} dapat langsung membuka inbox Discord miliknya untuk melihat detail akun dan tautan masuk MDT.`
+            };
           } else {
             dmStatusText = ` (⚠️ Bot PM: ${dmRes.message})`;
+            dmFeedbackPayload = {
+              success: false,
+              title: '⚠️ Akun Tersimpan, Namun PM Bot Discord Gagal Terkirim',
+              message: dmRes.message || 'Bot tidak dapat mengirimkan Direct Message ke akun Discord anggota.',
+              details: `Akun ${trimmedName} (${trimmedBadge}) dengan PIN ${trimmedPin} SUDAH TERSIMPAN di database & siap digunakan. Silakan berikan PIN secara manual ke personel atau pastikan: (1) Bot Token sudah valid di menu Pengaturan Bot Discord, (2) Akun anggota sudah bergabung ke Server Discord yang sama dengan bot, dan (3) Anggota tidak memblokir DM dari member server.`
+            };
           }
         } catch (botErr: any) {
           console.warn('Bot PM dispatch skipped or encountered error:', botErr);
           dmStatusText = ` (⚠️ Bot PM: ${botErr.message || 'Gagal mengirim PM'})`;
+          dmFeedbackPayload = {
+            success: false,
+            title: '⚠️ Akun Tersimpan, Namun Terjadi Gangguan PM Bot',
+            message: botErr.message || 'Gagal menghubungi API Discord Bot.',
+            details: `Akun ${trimmedName} (${trimmedBadge}) dengan PIN ${trimmedPin} tetap berhasil dibuat di sistem.`
+          };
         }
-      } else if (!addDiscordTag.trim()) {
-        dmStatusText = ' (ℹ️ Catatan: Username Discord tidak diisi, kredensial dapat dikirim manual nanti)';
+      } else if (addSendDm && !addDiscordTag.trim()) {
+        dmStatusText = ' (ℹ️ Catatan: Username Discord tidak diisi, PM dilewati)';
+        dmFeedbackPayload = {
+          success: false,
+          title: 'ℹ️ Akun Terdaftar (PM Bot Dilewati)',
+          message: 'Pilihan kirim PM Discord aktif, namun kolom Username Discord dikosongkan.',
+          details: `Akun ${trimmedName} (${trimmedBadge}) dengan PIN ${trimmedPin} telah resmi disahkan. Anda dapat memberikan PIN ini secara manual kepada yang bersangkutan.`
+        };
+      }
+
+      if (dmFeedbackPayload) {
+        setAddDmFeedbackModal(dmFeedbackPayload);
       }
 
       // 2. Send Discord Webhook Announcement & Credential Dispatch if enabled
@@ -2874,6 +2910,37 @@ export const RosterManagement: React.FC<Props> = ({
                   </div>
                 </div>
 
+                {/* Status Bot Token Checker & DM Prerequisites Guide */}
+                {(() => {
+                  const botCfg = getSavedDiscordBotConfig();
+                  const hasToken = Boolean(botCfg.botToken && botCfg.botToken.trim());
+                  return (
+                    <div className="space-y-2">
+                      {!hasToken && (
+                        <div className="p-2.5 bg-amber-950/60 border border-amber-600/70 rounded-lg text-xs text-amber-200 flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                          <div className="space-y-0.5">
+                            <span className="font-bold text-amber-300">Penting: Bot Token Discord Belum Dimasukkan!</span>
+                            <p className="text-[11px] text-gray-300 leading-relaxed">
+                              Agar Bot Discord dapat mengirimkan PM otomatis ke inbox Discord anggota, Anda harus memasukkan <strong>Bot Token</strong> terlebih dahulu di menu <strong>Pengaturan Bot Discord</strong> (ikon Bot di atas tabel Roster).
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="p-2 bg-blue-950/40 border border-blue-800/50 rounded-lg text-[10px] text-blue-200 space-y-1">
+                        <div className="font-bold text-blue-300 flex items-center gap-1">
+                          <span>💡</span>
+                          <span>Syarat agar Pesan Pribadi (PM) Bot Discord dapat masuk:</span>
+                        </div>
+                        <ul className="list-disc list-inside text-gray-300 space-y-0.5">
+                          <li>Anggota harus sudah <strong>bergabung ke Server Discord</strong> tempat Bot berada.</li>
+                          <li>Anggota harus <strong>mengizinkan Direct Message (PM)</strong> dari anggota server di pengaturan privasi Discord miliknya (tidak memblokir pesan).</li>
+                        </ul>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div className="space-y-2.5 pl-1">
                   {/* Option 1: Direct Message PM via Bot */}
                   <label className="flex items-start gap-2.5 text-xs text-sky-200 cursor-pointer select-none bg-sky-950/40 p-2 rounded-lg border border-sky-800/40">
@@ -3058,6 +3125,39 @@ export const RosterManagement: React.FC<Props> = ({
         onClose={() => setIsExportAttendanceModalOpen(false)}
         roster={roster}
       />
+
+      {/* MODAL FEEDBACK HASIL PENGIRIMAN PM DISCORD SAAT TAMBAH ANGGOTA */}
+      {addDmFeedbackModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className={`bg-[#161B22] border ${addDmFeedbackModal.success ? 'border-emerald-600/80' : 'border-amber-600/80'} rounded-xl p-5 max-w-md w-full shadow-2xl space-y-4`}>
+            <div className="flex items-start gap-3">
+              <div className={`w-10 h-10 rounded-lg ${addDmFeedbackModal.success ? 'bg-emerald-950/80 border border-emerald-500 text-emerald-400' : 'bg-amber-950/80 border border-amber-500 text-amber-400'} flex items-center justify-center shrink-0`}>
+                {addDmFeedbackModal.success ? <Bot className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-bold text-gray-100 text-sm">{addDmFeedbackModal.title}</h3>
+                <p className="text-xs text-gray-300 leading-relaxed">{addDmFeedbackModal.message}</p>
+              </div>
+            </div>
+
+            {addDmFeedbackModal.details && (
+              <div className="p-3 bg-black/50 border border-gray-800 rounded-lg text-xs text-gray-300 space-y-1 font-mono leading-relaxed">
+                {addDmFeedbackModal.details}
+              </div>
+            )}
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setAddDmFeedbackModal(null)}
+                className={`px-4 py-2 ${addDmFeedbackModal.success ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'} text-white rounded-lg text-xs font-bold transition cursor-pointer shadow`}
+              >
+                Dimengerti (Tutup)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL PENGATURAN & PERUBAHAN WEBHOOK (PENGATURAN SISTEM & OTORITAS KOMANDO) */}
       {isWebhookConfigModalOpen && (
