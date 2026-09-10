@@ -863,23 +863,49 @@ export function initRealtimeFirebaseSync() {
         const items: any[] = [];
         const dischargedList = key === 'ROSTER' ? getDischargedOfficers() : [];
         const staleDischargedDocIds: string[] = [];
+        const staleDuplicateDocIds: string[] = [];
+        const seenOfficersByName = new Map<string, { docId: string; updatedAt: number; index: number }>();
 
         snapshot.forEach((d) => {
           const data = d.data();
           if (key === 'ROSTER') {
-            const officerObj = { ...data, id: data.id || d.id };
+            const officerObj: any = { ...data, id: data.id || d.id };
             // If officer was discharged, do NOT include them and immediately purge from Firestore
             if (isOfficerDischarged(officerObj, dischargedList)) {
               staleDischargedDocIds.push(d.id);
               return;
             }
+
+            // Detect and auto-clean duplicate documents in Firestore for the same officer name
+            const normName = (officerObj.name || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+            if (normName) {
+              const currentUpdated = officerObj._updatedAt || officerObj.registeredAt || 0;
+              if (seenOfficersByName.has(normName)) {
+                const prev = seenOfficersByName.get(normName)!;
+                if (currentUpdated >= prev.updatedAt) {
+                  // Current is newer: mark previous document as stale duplicate
+                  staleDuplicateDocIds.push(prev.docId);
+                  items[prev.index] = data; // replace in items
+                  seenOfficersByName.set(normName, { docId: d.id, updatedAt: currentUpdated, index: prev.index });
+                  return;
+                } else {
+                  // Previous was newer: mark current document as stale duplicate
+                  staleDuplicateDocIds.push(d.id);
+                  return;
+                }
+              } else {
+                const newIdx = items.length;
+                seenOfficersByName.set(normName, { docId: d.id, updatedAt: currentUpdated, index: newIdx });
+              }
+            }
           }
           items.push(data);
         });
 
-        // Trigger immediate background deletion of discharged officer documents from Firestore
-        if (staleDischargedDocIds.length > 0) {
-          staleDischargedDocIds.forEach(staleId => {
+        // Trigger immediate background deletion of discharged and duplicate officer documents from Firestore
+        const docsToDelete = [...staleDischargedDocIds, ...staleDuplicateDocIds];
+        if (docsToDelete.length > 0) {
+          docsToDelete.forEach(staleId => {
             deleteFromFirestore('ROSTER', staleId).catch(() => {});
           });
         }

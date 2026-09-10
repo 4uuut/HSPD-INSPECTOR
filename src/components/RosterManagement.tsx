@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   OfficerAccount, OfficerRankLevel, OfficerWarning, DischargeRecord, PromotionRecord, ALL_RANKS, HIGH_COMMAND_RANKS, isOfficerHighRank, isAtasanRank 
 } from '../types';
@@ -333,6 +333,8 @@ export const RosterManagement: React.FC<Props> = ({
   const [isSubmittingDelete, setIsSubmittingDelete] = useState(false);
 
   // Edit Officer State
+  const [editBadge, setEditBadge] = useState('');
+  const [editBadgeError, setEditBadgeError] = useState('');
   const [newRank, setNewRank] = useState<OfficerRankLevel>('POLICE OFFICER II [PO II]');
   const [newDivision, setNewDivision] = useState('');
   const [newPin, setNewPin] = useState('');
@@ -551,17 +553,22 @@ export const RosterManagement: React.FC<Props> = ({
       return;
     }
 
-    // Check duplicate badge
-    const duplicateBadge = roster.find(o => o.badge.toLowerCase() === trimmedBadge.toLowerCase());
+    // Check duplicate badge (numeric and alphanumeric match)
+    const cleanBadgeDigits = trimmedBadge.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+    const duplicateBadge = roster.find(o => {
+      const existingDigits = (o.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+      return cleanBadgeDigits && existingDigits && cleanBadgeDigits === existingDigits;
+    });
     if (duplicateBadge) {
       setAddFormError(`Nomor Badge "${trimmedBadge}" sudah digunakan oleh petugas ${duplicateBadge.name}! Gunakan nomor badge lain.`);
       return;
     }
 
-    // Check duplicate name
-    const duplicateName = roster.find(o => o.name.toLowerCase() === trimmedName.toLowerCase());
+    // Check duplicate name (strict normalized IC name check)
+    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+    const duplicateName = roster.find(o => normalize(o.name) === normalize(trimmedName));
     if (duplicateName) {
-      setAddFormError(`Nama "${trimmedName}" sudah terdaftar di Roster (Badge ${duplicateName.badge})!`);
+      setAddFormError(`Nama "${trimmedName}" sudah terdaftar di Roster (Badge ${duplicateName.badge}, Pangkat ${duplicateName.rank})! Sistem mencegah pembuatan akun ganda. Jika ingin mengubah badge, pangkat, atau divisinya, silakan klik tombol EDIT pada baris nama petugas tersebut.`);
       return;
     }
 
@@ -736,26 +743,36 @@ export const RosterManagement: React.FC<Props> = ({
     }
   };
 
-  const filteredRoster = roster.filter(officer => {
-    const matchesSearch = 
-      officer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      officer.badge.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      officer.rank.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      officer.division.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (officer.discordTag && officer.discordTag.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (officer.phone && officer.phone.includes(searchQuery)) ||
-      (officer.pin && officer.pin.includes(searchQuery));
-    
-    if (!matchesSearch) return false;
-    if (filterRank === 'DUTY') {
-      const duty = getOfficerDutyState(officer.badge, roster);
-      return duty.isDuty;
-    }
-    if (filterRank === 'COMMAND') return isOfficerHighRank(officer.rank);
-    if (filterRank === 'PATROL') return !isOfficerHighRank(officer.rank);
-    if (filterRank === 'WARNED') return (officer.warnings?.length || 0) > 0;
-    return true;
-  });
+  const filteredRoster = useMemo(() => {
+    const seenNames = new Set<string>();
+    return roster.filter(officer => {
+      // Prevent rendering duplicate rows for the same character name
+      const normName = (officer.name || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+      if (normName) {
+        if (seenNames.has(normName)) return false;
+        seenNames.add(normName);
+      }
+
+      const matchesSearch = 
+        officer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        officer.badge.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        officer.rank.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        officer.division.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (officer.discordTag && officer.discordTag.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (officer.phone && officer.phone.includes(searchQuery)) ||
+        (officer.pin && officer.pin.includes(searchQuery));
+      
+      if (!matchesSearch) return false;
+      if (filterRank === 'DUTY') {
+        const duty = getOfficerDutyState(officer.badge, roster);
+        return duty.isDuty;
+      }
+      if (filterRank === 'COMMAND') return isOfficerHighRank(officer.rank);
+      if (filterRank === 'PATROL') return !isOfficerHighRank(officer.rank);
+      if (filterRank === 'WARNED') return (officer.warnings?.length || 0) > 0;
+      return true;
+    });
+  }, [roster, searchQuery, filterRank]);
 
   const handleStartEdit = (officer: OfficerAccount) => {
     if (!isCurrentOfficerCommand) {
@@ -763,6 +780,8 @@ export const RosterManagement: React.FC<Props> = ({
       return;
     }
     setEditingOfficer(officer);
+    setEditBadge(officer.badge || '');
+    setEditBadgeError('');
     setNewRank(officer.rank);
     setNewDivision(officer.division);
     setNewPin(officer.pin || '10-4');
@@ -958,7 +977,24 @@ export const RosterManagement: React.FC<Props> = ({
     if (!editingOfficer || !isCurrentOfficerCommand) return;
 
     setIsSubmittingRankUpdate(true);
+    setEditBadgeError('');
+
+    const trimmedBadge = editBadge.trim() || editingOfficer.badge;
+    const cleanCurrentBadge = (editingOfficer.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+    const cleanNewBadge = trimmedBadge.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+
+    if (cleanNewBadge && cleanNewBadge !== cleanCurrentBadge) {
+      const conflict = roster.find(o => !isSameOfficerAccount(o, editingOfficer) && (o.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim() === cleanNewBadge);
+      if (conflict) {
+        setEditBadgeError(`Nomor Badge "${trimmedBadge}" sudah digunakan oleh petugas ${conflict.name}!`);
+        setIsSubmittingRankUpdate(false);
+        return;
+      }
+    }
+    const finalBadge = trimmedBadge.startsWith('#') ? trimmedBadge : `#${trimmedBadge}`;
+
     const isRankChanged = editingOfficer.rank !== newRank;
+    const isBadgeChanged = editingOfficer.badge !== finalBadge;
     const finalPromotionReason = promotionPresetReason === 'Lainnya (Keterangan Khusus)'
       ? (promotionDetailReason.trim() || 'Keterangan khusus dari High Command')
       : (promotionDetailReason.trim() ? `${promotionPresetReason} - ${promotionDetailReason.trim()}` : promotionPresetReason);
@@ -970,6 +1006,7 @@ export const RosterManagement: React.FC<Props> = ({
     const finalPin = newPin.trim() || editingOfficer.pin || '10-4';
     const updated: OfficerAccount = {
       ...editingOfficer,
+      badge: finalBadge,
       rank: newRank,
       division: newDivision || editingOfficer.division,
       pin: finalPin,
@@ -979,7 +1016,7 @@ export const RosterManagement: React.FC<Props> = ({
       _updatedAt: Date.now()
     };
 
-    updateOfficerPinInRoster(editingOfficer.badge, finalPin, editingOfficer.name);
+    updateOfficerPinInRoster(finalBadge, finalPin, editingOfficer.name);
 
     try {
       if (isRankChanged && promotionSendWebhook) {
@@ -988,7 +1025,7 @@ export const RosterManagement: React.FC<Props> = ({
           const promotionRecord: PromotionRecord = {
             officerId: editingOfficer.id,
             officerName: editingOfficer.name,
-            officerBadge: editingOfficer.badge,
+            officerBadge: finalBadge,
             oldRank: editingOfficer.rank,
             newRank: newRank,
             division: newDivision || editingOfficer.division,
@@ -1004,7 +1041,7 @@ export const RosterManagement: React.FC<Props> = ({
       }
 
       onUpdateOfficer(updated);
-      setSuccessNotice(`✅ Berhasil memperbarui data, Discord & PIN akun ${editingOfficer.name} (${editingOfficer.badge})!${isRankChanged ? ` SK Promosi ke ${newRank} telah dicatat.` : ''}`);
+      setSuccessNotice(`✅ Berhasil memperbarui data, Discord & PIN akun ${editingOfficer.name} (${finalBadge})!${isRankChanged ? ` SK Promosi ke ${newRank} telah dicatat.` : ''}${isBadgeChanged ? ` Badge diubah ke ${finalBadge}.` : ''}`);
       setEditingOfficer(null);
       setTimeout(() => setSuccessNotice(''), 5000);
     } catch (err) {
@@ -2405,6 +2442,25 @@ export const RosterManagement: React.FC<Props> = ({
                   {/* Left Column: Pangkat, Divisi, PIN */}
                   <div className="lg:col-span-6 space-y-4">
                     <div className="p-4 bg-[#0D1117] border border-gray-800 rounded-xl space-y-3.5">
+                      <div>
+                        <label className="text-xs font-bold text-gray-300 uppercase block mb-1.5 flex items-center justify-between">
+                          <span>Nomor Badge (Callsign / Badge ID):</span>
+                          {editBadgeError && (
+                            <span className="text-red-400 text-[10px] font-bold font-mono">{editBadgeError}</span>
+                          )}
+                        </label>
+                        <input
+                          type="text"
+                          value={editBadge}
+                          onChange={(e) => {
+                            setEditBadge(e.target.value);
+                            if (editBadgeError) setEditBadgeError('');
+                          }}
+                          placeholder="#001"
+                          className="w-full px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-amber-300 font-bold outline-none font-mono tracking-wider"
+                        />
+                      </div>
+
                       <div>
                         <label className="text-xs font-bold text-gray-300 uppercase block mb-1.5">
                           Pangkat / Rank Baru:

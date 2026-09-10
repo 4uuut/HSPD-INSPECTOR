@@ -59,7 +59,22 @@ export function isSameOfficerAccount(
     return true;
   }
 
-  // 2. Direct Badge comparison
+  // 2. Direct IC Name match (HIGHEST IC PRIORITY):
+  // An officer is uniquely identified by their character name.
+  // If the full name matches, it represents the exact same officer even if their badge number was changed/reassigned.
+  const nameA = (a.name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  const nameB = (b.name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  if (nameA && nameB && nameA === nameB) {
+    return true;
+  }
+
+  const normA = nameA.replace(/[^a-z0-9]/g, '');
+  const normB = nameB.replace(/[^a-z0-9]/g, '');
+  if (normA && normB && normA.length >= 4 && normA === normB) {
+    return true;
+  }
+
+  // 3. Direct Badge comparison
   const badgeA = (a.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
   const badgeB = (b.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
 
@@ -70,15 +85,6 @@ export function isSameOfficerAccount(
     if (!isNaN(numA) && !isNaN(numB) && numA === numB) {
       return true;
     }
-    // If both have badges and they differ, they CANNOT be the same officer!
-    return false;
-  }
-
-  // 3. Exact full name match (case-insensitive & trimmed)
-  const nameA = (a.name || '').toLowerCase().trim().replace(/\s+/g, ' ');
-  const nameB = (b.name || '').toLowerCase().trim().replace(/\s+/g, ' ');
-  if (nameA && nameB && nameA === nameB) {
-    return true;
   }
 
   return false;

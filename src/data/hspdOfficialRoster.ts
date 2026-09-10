@@ -137,7 +137,7 @@ export function mergeWithOfficialRoster(
     officersMap.set(key, { ...official });
   });
 
-  // 2. Helper to find existing officer by ID, Badge, or Name
+  // 2. Helper to find existing officer by ID, Name, or Badge
   const findExistingKey = (item: OfficerAccount): string | null => {
     const cleanId = item.id ? item.id.toLowerCase().trim() : '';
     const cleanBadge = (item.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
@@ -152,31 +152,38 @@ export function mergeWithOfficialRoster(
     const normCleanName = normalizeName(cleanName);
 
     for (const [key, existing] of officersMap.entries()) {
+      // 1. Direct ID match
       if (cleanId && existing.id && existing.id.toLowerCase().trim() === cleanId) {
         return key;
       }
-      const existingBadgeDigits = (existing.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
-      if (cleanBadge && existingBadgeDigits && cleanBadge === existingBadgeDigits) {
-        return key;
-      }
-
-      // CRITICAL GUARD: If both records have badge numbers and they do not match,
-      // they CANNOT be the same officer! (e.g. Officer #217 is NOT Officer #101)
-      if (cleanBadge && existingBadgeDigits && cleanBadge !== existingBadgeDigits) {
-        continue;
-      }
 
       const existingName = (existing.name || '').toLowerCase().trim();
-      if (cleanName && (cleanName === existingName || cleanName.replace(/\s+/g, '') === existingName.replace(/\s+/g, ''))) {
-        return key;
+      const existingNormName = normalizeName(existingName);
+
+      // 2. NAME MATCH (HIGHEST PRIORITY FOR IC IDENTITY):
+      // An IC officer is uniquely identified by their character name.
+      // If the name matches, it IS the same officer, even if their badge number was changed/re-assigned!
+      if (cleanName && existingName) {
+        if (cleanName === existingName || cleanName.replace(/\s+/g, '') === existingName.replace(/\s+/g, '')) {
+          return key;
+        }
+        if (normCleanName && normCleanName.length >= 4 && normCleanName === existingNormName) {
+          return key;
+        }
       }
-      if (normCleanName && normCleanName === normalizeName(existingName)) {
-        return key;
-      }
-      // Only handle typo aliases when BOTH tokens of the specific officer name are present
-      // (e.g. "Leoanrd Neave" vs "Leonard Neave" #101) - never cross-match different officers!
+
+      // Typo alias check for specific officers
       if (cleanName && cleanName.includes('neave') && existingName.includes('neave')) {
         return key;
+      }
+
+      // 3. BADGE MATCH:
+      // If badge numbers match exactly, and names do not conflict with two completely different names
+      const existingBadgeDigits = (existing.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+      if (cleanBadge && existingBadgeDigits && cleanBadge === existingBadgeDigits) {
+        if (!cleanName || !existingName || cleanName === existingName || normCleanName === existingNormName) {
+          return key;
+        }
       }
     }
     return null;
@@ -194,7 +201,7 @@ export function mergeWithOfficialRoster(
           ...existing,
           ...item,
           name: item.name || existing.name,
-          badge: existing.badge || item.badge, // preserve official badge format
+          badge: item.badge || existing.badge, // CRITICAL: use updated badge if provided (e.g. #002)
           rank: item.rank || existing.rank,
           division: item.division || existing.division,
           // CRITICAL: user's PIN modification is strictly preserved
@@ -249,8 +256,28 @@ export function mergeWithOfficialRoster(
     });
   }
 
-  // 4. Return unique set of officers in deterministic order
-  const uniqueOfficers = Array.from(officersMap.values());
+  // 4. Strict deduplication pass by character name:
+  // An officer character name is strictly unique. If two entries share the same normalized name,
+  // consolidate into the single most up-to-date entry.
+  const nameRegistry = new Map<string, OfficerAccount>();
+  for (const officer of officersMap.values()) {
+    const normName = (officer.name || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+    if (!normName) continue;
+
+    if (nameRegistry.has(normName)) {
+      const existing = nameRegistry.get(normName)!;
+      const existingTime = existing._updatedAt || existing.registeredAt || 0;
+      const curTime = officer._updatedAt || officer.registeredAt || 0;
+
+      // Prefer the more recently updated record or the one with custom user data (discordTag, custom division)
+      const preferred = curTime >= existingTime ? { ...existing, ...officer } : { ...officer, ...existing };
+      nameRegistry.set(normName, preferred);
+    } else {
+      nameRegistry.set(normName, officer);
+    }
+  }
+
+  const uniqueOfficers = Array.from(nameRegistry.values());
   
   // Keep official ordering at top, followed by any custom officers
   const officialBadgeOrder = new Map<string, number>();
