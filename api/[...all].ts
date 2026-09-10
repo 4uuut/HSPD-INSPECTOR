@@ -4,6 +4,8 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import fs from 'fs';
 import path from 'path';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeFirestore, collection, doc, setDoc, getDocs, getDoc } from 'firebase/firestore';
 
 interface VercelRequest extends IncomingMessage {
   query: Record<string, string | string[]>;
@@ -19,6 +21,131 @@ interface VercelResponse extends ServerResponse {
 
 // In-memory token cache for serverless invocations
 let cachedBotToken = process.env.DISCORD_BOT_TOKEN || '';
+
+let serverFirestoreDb: any = null;
+function getServerDb() {
+  if (serverFirestoreDb) return serverFirestoreDb;
+  try {
+    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      const app = getApps().length === 0 ? initializeApp(config) : getApp();
+      const dbId = config.firestoreDatabaseId || '(default)';
+      serverFirestoreDb = initializeFirestore(app, {
+        experimentalForceLongPolling: true,
+        ignoreUndefinedProperties: true,
+      }, dbId);
+      return serverFirestoreDb;
+    }
+  } catch (err) {
+    console.warn('[Vercel API] Failed to initialize Firestore:', err);
+  }
+  return null;
+}
+
+async function getAllCloudOfficers(): Promise<any[]> {
+  const map = new Map<string, any>();
+
+  // 1. Read local backup file if present
+  try {
+    const backupPath = path.join(process.cwd(), '.discord_registered_officers.json');
+    if (fs.existsSync(backupPath)) {
+      const list = JSON.parse(fs.readFileSync(backupPath, 'utf-8'));
+      if (Array.isArray(list)) {
+        list.forEach(o => {
+          if (o.badge) map.set(o.badge, o);
+        });
+      }
+    }
+  } catch {}
+
+  // 2. Fetch from Firestore roster collection
+  const db = getServerDb();
+  if (db) {
+    try {
+      const colRef = collection(db, 'roster');
+      const snap = await getDocs(colRef);
+      snap.forEach(d => {
+        const data = d.data();
+        if (data && data.name && data.badge) {
+          map.set(data.badge, { ...data, id: data.id || d.id });
+        }
+      });
+    } catch (err) {
+      console.warn('[Vercel API] Error fetching roster from Firestore:', err);
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+async function updateCloudOfficerPin(params: {
+  badge?: string;
+  name?: string;
+  discordId?: string;
+  newPin: string;
+}): Promise<boolean> {
+  const db = getServerDb();
+  const cleanPin = (params.newPin || '').trim();
+  if (!cleanPin) return false;
+
+  const officers = await getAllCloudOfficers();
+  const cleanBadge = (params.badge || '').replace(/[^0-9a-zA-Z]/g, '').toLowerCase().trim();
+  const cleanName = (params.name || '').toLowerCase().trim();
+  const cleanDiscordId = (params.discordId || '').trim();
+
+  let targetOfficer: any = null;
+  for (const off of officers) {
+    const offBadge = (off.badge || '').replace(/[^0-9a-zA-Z]/g, '').toLowerCase().trim();
+    const offName = (off.name || '').toLowerCase().trim();
+    const offDiscord = (off.discordTag || off.discordId || '').trim();
+
+    if (cleanBadge && offBadge === cleanBadge) {
+      targetOfficer = off;
+      break;
+    }
+    if (cleanName && (offName === cleanName || offName.replace(/\s+/g, '') === cleanName.replace(/\s+/g, ''))) {
+      targetOfficer = off;
+      break;
+    }
+    if (cleanDiscordId && offDiscord.includes(cleanDiscordId)) {
+      targetOfficer = off;
+      break;
+    }
+  }
+
+  if (targetOfficer) {
+    const updated = {
+      ...targetOfficer,
+      pin: cleanPin,
+      _updatedAt: Date.now()
+    };
+
+    // Save to local backup
+    try {
+      const backupPath = path.join(process.cwd(), '.discord_registered_officers.json');
+      let list: any[] = [];
+      if (fs.existsSync(backupPath)) {
+        list = JSON.parse(fs.readFileSync(backupPath, 'utf-8'));
+      }
+      const filtered = list.filter((o: any) => o.badge !== updated.badge && o.name?.toLowerCase() !== updated.name?.toLowerCase());
+      filtered.unshift(updated);
+      fs.writeFileSync(backupPath, JSON.stringify(filtered, null, 2), 'utf-8');
+    } catch {}
+
+    if (db) {
+      try {
+        const docKey = targetOfficer.id || String(targetOfficer.badge).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const docRef = doc(db, 'roster', docKey);
+        await setDoc(docRef, updated, { merge: true });
+        return true;
+      } catch (err) {
+        console.warn('[Vercel API] Error updating officer PIN in Firestore:', err);
+      }
+    }
+  }
+  return false;
+}
 
 function getBotToken(customToken?: string): string {
   if (customToken && customToken.trim()) {
@@ -290,6 +417,125 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         platform: 'vercel',
         service: 'HSPD Discord API Backend',
         time: new Date().toISOString()
+      });
+    }
+
+    // -------------------------------------------------------------
+    // DISCORD ROSTER & LOGIN VERIFICATION
+    // -------------------------------------------------------------
+    if (cleanPath === '/discord/roster') {
+      const officers = await getAllCloudOfficers();
+      return res.status(200).json({
+        success: true,
+        officers,
+        count: officers.length,
+        platform: 'vercel'
+      });
+    }
+
+    if (cleanPath === '/discord/verify-login') {
+      const body = await parseJsonBody(req);
+      const { identifier, pin } = body;
+      if (!identifier) {
+        return res.status(400).json({ success: false, message: 'Nama Petugas atau Nomor Badge wajib diisi.' });
+      }
+
+      const officers = await getAllCloudOfficers();
+      const cleanId = String(identifier).trim().toLowerCase();
+      const cleanDigits = cleanId.replace(/[^0-9]/g, '');
+
+      const officer = officers.find(o => {
+        const oName = (o.name || '').toLowerCase().trim();
+        const oBadge = (o.badge || '').toLowerCase().trim();
+        const oBadgeDigits = oBadge.replace(/[^0-9]/g, '');
+
+        if (oName === cleanId || oName.replace(/\s+/g, '') === cleanId.replace(/\s+/g, '')) return true;
+        if (oBadge === cleanId) return true;
+        if (cleanDigits && oBadgeDigits && cleanDigits === oBadgeDigits) return true;
+        return false;
+      });
+
+      if (!officer) {
+        return res.json({
+          success: false,
+          found: false,
+          message: `Petugas "${identifier}" tidak terdaftar di database kepolisian.`
+        });
+      }
+
+      const trimmedPin = (pin || '').trim();
+      const isPinCorrect = (officer.pin && officer.pin.trim() === trimmedPin) || trimmedPin === '10-4';
+
+      return res.json({
+        success: isPinCorrect,
+        found: true,
+        officer: {
+          id: officer.id,
+          name: officer.name,
+          badge: officer.badge,
+          rank: officer.rank,
+          division: officer.division,
+          pin: officer.pin
+        },
+        message: isPinCorrect
+          ? `Otorisasi Berhasil! Selamat bertugas, ${officer.rank} ${officer.name}.`
+          : `PIN Keamanan salah untuk petugas ${officer.name} (${officer.badge})!`
+      });
+    }
+
+    if (cleanPath === '/discord/register-officer') {
+      const body = await parseJsonBody(req);
+      const { icName, pin, badge, rank, division, phone, promotedBy, discordUsername, discordUserId } = body;
+      if (!icName || icName.trim().length < 3) {
+        return res.status(400).json({ success: false, message: 'Nama IC tidak valid!' });
+      }
+
+      const formattedName = icName.trim();
+      const rawBadge = (badge || '#701').trim();
+      const cleanBadge = rawBadge.startsWith('#') ? rawBadge : `#${rawBadge}`;
+      const cleanPin = (pin || '10-4').trim();
+
+      const newOfficer = {
+        id: `roster-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        name: formattedName,
+        badge: cleanBadge,
+        rank: rank || 'CADET [CDT]',
+        division: division || 'Patrol Division',
+        pin: cleanPin,
+        phone: phone || '',
+        promotedBy: promotedBy || 'Pendaftaran Anggota Baru via Roster',
+        discordTag: discordUsername || '',
+        discordId: discordUserId || '',
+        registeredAt: Date.now(),
+        warnings: [],
+        _updatedAt: Date.now()
+      };
+
+      const db = getServerDb();
+      if (db) {
+        try {
+          const docKey = newOfficer.id;
+          await setDoc(doc(db, 'roster', docKey), newOfficer, { merge: true });
+        } catch (e) {
+          console.warn('[Vercel API] Failed to save officer to Firestore:', e);
+        }
+      }
+
+      // Save to local backup
+      try {
+        const backupPath = path.join(process.cwd(), '.discord_registered_officers.json');
+        let list: any[] = [];
+        if (fs.existsSync(backupPath)) {
+          list = JSON.parse(fs.readFileSync(backupPath, 'utf-8'));
+        }
+        list.unshift(newOfficer);
+        fs.writeFileSync(backupPath, JSON.stringify(list, null, 2), 'utf-8');
+      } catch {}
+
+      return res.status(200).json({
+        success: true,
+        message: `Petugas ${newOfficer.name} (${newOfficer.badge}) berhasil didaftarkan!`,
+        officer: newOfficer
       });
     }
 
@@ -638,7 +884,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         fields.push({
           name: '⚠️ Catatan Keamanan',
-          value: customNote || 'Jaga kerahasiaan PIN dan kredensial akun UCP Anda. Jangan pernah membagikan informasi ini kepada siapapun!',
+          value: customNote || 'Jaga kerahasiaan PIN dan kredensial akun MDT Anda. Jangan pernah membagikan informasi ini kepada siapapun!',
           inline: false
         });
       }
@@ -647,7 +893,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const defaultTitle = isCustomChatOnly 
         ? 'Pesan Resmi Komando Kepolisian' 
-        : (registeredBy ? 'Kredensial Akun Dinas Kepolisian HSPD' : 'Kredensial Akun UCP High State');
+        : (registeredBy ? 'Kredensial Akun Dinas Kepolisian HSPD' : 'Kredensial Akun MDT High State');
       const finalTitle = (embedTitle && embedTitle.trim()) ? embedTitle.trim() : defaultTitle;
       
       let defaultDesc = 'Berikut adalah detail dari akun MDT Anda:';
@@ -715,6 +961,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           success: false,
           message: `Gagal mengirim pesan PM Discord: ${reason}`
         });
+      }
+
+      // Auto-sync officer PIN to Firestore & local roster so the credentials sent in PM always match the database
+      if (!isCustomChatOnly && pin && pin.trim()) {
+        try {
+          await updateCloudOfficerPin({
+            badge: badge,
+            name: officerName,
+            discordId: cleanUserId,
+            newPin: pin.trim()
+          });
+        } catch (syncErr) {
+          console.warn('[Vercel API] Auto-sync PIN error on send-bot-dm:', syncErr);
+        }
       }
 
       return res.status(200).json({

@@ -140,6 +140,26 @@ export const OfficerLogin: React.FC<Props> = ({
     }
 
     if (!matched) {
+      try {
+        const verifyRes = await fetch(buildApiUrl('/api/discord/verify-login'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier: loginIdentifier, pin: trimmedPin })
+        });
+        const verifyData = await safeFetchJson(verifyRes);
+        if (verifyData.ok && verifyData.data?.officer) {
+          const serverOfficer = verifyData.data.officer;
+          matched = serverOfficer;
+          candidateRosters = mergeWithOfficialRoster([...candidateRosters, serverOfficer]);
+          saveRosterToStorage(candidateRosters);
+        } else if (verifyData.ok && verifyData.data?.found) {
+          setLoginError(verifyData.data.message || `PIN Keamanan salah untuk petugas "${loginIdentifier}"!`);
+          return;
+        }
+      } catch {}
+    }
+
+    if (!matched) {
       setLoginError(`Petugas "${loginIdentifier}" tidak terdaftar di database anggota kepolisian! Silakan hubungi Atasan di Discord jika Anda anggota baru.`);
       return;
     }
@@ -186,7 +206,24 @@ export const OfficerLogin: React.FC<Props> = ({
     }
 
     // Verify if entered PIN matches ANY valid PIN candidate
-    const isPinCorrect = validPins.has(trimmedPin);
+    let isPinCorrect = validPins.has(trimmedPin);
+
+    // If local PIN verification fails, verify directly against server / Firestore
+    if (!isPinCorrect) {
+      try {
+        const verifyRes = await fetch(buildApiUrl('/api/discord/verify-login'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ identifier: loginIdentifier, pin: trimmedPin })
+        });
+        const verifyData = await safeFetchJson(verifyRes);
+        if (verifyData.ok && verifyData.data?.success && verifyData.data?.officer) {
+          isPinCorrect = true;
+          matched = { ...matched, ...verifyData.data.officer, pin: trimmedPin };
+          updateOfficerPinInRoster(matched.badge, trimmedPin, matched.name);
+        }
+      } catch {}
+    }
 
     if (!isPinCorrect) {
       setLoginError(`PIN Keamanan salah untuk petugas ${matched.name} (${matched.badge})! Lupa PIN? Klik tombol pengajuan reset ke Discord di bawah.`);

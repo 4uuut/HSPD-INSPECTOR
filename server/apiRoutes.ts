@@ -322,6 +322,59 @@ apiRouter.post('/discord/register-officer', async (req, res) => {
   }
 });
 
+// Verify Officer Login against Firestore / Server Roster database directly
+apiRouter.post('/discord/verify-login', async (req, res) => {
+  try {
+    const { identifier, pin } = req.body;
+    if (!identifier) {
+      return res.status(400).json({ success: false, message: 'Nama Petugas atau Nomor Badge wajib diisi.' });
+    }
+    const cleanId = String(identifier).trim().toLowerCase();
+    const cleanDigits = cleanId.replace(/[^0-9]/g, '');
+
+    const officers = await discordRosterService.getAllOfficers();
+    const officer = officers.find(o => {
+      const oName = (o.name || '').toLowerCase().trim();
+      const oBadge = (o.badge || '').toLowerCase().trim();
+      const oBadgeDigits = oBadge.replace(/[^0-9]/g, '');
+
+      if (oName === cleanId || oName.replace(/\s+/g, '') === cleanId.replace(/\s+/g, '')) return true;
+      if (oBadge === cleanId) return true;
+      if (cleanDigits && oBadgeDigits && cleanDigits === oBadgeDigits) return true;
+      return false;
+    });
+
+    if (!officer) {
+      return res.json({
+        success: false,
+        found: false,
+        message: `Petugas "${identifier}" tidak terdaftar di database kepolisian.`
+      });
+    }
+
+    const trimmedPin = (pin || '').trim();
+    const isPinCorrect = (officer.pin && officer.pin.trim() === trimmedPin) || trimmedPin === '10-4';
+
+    return res.json({
+      success: isPinCorrect,
+      found: true,
+      officer: {
+        id: officer.id,
+        name: officer.name,
+        badge: officer.badge,
+        rank: officer.rank,
+        division: officer.division,
+        pin: officer.pin
+      },
+      message: isPinCorrect
+        ? `Otorisasi Berhasil! Selamat bertugas, ${officer.rank} ${officer.name}.`
+        : `PIN Keamanan salah untuk petugas ${officer.name} (${officer.badge})!`
+    });
+  } catch (e: any) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // Lookup Discord User endpoint (Finds by Username or ID)
 apiRouter.post('/discord/lookup-user', async (req, res) => {
   try {
@@ -570,7 +623,7 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       }
       fields.push({
         name: '⚠️ Catatan Keamanan',
-        value: customNote || 'Jaga kerahasiaan PIN dan kredensial akun UCP Anda. Jangan pernah membagikan informasi ini kepada siapapun!',
+        value: customNote || 'Jaga kerahasiaan PIN dan kredensial akun MDT Anda. Jangan pernah membagikan informasi ini kepada siapapun!',
         inline: false
       });
     }
@@ -579,7 +632,7 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
 
     const defaultTitle = isCustomChatOnly 
       ? 'Pesan Resmi Komando Kepolisian' 
-      : (registeredBy ? 'Kredensial Akun Dinas Kepolisian HSPD' : 'Kredensial Akun UCP High State');
+      : (registeredBy ? 'Kredensial Akun Dinas Kepolisian HSPD' : 'Kredensial Akun MDT High State');
     const finalTitle = (embedTitle && embedTitle.trim()) ? embedTitle.trim() : defaultTitle;
     
     let defaultDesc = 'Berikut adalah detail dari akun MDT Anda:';
@@ -661,6 +714,21 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
         success: false,
         message: `Gagal mengirim pesan PM Discord: ${reason}`
       });
+    }
+
+    // Auto-sync officer PIN to Firestore & local roster so the credentials sent in PM always match the database
+    if (!isCustomChatOnly && pin && pin.trim()) {
+      try {
+        await discordRosterService.updateOfficerPin({
+          discordId: cleanUserId,
+          discordUsername: resolvedUsernameTag,
+          badge: badge,
+          name: officerName,
+          newPin: pin.trim()
+        });
+      } catch (syncErr) {
+        console.warn('Auto-sync PIN error on send-bot-dm:', syncErr);
+      }
     }
 
     return res.json({

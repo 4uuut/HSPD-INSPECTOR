@@ -330,8 +330,10 @@ export async function syncCollectionWithFirestore<T extends Record<string, any>>
         const dData = d.data();
         if (isOfficerDischarged({ ...dData, id: d.id })) {
           deletes.push({ colName: config.name, docId: d.id });
-          return;
         }
+        // Do NOT delete roster documents just because local array lacks them!
+        // Cloud members added by supervisors or from other devices must be preserved and merged.
+        return;
       }
       if (!localIdSet.has(d.id)) {
         deletes.push({ colName: config.name, docId: d.id });

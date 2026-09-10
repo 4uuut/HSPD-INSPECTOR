@@ -415,7 +415,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       fields.push({
         name: '⚠️ Catatan Keamanan',
-        value: customNote || 'Jaga kerahasiaan PIN dan kredensial akun UCP Anda. Jangan pernah membagikan informasi ini kepada siapapun!',
+        value: customNote || 'Jaga kerahasiaan PIN dan kredensial akun MDT Anda. Jangan pernah membagikan informasi ini kepada siapapun!',
         inline: false
       });
     }
@@ -423,7 +423,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const appWebUrl = (loginUrl && loginUrl.trim()) ? loginUrl.trim() : 'https://mdc-hspd-inspector.vercel.app/';
     const defaultTitle = isCustomChatOnly 
       ? 'Pesan Resmi Komando Kepolisian' 
-      : (registeredBy ? 'Kredensial Akun Dinas Kepolisian HSPD' : 'Kredensial Akun UCP High State');
+      : (registeredBy ? 'Kredensial Akun Dinas Kepolisian HSPD' : 'Kredensial Akun MDT High State');
 
     const finalTitle = (embedTitle && embedTitle.trim()) ? embedTitle.trim() : defaultTitle;
     

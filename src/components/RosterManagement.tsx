@@ -368,8 +368,7 @@ export const RosterManagement: React.FC<Props> = ({
     resetQuotaExhausted();
     try {
       const merged = mergeWithOfficialRoster(roster);
-      localStorage.setItem('hspd_roster_database_v4', JSON.stringify(merged));
-      localStorage.setItem('hspd_roster_database_v3', JSON.stringify(merged));
+      saveRosterToStorage(merged);
       const ok = await syncCollectionWithFirestore('ROSTER', merged, true);
       if (ok) {
         setSuccessNotice(`⚡ Cloud Firestore Berhasil Disinkronkan! Total ${merged.length} data anggota kepolisian & PIN aktif tersimpan ke Cloud.`);
@@ -391,7 +390,9 @@ export const RosterManagement: React.FC<Props> = ({
     try {
       const fresh = await pullLatestFromFirestore<OfficerAccount>('ROSTER');
       if (fresh && fresh.length > 0) {
-        setSuccessNotice(`📥 Sukses Menarik Data: Total ${fresh.length} data anggota kepolisian terbaru tersinkronisasi dari Cloud Firestore!`);
+        saveRosterToStorage(fresh);
+        window.dispatchEvent(new CustomEvent('hspd-roster-updated', { detail: fresh }));
+        setSuccessNotice(`📥 Sukses Menarik Data: Total ${fresh.length} data anggota kepolisian terbaru tersinkronisasi dari Cloud Firestore & otomatis aktif di Roster!`);
       } else {
         setSuccessNotice(`⚡ Verifikasi Cloud selesai: Total ${roster.length} data anggota aktif sinkron.`);
       }
@@ -568,8 +569,11 @@ export const RosterManagement: React.FC<Props> = ({
     setAddFormError('');
     setAddOfficerSuccessMsg('');
 
+    const cleanDigits = trimmedBadge.replace(/[^0-9]/g, '') || Math.floor(100 + Math.random() * 900).toString();
+    const officerDocId = `roster-${trimmedName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${cleanDigits}`;
+
     const newAccount: OfficerAccount = {
-      id: `roster-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      id: officerDocId,
       name: trimmedName,
       badge: trimmedBadge,
       rank: addRank,
@@ -579,8 +583,12 @@ export const RosterManagement: React.FC<Props> = ({
       pin: trimmedPin,
       registeredAt: Date.now(),
       promotedBy: addPromotedBy.trim() || `SK Pengangkatan oleh ${currentOfficerRank || 'High Command'} ${currentOfficerName || ''}`,
-      warnings: []
+      warnings: [],
+      _updatedAt: Date.now()
     };
+
+    let dmStatusText = '';
+    let dmFeedbackPayload: { success: boolean; title: string; message: string; details?: string } | null = null;
 
     try {
       // 0. Ensure officer is not blocked by any previous discharge history
@@ -592,7 +600,7 @@ export const RosterManagement: React.FC<Props> = ({
       const updatedRosterPool = [newAccount, ...roster.filter(o => !isSameOfficerAccount(o, newAccount))];
       saveRosterToStorage(updatedRosterPool);
       updateOfficerPinInRoster(newAccount.badge, trimmedPin, newAccount.name);
-      pushToFirestore('ROSTER', newAccount).catch(() => {});
+      await pushToFirestore('ROSTER', newAccount, newAccount.id);
 
       // 2. Call handler or update roster in App state
       if (onRegisterOfficer) {
@@ -602,15 +610,10 @@ export const RosterManagement: React.FC<Props> = ({
       }
 
       // 3. Ensure UI filters show the new officer immediately
-      if (filterRank === 'DISCHARGED') {
-        setFilterRank('ALL');
-      }
+      setFilterRank('ALL');
       setSearchQuery('');
 
       // 4. Send Direct Message (PM / DM) via Discord Bot directly to officer's Discord inbox if requested
-      let dmStatusText = '';
-      let dmFeedbackPayload: { success: boolean; title: string; message: string; details?: string } | null = null;
-
       if (addSendDm && addDiscordTag.trim()) {
         try {
           const dmRes = await sendOfficerDirectMessageViaBot({
@@ -725,7 +728,7 @@ export const RosterManagement: React.FC<Props> = ({
         setAddOfficerSuccessMsg(`✅ Personel ${trimmedName} (${trimmedBadge}) tersimpan di database! Badge baru: ${nextSequentialBadge}.`);
       } else {
         setIsAddOfficerModalOpen(false);
-        setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) berhasil ditambahkan ke database roster!`);
+        setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) otomatis tersimpan ke Database Cloud & langsung aktif di Roster Anggota!${dmStatusText}`);
         setTimeout(() => setSuccessNotice(''), 6000);
       }
     } finally {
@@ -1192,6 +1195,18 @@ export const RosterManagement: React.FC<Props> = ({
               <span>📥 EXPORT ABSEN MINGGUAN</span>
             </button>
 
+            {/* STATUS OTOMATIS REAL-TIME SYNC */}
+            <div 
+              className="px-3 py-2 bg-emerald-950/50 border border-emerald-500/50 rounded-lg text-xs font-mono text-emerald-300 flex items-center gap-2 shadow-sm"
+              title="Sistem sinkronisasi real-time aktif: Setiap kali Atasan menambahkan atau mengubah data anggota, sistem otomatis menyimpannya ke Cloud Firestore & server sehingga langsung otomatis muncul di Roster Anggota seluruh perangkat tanpa perlu menekan tombol manual."
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="font-bold tracking-wide text-[11px] text-emerald-200">AUTO-SYNC CLOUD AKTIF</span>
+            </div>
+
             {/* SINKRONKAN DATABASE KE CLOUD FIRESTORE */}
             <button
               id="btn-sync-realtime-roster"
@@ -1199,7 +1214,7 @@ export const RosterManagement: React.FC<Props> = ({
               onClick={handleManualSyncDatabase}
               disabled={isSyncingRealtime}
               className="px-3 py-2 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-600/70 hover:border-emerald-400 text-emerald-300 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
-              title="Kirim dan sinkronkan seluruh 56+ data anggota kepolisian & PIN ke Cloud Firestore"
+              title="(Opsional / Manual) Kirim paksa seluruh data anggota kepolisian & PIN ke Cloud Firestore"
             >
               <RefreshCw className={`w-4 h-4 text-emerald-400 ${isSyncingRealtime ? 'animate-spin' : ''}`} />
               <span>{isSyncingRealtime ? 'MENYINKRONKAN...' : '⚡ SINKRONKAN KE CLOUD'}</span>
@@ -1212,7 +1227,7 @@ export const RosterManagement: React.FC<Props> = ({
               onClick={handlePullCloudDatabase}
               disabled={isPullingRealtime}
               className="px-3 py-2 bg-blue-950/80 hover:bg-blue-900 border border-blue-600/70 hover:border-blue-400 text-blue-300 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-sm"
-              title="Tarik pembaruan database anggota kepolisian terbaru dari Cloud Firestore"
+              title="(Opsional / Manual) Muat ulang data anggota kepolisian terbaru dari Cloud Firestore"
             >
               <ArrowDownRight className={`w-4 h-4 text-blue-400 ${isPullingRealtime ? 'animate-bounce' : ''}`} />
               <span>{isPullingRealtime ? 'MENARIK...' : '📥 TARIK DARI CLOUD'}</span>

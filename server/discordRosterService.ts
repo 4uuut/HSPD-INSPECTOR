@@ -282,8 +282,19 @@ class DiscordRosterService {
       return { success: false, message: 'PIN login akun minimal harus 4 karakter/angka!' };
     }
 
-    // 1. STRICT DEDUPLICATION: Check if this Discord user is ALREADY registered
-    if (discordId) {
+    // 1. STRICT DEDUPLICATION: Check if this Discord user is ALREADY registered (only for real Discord member registrations via bot)
+    const isRealDiscordSnowflake = Boolean(discordId && /^\d{16,20}$/.test(discordId.trim()));
+    const isAtasanAdminRegistration = Boolean(
+      data.promotedBy?.includes('SK Pengangkatan') ||
+      data.promotedBy?.includes('High Command') ||
+      data.promotedBy?.includes('Roster') ||
+      data.promotedBy?.includes('CHIEF') ||
+      data.promotedBy?.includes('COMMANDER') ||
+      discordId === 'web_registration' ||
+      discordId?.startsWith('web_')
+    );
+
+    if (isRealDiscordSnowflake && !isAtasanAdminRegistration) {
       const existingByDiscord = await this.findOfficer({
         discordId: discordId,
         discordUsername: discordUsername
@@ -301,7 +312,7 @@ class DiscordRosterService {
 
     // 2. Check if officer with same IC name already exists
     const existingByName = await this.findOfficer({ name: formattedName });
-    if (existingByName) {
+    if (existingByName && !isAtasanAdminRegistration) {
       return {
         success: false,
         message: `Nama IC "${formattedName}" sudah terdaftar di Roster Kepolisian dengan Badge ${existingByName.badge}. Jika ini akun Anda, silakan hubungi atasan atau gunakan tombol 'Resend Code'.`
@@ -395,8 +406,10 @@ class DiscordRosterService {
   }
 
   public async updateOfficerPin(params: {
-    discordId: string;
+    discordId?: string;
     discordUsername?: string;
+    badge?: string;
+    name?: string;
     newPin: string;
   }): Promise<{ success: boolean; message: string; officer?: OfficerRecord }> {
     const cleanPin = params.newPin?.trim();
@@ -404,10 +417,12 @@ class DiscordRosterService {
       return { success: false, message: 'PIN baru minimal harus 4 karakter/angka!' };
     }
 
-    // 1. Cari officer yang sesuai berdasarkan discordId / discordUsername
+    // 1. Cari officer yang sesuai berdasarkan discordId / discordUsername / badge / name
     const officer = await this.findOfficer({
       discordId: params.discordId,
-      discordUsername: params.discordUsername
+      discordUsername: params.discordUsername,
+      badge: params.badge,
+      name: params.name
     });
 
     if (!officer) {

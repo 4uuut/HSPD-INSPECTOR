@@ -529,7 +529,7 @@ export default function App() {
     }
 
     // Direct push to Cloud Firestore
-    pushToFirestore('ROSTER', cleanAccount).catch(() => {});
+    pushToFirestore('ROSTER', cleanAccount, cleanAccount.id).catch(() => {});
 
     // Sync to backend Discord Bot & Roster database
     fetch(buildApiUrl('/api/discord/register-officer'), {
