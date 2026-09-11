@@ -6,11 +6,12 @@ import {
   Search, Car, Crosshair, Landmark, Flame, Stamp as StampIcon,
   UserCheck, Microscope, Cloud, Palette, Bell, Battery,
   Wifi, Signal, Smartphone, Monitor, ChevronRight, X, AlertTriangle,
-  FileSpreadsheet, Zap, Volume2, ShieldCheck, Grid, Settings
+  FileSpreadsheet, Zap, Volume2, ShieldCheck, Grid, Settings,
+  Building2, Crown
 } from 'lucide-react';
 import { 
   OfficerProfile, OfficerAccount, OfficerRankLevel,
-  isOfficerHighRank, isSupervisorOrAbove, ModuleAccessKey 
+  isOfficerHighRank, isSupervisorOrAbove, ModuleAccessKey, isGovernmentRank 
 } from '../types';
 import { DepartmentBrandingConfig } from '../utils/brandingStorage';
 import { FirebaseSyncStatus } from '../services/firebaseRealtimeSync';
@@ -95,8 +96,29 @@ export const AndroidMdtView: React.FC<Props> = ({
   const remMinutes = elapsedDutyMinutes % 60;
   const dutyDurationStr = `${elapsedDutyHours > 0 ? `${elapsedDutyHours}j ` : ''}${remMinutes}m`;
 
+  const isGovernment = currentOfficer.accountType === 'GOVERNMENT' || isGovernmentRank(currentOfficer.rank);
+
   // All MDT Police Apps definitions for Android Grid Drawer
-  const allApps = [
+  const allApps = isGovernment ? [
+    { 
+      id: 'documents', 
+      title: 'Surat & Dokumen Kenegaraan', 
+      desc: 'Pembuatan & Pengesahan Dokumen Resmi Negara',
+      icon: StampIcon, 
+      color: 'from-amber-600 to-yellow-700',
+      badge: 'RESMI',
+      badgeColor: 'bg-amber-950 text-amber-300 border-amber-600'
+    },
+    { 
+      id: 'gov_roster', 
+      title: 'Roster Aparatur Pemerintahan', 
+      desc: 'Penambahan & Manajemen Pejabat Negara',
+      icon: Building2, 
+      color: 'from-amber-700 to-yellow-900',
+      badge: 'EKSEKUTIF',
+      badgeColor: 'bg-amber-950 text-amber-300 border-amber-600'
+    }
+  ] : [
     { 
       id: 'calc', 
       title: 'Kalkulator Pasal', 
@@ -266,20 +288,39 @@ export const AndroidMdtView: React.FC<Props> = ({
       {/* 2. ANDROID ACTION BAR (HEADER MOBILE) */}
       <div className="bg-[#121620] border-b border-gray-800 px-3 py-2 flex items-center justify-between shadow-md">
         <div className="flex items-center gap-2.5">
-          <img
-            src={branding.logoUrl || HSPD_LOGO_URL}
-            alt="HSPD Crest"
-            referrerPolicy="no-referrer"
-            className="w-8 h-8 rounded-full object-contain border border-amber-500/50 bg-black/60 p-0.5 shadow-sm"
-          />
+          {isGovernment ? (
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500/20 to-yellow-600/10 border border-amber-500 flex items-center justify-center text-amber-400 p-1 shadow-sm">
+              <Building2 className="w-4 h-4" />
+            </div>
+          ) : (
+            <img
+              src={branding.logoUrl || HSPD_LOGO_URL}
+              alt="HSPD Crest"
+              referrerPolicy="no-referrer"
+              className="w-8 h-8 rounded-full object-contain border border-amber-500/50 bg-black/60 p-0.5 shadow-sm"
+            />
+          )}
           <div className="leading-tight">
             <div className="flex items-center gap-1.5">
-              <span className="font-bold text-white text-xs tracking-tight">
-                {branding.departmentCode} <span className="text-amber-400">{branding.subTitle}</span>
-              </span>
-              <span className="text-[8px] bg-amber-950/80 text-amber-300 px-1 py-0.2 rounded border border-amber-700 font-mono font-bold">
-                MOBILE MDT
-              </span>
+              {isGovernment ? (
+                <>
+                  <span className="font-bold text-white text-xs tracking-tight">
+                    STATE GOV <span className="text-amber-400">HIGHSTATE</span>
+                  </span>
+                  <span className="text-[8px] bg-amber-500 text-black px-1.5 py-0.5 rounded font-mono font-black">
+                    EKSEKUTIF
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="font-bold text-white text-xs tracking-tight">
+                    {branding.departmentCode} <span className="text-amber-400">{branding.subTitle}</span>
+                  </span>
+                  <span className="text-[8px] bg-amber-950/80 text-amber-300 px-1 py-0.2 rounded border border-amber-700 font-mono font-bold">
+                    MOBILE MDT
+                  </span>
+                </>
+              )}
             </div>
             <div className="text-[10px] text-gray-400 flex items-center gap-1">
               <span className="font-bold text-gray-200">{currentOfficer.name}</span>
@@ -291,21 +332,22 @@ export const AndroidMdtView: React.FC<Props> = ({
 
         {/* Right Header Buttons on Mobile */}
         <div className="flex items-center gap-1.5">
-          {/* Quick Duty Status Switch */}
-          <button
-            type="button"
-            onClick={onOpenDutyModal}
-            className={`px-2 py-1 rounded-lg border font-mono text-[11px] font-bold flex items-center gap-1 transition shadow-sm ${
-              isDuty
-                ? 'bg-emerald-950/90 border-emerald-500 text-emerald-300 ring-1 ring-emerald-500/40'
-                : 'bg-rose-950/90 border-rose-500 text-rose-300 ring-1 ring-rose-500/40'
-            }`}
-            title="Ubah status tugas 10-8 / 10-7"
-          >
-            <Power className="w-3 h-3" />
-            <span>{isDuty ? '8-1-1' : '8-1-0'}</span>
-            {isDuty && <span className="text-[9px] text-emerald-200">({dutyDurationStr})</span>}
-          </button>
+          {!isGovernment && (
+            <button
+              type="button"
+              onClick={onOpenDutyModal}
+              className={`px-2 py-1 rounded-lg border font-mono text-[11px] font-bold flex items-center gap-1 transition shadow-sm ${
+                isDuty
+                  ? 'bg-emerald-950/90 border-emerald-500 text-emerald-300 ring-1 ring-emerald-500/40'
+                  : 'bg-rose-950/90 border-rose-500 text-rose-300 ring-1 ring-rose-500/40'
+              }`}
+              title="Ubah status tugas 10-8 / 10-7"
+            >
+              <Power className="w-3 h-3" />
+              <span>{isDuty ? '8-1-1' : '8-1-0'}</span>
+              {isDuty && <span className="text-[9px] text-emerald-200">({dutyDurationStr})</span>}
+            </button>
+          )}
 
           {/* Desktop/Android Switcher Toggle */}
           <button
@@ -601,75 +643,119 @@ export const AndroidMdtView: React.FC<Props> = ({
       )}
 
       {/* 5. ANDROID FIXED BOTTOM NAVIGATION DOCK */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#10141D]/95 backdrop-blur-md border-t border-gray-800 px-2 py-1.5 flex items-center justify-around text-[10px] font-mono shadow-2xl">
-        {/* Tab 1: Kalkulator */}
-        <button
-          type="button"
-          onClick={() => setActiveNav('calc')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] ${
-            activeNav === 'calc'
-              ? 'text-blue-400 font-bold'
-              : 'text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          <Calculator className={`w-5 h-5 mb-0.5 ${activeNav === 'calc' ? 'scale-110 text-blue-400' : ''}`} />
-          <span>Kalkulator</span>
-        </button>
+      {isGovernment ? (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#10141D]/95 backdrop-blur-md border-t border-amber-600/40 px-3 py-2 flex items-center justify-around text-xs font-mono shadow-2xl">
+          {/* Tab 1: Dokumen Resmi */}
+          <button
+            type="button"
+            onClick={() => setActiveNav('documents')}
+            className={`flex flex-col items-center justify-center py-1.5 px-4 rounded-xl transition min-w-[90px] ${
+              activeNav === 'documents'
+                ? 'text-amber-400 font-bold bg-amber-500/20 border border-amber-500/50 shadow-sm'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            <StampIcon className={`w-5 h-5 mb-1 ${activeNav === 'documents' ? 'scale-110 text-amber-400' : ''}`} />
+            <span>Surat & Dokumen</span>
+          </button>
 
-        {/* Tab 2: Dokumen Resmi */}
-        <button
-          type="button"
-          onClick={() => setActiveNav('documents')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] ${
-            activeNav === 'documents'
-              ? 'text-sky-400 font-bold'
-              : 'text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          <StampIcon className={`w-5 h-5 mb-0.5 ${activeNav === 'documents' ? 'scale-110 text-sky-400' : ''}`} />
-          <span>Dokumen</span>
-        </button>
+          {/* Tab 2: Roster Pemerintah */}
+          <button
+            type="button"
+            onClick={() => setActiveNav('gov_roster')}
+            className={`flex flex-col items-center justify-center py-1.5 px-4 rounded-xl transition min-w-[90px] ${
+              activeNav === 'gov_roster'
+                ? 'text-amber-400 font-bold bg-amber-500/20 border border-amber-500/50 shadow-sm'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            <Building2 className={`w-5 h-5 mb-1 ${activeNav === 'gov_roster' ? 'scale-110 text-amber-400' : ''}`} />
+            <span>Roster Pemerintah</span>
+          </button>
 
-        {/* Tab 3: BOLO & Sitaan */}
-        <button
-          type="button"
-          onClick={() => setActiveNav('traffic')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] ${
-            activeNav === 'traffic'
-              ? 'text-amber-400 font-bold'
-              : 'text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          <Car className={`w-5 h-5 mb-0.5 ${activeNav === 'traffic' ? 'scale-110 text-amber-400' : ''}`} />
-          <span>BOLO</span>
-        </button>
+          {/* Tab 3: All Apps Menu */}
+          <button
+            type="button"
+            onClick={() => setIsAppDrawerOpen(true)}
+            className="flex flex-col items-center justify-center py-1.5 px-4 rounded-xl transition min-w-[70px] text-gray-400 hover:text-white"
+          >
+            <div className="w-5 h-5 mb-1 rounded bg-amber-600/30 flex items-center justify-center text-amber-300">
+              <Grid className="w-3.5 h-3.5" />
+            </div>
+            <span>Menu</span>
+          </button>
+        </div>
+      ) : (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#10141D]/95 backdrop-blur-md border-t border-gray-800 px-2 py-1.5 flex items-center justify-around text-[10px] font-mono shadow-2xl">
+          {/* Tab 1: Kalkulator */}
+          <button
+            type="button"
+            onClick={() => setActiveNav('calc')}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] ${
+              activeNav === 'calc'
+                ? 'text-blue-400 font-bold'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            <Calculator className={`w-5 h-5 mb-0.5 ${activeNav === 'calc' ? 'scale-110 text-blue-400' : ''}`} />
+            <span>Kalkulator</span>
+          </button>
 
-        {/* Tab 4: Sipil DMV */}
-        <button
-          type="button"
-          onClick={() => setActiveNav('dmv')}
-          className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] ${
-            activeNav === 'dmv'
-              ? 'text-teal-400 font-bold'
-              : 'text-gray-400 hover:text-gray-200'
-          }`}
-        >
-          <UserCheck className={`w-5 h-5 mb-0.5 ${activeNav === 'dmv' ? 'scale-110 text-teal-400' : ''}`} />
-          <span>DMV</span>
-        </button>
+          {/* Tab 2: Dokumen Resmi */}
+          <button
+            type="button"
+            onClick={() => setActiveNav('documents')}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] ${
+              activeNav === 'documents'
+                ? 'text-sky-400 font-bold'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            <StampIcon className={`w-5 h-5 mb-0.5 ${activeNav === 'documents' ? 'scale-110 text-sky-400' : ''}`} />
+            <span>Dokumen</span>
+          </button>
 
-        {/* Tab 5: All Apps Menu / Drawer */}
-        <button
-          type="button"
-          onClick={() => setIsAppDrawerOpen(true)}
-          className="flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] text-gray-400 hover:text-white group"
-        >
-          <div className="w-5 h-5 mb-0.5 rounded bg-blue-600/30 group-hover:bg-blue-600 flex items-center justify-center text-blue-300 group-hover:text-white transition">
-            <Grid className="w-3.5 h-3.5" />
-          </div>
-          <span>Menu</span>
-        </button>
-      </div>
+          {/* Tab 3: BOLO & Sitaan */}
+          <button
+            type="button"
+            onClick={() => setActiveNav('traffic')}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] ${
+              activeNav === 'traffic'
+                ? 'text-amber-400 font-bold'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            <Car className={`w-5 h-5 mb-0.5 ${activeNav === 'traffic' ? 'scale-110 text-amber-400' : ''}`} />
+            <span>BOLO</span>
+          </button>
+
+          {/* Tab 4: Sipil DMV */}
+          <button
+            type="button"
+            onClick={() => setActiveNav('dmv')}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] ${
+              activeNav === 'dmv'
+                ? 'text-teal-400 font-bold'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            <UserCheck className={`w-5 h-5 mb-0.5 ${activeNav === 'dmv' ? 'scale-110 text-teal-400' : ''}`} />
+            <span>DMV</span>
+          </button>
+
+          {/* Tab 5: All Apps Menu / Drawer */}
+          <button
+            type="button"
+            onClick={() => setIsAppDrawerOpen(true)}
+            className="flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] text-gray-400 hover:text-white group"
+          >
+            <div className="w-5 h-5 mb-0.5 rounded bg-blue-600/30 group-hover:bg-blue-600 flex items-center justify-center text-blue-300 group-hover:text-white transition">
+              <Grid className="w-3.5 h-3.5" />
+            </div>
+            <span>Menu</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

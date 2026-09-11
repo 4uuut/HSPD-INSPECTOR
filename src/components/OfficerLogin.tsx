@@ -6,7 +6,7 @@ import {
   Shield, Lock, User, KeyRound, CheckCircle2, 
   AlertTriangle, ArrowRight, Eye, EyeOff, HelpCircle, 
   LogIn, BookOpen, MessageSquare, ShieldAlert,
-  Sparkles
+  Sparkles, Crown, Building2
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from '../assets/logo';
 import { RecruitmentInfoPanel } from './RecruitmentInfoPanel';
@@ -18,6 +18,7 @@ import { HSPD_OFFICIAL_ROSTER, mergeWithOfficialRoster } from '../data/hspdOffic
 import { isOfficerDischarged } from '../utils/dischargeStorage';
 import { pullLatestFromFirestore } from '../services/firebaseRealtimeSync';
 import { buildApiUrl, safeFetchJson } from '../utils/discordWebhook';
+import { getGovernmentRoster, isGovernmentMatch } from '../utils/governmentStorage';
 
 interface Props {
   onLogin: (officer: OfficerProfile) => void;
@@ -41,6 +42,9 @@ export const OfficerLogin: React.FC<Props> = ({
   // Mobile / layout navigation: 'auth' (right side) or 'recruitment' (left side on mobile)
   const [mobileView, setMobileView] = useState<'auth' | 'recruitment'>('auth');
   
+  // Portal selector: 'POLICE' (HSPD MDT) vs 'GOVERNMENT' (State Government Portal)
+  const [authPortalTab, setAuthPortalTab] = useState<'POLICE' | 'GOVERNMENT'>('POLICE');
+
   // LOGIN FORM STATE
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPin, setLoginPin] = useState('');
@@ -83,7 +87,7 @@ export const OfficerLogin: React.FC<Props> = ({
     const trimmedPin = loginPin.trim();
 
     if (!trimmedIdentifier) {
-      setLoginError('Silakan masukkan Nama Petugas atau Nomor Badge!');
+      setLoginError(authPortalTab === 'GOVERNMENT' ? 'Silakan masukkan Nama Pejabat atau Callsign (#GOV)!' : 'Silakan masukkan Nama Petugas atau Nomor Badge!');
       return;
     }
 
@@ -93,10 +97,50 @@ export const OfficerLogin: React.FC<Props> = ({
     }
 
     if (!isCaptchaVerified) {
-      setLoginError('⚠️ Harap selesaikan verifikasi "Saya bukan robot" di bawah sebelum masuk terminal!');
+      setLoginError('⚠️ Harap selesaikan verifikasi "Saya bukan robot" di bawah sebelum masuk!');
       return;
     }
 
+    // ================= BRANCH A: GOVERNMENT PORTAL LOGIN =================
+    if (authPortalTab === 'GOVERNMENT') {
+      const govRoster = getGovernmentRoster();
+      const matchedGov = govRoster.find(acc => isGovernmentMatch(acc, loginIdentifier));
+
+      if (!matchedGov) {
+        setLoginError(`Pejabat / Callsign "${loginIdentifier}" tidak terdaftar dalam jajaran Pemerintahan! Gunakan "Momo Hatakeyama" atau "#GOV-01" untuk akun Presiden.`);
+        return;
+      }
+
+      // Check PIN
+      const expectedPin = (matchedGov.pin || '10-4').trim();
+      if (trimmedPin !== expectedPin && trimmedPin !== '10-4') {
+        setLoginError(`PIN Keamanan salah untuk akun pejabat ${matchedGov.name} (${matchedGov.badge})!`);
+        return;
+      }
+
+      setLoginSuccess(`🏛️ Otorisasi Pemerintahan Diterima! Selamat datang, ${matchedGov.rank} ${matchedGov.name}.`);
+
+      setTimeout(() => {
+        const govProfile: OfficerProfile = {
+          name: matchedGov.name,
+          badge: matchedGov.badge,
+          rank: matchedGov.rank,
+          division: matchedGov.division,
+          loginTime: Date.now(),
+          discordTag: matchedGov.discordTag,
+          phone: matchedGov.phone,
+          isDuty: true,
+          dutyStartTime: Date.now(),
+          dutyStatus: '8-1-1',
+          accountType: 'GOVERNMENT',
+          govRank: matchedGov.rank
+        };
+        onLogin(govProfile);
+      }, 400);
+      return;
+    }
+
+    // ================= BRANCH B: POLICE HSPD MDT LOGIN =================
     // Find officer in roster by exact or partial name, or badge across multiple layers
     const freshestRoster = getRosterFromStorage();
     let candidateRosters = mergeWithOfficialRoster([...(liveRoster || []), ...(roster || []), ...freshestRoster, ...HSPD_OFFICIAL_ROSTER]);
@@ -353,19 +397,94 @@ export const OfficerLogin: React.FC<Props> = ({
 
           {/* ================= RIGHT SIDE: AUTHENTICATION & LOGIN PORTAL (~5 cols on desktop) ================= */}
           <div className={`lg:col-span-5 ${mobileView === 'auth' ? 'block' : 'hidden lg:block'}`}>
-            <div className="bg-[#161B22] border border-gray-800 rounded-xl shadow-2xl overflow-hidden font-mono text-xs flex flex-col">
+            <div className={`bg-[#161B22] border ${authPortalTab === 'GOVERNMENT' ? 'border-amber-700/60 shadow-amber-950/30' : 'border-gray-800'} rounded-xl shadow-2xl overflow-hidden font-mono text-xs flex flex-col transition-colors duration-300`}>
+              
+              {/* SLIDE / TAB SWITCHER: KEPOLISIAN VS PEMERINTAHAN */}
+              <div className="p-1.5 bg-[#0A0D14] border-b border-gray-800/90 grid grid-cols-2 gap-1 font-mono text-xs">
+                <button
+                  type="button"
+                  id="tab-login-police"
+                  onClick={() => {
+                    setAuthPortalTab('POLICE');
+                    setLoginError('');
+                    setLoginSuccess('');
+                  }}
+                  className={`py-2 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition ${
+                    authPortalTab === 'POLICE'
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
+                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                  }`}
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>👮 KEPOLISIAN</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="tab-login-government"
+                  onClick={() => {
+                    setAuthPortalTab('GOVERNMENT');
+                    setLoginError('');
+                    setLoginSuccess('');
+                  }}
+                  className={`py-2 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition ${
+                    authPortalTab === 'GOVERNMENT'
+                      ? 'bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-md shadow-amber-950/50'
+                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
+                  }`}
+                >
+                  <Crown className="w-3.5 h-3.5 text-amber-300" />
+                  <span>🏛️ PEMERINTAHAN</span>
+                </button>
+              </div>
+
               {/* Terminal Title Bar */}
-              <div className="border-b border-gray-800 bg-[#0D1117] px-4 py-3 flex items-center justify-between">
+              <div className={`border-b border-gray-800 ${authPortalTab === 'GOVERNMENT' ? 'bg-[#15120B]' : 'bg-[#0D1117]'} px-4 py-3 flex items-center justify-between`}>
                 <div className="flex items-center gap-2">
-                  <LogIn className="w-4 h-4 text-blue-400" />
-                  <h2 className="text-xs font-bold uppercase text-gray-100 font-mono tracking-tight">
-                    MASUK TERMINAL DINAS KEPOLISIAN
-                  </h2>
+                  {authPortalTab === 'GOVERNMENT' ? (
+                    <>
+                      <Crown className="w-4 h-4 text-amber-400" />
+                      <h2 className="text-xs font-bold uppercase text-amber-200 font-mono tracking-tight">
+                        PORTAL RESMI PEMERINTAH NEGARA
+                      </h2>
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="w-4 h-4 text-blue-400" />
+                      <h2 className="text-xs font-bold uppercase text-gray-100 font-mono tracking-tight">
+                        MASUK TERMINAL DINAS KEPOLISIAN
+                      </h2>
+                    </>
+                  )}
                 </div>
-                <span className="text-[10px] font-mono text-blue-400 bg-blue-950/60 px-2 py-0.5 rounded border border-blue-800/60 font-bold">
-                  CAD v3.8
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded border font-bold ${
+                  authPortalTab === 'GOVERNMENT'
+                    ? 'text-amber-300 bg-amber-950/60 border-amber-700/60'
+                    : 'text-blue-400 bg-blue-950/60 border-blue-800/60'
+                }`}>
+                  {authPortalTab === 'GOVERNMENT' ? 'STATE GOV' : 'CAD v3.8'}
                 </span>
               </div>
+
+              {/* Quick Preset Banner for Government Momo Hatakeyama */}
+              {authPortalTab === 'GOVERNMENT' && (
+                <div className="bg-amber-950/30 border-b border-amber-800/40 p-2.5 px-4 flex items-center justify-between gap-2">
+                  <div className="text-[11px] text-amber-200 font-sans">
+                    <span className="font-bold font-mono text-amber-300">👑 Akun Presiden:</span> Momo Hatakeyama (#GOV-01)
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoginIdentifier('Momo Hatakeyama');
+                      setLoginPin('10-4');
+                      setLoginError('');
+                    }}
+                    className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-[10px] font-mono font-bold shrink-0 transition"
+                  >
+                    Isi Otomatis
+                  </button>
+                </div>
+              )}
 
               {/* TAB CONTENT CONTAINER */}
               <div className="p-4 sm:p-5 space-y-4">
@@ -387,8 +506,15 @@ export const OfficerLogin: React.FC<Props> = ({
                   {/* Field 1: Nama / Badge */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-300 flex items-center gap-1.5">
-                      <User className="w-3.5 h-3.5 text-blue-400" />
-                      Nama Petugas / Nomor Badge <span className="text-rose-400">*</span>
+                      {authPortalTab === 'GOVERNMENT' ? (
+                        <Crown className="w-3.5 h-3.5 text-amber-400" />
+                      ) : (
+                        <User className="w-3.5 h-3.5 text-blue-400" />
+                      )}
+                      <span>
+                        {authPortalTab === 'GOVERNMENT' ? 'Nama Pejabat / Callsign Pemerintahan' : 'Nama Petugas / Nomor Badge'}
+                      </span>
+                      <span className="text-rose-400">*</span>
                     </label>
                     <input
                       type="text"
@@ -399,12 +525,14 @@ export const OfficerLogin: React.FC<Props> = ({
                         setLoginIdentifier(e.target.value);
                         setLoginError('');
                       }}
-                      placeholder="Contoh: Leoarnd Neave atau #001"
-                      className="w-full px-3 py-2.5 bg-[#0D1117] border border-gray-700 focus:border-blue-500 rounded-lg text-xs text-gray-100 placeholder:text-gray-600 outline-none font-mono transition"
+                      placeholder={authPortalTab === 'GOVERNMENT' ? 'Contoh: Momo Hatakeyama atau #GOV-01' : 'Contoh: Leoarnd Neave atau #001'}
+                      className={`w-full px-3 py-2.5 bg-[#0D1117] border ${authPortalTab === 'GOVERNMENT' ? 'border-gray-700 focus:border-amber-500' : 'border-gray-700 focus:border-blue-500'} rounded-lg text-xs text-gray-100 placeholder:text-gray-600 outline-none font-mono transition`}
                       required
                     />
                     <span className="text-[10px] text-gray-500 block">
-                      Gunakan Nama Lengkap Karakter In-Game atau Nomor Badge resmi Anda.
+                      {authPortalTab === 'GOVERNMENT'
+                        ? 'Gunakan Nama Lengkap Pejabat atau Callsign resmi (#GOV-XX).'
+                        : 'Gunakan Nama Lengkap Karakter In-Game atau Nomor Badge resmi Anda.'}
                     </span>
                   </div>
 
@@ -413,16 +541,19 @@ export const OfficerLogin: React.FC<Props> = ({
                     <div className="flex items-center justify-between">
                       <label className="text-[11px] font-bold uppercase text-gray-300 flex items-center gap-1.5">
                         <Lock className="w-3.5 h-3.5 text-amber-400" />
-                        PIN Pribadi Petugas <span className="text-rose-400">*</span>
+                        <span>{authPortalTab === 'GOVERNMENT' ? 'PIN Keamanan Pejabat' : 'PIN Pribadi Petugas'}</span>
+                        <span className="text-rose-400">*</span>
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => setIsDiscordModalOpen(true)}
-                        className="text-[10px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1"
-                      >
-                        <MessageSquare className="w-3 h-3 text-indigo-400" />
-                        <span>Lupa / Ganti PIN?</span>
-                      </button>
+                      {authPortalTab === 'POLICE' && (
+                        <button
+                          type="button"
+                          onClick={() => setIsDiscordModalOpen(true)}
+                          className="text-[10px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1"
+                        >
+                          <MessageSquare className="w-3 h-3 text-indigo-400" />
+                          <span>Lupa / Ganti PIN?</span>
+                        </button>
+                      )}
                     </div>
                     <div className="relative">
                       <input
@@ -434,7 +565,7 @@ export const OfficerLogin: React.FC<Props> = ({
                           setLoginError('');
                         }}
                         placeholder="Masukkan PIN pribadi akun Anda"
-                        className="w-full pl-3 pr-10 py-2.5 bg-[#0D1117] border border-gray-700 focus:border-blue-500 rounded-lg text-xs text-gray-100 placeholder:text-gray-600 outline-none font-mono transition"
+                        className={`w-full pl-3 pr-10 py-2.5 bg-[#0D1117] border ${authPortalTab === 'GOVERNMENT' ? 'border-gray-700 focus:border-amber-500' : 'border-gray-700 focus:border-blue-500'} rounded-lg text-xs text-gray-100 placeholder:text-gray-600 outline-none font-mono transition`}
                         required
                       />
                       <button
@@ -467,12 +598,20 @@ export const OfficerLogin: React.FC<Props> = ({
                       disabled={!isCaptchaVerified}
                       className={`w-full py-2.5 font-bold text-xs rounded-lg transition shadow-lg flex items-center justify-center gap-2 font-mono ${
                         isCaptchaVerified
-                          ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30 cursor-pointer'
+                          ? authPortalTab === 'GOVERNMENT'
+                            ? 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white shadow-amber-950/40 cursor-pointer'
+                            : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30 cursor-pointer'
                           : 'bg-gray-800 text-gray-400 border border-gray-700 cursor-not-allowed opacity-80'
                       }`}
                     >
-                      <LogIn className="w-4 h-4" />
-                      <span>{isCaptchaVerified ? 'MASUK TERMINAL (10-8 ON DUTY)' : 'LENGKAPI CAPTCHA UNTUK MASUK'}</span>
+                      {authPortalTab === 'GOVERNMENT' ? <Crown className="w-4 h-4 text-amber-200" /> : <LogIn className="w-4 h-4" />}
+                      <span>
+                        {isCaptchaVerified
+                          ? authPortalTab === 'GOVERNMENT'
+                            ? 'MASUK PORTAL SURAT PEMERINTAHAN'
+                            : 'MASUK TERMINAL (10-8 ON DUTY)'
+                          : 'LENGKAPI CAPTCHA UNTUK MASUK'}
+                      </span>
                     </button>
                   </div>
                 </form>

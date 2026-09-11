@@ -1,9 +1,10 @@
 import React from 'react';
 import { 
   Shield, Award, Crosshair, Search, Radio, KeyRound, 
-  Sparkles, CheckCircle2, ChevronRight, Lock, Eye, AlertTriangle
+  Sparkles, CheckCircle2, ChevronRight, Lock, Eye, AlertTriangle,
+  Building2, Crown
 } from 'lucide-react';
-import { OfficerProfile, isOfficerHighRank, getDivisionArchetype } from '../types';
+import { OfficerProfile, isOfficerHighRank, getDivisionArchetype, isGovernmentRank, isGovernmentOfficer } from '../types';
 
 interface Props {
   currentOfficer: OfficerProfile;
@@ -11,6 +12,7 @@ interface Props {
   totalRecords: number;
   totalRoster: number;
   activeBoloCount: number;
+  totalGovRoster?: number;
 }
 
 export const DivisionBadgeHero: React.FC<Props> = ({
@@ -18,12 +20,29 @@ export const DivisionBadgeHero: React.FC<Props> = ({
   totalCases,
   totalRecords,
   totalRoster,
-  activeBoloCount
+  activeBoloCount,
+  totalGovRoster = 1
 }) => {
   const isHighRank = isOfficerHighRank(currentOfficer.rank);
+  const isGovernment = isGovernmentOfficer(currentOfficer);
   const archetype = getDivisionArchetype(currentOfficer.division, currentOfficer.rank);
 
   const getDivisionTheme = () => {
+    if (isGovernment) {
+      const isPresident = currentOfficer.rank?.toUpperCase().includes('PRESIDENT') || currentOfficer.rank?.includes('RANK 6') || currentOfficer.rank?.includes('RANK 5');
+      return {
+        badge: isPresident ? '👑 KANTOR KEPRESIDENAN & EKSEKUTIF NEGARA' : '🏛️ APARATUR PEMERINTAHAN HIGHSTATE',
+        bgGradient: 'from-amber-950/80 via-[#18140B] to-yellow-950/50',
+        borderColor: 'border-amber-500/80',
+        accentText: 'text-amber-300',
+        accentBg: 'bg-amber-500/20',
+        roleTitle: 'Dewan Eksekutif Pemerintahan HighState',
+        roleDesc: 'Otoritas tertinggi pengesahan surat & dokumen resmi kenegaraan, pembinaan aparatur kabinet, pengelolaan roster pejabat negara, serta penetapan keputusan wilayah.',
+        icon: Building2,
+        tagColor: 'bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black border-amber-400',
+        hudTitle: 'STATE GOVERNMENT EXECUTIVE PORTAL • OFFICIAL CAD'
+      };
+    }
     switch (archetype) {
       case 'COMMAND':
         return {
@@ -138,29 +157,51 @@ export const DivisionBadgeHero: React.FC<Props> = ({
 
         {/* Right Column: Live Tactical Counters */}
         <div className="flex items-center gap-2 shrink-0 self-start md:self-auto pt-2 md:pt-0 border-t md:border-t-0 border-gray-800/80">
-          <div className="bg-black/50 border border-gray-800 rounded-lg px-2.5 py-1.5 text-center min-w-[72px]">
-            <div className="text-[9px] text-gray-400 uppercase">Kasus DB</div>
-            <div className="text-xs sm:text-sm font-bold text-indigo-400">{totalCases} Aktif</div>
-          </div>
+          {isGovernment ? (
+            <>
+              <div className="bg-amber-950/60 border border-amber-600/70 rounded-lg px-3 py-1.5 text-center min-w-[80px]">
+                <div className="text-[9px] text-amber-400 uppercase font-bold">Roster Negara</div>
+                <div className="text-xs sm:text-sm font-bold text-amber-200">{totalGovRoster} Pejabat</div>
+              </div>
+              <div className="bg-black/50 border border-amber-600/40 rounded-lg px-3 py-1.5 text-center min-w-[80px]">
+                <div className="text-[9px] text-gray-400 uppercase">Otoritas</div>
+                <div className="text-xs sm:text-sm font-bold text-amber-400">EKSEKUTIF</div>
+              </div>
+              <div className="bg-black/50 border border-gray-800 rounded-lg px-3 py-1.5 text-center min-w-[80px]">
+                <div className="text-[9px] text-gray-400 uppercase">Status Portal</div>
+                <div className="text-xs sm:text-sm font-bold text-emerald-400 flex items-center justify-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-ping"></span>
+                  TERHUBUNG
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="bg-black/50 border border-gray-800 rounded-lg px-2.5 py-1.5 text-center min-w-[72px]">
+                <div className="text-[9px] text-gray-400 uppercase">Kasus DB</div>
+                <div className="text-xs sm:text-sm font-bold text-indigo-400">{totalCases} Aktif</div>
+              </div>
 
-          <div className="bg-black/50 border border-gray-800 rounded-lg px-2.5 py-1.5 text-center min-w-[72px]">
-            <div className="text-[9px] text-gray-400 uppercase">BOLO Alert</div>
-            <div className="text-xs sm:text-sm font-bold text-rose-400 flex items-center justify-center gap-1">
-              <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping"></span>
-              {activeBoloCount}
-            </div>
-          </div>
+              <div className="bg-black/50 border border-gray-800 rounded-lg px-2.5 py-1.5 text-center min-w-[72px]">
+                <div className="text-[9px] text-gray-400 uppercase">BOLO Alert</div>
+                <div className="text-xs sm:text-sm font-bold text-rose-400 flex items-center justify-center gap-1">
+                  <span className="w-1.5 h-1.5 bg-rose-500 rounded-full animate-ping"></span>
+                  {activeBoloCount}
+                </div>
+              </div>
 
-          <div className="bg-black/50 border border-gray-800 rounded-lg px-2.5 py-1.5 text-center min-w-[72px]">
-            <div className="text-[9px] text-gray-400 uppercase">Penindakan</div>
-            <div className="text-xs sm:text-sm font-bold text-emerald-400">{totalRecords} Rekor</div>
-          </div>
+              <div className="bg-black/50 border border-gray-800 rounded-lg px-2.5 py-1.5 text-center min-w-[72px]">
+                <div className="text-[9px] text-gray-400 uppercase">Penindakan</div>
+                <div className="text-xs sm:text-sm font-bold text-emerald-400">{totalRecords} Rekor</div>
+              </div>
 
-          {isHighRank && (
-            <div className="bg-amber-950/60 border border-amber-800/80 rounded-lg px-2.5 py-1.5 text-center min-w-[72px]">
-              <div className="text-[9px] text-amber-400 uppercase">Anggota</div>
-              <div className="text-xs sm:text-sm font-bold text-amber-200">{totalRoster} Org</div>
-            </div>
+              {isHighRank && (
+                <div className="bg-amber-950/60 border border-amber-800/80 rounded-lg px-2.5 py-1.5 text-center min-w-[72px]">
+                  <div className="text-[9px] text-amber-400 uppercase">Anggota</div>
+                  <div className="text-xs sm:text-sm font-bold text-amber-200">{totalRoster} Org</div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

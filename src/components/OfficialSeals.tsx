@@ -277,6 +277,93 @@ export const OfficialSeal: React.FC<SealProps> = ({ type, className = '', size =
     );
   }
 
+  if (type === 'PRESIDENTIAL_SEAL') {
+    return (
+      <div 
+        className={`relative select-none pointer-events-none ${className}`}
+        style={{ width: size, height: size }}
+      >
+        <svg 
+          viewBox="0 0 200 200" 
+          className="w-full h-full drop-shadow-md rotate-[-4deg]"
+        >
+          <circle cx="100" cy="100" r="92" fill="none" stroke="#D97706" strokeWidth="4" strokeDasharray="3,3" opacity="0.95" />
+          <circle cx="100" cy="100" r="86" fill="#78350F" fillOpacity="0.08" stroke="#B45309" strokeWidth="3" opacity="0.9" />
+          <circle cx="100" cy="100" r="74" fill="none" stroke="#D97706" strokeWidth="1.5" opacity="0.85" />
+
+          {/* Curved Text for President */}
+          <path id="presidentialCurveTop" d="M 30,100 A 70,70 0 0,1 170,100" fill="none" />
+          <path id="presidentialCurveBottom" d="M 170,100 A 70,70 0 0,1 30,100" fill="none" />
+
+          <text className="text-[11px] font-black uppercase tracking-[0.25em] fill-amber-700 font-serif">
+            <textPath href="#presidentialCurveTop" startOffset="50%" textAnchor="middle">
+              EXECUTIVE SEAL OF THE PRESIDENT
+            </textPath>
+          </text>
+          <text className="text-[9px] font-bold uppercase tracking-[0.2em] fill-amber-800 font-serif">
+            <textPath href="#presidentialCurveBottom" startOffset="50%" textAnchor="middle">
+              STATE GOVERNMENT • EXECUTIVE
+            </textPath>
+          </text>
+
+          {/* Center Eagle / Star Emblem */}
+          <polygon points="100,55 104,68 118,68 107,77 111,90 100,81 89,90 93,77 82,68 96,68" fill="#B45309" opacity="0.9" />
+          <text x="100" y="112" textAnchor="middle" className="text-[10px] font-black tracking-widest fill-amber-900 font-serif">
+            OFFICE OF THE
+          </text>
+          <text x="100" y="126" textAnchor="middle" className="text-[13px] font-black tracking-widest fill-amber-800 font-serif">
+            PRESIDENT
+          </text>
+          <text x="100" y="140" textAnchor="middle" className="text-[7.5px] font-bold tracking-wider fill-amber-700 font-mono">
+            MOMO HATAKEYAMA
+          </text>
+        </svg>
+      </div>
+    );
+  }
+
+  if (type === 'GOVERNMENT_SEAL') {
+    return (
+      <div 
+        className={`relative select-none pointer-events-none ${className}`}
+        style={{ width: size, height: size }}
+      >
+        <svg 
+          viewBox="0 0 200 200" 
+          className="w-full h-full drop-shadow-md rotate-[-5deg]"
+        >
+          <circle cx="100" cy="100" r="92" fill="none" stroke="#1D4ED8" strokeWidth="4" opacity="0.9" />
+          <circle cx="100" cy="100" r="85" fill="#1E3A8A" fillOpacity="0.08" stroke="#2563EB" strokeWidth="2.5" opacity="0.85" />
+          <circle cx="100" cy="100" r="72" fill="none" stroke="#1D4ED8" strokeWidth="1.5" strokeDasharray="4,2" opacity="0.8" />
+
+          <path id="govCurveTop" d="M 30,100 A 70,70 0 0,1 170,100" fill="none" />
+          <path id="govCurveBottom" d="M 170,100 A 70,70 0 0,1 30,100" fill="none" />
+
+          <text className="text-[10px] font-black uppercase tracking-[0.2em] fill-blue-800 font-serif">
+            <textPath href="#govCurveTop" startOffset="50%" textAnchor="middle">
+              STATE GOVERNMENT OF HIGHSTATE
+            </textPath>
+          </text>
+          <text className="text-[9px] font-bold uppercase tracking-[0.2em] fill-blue-900 font-serif">
+            <textPath href="#govCurveBottom" startOffset="50%" textAnchor="middle">
+              OFFICIAL STATE AUTHORITY
+            </textPath>
+          </text>
+
+          <text x="100" y="96" textAnchor="middle" className="text-[18px] font-black fill-blue-900">
+            🏛️
+          </text>
+          <text x="100" y="118" textAnchor="middle" className="text-[10px] font-black tracking-widest fill-blue-900 font-mono">
+            GOVERNMENT
+          </text>
+          <text x="100" y="132" textAnchor="middle" className="text-[8px] font-bold tracking-wider fill-blue-700 font-mono">
+            VERIFIED & RATIFIED
+          </text>
+        </svg>
+      </div>
+    );
+  }
+
   // CONFIDENTIAL / TOP SECRET STAMP
   return (
     <div 

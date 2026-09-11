@@ -140,6 +140,11 @@ export const SYNC_COLLECTIONS = {
     name: 'duty_sessions',
     storageKey: 'hspd_duty_sessions_history_v1',
     event: 'hspd-duty-sessions-updated'
+  },
+  GOVERNMENT_ROSTER: {
+    name: 'government_roster',
+    storageKey: 'hspd_government_roster_v1',
+    event: 'hspd-gov-roster-updated'
   }
 } as const;
 
@@ -602,7 +607,20 @@ export const ALL_WEBHOOK_CONFIG_KEYS = [
   'hspd_discord_bot_embed_title',
   'hspd_discord_bot_embed_desc',
   'hspd_discord_bot_embed_color',
-  'hspd_discord_bot_footer_text'
+  'hspd_discord_bot_footer_text',
+  // Government Executive Webhook & Bot Keys
+  'gov_roster_webhook_url',
+  'gov_roster_bot_name',
+  'gov_roster_bot_avatar',
+  'gov_roster_auto_send',
+  'gov_document_webhook_url',
+  'gov_document_bot_name',
+  'gov_document_bot_avatar',
+  'gov_document_auto_send',
+  'gov_pin_reset_webhook_url',
+  'gov_pin_reset_bot_name',
+  'gov_pin_reset_bot_avatar',
+  'gov_pin_reset_auto_send'
 ];
 
 /**

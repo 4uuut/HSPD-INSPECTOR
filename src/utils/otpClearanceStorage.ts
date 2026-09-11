@@ -227,6 +227,17 @@ export const checkDirectRankClearance = (
     };
   }
 
+  // 0. 🏛️ GOVERNMENT OFFICIALS: Direct clearance for Official Documents & State Correspondence
+  if (officer.accountType === 'GOVERNMENT' || (officer.rank && (officer.rank.toUpperCase().includes('PRESIDENT') || officer.rank.toUpperCase().includes('RANK ')))) {
+    if (moduleKey === 'OFFICIAL_DOCS') {
+      return {
+        hasClearance: true,
+        reason: `Akses Resmi Eksekutif: Pejabat Negara (${officer.rank}) memiliki hak akses penuh peninjauan & penandatanganan surat-menyurat resmi.`,
+        requiredRanks: rule.directAccessRanks
+      };
+    }
+  }
+
   const isSupervisor = isSupervisorOrAbove(officer.rank);
   const tierInfo = getRankHierarchyTier(officer.rank);
   const divLower = (officer.division || '').toLowerCase().trim();

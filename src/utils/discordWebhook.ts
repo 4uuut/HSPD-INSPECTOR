@@ -85,6 +85,22 @@ export const DOCUMENT_BOT_NAME_KEY = 'hspd_document_bot_name';
 export const DOCUMENT_BOT_AVATAR_KEY = 'hspd_document_bot_avatar';
 export const DOCUMENT_AUTO_SEND_KEY = 'hspd_document_auto_send';
 
+// Dedicated Government Executive Webhook Keys
+export const GOV_ROSTER_WEBHOOK_STORAGE_KEY = 'gov_roster_webhook_url';
+export const GOV_ROSTER_BOT_NAME_KEY = 'gov_roster_bot_name';
+export const GOV_ROSTER_BOT_AVATAR_KEY = 'gov_roster_bot_avatar';
+export const GOV_ROSTER_AUTO_SEND_KEY = 'gov_roster_auto_send';
+
+export const GOV_DOCUMENT_WEBHOOK_STORAGE_KEY = 'gov_document_webhook_url';
+export const GOV_DOCUMENT_BOT_NAME_KEY = 'gov_document_bot_name';
+export const GOV_DOCUMENT_BOT_AVATAR_KEY = 'gov_document_bot_avatar';
+export const GOV_DOCUMENT_AUTO_SEND_KEY = 'gov_document_auto_send';
+
+export const GOV_PIN_RESET_WEBHOOK_STORAGE_KEY = 'gov_pin_reset_webhook_url';
+export const GOV_PIN_RESET_BOT_NAME_KEY = 'gov_pin_reset_bot_name';
+export const GOV_PIN_RESET_BOT_AVATAR_KEY = 'gov_pin_reset_bot_avatar';
+export const GOV_PIN_RESET_AUTO_SEND_KEY = 'gov_pin_reset_auto_send';
+
 // Dedicated Discord Bot Token for PM / Direct Messages
 export const DISCORD_BOT_TOKEN_KEY = 'hspd_discord_bot_token';
 export const DISCORD_BOT_CUSTOM_NAME_KEY = 'hspd_discord_bot_custom_name';
@@ -4287,6 +4303,360 @@ export async function sendDiscordLog(webhookUrl: string, payload: {
   }
 }
 
+// ==========================================
+// 🏛️ GOVERNMENT / PEMERINTAHAN WEBHOOKS & BOT DISPATCH
+// ==========================================
 
+export function getSavedGovRosterWebhookConfig(): WebhookConfig {
+  try {
+    return {
+      webhookUrl: localStorage.getItem(GOV_ROSTER_WEBHOOK_STORAGE_KEY) || localStorage.getItem(ROSTER_WEBHOOK_STORAGE_KEY) || '',
+      botName: localStorage.getItem(GOV_ROSTER_BOT_NAME_KEY) || 'Biro Kepegawaian & Roster Negara',
+      botAvatar: localStorage.getItem(GOV_ROSTER_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      autoSendOnSave: localStorage.getItem(GOV_ROSTER_AUTO_SEND_KEY) !== 'false'
+    };
+  } catch {
+    return {
+      webhookUrl: '',
+      botName: 'Biro Kepegawaian & Roster Negara',
+      botAvatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      autoSendOnSave: true
+    };
+  }
+}
 
+export function saveGovRosterWebhookConfig(config: Partial<WebhookConfig>) {
+  try {
+    if (config.webhookUrl !== undefined) localStorage.setItem(GOV_ROSTER_WEBHOOK_STORAGE_KEY, config.webhookUrl.trim());
+    if (config.botName !== undefined) localStorage.setItem(GOV_ROSTER_BOT_NAME_KEY, config.botName.trim());
+    if (config.botAvatar !== undefined) localStorage.setItem(GOV_ROSTER_BOT_AVATAR_KEY, config.botAvatar.trim());
+    if (config.autoSendOnSave !== undefined) localStorage.setItem(GOV_ROSTER_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
+  } catch (e) {
+    console.error('Failed to save Government roster webhook settings', e);
+  }
+}
 
+export function getSavedGovDocumentWebhookConfig(): WebhookConfig {
+  try {
+    return {
+      webhookUrl: localStorage.getItem(GOV_DOCUMENT_WEBHOOK_STORAGE_KEY) || localStorage.getItem(DOCUMENT_WEBHOOK_STORAGE_KEY) || '',
+      botName: localStorage.getItem(GOV_DOCUMENT_BOT_NAME_KEY) || 'Arsip & Dokumen Resmi Kenegaraan',
+      botAvatar: localStorage.getItem(GOV_DOCUMENT_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      autoSendOnSave: localStorage.getItem(GOV_DOCUMENT_AUTO_SEND_KEY) !== 'false'
+    };
+  } catch {
+    return {
+      webhookUrl: '',
+      botName: 'Arsip & Dokumen Resmi Kenegaraan',
+      botAvatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      autoSendOnSave: true
+    };
+  }
+}
+
+export function saveGovDocumentWebhookConfig(config: Partial<WebhookConfig>) {
+  try {
+    if (config.webhookUrl !== undefined) localStorage.setItem(GOV_DOCUMENT_WEBHOOK_STORAGE_KEY, config.webhookUrl.trim());
+    if (config.botName !== undefined) localStorage.setItem(GOV_DOCUMENT_BOT_NAME_KEY, config.botName.trim());
+    if (config.botAvatar !== undefined) localStorage.setItem(GOV_DOCUMENT_BOT_AVATAR_KEY, config.botAvatar.trim());
+    if (config.autoSendOnSave !== undefined) localStorage.setItem(GOV_DOCUMENT_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
+  } catch (e) {
+    console.error('Failed to save Government document webhook settings', e);
+  }
+}
+
+export function getSavedGovPinResetWebhookConfig(): WebhookConfig {
+  try {
+    return {
+      webhookUrl: localStorage.getItem(GOV_PIN_RESET_WEBHOOK_STORAGE_KEY) || localStorage.getItem(PIN_RESET_WEBHOOK_STORAGE_KEY) || '',
+      botName: localStorage.getItem(GOV_PIN_RESET_BOT_NAME_KEY) || 'Audit Sandi & Kredensial Negara',
+      botAvatar: localStorage.getItem(GOV_PIN_RESET_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      autoSendOnSave: localStorage.getItem(GOV_PIN_RESET_AUTO_SEND_KEY) !== 'false'
+    };
+  } catch {
+    return {
+      webhookUrl: '',
+      botName: 'Audit Sandi & Kredensial Negara',
+      botAvatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      autoSendOnSave: true
+    };
+  }
+}
+
+export function saveGovPinResetWebhookConfig(config: Partial<WebhookConfig>) {
+  try {
+    if (config.webhookUrl !== undefined) localStorage.setItem(GOV_PIN_RESET_WEBHOOK_STORAGE_KEY, config.webhookUrl.trim());
+    if (config.botName !== undefined) localStorage.setItem(GOV_PIN_RESET_BOT_NAME_KEY, config.botName.trim());
+    if (config.botAvatar !== undefined) localStorage.setItem(GOV_PIN_RESET_BOT_AVATAR_KEY, config.botAvatar.trim());
+    if (config.autoSendOnSave !== undefined) localStorage.setItem(GOV_PIN_RESET_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
+  } catch (e) {
+    console.error('Failed to save Government PIN reset webhook settings', e);
+  }
+}
+
+export async function testGovRosterDiscordWebhook(config: WebhookConfig): Promise<{ success: boolean; message: string }> {
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return { success: false, message: 'Masukkan URL Discord Webhook Roster Pemerintah yang valid.' };
+  }
+  const payload = {
+    username: config.botName.trim() || 'Biro Kepegawaian & Roster Negara',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    embeds: [
+      {
+        title: '🏛️ UJI COBA WEBHOOK ROSTER PEJABAT PEMERINTAHAN',
+        description: 'Koneksi pengumuman pengangkatan & pelantikan pejabat negara HighState berhasil terhubung ke Discord!',
+        color: 0xF59E0B, // Gold
+        fields: [
+          { name: 'Channel Target', value: '🟢 **Government Roster & Cabinet Gazette**', inline: true },
+          { name: 'Waktu Pengujian', value: new Date().toLocaleString('id-ID'), inline: true },
+          { name: 'Status Sistem', value: '🟢 **Ready for Official Induction & Appointments**', inline: true },
+        ],
+        footer: {
+          text: 'Executive Government of HighState • Official Secretariat',
+          icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
+        }
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return { success: true, message: '✅ Sinyal Webhook Roster Pemerintah Berhasil Terhubung!' };
+  } catch (err: any) {
+    return { success: false, message: `❌ Gagal terhubung ke Webhook Roster: ${err.message}` };
+  }
+}
+
+export async function testGovDocumentDiscordWebhook(config: WebhookConfig): Promise<{ success: boolean; message: string }> {
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return { success: false, message: 'Masukkan URL Discord Webhook Dokumen Pemerintah yang valid.' };
+  }
+  const payload = {
+    username: config.botName.trim() || 'Arsip & Dokumen Resmi Kenegaraan',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    embeds: [
+      {
+        title: '📜 UJI COBA WEBHOOK DOKUMEN & SURAT KENEGARAAN',
+        description: 'Koneksi publikasi arsip surat keputusan, regulasi eksekutif, dan izin kenegaraan berhasil terhubung.',
+        color: 0xD97706, // Amber gold
+        fields: [
+          { name: 'Channel Target', value: '🟢 **Official State Gazette & Decrees**', inline: true },
+          { name: 'Waktu Pengujian', value: new Date().toLocaleString('id-ID'), inline: true },
+          { name: 'Status Sistem', value: '🟢 **Ready for Document Archiving & Dispatch**', inline: true },
+        ],
+        footer: {
+          text: 'Executive Government of HighState • Official Archives',
+          icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
+        }
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return { success: true, message: '✅ Sinyal Webhook Dokumen Kenegaraan Berhasil Terhubung!' };
+  } catch (err: any) {
+    return { success: false, message: `❌ Gagal terhubung ke Webhook Dokumen: ${err.message}` };
+  }
+}
+
+export async function testGovPinResetDiscordWebhook(config: WebhookConfig): Promise<{ success: boolean; message: string }> {
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return { success: false, message: 'Masukkan URL Discord Webhook Audit PIN Pejabat yang valid.' };
+  }
+  const payload = {
+    username: config.botName.trim() || 'Audit Sandi & Kredensial Negara',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    embeds: [
+      {
+        title: '🔑 UJI COBA WEBHOOK AUDIT KREDENSIAL SANDI NEGARA',
+        description: 'Koneksi log perubahan kata sandi / PIN login aparatur pemerintahan berhasil terhubung.',
+        color: 0x10B981, // Emerald
+        fields: [
+          { name: 'Channel Target', value: '🟢 **State Security & Credential Logs**', inline: true },
+          { name: 'Waktu Pengujian', value: new Date().toLocaleString('id-ID'), inline: true },
+          { name: 'Status Sistem', value: '🟢 **Ready for Credential Audit Logs**', inline: true },
+        ],
+        footer: {
+          text: 'Executive Government of HighState • National Cybersecurity',
+          icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
+        }
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return { success: true, message: '✅ Sinyal Webhook Audit PIN Pejabat Berhasil Terhubung!' };
+  } catch (err: any) {
+    return { success: false, message: `❌ Gagal terhubung ke Webhook Audit PIN: ${err.message}` };
+  }
+}
+
+/**
+ * Send official Government Induction Announcement to Discord Roster Webhook
+ */
+export async function sendGovNewOfficerAnnouncementToDiscord(params: {
+  officer: OfficerAccount;
+  registeredBy?: string;
+  registeredByRank?: string;
+  customNote?: string;
+  customConfig?: Partial<WebhookConfig>;
+}): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedGovRosterWebhookConfig(), ...params.customConfig };
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return { success: false, message: 'URL Webhook Roster Pemerintah belum diatur.' };
+  }
+
+  const dateStr = new Date().toLocaleString('id-ID', {
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+
+  const embedObj = {
+    title: `🏛️ SURAT KEPUTUSAN: PENGANGKATAN PEJABAT RESMI PEMERINTAHAN HIGHSTATE`,
+    description: `Keputusan Eksekutif Negara: Telah resmi diangkat dan dilantik pejabat aparatur negara baru untuk menjalankan roda pemerintahan dan pelayanan masyarakat HighState.`,
+    color: 0xF59E0B, // Amber Gold
+    fields: [
+      {
+        name: '👤 PEJABAT DILANTIK',
+        value: `Nama: **${params.officer.name}**\nBadge / Callsign: \`${params.officer.badge}\``,
+        inline: true,
+      },
+      {
+        name: '🎖️ JABATAN & DIVISI',
+        value: `Jabatan: **${params.officer.rank}**\nLembaga / Divisi: **${params.officer.division}**`,
+        inline: true,
+      },
+      {
+        name: '👑 DILANTIK OLEH',
+        value: params.registeredBy ? `**${params.registeredByRank || 'Pemerintah Pusat'} ${params.registeredBy}**` : 'Kantor Kepresidenan & Eksekutif Negara',
+        inline: true,
+      },
+      {
+        name: '📱 DISCORD PEJABAT',
+        value: params.officer.discordTag ? `\`${params.officer.discordTag}\`` : '*(Belum ditautkan)*',
+        inline: true,
+      },
+      {
+        name: '📞 KONTAK RESMI',
+        value: `\`${params.officer.phone || 'N/A'}\``,
+        inline: true,
+      },
+      {
+        name: '🕒 TANGGAL PELANTIKAN',
+        value: dateStr,
+        inline: true,
+      },
+      ...(params.customNote?.trim() ? [{
+        name: '📝 CATATAN / AMANAT KENEGARAAN',
+        value: `>>> *${params.customNote.trim()}*`,
+        inline: false,
+      }] : []),
+      {
+        name: '🔒 STATUS KREDENSIAL AKSES PORTAL',
+        value: '✅ Kredensial akun dinas & PIN login telah diterbitkan dan dikirimkan secara rahasia melalui Bot PM Discord.',
+        inline: false,
+      }
+    ],
+    footer: {
+      text: `Executive Government of HighState • Berita Negara • ${dateStr}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    },
+    timestamp: new Date().toISOString()
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: config.botName.trim() || 'Biro Kepegawaian & Roster Negara',
+        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+        embeds: [embedObj]
+      })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return { success: true, message: `Pengumuman pengangkatan ${params.officer.name} berhasil disiarkan ke Discord!` };
+  } catch (err: any) {
+    return { success: false, message: `Gagal mengirim pengumuman roster: ${err.message}` };
+  }
+}
+
+/**
+ * Send Government Official Account Credentials directly via Bot Private Message (PM/DM)
+ */
+export async function sendGovOfficerAccountDm(params: {
+  targetDiscord: string;
+  officerName: string;
+  badge: string;
+  rank: string;
+  division: string;
+  pin: string;
+  registeredBy?: string;
+  registeredByRank?: string;
+  registeredByBadge?: string;
+  customMessage?: string;
+}): Promise<{ success: boolean; message: string }> {
+  const botConfig = getSavedDiscordBotConfig();
+  const token = (botConfig.botToken || '').trim();
+
+  if (!token) {
+    return {
+      success: false,
+      message: 'Bot Token Discord belum dikonfigurasi! Harap buka menu Pengaturan Webhook & Bot Discord untuk memasukkan Bot Token.'
+    };
+  }
+
+  const rawTarget = (params.targetDiscord || '').trim();
+  if (!rawTarget) {
+    return {
+      success: false,
+      message: 'Username / ID Discord pejabat baru belum diisi!'
+    };
+  }
+
+  const portalUrl = typeof window !== 'undefined' ? window.location.origin : 'https://mdc-hspd-inspector.vercel.app/';
+
+  return sendOfficerDirectMessageViaBot({
+    userId: rawTarget,
+    username: rawTarget,
+    discordTag: rawTarget,
+    officerName: params.officerName,
+    pin: params.pin,
+    badge: params.badge,
+    rank: params.rank,
+    division: params.division,
+    botName: botConfig.botName || 'Sekretariat Negara | High State',
+    avatarUrl: botConfig.botAvatar || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    embedTitle: '🏛️ Kredensial Akun Portal Pemerintahan HighState',
+    embedDescription: `Selamat bertugas! Akun dinas kenegaraan Anda telah resmi diterbitkan oleh Jajaran Eksekutif Negara. Gunakan kredensial di bawah ini untuk mengakses Portal Resmi Pemerintahan:`,
+    customNote: 'PENTING: Jaga kerahasiaan PIN ini. Jangan pernah berikan kepada siapapun. Pilih tab "🏛️ Portal Pemerintahan" pada saat masuk ke website.',
+    embedColor: '#F59E0B',
+    footerText: 'Sekretariat Negara HighState • Portal Resmi CAD',
+    registeredBy: params.registeredBy || 'Kantor Kepresidenan',
+    registeredByRank: params.registeredByRank || 'Eksekutif Negara',
+    registeredByBadge: params.registeredByBadge,
+    customMessage: params.customMessage,
+    loginUrl: portalUrl,
+    messageType: 'credentials'
+  });
+}

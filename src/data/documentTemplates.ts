@@ -800,5 +800,130 @@ export const DOCUMENT_PRESET_TEMPLATES: DocumentTemplatePreset[] = [
       acknowledgedByRank: 'CHIEF OF POLICE [COP]',
       acknowledgedByRole: 'Kepala Kepolisian HighState'
     }
+  },
+  // 12. SURAT KEPUTUSAN PRESIDEN & PEMERINTAHAN NEGARA
+  {
+    id: 'tpl-surat-keputusan-pemerintah',
+    category: 'SURAT_TUGAS',
+    name: 'Surat Keputusan Presiden / Eksekutif Pemerintahan',
+    badgeLabel: 'PRESIDENTIAL DECREE',
+    description: 'Ketetapan resmi Kantor Kepresidenan & Eksekutif Negara HighState untuk pengangkatan pejabat, izin operasi khusus, atau koordinasi penegakan hukum antar-lembaga.',
+    defaultDoc: {
+      docNumber: `SK-PRESIDEN/GOV-EXEC/VIII/${new Date().getFullYear()}/001`,
+      category: 'SURAT_TUGAS',
+      classification: 'SANGAT RAHASIA',
+      title: 'SURAT KEPUTUSAN PRESIDEN NEGARA HIGHSTATE',
+      subject: 'Penetapan Wewenang Eksekutif, Pengesahan Kebijakan, & Koordinasi Penegakan Hukum Nasional',
+      date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      validUntil: 'Berlaku Sejak Tanggal Ditetapkan',
+      location: 'Istana Kepresidenan & Kantor Pemerintahan HighState',
+      issuerName: 'Momo Hatakeyama',
+      issuerBadge: '#GOV-01',
+      issuerRank: 'PRESIDENT [RANK 6]',
+      issuerRole: 'Presiden Negara HighState / Kepala Eksekutif',
+      recipientName: 'Seluruh Lembaga Negara & Kepolisian HighState (HSPD)',
+      recipientId: 'HQ-HSPD-001',
+      recipientRoleOrStatus: 'Aparatur Penegak Hukum & Pejabat Kabinet Negara',
+      recipientAddress: 'Wilayah Hukum Negara Bagian HighState',
+      openingText: 'Dengan rahmat Tuhan Yang Maha Esa, Presiden Negara HighState Momo Hatakeyama setelah menimbang stabilitas keamanan, ketertiban umum, dan kelancaran roda pemerintahan, DENGAN INI MEMUTUSKAN DAN MENETAPKAN:',
+      clauses: [
+        {
+          id: 'gov-c1',
+          clauseNumber: 'Pasal 1',
+          title: 'LEGALITAS & WEWENANG EKSEKUTIF',
+          content: 'Memberikan mandat penuh kepada seluruh jajaran lembaga terkait untuk menegakkan regulasi perundang-undangan dan menjaga ketertiban umum di seluruh wilayah hukum Negara HighState.'
+        },
+        {
+          id: 'gov-c2',
+          clauseNumber: 'Pasal 2',
+          title: 'SINERGI PEMERINTAH & KEPOLISIAN',
+          content: 'Kepolisian HighState (HSPD) bertindak sebagai mitra strategis penegak hukum yang berhak menindak pelanggaran dan mengamankan aset negara dengan koordinasi langsung bersama Sekretariat Negara.'
+        },
+        {
+          id: 'gov-c3',
+          clauseNumber: 'Pasal 3',
+          title: 'PENGESAHAN & PENGAWASAN',
+          content: 'Segala bentuk surat perintah operasi berskala besar, izin senjata kelas khusus, atau kebijakan strategis wajib memperoleh verifikasi dan tanda tangan pengesahan dari Kantor Kepresidenan / Kementerian terkait.'
+        }
+      ],
+      closingText: 'Keputusan ini berlaku sejak tanggal ditetapkan dengan ketentuan apabila di kemudian hari terdapat kekeliruan, akan diadakan pembetulan sebagaimana mestinya.',
+      notes: 'Salinan resmi Surat Keputusan Presiden ini memiliki kekuatan hukum mengikat bagi seluruh warga dan aparatur negara.',
+      primarySeal: 'PRESIDENTIAL_SEAL',
+      secondarySeal: 'GOVERNMENT_SEAL',
+      showWatermark: true,
+      showQrVerification: true,
+      issuerSignatureTitle: 'Presiden Negara HighState,',
+      issuerSignatureStyle: 'handwriting2',
+      recipientSignatureTitle: 'Pihak Penerima / Instansi Pelaksana,',
+      recipientSignatureName: 'Leoarnd Neave (#001)',
+      recipientSignatureStyle: 'formal',
+      acknowledgedByTitle: 'Sekretariat Negara / Kabinet,',
+      acknowledgedByName: 'State Secretariat Office',
+      acknowledgedByRank: 'SECRETARY OF STATE [RANK 4]',
+      acknowledgedByRole: 'Kementerian Dalam Negeri'
+    }
+  },
+  // 13. SURAT PENGESAHAN / REKOMENDASI YANG MEMERLUKAN TANDA TANGAN PEMERINTAHAN
+  {
+    id: 'tpl-surat-pengesahan-pemerintah',
+    category: 'CUSTOM_BEBAS',
+    name: 'Surat Permohonan / Rekomendasi Pengesahan Pemerintah',
+    badgeLabel: 'GOV APPROVAL & SIGNATURE',
+    description: 'Format surat dari Kepolisian ke Pemerintahan yang secara khusus memerlukan tanda tangan penerima/pengesah dari Presiden atau Pejabat Pemerintah.',
+    defaultDoc: {
+      docNumber: `SURAT-REKOM/HSPD-GOV/VIII/${new Date().getFullYear()}/088`,
+      category: 'CUSTOM_BEBAS',
+      classification: 'RAHASIA',
+      title: 'SURAT PERMOHONAN PENGESAHAN & REKOMENDASI PEMERINTAH',
+      subject: 'Permohonan Tanda Tangan & Pengesahan Dokumen Resmi oleh Pihak Pemerintahan Negara',
+      date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      validUntil: '1 (Satu) Tahun Sejak Ditandatangani',
+      location: 'Markas Besar Kepolisian HSPD, Mission Row, Los Santos',
+      issuerName: 'Leoarnd Neave',
+      issuerBadge: '#001',
+      issuerRank: 'CHIEF OF POLICE [COP]',
+      issuerRole: 'Kepala Kepolisian HighState',
+      recipientName: 'Momo Hatakeyama',
+      recipientId: '#GOV-01',
+      recipientPhone: '555-PRESIDENT',
+      recipientRoleOrStatus: 'Presiden Negara HighState [RANK 6]',
+      recipientAddress: 'Kantor Eksekutif Pemerintahan HighState',
+      openingText: 'Dengan hormat, sehubungan dengan pelaksanaan koordinasi penegakan hukum dan legalitas operasional wilayah, Kepolisian HighState (HSPD) mengajukan permohonan tanda tangan pengesahan kepada Pemerintah Negara HighState:',
+      clauses: [
+        {
+          id: 'req-c1',
+          clauseNumber: 'Poin 1',
+          title: 'DASAR PERMOHONAN PENGESAHAN',
+          content: 'Melengkapi berkas legalitas operasional dan izin resmi yang mewajibkan adanya tanda tangan basah / digital dari Pejabat Pemerintah yang berwenang.'
+        },
+        {
+          id: 'req-c2',
+          clauseNumber: 'Poin 2',
+          title: 'HAK & KEWAJIBAN PENERIMA',
+          content: 'Pihak Penerima (Pemerintahan) berhak memeriksa, memvalidasi klausul, dan memberikan persetujuan dengan membubuhkan tanda tangan penerima serta stempel resmi Kepresidenan/Pemerintah.'
+        },
+        {
+          id: 'req-c3',
+          clauseNumber: 'Poin 3',
+          title: 'KONSEKUENSI PENGESAHAN',
+          content: 'Setelah ditandatangani oleh kedua belah pihak, surat ini menjadi dokumen sah yang berkekuatan hukum tetap dan tidak dapat dibatalkan secara sepihak tanpa musyawarah kenegaraan.'
+        }
+      ],
+      closingText: 'Demikian surat permohonan pengesahan ini disampaikan, atas perhatian dan kesediaan Bapak/Ibu Presiden serta jajaran Pemerintahan kami ucapkan terima kasih.',
+      notes: 'Dokumen ini sah apabila telah ditandatangani oleh Pejabat Kepolisian Penerbit dan Pejabat Pemerintahan Penerima.',
+      primarySeal: 'HSPD_OFFICIAL',
+      secondarySeal: 'PRESIDENTIAL_SEAL',
+      showWatermark: true,
+      showQrVerification: true,
+      issuerSignatureTitle: 'Pejabat Kepolisian Penerbit,',
+      issuerSignatureStyle: 'formal',
+      recipientSignatureTitle: 'Presiden / Pejabat Penerima Negara,',
+      recipientSignatureName: 'Momo Hatakeyama',
+      recipientSignatureStyle: 'handwriting1',
+      acknowledgedByTitle: 'Mengetahui & Mengesahkan,',
+      acknowledgedByName: 'State Government Office',
+      acknowledgedByRank: 'GOVERNMENT EXECUTIVE',
+      acknowledgedByRole: 'Biro Hukum & Tata Usaha Negara'
+    }
   }
 ];

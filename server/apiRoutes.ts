@@ -664,6 +664,13 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       ? `<@${cleanUserId}> 📨 **Pesan Resmi dari Komando / Atasan HSPD:**`
       : `<@${cleanUserId}> Halo! Berikut adalah detail dari akun MDT Anda:`;
 
+    const defaultButtonLabel = (registeredByRank?.toUpperCase().includes('PRESIDENT') || rank?.toUpperCase().includes('PRESIDENT') || rank?.toUpperCase().includes('KABINET') || division?.toUpperCase().includes('PEMERINTAHAN'))
+      ? 'Buka Portal Pemerintahan'
+      : 'Akses Terminal MDT Web';
+    const finalButtonLabel = (req.body.buttonLabel && String(req.body.buttonLabel).trim())
+      ? String(req.body.buttonLabel).trim()
+      : defaultButtonLabel;
+
     const messageComponents = [
       {
         type: 1, // ACTION_ROW
@@ -671,9 +678,9 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
           {
             type: 2, // BUTTON
             style: 5, // LINK
-            label: 'Akses Terminal MDT Web',
+            label: finalButtonLabel,
             url: appWebUrl,
-            emoji: { name: '🌐' }
+            emoji: { name: (registeredByRank?.toUpperCase().includes('PRESIDENT') || division?.toUpperCase().includes('PEMERINTAHAN')) ? '🏛️' : '🌐' }
           }
         ]
       }

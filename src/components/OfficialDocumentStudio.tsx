@@ -43,7 +43,8 @@ import {
   DocumentCategory, 
   DocumentClassification, 
   SealType, 
-  OfficerProfile 
+  OfficerProfile,
+  isGovernmentOfficer
 } from '../types';
 import { DOCUMENT_PRESET_TEMPLATES, DocumentTemplatePreset } from '../data/documentTemplates';
 import { 
@@ -58,6 +59,7 @@ import { SignaturePadModal } from './SignaturePadModal';
 import { 
   DiscordWebhookConfig, 
   getSavedDocumentWebhookConfig, 
+  getSavedGovDocumentWebhookConfig,
   sendOfficialDocumentToDiscord 
 } from '../utils/discordWebhook';
 import { HSPD_LOGO_URL, HSPD_LOGO_FALLBACK, getActiveLogoUrl } from '../assets/logo';
@@ -339,15 +341,21 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
   // Send to Discord Webhook
   const handleSendToDiscord = async () => {
+    const isGov = currentOfficer && isGovernmentOfficer(currentOfficer.rank);
+    const govDocConfig = getSavedGovDocumentWebhookConfig();
     const docConfig = getSavedDocumentWebhookConfig();
-    const targetWebhookUrl = docConfig.webhookUrl || 
+    const targetWebhookUrl = (isGov && govDocConfig.webhookUrl) ? govDocConfig.webhookUrl : (docConfig.webhookUrl || 
       webhookConfig?.webhookUrl || 
       (webhookConfig as any)?.url || 
       localStorage.getItem('hspd_discord_webhook_url') || 
-      localStorage.getItem('hspd_roster_webhook_url');
+      localStorage.getItem('hspd_roster_webhook_url'));
 
     if (!targetWebhookUrl) {
-      alert('⚠️ Discord Webhook Arsip Dokumen belum dikonfigurasi. Silakan atur URL Webhook di menu 👑 WEBHOOK (Header Bar) pada Tab 13. Dokumen terlebih dahulu.');
+      if (isGov) {
+        alert('⚠️ Discord Webhook Arsip Dokumen Pemerintahan belum dikonfigurasi. Silakan atur URL Webhook di menu Roster Pemerintahan > PENGATURAN WEBHOOK & BOT PM.');
+      } else {
+        alert('⚠️ Discord Webhook Arsip Dokumen belum dikonfigurasi. Silakan atur URL Webhook di menu 👑 WEBHOOK (Header Bar) pada Tab 13. Dokumen terlebih dahulu.');
+      }
       return;
     }
 
@@ -442,6 +450,10 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
           #hspd-official-paper-sheet, #hspd-official-paper-sheet * {
             visibility: visible !important;
           }
+          .no-print, .no-print * {
+            display: none !important;
+            visibility: hidden !important;
+          }
           #hspd-official-paper-sheet {
             position: absolute !important;
             left: 0 !important;
@@ -463,6 +475,129 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
       {/* Top Header & Quick Action Bar */}
       <div className="bg-[#11141A] border border-gray-800 rounded-xl p-4 shadow-lg">
+        {currentOfficer?.accountType === 'GOVERNMENT' && (
+          <div className="mb-3 p-3 bg-gradient-to-r from-amber-950/80 via-yellow-950/60 to-black/80 border border-amber-500/70 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-mono">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl">🏛️</span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-amber-300 tracking-wide uppercase">PORTAL SURAT MENYURAT PEMERINTAHAN</span>
+                  <span className="px-1.5 py-0.2 rounded bg-amber-500 text-black font-black text-[9px]">EKSEKUTIF</span>
+                </div>
+                <p className="text-[11px] text-gray-300 mt-0.5">
+                  Pejabat Aktif: <strong className="text-white">{currentOfficer.name}</strong> • Pangkat: <strong className="text-amber-400">{currentOfficer.rank}</strong> ({currentOfficer.division || 'Kantor Pemerintahan'})
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  const isPresident = currentOfficer.rank.toUpperCase().includes('PRESIDENT');
+                  setActiveDoc(prev => ({
+                    ...prev,
+                    showIssuerSignature: true,
+                    issuerName: currentOfficer.name,
+                    issuerBadge: currentOfficer.badge,
+                    issuerRank: currentOfficer.rank,
+                    issuerRole: currentOfficer.division || 'Pemerintah Negara',
+                    issuerSignatureName: currentOfficer.name,
+                    issuerSignatureTitle: isPresident ? 'Presiden / Pengesah Negara,' : 'Pemberi Perintah / Komandan Operasi,',
+                    issuerSignatureSubtitle: `${currentOfficer.rank} (${currentOfficer.badge})`,
+                    issuerSignatureType: 'font',
+                    issuerSignatureStyle: 'formal',
+                    issuerSignatureImage: undefined,
+                    secondarySeal: isPresident ? 'PRESIDENTIAL_SEAL' : 'GOVERNMENT_SEAL'
+                  }));
+                  setSaveSuccessMsg(`✅ Dokumen berhasil ditandatangani oleh ${currentOfficer.name} (${currentOfficer.rank}) sebagai Pejabat Penerbit / Pengesah Negara.`);
+                  setTimeout(() => setSaveSuccessMsg(null), 4000);
+                }}
+                className="px-2.5 py-1.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold rounded-lg text-xs transition flex items-center gap-1 shadow-md shadow-blue-950/40"
+                title="Bubuhkan tanda tangan pejabat aktif di kolom TTD Penerbit (Kanan)"
+              >
+                <span>✍️ TTD Sebagai Penerbit</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const isPresident = currentOfficer.rank.toUpperCase().includes('PRESIDENT');
+                  setActiveDoc(prev => ({
+                    ...prev,
+                    showRecipientSignature: true,
+                    recipientName: currentOfficer.name,
+                    recipientId: currentOfficer.badge,
+                    recipientRoleOrStatus: `${currentOfficer.rank} - ${currentOfficer.division || 'Pemerintah Negara'}`,
+                    recipientSignatureName: currentOfficer.name,
+                    recipientSignatureTitle: isPresident ? 'Presiden / Pengesah Negara,' : 'Pejabat Penerima Negara,',
+                    recipientSignatureSubtitle: `${currentOfficer.rank} (${currentOfficer.badge})`,
+                    recipientSignatureType: 'font',
+                    recipientSignatureStyle: 'handwriting1',
+                    recipientSignatureImage: undefined,
+                    secondarySeal: isPresident ? 'PRESIDENTIAL_SEAL' : 'GOVERNMENT_SEAL'
+                  }));
+                  setSaveSuccessMsg(`✅ Dokumen berhasil ditandatangani oleh ${currentOfficer.name} (${currentOfficer.rank}) sebagai Penerima / Pengesah Negara.`);
+                  setTimeout(() => setSaveSuccessMsg(null), 4000);
+                }}
+                className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold rounded-lg text-xs transition flex items-center gap-1 shadow-md shadow-emerald-950/40"
+                title="Bubuhkan tanda tangan pejabat aktif di kolom TTD Penerima (Kiri)"
+              >
+                <span>✍️ TTD Sebagai Penerima</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveDoc(prev => ({
+                    ...prev,
+                    issuerSignatureType: 'blank',
+                    issuerSignatureStyle: 'blank',
+                    issuerSignatureImage: undefined,
+                    recipientSignatureType: 'blank',
+                    recipientSignatureStyle: 'blank',
+                    recipientSignatureImage: undefined
+                  }));
+                  setSaveSuccessMsg('📄 Mode Kosongan: Area TTD dikosongkan untuk tanda tangan basah fisik manual.');
+                  setTimeout(() => setSaveSuccessMsg(null), 3500);
+                }}
+                className="px-2 py-1.5 bg-amber-950/80 hover:bg-amber-900 border border-amber-600/70 text-amber-300 rounded-lg text-xs font-bold transition flex items-center gap-1"
+                title="Kosongkan area coretan TTD untuk dicetak dan ditandatangani basah"
+              >
+                <span>📄 Kosongkan TTD</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveEditorTab('SEALS_SIGS');
+                }}
+                className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-200 rounded-lg text-xs font-bold transition flex items-center gap-1"
+                title="Buka menu pengaturan detail TTD manual"
+              >
+                <span>⚙️ Atur TTD Manual</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveDoc(prev => ({ ...prev, secondarySeal: 'PRESIDENTIAL_SEAL' }));
+                  setSaveSuccessMsg('👑 Stempel Resmi Kepresidenan berhasil dipasang.');
+                  setTimeout(() => setSaveSuccessMsg(null), 3000);
+                }}
+                className="px-2 py-1.5 bg-amber-950/50 hover:bg-amber-900 border border-amber-600/50 text-amber-300 rounded-lg text-xs font-bold transition"
+              >
+                👑 Cap Presiden
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveDoc(prev => ({ ...prev, secondarySeal: 'GOVERNMENT_SEAL' }));
+                  setSaveSuccessMsg('🏛️ Stempel Resmi Pemerintahan berhasil dipasang.');
+                  setTimeout(() => setSaveSuccessMsg(null), 3000);
+                }}
+                className="px-2 py-1.5 bg-gray-800/70 hover:bg-gray-700 border border-gray-600 text-gray-200 rounded-lg text-xs font-bold transition"
+              >
+                🏛️ Cap Pemerintah
+              </button>
+            </div>
+          </div>
+        )}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
@@ -1084,6 +1219,8 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                           className="w-full bg-[#161B22] border border-gray-700 rounded px-2 py-1.5 text-gray-100 text-xs"
                         >
                           <option value="HSPD_OFFICIAL">🔴 Stempel Merah HSPD Official</option>
+                          <option value="PRESIDENTIAL_SEAL">👑 Stempel Resmi Kepresidenan (Presidential Seal)</option>
+                          <option value="GOVERNMENT_SEAL">🏛️ Stempel Resmi Pemerintahan (State Government)</option>
                           <option value="CID_DETECTIVE">🔵 Stempel Biru CID Detective</option>
                           <option value="TRAFFIC_TEU">🟢 Stempel Hijau TEU / Perizinan</option>
                           <option value="HIGH_COMMAND">🟡 Stempel Emas High Command</option>
@@ -1101,6 +1238,8 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                           className="w-full bg-[#161B22] border border-gray-700 rounded px-2 py-1.5 text-gray-100 text-xs"
                         >
                           <option value="">-- Tanpa Stempel Kedua --</option>
+                          <option value="PRESIDENTIAL_SEAL">👑 Stempel Resmi Kepresidenan (Presidential Seal)</option>
+                          <option value="GOVERNMENT_SEAL">🏛️ Stempel Resmi Pemerintahan (State Government)</option>
                           <option value="HSPD_OFFICIAL">🔴 Stempel Merah HSPD Official</option>
                           <option value="CID_DETECTIVE">🔵 Stempel Biru CID Detective</option>
                           <option value="TRAFFIC_TEU">🟢 Stempel Hijau Divisi TEU</option>
@@ -1251,96 +1390,339 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                   </div>
 
                   {/* 1. Issuer Signature */}
-                  <div className="bg-[#161B22] border border-gray-800 rounded-lg p-2.5 space-y-2">
+                  <div className={`bg-[#161B22] border rounded-lg p-2.5 space-y-2.5 transition ${activeDoc.showIssuerSignature === false ? 'border-gray-800/60 opacity-80' : 'border-gray-800'}`}>
                     <div className="flex items-center justify-between text-[11px] font-bold text-gray-200">
                       <span className="flex items-center gap-1.5 text-blue-300">
                         <Shield className="w-3.5 h-3.5" />
-                        1. Tanda Tangan Penerbit ({activeDoc.issuerName})
+                        1. Tanda Tangan Penerbit / Pembuat ({activeDoc.issuerSignatureName ?? activeDoc.issuerName})
                       </span>
-                      {activeDoc.issuerSignatureImage && (
-                        <button
-                          onClick={() => setActiveDoc(prev => ({ ...prev, issuerSignatureImage: undefined, issuerSignatureType: 'font' }))}
-                          className="text-rose-400 hover:text-rose-300 text-[10px] underline"
-                        >
-                          Reset ke Font
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-gray-400 text-[9px] mb-0.5">LABEL TTD:</label>
-                        <input
-                          type="text"
-                          value={activeDoc.issuerSignatureTitle}
-                          onChange={(e) => setActiveDoc(prev => ({ ...prev, issuerSignatureTitle: e.target.value }))}
-                          className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-gray-400 text-[9px] mb-0.5">METODE TTD:</label>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => setActiveSigPadTarget('issuer')}
-                            className="flex-1 px-1.5 py-1 bg-blue-600/80 hover:bg-blue-600 text-white rounded text-[10px] font-bold flex items-center justify-center gap-1"
-                            title="Tanda tangan langsung dengan jari atau stylus di layar"
-                          >
-                            <PenTool className="w-3 h-3" />
-                            <span>Gambar</span>
-                          </button>
-                          
+                      <div className="flex items-center gap-2">
+                        {/* Toggle Switch Tampilkan / Sembunyikan Tanda Tangan Penerbit */}
+                        <label className="flex items-center gap-1.5 cursor-pointer text-[10px] font-mono px-2 py-0.5 rounded bg-black/40 border border-gray-700 hover:border-blue-500/50 transition">
                           <input
-                            type="file"
-                            ref={issuerSigUploadRef}
-                            accept="image/*"
-                            onChange={(e) => handleUploadImageFile(e, (url) => setActiveDoc(prev => ({ ...prev, issuerSignatureImage: url, issuerSignatureType: 'upload' })))}
-                            className="hidden"
+                            type="checkbox"
+                            checked={activeDoc.showIssuerSignature !== false}
+                            onChange={(e) => setActiveDoc(prev => ({ ...prev, showIssuerSignature: e.target.checked }))}
+                            className="rounded border-gray-700 text-blue-500 focus:ring-0 w-3 h-3 accent-blue-500 cursor-pointer"
                           />
-                          <button
-                            onClick={() => issuerSigUploadRef.current?.click()}
-                            className="flex-1 px-1.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded text-[10px] font-bold flex items-center justify-center gap-1 border border-gray-600"
-                            title="Upload foto tanda tangan dari galeri HP / PC"
-                          >
-                            <Upload className="w-3 h-3" />
-                            <span>Upload</span>
-                          </button>
-                        </div>
+                          <span className={activeDoc.showIssuerSignature !== false ? 'text-blue-400 font-bold' : 'text-gray-400'}>
+                            {activeDoc.showIssuerSignature !== false ? 'TAMPILKAN' : 'DISEMBUNYIKAN'}
+                          </span>
+                        </label>
                       </div>
                     </div>
 
-                    {activeDoc.issuerSignatureImage ? (
-                      <div className="h-10 bg-white/10 rounded flex items-center justify-center p-1 border border-gray-700 relative group">
-                        <img
-                          src={activeDoc.issuerSignatureImage}
-                          alt="Issuer Signature Preview"
-                          className="max-h-full max-w-full object-contain"
-                          style={{ mixBlendMode: 'multiply' }}
-                        />
+                    {activeDoc.showIssuerSignature === false ? (
+                      <div className="p-2 bg-black/30 border border-dashed border-gray-800 rounded text-[10px] text-gray-400 font-sans flex items-center justify-between">
+                        <span>Kolom tanda tangan pihak penerbit dinonaktifkan (dokumen tidak menampilkan tanda tangan penerbit).</span>
                         <button
                           type="button"
-                          onClick={() => setActiveDoc(prev => ({ ...prev, issuerSignatureImage: undefined, issuerSignatureType: 'font' }))}
-                          className="absolute top-1 right-1 p-1 bg-rose-950/80 hover:bg-rose-900 text-rose-300 rounded border border-rose-700/60 opacity-0 group-hover:opacity-100 transition text-[9px]"
-                          title="Hapus gambar TTD ini"
+                          onClick={() => setActiveDoc(prev => ({ ...prev, showIssuerSignature: true }))}
+                          className="px-2 py-0.5 bg-blue-950 text-blue-300 border border-blue-700/60 rounded text-[10px] font-bold hover:bg-blue-900"
                         >
-                          Hapus
+                          Aktifkan Kembali
                         </button>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-gray-400">Gaya TTD:</span>
-                        <select
-                          value={activeDoc.issuerSignatureStyle || 'formal'}
-                          onChange={(e) => setActiveDoc(prev => ({ ...prev, issuerSignatureStyle: e.target.value as any, issuerSignatureType: e.target.value === 'blank' ? 'blank' : 'font' }))}
-                          className="bg-[#0D1117] border border-gray-700 rounded px-2 py-0.5 text-gray-200 text-[10px] flex-1"
-                        >
-                          <option value="formal">Gaya Formal Legal (Georgia Serif)</option>
-                          <option value="handwriting1">Kaligrafi Cursive Miring</option>
-                          <option value="handwriting2">Executive Autograph Script</option>
-                          <option value="badge_stamp">Badge Monogram Signature</option>
-                          <option value="blank">📄 Kosongan (Area TTD Manual / Kertas Polos)</option>
-                        </select>
-                      </div>
+                      <>
+                        {currentOfficer && (
+                          <div className="p-2 bg-gradient-to-r from-blue-950/60 via-indigo-950/40 to-black/60 border border-blue-600/50 rounded-lg flex items-center justify-between gap-2">
+                            <div className="text-[10px] leading-tight">
+                              <span className="font-bold text-blue-300 block flex items-center gap-1">
+                                <span>✍️ Tanda Tangani Sebagai:</span>
+                                <span className="text-white">{currentOfficer.name}</span>
+                              </span>
+                              <span className="text-gray-400 text-[9px]">
+                                {currentOfficer.rank} • {currentOfficer.division || 'Pemerintahan / Kepolisian'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const isPresident = currentOfficer.rank?.toUpperCase().includes('PRESIDENT');
+                                  setActiveDoc(prev => ({
+                                    ...prev,
+                                    showIssuerSignature: true,
+                                    issuerName: currentOfficer.name,
+                                    issuerBadge: currentOfficer.badge,
+                                    issuerRank: currentOfficer.rank,
+                                    issuerRole: currentOfficer.division || 'Pemerintah Negara',
+                                    issuerSignatureName: currentOfficer.name,
+                                    issuerSignatureTitle: isPresident ? 'Presiden / Pengesah Negara,' : 'Pemberi Perintah / Komandan Operasi,',
+                                    issuerSignatureSubtitle: `${currentOfficer.rank} (${currentOfficer.badge})`,
+                                    issuerSignatureType: 'font',
+                                    issuerSignatureStyle: 'formal',
+                                    issuerSignatureImage: undefined
+                                  }));
+                                  setSaveSuccessMsg(`✅ Berhasil membubuhkan TTD ${currentOfficer.name} (${currentOfficer.rank}) sebagai Penerbit!`);
+                                  setTimeout(() => setSaveSuccessMsg(null), 3500);
+                                }}
+                                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] font-bold font-mono transition flex items-center gap-1 shadow-sm"
+                                title="Otomatis isi nama, status penerbit, dan tanda tangan"
+                              >
+                                <span>⚡ Bubuhkan TTD</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Mode Selector Buttons */}
+                        <div>
+                          <label className="block text-gray-400 text-[9px] mb-1 font-mono">PILIHAN FORMAT TANDA TANGAN PENERBIT:</label>
+                          <div className="grid grid-cols-4 gap-1">
+                            {/* Option 1: Font / Teks Cursive */}
+                            <button
+                              type="button"
+                              onClick={() => setActiveDoc(prev => ({
+                                ...prev,
+                                issuerSignatureType: 'font',
+                                issuerSignatureImage: undefined,
+                                issuerSignatureStyle: prev.issuerSignatureStyle === 'blank' ? 'formal' : (prev.issuerSignatureStyle || 'formal')
+                              }))}
+                              className={`px-1.5 py-1 rounded text-[10px] font-bold flex items-center justify-center gap-1 border transition ${
+                                activeDoc.issuerSignatureType === 'font' && activeDoc.issuerSignatureStyle !== 'blank' && !activeDoc.issuerSignatureImage
+                                  ? 'bg-blue-700 border-blue-500 text-white shadow-sm'
+                                  : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                              }`}
+                              title="Gunakan teks nama dengan gaya tulisan tangan digital"
+                            >
+                              <span>✍️ Teks Font</span>
+                            </button>
+
+                            {/* Option 2: Kosongan / Blank */}
+                            <button
+                              type="button"
+                              onClick={() => setActiveDoc(prev => ({
+                                ...prev,
+                                issuerSignatureType: 'blank',
+                                issuerSignatureStyle: 'blank',
+                                issuerSignatureImage: undefined
+                              }))}
+                              className={`px-1.5 py-1 rounded text-[10px] font-bold flex items-center justify-center gap-1 border transition ${
+                                activeDoc.issuerSignatureType === 'blank' || activeDoc.issuerSignatureStyle === 'blank'
+                                  ? 'bg-amber-700 border-amber-500 text-white shadow-sm'
+                                  : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                              }`}
+                              title="Kosongkan area tanda tangan untuk ditandatangani manual dengan pulpen basah"
+                            >
+                              <span>📄 Kosongan</span>
+                            </button>
+
+                            {/* Option 3: Gambar / Canvas */}
+                            <button
+                              type="button"
+                              onClick={() => setActiveSigPadTarget('issuer')}
+                              className={`px-1.5 py-1 rounded text-[10px] font-bold flex items-center justify-center gap-1 border transition ${
+                                activeDoc.issuerSignatureType === 'draw' && activeDoc.issuerSignatureImage
+                                  ? 'bg-blue-700 border-blue-500 text-white shadow-sm'
+                                  : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                              }`}
+                              title="Tanda tangan langsung dengan jari / mouse di layar"
+                            >
+                              <PenTool className="w-3 h-3" />
+                              <span>Gambar</span>
+                            </button>
+
+                            {/* Option 4: Upload File */}
+                            <input
+                              type="file"
+                              ref={issuerSigUploadRef}
+                              accept="image/*"
+                              onChange={(e) => handleUploadImageFile(e, (url) => setActiveDoc(prev => ({ ...prev, issuerSignatureImage: url, issuerSignatureType: 'upload' })))}
+                              className="hidden"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => issuerSigUploadRef.current?.click()}
+                              className={`px-1.5 py-1 rounded text-[10px] font-bold flex items-center justify-center gap-1 border transition ${
+                                activeDoc.issuerSignatureType === 'upload' && activeDoc.issuerSignatureImage
+                                  ? 'bg-purple-700 border-purple-500 text-white shadow-sm'
+                                  : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                              }`}
+                              title="Upload foto tanda tangan dari galeri atau komputer"
+                            >
+                              <Upload className="w-3 h-3" />
+                              <span>Upload</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* If in Kosongan Mode */}
+                        {(activeDoc.issuerSignatureType === 'blank' || activeDoc.issuerSignatureStyle === 'blank') && (
+                          <div className="p-2 bg-amber-950/40 border border-amber-700/60 rounded text-[10px] text-amber-200 space-y-1">
+                            <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                              <span>📄 MODE KOSONGAN AKTIF</span>
+                            </div>
+                            <p className="text-[9.5px] text-gray-300 leading-tight">
+                              Area tanda tangan di atas garis akan <strong>kosong polos</strong>. Pejabat dapat menandatangani dokumen secara fisik dengan pulpen setelah dicetak.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Image Preview if uploaded or drawn */}
+                        {activeDoc.issuerSignatureImage && (
+                          <div className="h-12 bg-white/10 rounded flex items-center justify-center p-1 border border-gray-700 relative group">
+                            <img
+                              src={activeDoc.issuerSignatureImage}
+                              alt="Issuer Signature Preview"
+                              className="max-h-full max-w-full object-contain"
+                              style={{ mixBlendMode: 'multiply' }}
+                            />
+                            <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                              <button
+                                type="button"
+                                onClick={() => setActiveDoc(prev => ({
+                                  ...prev,
+                                  issuerSignatureType: 'blank',
+                                  issuerSignatureStyle: 'blank',
+                                  issuerSignatureImage: undefined
+                                }))}
+                                className="px-1.5 py-0.5 bg-amber-900/90 hover:bg-amber-800 text-amber-200 rounded text-[9px] border border-amber-600"
+                              >
+                                Kosongkan
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setActiveDoc(prev => ({ ...prev, issuerSignatureImage: undefined, issuerSignatureType: 'font' }))}
+                                className="px-1.5 py-0.5 bg-rose-900/90 hover:bg-rose-800 text-rose-200 rounded text-[9px] border border-rose-600"
+                              >
+                                Hapus
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Detailed Fields: Label, Custom Name, Subtitle, Style */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                          <div>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <label className="block text-gray-400 text-[9px] font-mono">LABEL JABATAN / POSISI:</label>
+                            </div>
+                            <input
+                              type="text"
+                              value={activeDoc.issuerSignatureTitle ?? 'Pejabat Penerbit,'}
+                              onChange={(e) => setActiveDoc(prev => ({ ...prev, issuerSignatureTitle: e.target.value }))}
+                              className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs focus:border-blue-500 focus:outline-none"
+                              placeholder="Pemberi Perintah / Komandan Operasi,"
+                            />
+                            {/* Preset Buttons for Title */}
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {[
+                                'Presiden / Pengesah Negara,',
+                                'Pemberi Perintah / Komandan Operasi,',
+                                'Pejabat Penerbit,',
+                                'Gubernur Negara,'
+                              ].map(titlePreset => (
+                                <button
+                                  key={titlePreset}
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, issuerSignatureTitle: titlePreset }))}
+                                  className="text-[8px] bg-gray-800 hover:bg-blue-900/60 text-gray-300 hover:text-blue-200 px-1 py-0.2 rounded border border-gray-700"
+                                >
+                                  {titlePreset.replace(',', '')}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <label className="block text-gray-400 text-[9px] font-mono">NAMA TTD / CETAK:</label>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, issuerSignatureName: '' }))}
+                                  className="text-[8px] text-amber-400 hover:underline"
+                                  title="Kosongkan nama cetak di bawah garis"
+                                >
+                                  [Kosongkan]
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, issuerSignatureName: activeDoc.issuerName }))}
+                                  className="text-[8px] text-blue-400 hover:underline"
+                                  title="Reset ke nama pejabat"
+                                >
+                                  [Reset]
+                                </button>
+                              </div>
+                            </div>
+                            <input
+                              type="text"
+                              value={activeDoc.issuerSignatureName ?? activeDoc.issuerName}
+                              onChange={(e) => setActiveDoc(prev => ({ ...prev, issuerSignatureName: e.target.value }))}
+                              className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs focus:border-blue-500 focus:outline-none"
+                              placeholder="Ketik manual nama pejabat (atau kosongkan)"
+                            />
+                            <span className="text-[8px] text-gray-500 block mt-0.5">Ketik manual atau kosongkan untuk garis bersih.</span>
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <label className="block text-gray-400 text-[9px] font-mono">KETERANGAN / SUBTITLE:</label>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, issuerSignatureSubtitle: '' }))}
+                                  className="text-[8px] text-amber-400 hover:underline"
+                                  title="Kosongkan keterangan pangkat di bawah nama"
+                                >
+                                  [Kosongkan]
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, issuerSignatureSubtitle: activeDoc.issuerRank ? `${activeDoc.issuerRank} [${activeDoc.issuerBadge || 'ID'}]` : '' }))}
+                                  className="text-[8px] text-blue-400 hover:underline"
+                                  title="Reset ke format pangkat & badge standar"
+                                >
+                                  [Reset]
+                                </button>
+                              </div>
+                            </div>
+                            <input
+                              type="text"
+                              value={activeDoc.issuerSignatureSubtitle ?? (activeDoc.issuerRank ? `${activeDoc.issuerRank} [${activeDoc.issuerBadge || 'ID'}]` : '')}
+                              onChange={(e) => setActiveDoc(prev => ({ ...prev, issuerSignatureSubtitle: e.target.value }))}
+                              className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs focus:border-blue-500 focus:outline-none"
+                              placeholder="Contoh: PRESIDENT [RANK 6] (#GOV-01)"
+                            />
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {currentOfficer?.rank?.toUpperCase().includes('PRESIDENT') && (
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, issuerSignatureSubtitle: `${currentOfficer.rank} [${currentOfficer.badge || '#GOV-01'}]` }))}
+                                  className="text-[8px] bg-amber-950 text-amber-300 px-1 py-0.2 rounded border border-amber-700"
+                                >
+                                  {currentOfficer.rank} [{currentOfficer.badge || '#GOV-01'}]
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Font Style Selector (visible if not using image) */}
+                        {!activeDoc.issuerSignatureImage && (
+                          <div className="flex items-center gap-2 pt-0.5">
+                            <span className="text-[10px] text-gray-400 shrink-0 font-mono">Gaya Tulisan:</span>
+                            <select
+                              value={activeDoc.issuerSignatureStyle || 'formal'}
+                              onChange={(e) => setActiveDoc(prev => ({
+                                ...prev,
+                                issuerSignatureStyle: e.target.value as any,
+                                issuerSignatureType: e.target.value === 'blank' ? 'blank' : 'font'
+                              }))}
+                              className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-200 text-[10px] focus:border-blue-500 focus:outline-none"
+                            >
+                              <option value="formal">Gaya Formal Legal (Georgia Serif - Default)</option>
+                              <option value="handwriting1">Kaligrafi Cursive Miring</option>
+                              <option value="handwriting2">Executive Autograph Script</option>
+                              <option value="badge_stamp">Badge Monogram Signature</option>
+                              <option value="blank">📄 Kosongan (Area TTD Manual / Kertas Polos)</option>
+                            </select>
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
 
@@ -1380,6 +1762,51 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                       </div>
                     ) : (
                       <>
+                        {currentOfficer && (
+                          <div className="p-2 bg-gradient-to-r from-emerald-950/60 via-amber-950/40 to-black/60 border border-emerald-600/50 rounded-lg flex items-center justify-between gap-2">
+                            <div className="text-[10px] leading-tight">
+                              <span className="font-bold text-emerald-300 block flex items-center gap-1">
+                                <span>✍️ Tanda Tangani Sebagai:</span>
+                                <span className="text-white">{currentOfficer.name}</span>
+                              </span>
+                              <span className="text-gray-400 text-[9px]">
+                                {currentOfficer.rank} • {currentOfficer.division || 'Umum'}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const isGov = currentOfficer.accountType === 'GOVERNMENT' || (currentOfficer.rank && (currentOfficer.rank.toUpperCase().includes('PRESIDENT') || currentOfficer.rank.toUpperCase().includes('RANK ')));
+                                  const isPresident = currentOfficer.rank.toUpperCase().includes('PRESIDENT');
+                                  setActiveDoc(prev => ({
+                                    ...prev,
+                                    showRecipientSignature: true,
+                                    recipientName: currentOfficer.name,
+                                    recipientId: currentOfficer.badge,
+                                    recipientRoleOrStatus: `${currentOfficer.rank} - ${currentOfficer.division || 'Pemerintahan'}`,
+                                    recipientSignatureName: currentOfficer.name,
+                                    recipientSignatureTitle: isGov ? (isPresident ? 'Presiden / Pengesah Negara,' : 'Pejabat Negara / Penerima,') : 'Pihak Penerima,',
+                                    recipientSignatureSubtitle: `${currentOfficer.rank} (${currentOfficer.badge})`,
+                                    recipientSignatureType: 'font',
+                                    recipientSignatureStyle: 'handwriting1',
+                                    recipientSignatureImage: undefined,
+                                    ...(isGov ? {
+                                      secondarySeal: isPresident ? 'PRESIDENTIAL_SEAL' : 'GOVERNMENT_SEAL'
+                                    } : {})
+                                  }));
+                                  setSaveSuccessMsg(`✅ Berhasil membubuhkan tanda tangan ${currentOfficer.name} (${currentOfficer.rank}) sebagai Penerima!`);
+                                  setTimeout(() => setSaveSuccessMsg(null), 3500);
+                                }}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold font-mono transition flex items-center gap-1 shadow-sm"
+                                title="Otomatis isi nama, status penerima, tanda tangan, dan stempel pemerintahan"
+                              >
+                                <span>⚡ Bubuhkan TTD</span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Mode Selector Buttons */}
                         <div>
                           <label className="block text-gray-400 text-[9px] mb-1 font-mono">PILIHAN FORMAT TANDA TANGAN PENERIMA:</label>
@@ -1517,21 +1944,81 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                               className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs focus:border-emerald-500 focus:outline-none"
                               placeholder="Pihak Penerima / Pemohon,"
                             />
+                            {/* Preset Buttons for Title */}
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {[
+                                'Presiden / Pengesah Negara,',
+                                'Pemberi Perintah / Komandan Operasi,',
+                                'Pihak Penerima,',
+                                'Pejabat Penerima Negara,',
+                                'Penerima Tugas / Pemohon,'
+                              ].map(titlePreset => (
+                                <button
+                                  key={titlePreset}
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, recipientSignatureTitle: titlePreset }))}
+                                  className="text-[8px] bg-gray-800 hover:bg-emerald-900/60 text-gray-300 hover:text-emerald-200 px-1 py-0.2 rounded border border-gray-700"
+                                >
+                                  {titlePreset.replace(',', '')}
+                                </button>
+                              ))}
+                            </div>
                           </div>
 
                           <div>
-                            <label className="block text-gray-400 text-[9px] mb-0.5 font-mono">NAMA TTD / CETAK:</label>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <label className="block text-gray-400 text-[9px] font-mono">NAMA TTD / CETAK:</label>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, recipientSignatureName: '' }))}
+                                  className="text-[8px] text-amber-400 hover:underline"
+                                  title="Kosongkan nama cetak di bawah garis"
+                                >
+                                  [Kosongkan]
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, recipientSignatureName: activeDoc.recipientName }))}
+                                  className="text-[8px] text-emerald-400 hover:underline"
+                                  title="Reset ke nama penerima"
+                                >
+                                  [Reset]
+                                </button>
+                              </div>
+                            </div>
                             <input
                               type="text"
                               value={activeDoc.recipientSignatureName ?? activeDoc.recipientName}
                               onChange={(e) => setActiveDoc(prev => ({ ...prev, recipientSignatureName: e.target.value }))}
                               className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs focus:border-emerald-500 focus:outline-none"
-                              placeholder="Nama Pihak Penerima"
+                              placeholder="Nama Pihak Penerima (atau kosongkan)"
                             />
+                            <span className="text-[8px] text-gray-500 block mt-0.5">Ketik manual atau kosongkan untuk garis bersih.</span>
                           </div>
 
                           <div>
-                            <label className="block text-gray-400 text-[9px] mb-0.5 font-mono">KETERANGAN / SUBTITLE:</label>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <label className="block text-gray-400 text-[9px] font-mono">KETERANGAN / SUBTITLE:</label>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, recipientSignatureSubtitle: '' }))}
+                                  className="text-[8px] text-amber-400 hover:underline"
+                                  title="Kosongkan keterangan subtitle di bawah nama"
+                                >
+                                  [Kosongkan]
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, recipientSignatureSubtitle: activeDoc.recipientId ? `ID: ${activeDoc.recipientId}` : 'Pihak Terkait' }))}
+                                  className="text-[8px] text-emerald-400 hover:underline"
+                                  title="Reset ke format default"
+                                >
+                                  [Reset]
+                                </button>
+                              </div>
+                            </div>
                             <input
                               type="text"
                               value={activeDoc.recipientSignatureSubtitle ?? (activeDoc.recipientId ? `ID: ${activeDoc.recipientId}` : 'Pihak Terkait')}
@@ -2059,201 +2546,312 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                   Ditetapkan di: <strong>{activeDoc.location}</strong> pada tanggal <strong>{activeDoc.date}</strong>
                 </div>
 
-                {/* Signature Block (3 Columns if recipient signature is enabled, or 2 Columns if hidden) */}
-                <div className={`gap-4 text-center items-end relative ${activeDoc.showRecipientSignature !== false ? 'grid grid-cols-3' : 'grid grid-cols-2 max-w-xl ml-auto'}`}>
-                  
-                  {/* Left Signature: Recipient / Pihak Kedua (Only rendered if showRecipientSignature !== false) */}
-                  {activeDoc.showRecipientSignature !== false && (
-                    <div className="flex flex-col items-center">
-                      <span className="text-[11px] font-bold text-gray-800 font-sans block mb-1">
-                        {activeDoc.recipientSignatureTitle || 'Pihak Penerima,'}
-                      </span>
-                      
-                      {/* Custom Recipient Signature Display */}
-                      <div className="h-16 flex items-center justify-center my-1 w-full overflow-hidden">
-                        {activeDoc.recipientSignatureImage ? (
-                          <img
-                            src={activeDoc.recipientSignatureImage}
-                            alt="Recipient Signature"
-                            className="max-h-full max-w-full object-contain"
-                            style={{ mixBlendMode: 'multiply' }}
-                          />
-                        ) : (activeDoc.recipientSignatureType === 'blank' || activeDoc.recipientSignatureStyle === 'blank') ? (
-                          <div className="h-full w-full flex items-center justify-center">
-                            {/* Kosongan: Area tanda tangan manual fisik basah */}
-                          </div>
-                        ) : (
-                          (() => {
-                            const nameText = activeDoc.recipientSignatureName || activeDoc.recipientName || 'Pihak Terkait';
-                            const style = activeDoc.recipientSignatureStyle || 'handwriting1';
-                            if (style === 'formal') {
-                              return (
-                                <span 
-                                  className="text-[18px] text-gray-950 font-serif italic font-medium select-none"
-                                  style={{ fontFamily: 'Georgia, serif' }}
-                                >
-                                  {nameText}
-                                </span>
-                              );
-                            }
-                            if (style === 'handwriting2') {
-                              return (
-                                <span 
-                                  className="text-[21px] text-indigo-950 rotate-[-2deg] select-none font-sans italic font-light tracking-wide"
-                                  style={{ fontFamily: 'cursive, sans-serif' }}
-                                >
-                                  {nameText}
-                                </span>
-                              );
-                            }
-                            if (style === 'badge_stamp') {
-                              return (
-                                <span className="text-[12px] text-slate-800 font-mono font-bold tracking-widest uppercase border border-slate-700/60 px-2 py-0.5 rounded rotate-[2deg]">
-                                  {nameText}
-                                </span>
-                              );
-                            }
-                            // default handwriting1
-                            return (
-                              <span 
-                                className="text-[20px] text-blue-900 rotate-[-4deg] select-none italic font-serif"
-                                style={{ fontFamily: 'Georgia, serif' }}
-                              >
-                                {nameText}
-                              </span>
-                            );
-                          })()
-                        )}
-                      </div>
+                {/* Signature Block (Dynamic 3 Columns, 2 Columns, or Center Seal Only depending on visibility toggles) */}
+                {(() => {
+                  const isRecipientVisible = activeDoc.showRecipientSignature !== false;
+                  const isIssuerVisible = activeDoc.showIssuerSignature !== false;
 
-                      <div className="border-t border-black w-36 pt-1">
-                        <span className="font-bold text-[11.5px] block text-black">
-                          {activeDoc.recipientSignatureName || activeDoc.recipientName}
-                        </span>
-                        {activeDoc.recipientSignatureSubtitle !== '' && (
-                          <span className="text-[9.5px] text-gray-600 font-mono block">
-                            {activeDoc.recipientSignatureSubtitle ?? (activeDoc.recipientId ? `ID: ${activeDoc.recipientId}` : 'Pihak Terkait')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  let signatureGridClass = 'grid grid-cols-3 gap-4 text-center items-end relative';
+                  if (isRecipientVisible && !isIssuerVisible) {
+                    signatureGridClass = 'grid grid-cols-2 gap-4 text-center items-end relative max-w-xl';
+                  } else if (!isRecipientVisible && isIssuerVisible) {
+                    signatureGridClass = 'grid grid-cols-2 gap-4 text-center items-end relative max-w-xl ml-auto';
+                  } else if (!isRecipientVisible && !isIssuerVisible) {
+                    signatureGridClass = 'flex flex-col items-center justify-center relative min-h-[120px] my-2';
+                  }
 
-                  {/* Center / Left-Center: Real Official Wet Stamp & Watermark QR */}
-                  <div className="flex flex-col items-center justify-center relative min-h-[120px]">
-                    {/* 1. Custom Uploaded Seal from Device (if enabled) */}
-                    {(activeDoc.sealDisplayMode === 'custom' || activeDoc.sealDisplayMode === 'both') && activeDoc.customSealImage && (
-                      <div className="absolute top-[-20px] z-20">
-                        <CustomUploadedSeal
-                          imageUrl={activeDoc.customSealImage}
-                          size={Math.round((activeDoc.customSealScale ?? 1.0) * 130)}
-                          rotation={activeDoc.customSealRotation ?? -7}
-                          opacity={activeDoc.customSealOpacity ?? 0.88}
-                          colorFilter={activeDoc.customSealColorFilter ?? 'red'}
-                        />
-                      </div>
-                    )}
-
-                    {/* 2. Preset Official Vector Seal (if enabled) */}
-                    {(activeDoc.sealDisplayMode === 'preset' || activeDoc.sealDisplayMode === 'both' || !activeDoc.sealDisplayMode) && (
-                      <div className={`absolute ${activeDoc.sealDisplayMode === 'both' ? 'top-[-5px] left-[-15px] z-10 opacity-70' : 'top-[-15px] z-20'}`}>
-                        <OfficialSeal type={activeDoc.primarySeal} size={125} />
-                      </div>
-                    )}
-
-                    {/* Secondary Seal if configured */}
-                    {activeDoc.secondarySeal && activeDoc.sealDisplayMode === 'preset' && (
-                      <div className="absolute top-[20px] left-[-20px] z-10 opacity-80">
-                        <OfficialSeal type={activeDoc.secondarySeal} size={90} />
-                      </div>
-                    )}
-
-                    {/* QR Code Security Stamp */}
-                    {activeDoc.showQrVerification && (
-                      <div className="absolute bottom-[-15px] right-[-10px] z-30 bg-white border border-gray-400 p-1 rounded shadow-sm flex items-center gap-1">
-                        <QrCode className="w-7 h-7 text-black" />
-                        <div className="text-[7px] text-left leading-none font-mono text-gray-700">
-                          <strong>VERIFIKASI</strong>
-                          <br />HSPD-SECURE
-                          <br />{activeDoc.id.slice(-6)}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Right Signature: Issuing Officer / High Command */}
-                  <div className="flex flex-col items-center">
-                    <span className="text-[11px] font-bold text-gray-800 font-sans block mb-1">
-                      {activeDoc.issuerSignatureTitle || 'Pejabat Penerbit,'}
-                    </span>
-
-                    {/* Custom Issuer Signature Display */}
-                    <div className="h-16 flex items-center justify-center my-1 w-full overflow-hidden">
-                      {activeDoc.issuerSignatureImage ? (
-                        <img
-                          src={activeDoc.issuerSignatureImage}
-                          alt="Issuer Signature"
-                          className="max-h-full max-w-full object-contain"
-                          style={{ mixBlendMode: 'multiply' }}
-                        />
-                      ) : (activeDoc.issuerSignatureType === 'blank' || activeDoc.issuerSignatureStyle === 'blank') ? (
-                        <div className="h-full w-full flex items-center justify-center">
-                          {/* Kosongan: Area tanda tangan fisik manual penerbit */}
-                        </div>
-                      ) : (
-                        (() => {
-                          const issuerText = activeDoc.issuerName;
-                          const style = activeDoc.issuerSignatureStyle || 'formal';
-                          if (style === 'handwriting1') {
-                            return (
-                              <span 
-                                className="text-[22px] text-blue-900 rotate-[-4deg] select-none italic font-serif"
-                                style={{ fontFamily: 'Georgia, serif' }}
-                              >
-                                {issuerText}
-                              </span>
-                            );
-                          }
-                          if (style === 'handwriting2') {
-                            return (
-                              <span 
-                                className="text-[22px] text-indigo-950 rotate-[-2deg] select-none font-sans italic font-light tracking-wide"
-                                style={{ fontFamily: 'cursive, sans-serif' }}
-                              >
-                                {issuerText}
-                              </span>
-                            );
-                          }
-                          if (style === 'badge_stamp') {
-                            return (
-                              <span className="text-[13px] text-slate-800 font-mono font-bold tracking-widest uppercase border border-slate-700/60 px-2 py-0.5 rounded rotate-[2deg]">
-                                {issuerText}
-                              </span>
-                            );
-                          }
-                          // default formal
-                          return (
-                            <span 
-                              className="text-[22px] text-blue-950 rotate-[-2deg] select-none font-serif font-bold italic"
-                              style={{ fontFamily: 'Georgia, serif' }}
+                  return (
+                    <div className={signatureGridClass}>
+                      {/* Left Signature: Recipient / Pihak Kedua (Only rendered if showRecipientSignature !== false) */}
+                      {isRecipientVisible && (
+                        <div className="flex flex-col items-center relative group/recipientsig">
+                          {/* Hover Quick Actions (no-print) */}
+                          <div className="no-print absolute -top-7 left-0 opacity-0 group-hover/recipientsig:opacity-100 transition flex items-center gap-1 bg-black/90 border border-emerald-500/60 rounded px-1.5 py-0.5 shadow-lg z-30">
+                            <button
+                              type="button"
+                              onClick={() => setActiveEditorTab('SEALS_SIGS')}
+                              className="text-[9px] text-emerald-300 hover:text-white flex items-center gap-0.5"
+                              title="Buka tab pengaturan tanda tangan"
                             >
-                              {issuerText}
-                            </span>
-                          );
-                        })()
+                              <span>✏️ Ubah Manual</span>
+                            </button>
+                            <span className="text-gray-600 text-[9px]">|</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveDoc(prev => ({
+                                  ...prev,
+                                  recipientSignatureType: 'blank',
+                                  recipientSignatureStyle: 'blank',
+                                  recipientSignatureImage: undefined
+                                }));
+                                setSaveSuccessMsg('📄 Kolom tanda tangan penerima dikosongkan (TTD manual basah).');
+                                setTimeout(() => setSaveSuccessMsg(null), 3000);
+                              }}
+                              className="text-[9px] text-amber-300 hover:text-white flex items-center gap-0.5"
+                              title="Kosongkan coretan TTD (siap ditandatangani pulpen basah)"
+                            >
+                              <span>📄 Kosongkan</span>
+                            </button>
+                            <span className="text-gray-600 text-[9px]">|</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveDoc(prev => ({ ...prev, showRecipientSignature: false }));
+                                setSaveSuccessMsg('Kolom tanda tangan penerima disembunyikan.');
+                                setTimeout(() => setSaveSuccessMsg(null), 3000);
+                              }}
+                              className="text-[9px] text-rose-300 hover:text-white flex items-center gap-0.5"
+                              title="Hilangkan kolom tanda tangan penerima"
+                            >
+                              <span>❌ Hilangkan</span>
+                            </button>
+                          </div>
+
+                          <span className="text-[11px] font-bold text-gray-800 font-sans block mb-1">
+                            {activeDoc.recipientSignatureTitle || 'Pihak Penerima,'}
+                          </span>
+                          
+                          {/* Custom Recipient Signature Display */}
+                          <div className="h-16 flex items-center justify-center my-1 w-full overflow-hidden">
+                            {activeDoc.recipientSignatureImage ? (
+                              <img
+                                src={activeDoc.recipientSignatureImage}
+                                alt="Recipient Signature"
+                                className="max-h-full max-w-full object-contain"
+                                style={{ mixBlendMode: 'multiply' }}
+                              />
+                            ) : (activeDoc.recipientSignatureType === 'blank' || activeDoc.recipientSignatureStyle === 'blank') ? (
+                              <div className="h-full w-full flex items-center justify-center">
+                                {/* Kosongan: Area tanda tangan manual fisik basah */}
+                              </div>
+                            ) : (
+                              (() => {
+                                const nameText = activeDoc.recipientSignatureName !== undefined ? activeDoc.recipientSignatureName : (activeDoc.recipientName || 'Pihak Terkait');
+                                if (!nameText) return null;
+                                const style = activeDoc.recipientSignatureStyle || 'handwriting1';
+                                if (style === 'formal') {
+                                  return (
+                                    <span 
+                                      className="text-[18px] text-gray-950 font-serif italic font-medium select-none"
+                                      style={{ fontFamily: 'Georgia, serif' }}
+                                    >
+                                      {nameText}
+                                    </span>
+                                  );
+                                }
+                                if (style === 'handwriting2') {
+                                  return (
+                                    <span 
+                                      className="text-[21px] text-indigo-950 rotate-[-2deg] select-none font-sans italic font-light tracking-wide"
+                                      style={{ fontFamily: 'cursive, sans-serif' }}
+                                    >
+                                      {nameText}
+                                    </span>
+                                  );
+                                }
+                                if (style === 'badge_stamp') {
+                                  return (
+                                    <span className="text-[12px] text-slate-800 font-mono font-bold tracking-widest uppercase border border-slate-700/60 px-2 py-0.5 rounded rotate-[2deg]">
+                                      {nameText}
+                                    </span>
+                                  );
+                                }
+                                // default handwriting1
+                                return (
+                                  <span 
+                                    className="text-[20px] text-blue-900 rotate-[-4deg] select-none italic font-serif"
+                                    style={{ fontFamily: 'Georgia, serif' }}
+                                  >
+                                    {nameText}
+                                  </span>
+                                );
+                              })()
+                            )}
+                          </div>
+
+                          <div className="border-t border-black w-36 pt-1">
+                            {activeDoc.recipientSignatureName !== '' && (
+                              <span className="font-bold text-[11.5px] block text-black">
+                                {activeDoc.recipientSignatureName ?? activeDoc.recipientName}
+                              </span>
+                            )}
+                            {activeDoc.recipientSignatureSubtitle !== '' && (
+                              <span className="text-[9.5px] text-gray-600 font-mono block">
+                                {activeDoc.recipientSignatureSubtitle ?? (activeDoc.recipientId ? `ID: ${activeDoc.recipientId}` : 'Pihak Terkait')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Center / Left-Center: Real Official Wet Stamp & Watermark QR */}
+                      <div className="flex flex-col items-center justify-center relative min-h-[120px]">
+                        {/* 1. Custom Uploaded Seal from Device (if enabled) */}
+                        {(activeDoc.sealDisplayMode === 'custom' || activeDoc.sealDisplayMode === 'both') && activeDoc.customSealImage && (
+                          <div className="absolute top-[-20px] z-20">
+                            <CustomUploadedSeal
+                              imageUrl={activeDoc.customSealImage}
+                              size={Math.round((activeDoc.customSealScale ?? 1.0) * 130)}
+                              rotation={activeDoc.customSealRotation ?? -7}
+                              opacity={activeDoc.customSealOpacity ?? 0.88}
+                              colorFilter={activeDoc.customSealColorFilter ?? 'red'}
+                            />
+                          </div>
+                        )}
+
+                        {/* 2. Preset Official Vector Seal (if enabled) */}
+                        {(activeDoc.sealDisplayMode === 'preset' || activeDoc.sealDisplayMode === 'both' || !activeDoc.sealDisplayMode) && (
+                          <div className={`absolute ${activeDoc.sealDisplayMode === 'both' ? 'top-[-5px] left-[-15px] z-10 opacity-70' : 'top-[-15px] z-20'}`}>
+                            <OfficialSeal type={activeDoc.primarySeal} size={125} />
+                          </div>
+                        )}
+
+                        {/* Secondary Seal if configured */}
+                        {activeDoc.secondarySeal && activeDoc.sealDisplayMode === 'preset' && (
+                          <div className="absolute top-[20px] left-[-20px] z-10 opacity-80">
+                            <OfficialSeal type={activeDoc.secondarySeal} size={90} />
+                          </div>
+                        )}
+
+                        {/* QR Code Security Stamp */}
+                        {activeDoc.showQrVerification && (
+                          <div className="absolute bottom-[-15px] right-[-10px] z-30 bg-white border border-gray-400 p-1 rounded shadow-sm flex items-center gap-1">
+                            <QrCode className="w-7 h-7 text-black" />
+                            <div className="text-[7px] text-left leading-none font-mono text-gray-700">
+                              <strong>VERIFIKASI</strong>
+                              <br />HSPD-SECURE
+                              <br />{activeDoc.id.slice(-6)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right Signature: Issuing Officer / High Command (Only rendered if showIssuerSignature !== false) */}
+                      {isIssuerVisible && (
+                        <div className="flex flex-col items-center relative group/issuersig">
+                          {/* Hover Quick Actions (no-print) */}
+                          <div className="no-print absolute -top-7 right-0 opacity-0 group-hover/issuersig:opacity-100 transition flex items-center gap-1 bg-black/90 border border-blue-500/60 rounded px-1.5 py-0.5 shadow-lg z-30">
+                            <button
+                              type="button"
+                              onClick={() => setActiveEditorTab('SEALS_SIGS')}
+                              className="text-[9px] text-blue-300 hover:text-white flex items-center gap-0.5"
+                              title="Buka tab pengaturan tanda tangan"
+                            >
+                              <span>✏️ Ubah Manual</span>
+                            </button>
+                            <span className="text-gray-600 text-[9px]">|</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveDoc(prev => ({
+                                  ...prev,
+                                  issuerSignatureType: 'blank',
+                                  issuerSignatureStyle: 'blank',
+                                  issuerSignatureImage: undefined
+                                }));
+                                setSaveSuccessMsg('📄 Kolom tanda tangan penerbit dikosongkan (TTD manual basah).');
+                                setTimeout(() => setSaveSuccessMsg(null), 3000);
+                              }}
+                              className="text-[9px] text-amber-300 hover:text-white flex items-center gap-0.5"
+                              title="Kosongkan coretan TTD (siap ditandatangani pulpen basah)"
+                            >
+                              <span>📄 Kosongkan</span>
+                            </button>
+                            <span className="text-gray-600 text-[9px]">|</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveDoc(prev => ({ ...prev, showIssuerSignature: false }));
+                                setSaveSuccessMsg('Kolom tanda tangan penerbit disembunyikan.');
+                                setTimeout(() => setSaveSuccessMsg(null), 3000);
+                              }}
+                              className="text-[9px] text-rose-300 hover:text-white flex items-center gap-0.5"
+                              title="Hilangkan kolom tanda tangan penerbit"
+                            >
+                              <span>❌ Hilangkan</span>
+                            </button>
+                          </div>
+
+                          <span className="text-[11px] font-bold text-gray-800 font-sans block mb-1">
+                            {activeDoc.issuerSignatureTitle || 'Pejabat Penerbit,'}
+                          </span>
+
+                          {/* Custom Issuer Signature Display */}
+                          <div className="h-16 flex items-center justify-center my-1 w-full overflow-hidden">
+                            {activeDoc.issuerSignatureImage ? (
+                              <img
+                                src={activeDoc.issuerSignatureImage}
+                                alt="Issuer Signature"
+                                className="max-h-full max-w-full object-contain"
+                                style={{ mixBlendMode: 'multiply' }}
+                              />
+                            ) : (activeDoc.issuerSignatureType === 'blank' || activeDoc.issuerSignatureStyle === 'blank') ? (
+                              <div className="h-full w-full flex items-center justify-center">
+                                {/* Kosongan: Area tanda tangan fisik manual penerbit */}
+                              </div>
+                            ) : (
+                              (() => {
+                                const issuerText = activeDoc.issuerSignatureName !== undefined ? activeDoc.issuerSignatureName : activeDoc.issuerName;
+                                if (!issuerText) return null;
+                                const style = activeDoc.issuerSignatureStyle || 'formal';
+                                if (style === 'handwriting1') {
+                                  return (
+                                    <span 
+                                      className="text-[22px] text-blue-900 rotate-[-4deg] select-none italic font-serif"
+                                      style={{ fontFamily: 'Georgia, serif' }}
+                                    >
+                                      {issuerText}
+                                    </span>
+                                  );
+                                }
+                                if (style === 'handwriting2') {
+                                  return (
+                                    <span 
+                                      className="text-[22px] text-indigo-950 rotate-[-2deg] select-none font-sans italic font-light tracking-wide"
+                                      style={{ fontFamily: 'cursive, sans-serif' }}
+                                    >
+                                      {issuerText}
+                                    </span>
+                                  );
+                                }
+                                if (style === 'badge_stamp') {
+                                  return (
+                                    <span className="text-[13px] text-slate-800 font-mono font-bold tracking-widest uppercase border border-slate-700/60 px-2 py-0.5 rounded rotate-[2deg]">
+                                      {issuerText}
+                                    </span>
+                                  );
+                                }
+                                // default formal
+                                return (
+                                  <span 
+                                    className="text-[22px] text-blue-950 rotate-[-2deg] select-none font-serif font-bold italic"
+                                    style={{ fontFamily: 'Georgia, serif' }}
+                                  >
+                                    {issuerText}
+                                  </span>
+                                );
+                              })()
+                            )}
+                          </div>
+
+                          <div className="border-t border-black w-40 pt-1">
+                            {activeDoc.issuerSignatureName !== '' && (
+                              <span className="font-bold text-[11.5px] block text-black">
+                                {activeDoc.issuerSignatureName ?? activeDoc.issuerName}
+                              </span>
+                            )}
+                            {activeDoc.issuerSignatureSubtitle !== '' && (
+                              <span className="text-[9.5px] text-gray-700 font-mono block">
+                                {activeDoc.issuerSignatureSubtitle ?? (activeDoc.issuerRank ? `${activeDoc.issuerRank} [${activeDoc.issuerBadge || 'ID'}]` : '')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
-
-                    <div className="border-t border-black w-40 pt-1">
-                      <span className="font-bold text-[11.5px] block text-black">
-                        {activeDoc.issuerName}
-                      </span>
-                      <span className="text-[9.5px] text-gray-700 font-mono block">
-                        {activeDoc.issuerRank} [{activeDoc.issuerBadge}]
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* High Command Final Acknowledgment Strip & Signature */}
                 {activeDoc.acknowledgedByName && (

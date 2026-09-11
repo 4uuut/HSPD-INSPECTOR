@@ -16,6 +16,7 @@ import { BoloAndTrafficHub } from './components/BoloAndTrafficHub';
 import { VaultAuditBoard } from './components/VaultAuditBoard';
 import { DestructionRegistryBoard } from './components/DestructionRegistryBoard';
 import { OfficialDocumentStudio } from './components/OfficialDocumentStudio';
+import { GovernmentRosterManagement } from './components/GovernmentRosterManagement';
 import { DivisionBadgeHero } from './components/DivisionBadgeHero';
 import { ModuleClearanceGuard } from './components/ModuleClearanceGuard';
 import { OtpGeneratorModal } from './components/OtpGeneratorModal';
@@ -35,16 +36,18 @@ import { getOfficerDutyState, saveOfficerDutyState, formatDutyDuration } from '.
 import { getDiscordWebhookConfig, getSavedDiscordBotConfig, startDiscordBotGateway, buildApiUrl } from './utils/discordWebhook';
 import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from './utils/brandingStorage';
 import { checkDirectRankClearance, hasActiveUnlockedSession } from './utils/otpClearanceStorage';
+import { getGovernmentRoster, subscribeToGovernmentRoster } from './utils/governmentStorage';
 import { 
   ArrestRecord, OfficerProfile, OfficerAccount, isOfficerHighRank, isSupervisorOrAbove, isAtasanRank,
-  DetectiveCase, BoloAlert, ImpoundRecord, getDivisionArchetype, ModuleAccessKey 
+  DetectiveCase, BoloAlert, ImpoundRecord, getDivisionArchetype, ModuleAccessKey, isGovernmentRank 
 } from './types';
 import { 
   Shield, Calculator, Megaphone, BookOpen, FileText, 
   Radio, Award, User, LogOut, Lock, Sparkles, BadgeCheck,
   Users, ShieldAlert, KeyRound, Power, Clock, CheckCircle2, Sliders,
   Search, Car, Crosshair, Landmark, Flame, Stamp as StampIcon,
-  UserCheck, Microscope, Cloud, Database, Palette, Smartphone, Monitor, Settings
+  UserCheck, Microscope, Cloud, Database, Palette, Smartphone, Monitor, Settings,
+  Building2, Crown
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from './assets/logo';
 import { 
@@ -233,7 +236,16 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const [activeNav, setActiveNav] = useState<'calc' | 'dmv' | 'divisions' | 'forensics' | 'documents' | 'detective' | 'traffic' | 'vault' | 'destruction' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster' | 'settings'>('calc');
+  const [activeNav, setActiveNav] = useState<'calc' | 'dmv' | 'divisions' | 'forensics' | 'documents' | 'detective' | 'traffic' | 'vault' | 'destruction' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster' | 'settings' | 'gov_roster'>('calc');
+  const [govRosterCount, setGovRosterCount] = useState<number>(() => getGovernmentRoster().length);
+
+  // Subscribe to government roster updates
+  useEffect(() => {
+    return subscribeToGovernmentRoster(updated => {
+      setGovRosterCount(updated.length);
+    });
+  }, []);
+
   const [records, setRecords] = useState<ArrestRecord[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -472,6 +484,10 @@ export default function App() {
 
   // Save officer to localStorage and load their individual duty state
   const handleLogin = (officer: OfficerProfile) => {
+    const isGov = officer.accountType === 'GOVERNMENT' || isGovernmentRank(officer.rank);
+    if (isGov) {
+      setActiveNav('documents');
+    }
     const dutyState = getOfficerDutyState(officer.badge, roster, officer.name);
     setIsDuty(dutyState.isDuty);
     setDutyStartTime(dutyState.dutyStartTime);
@@ -740,11 +756,22 @@ export default function App() {
     });
   };
 
-  // Guard: if current logged-in officer is not high rank, ensure activeNav is not 'roster' or 'settings'
+  // Guard: if current logged-in officer is Government, restrict strictly to 'documents' and 'gov_roster'
   useEffect(() => {
-    if (currentOfficer && !isOfficerHighRank(currentOfficer.rank)) {
-      if (activeNav === 'settings' || activeNav === 'roster') {
-        setActiveNav('calc');
+    if (currentOfficer) {
+      const isGov = currentOfficer.accountType === 'GOVERNMENT' || isGovernmentRank(currentOfficer.rank);
+      if (isGov) {
+        if (activeNav !== 'documents' && activeNav !== 'gov_roster') {
+          setActiveNav('documents');
+        }
+      } else {
+        if (activeNav === 'gov_roster') {
+          setActiveNav('calc');
+        } else if (!isOfficerHighRank(currentOfficer.rank)) {
+          if (activeNav === 'settings' || activeNav === 'roster') {
+            setActiveNav('calc');
+          }
+        }
       }
     }
   }, [currentOfficer, activeNav]);
@@ -763,7 +790,8 @@ export default function App() {
 
   const isHighRank = isOfficerHighRank(currentOfficer.rank);
   const isSupervisor = isSupervisorOrAbove(currentOfficer.rank);
-  const hasFullAccess = isHighRank || isSupervisor;
+  const isGovernment = currentOfficer.accountType === 'GOVERNMENT' || isGovernmentRank(currentOfficer.rank);
+  const hasFullAccess = isHighRank || isSupervisor || isGovernment;
 
   // Time on duty formatted
   const elapsedDutyMinutes = (isDuty && dutyStartTime > 0) ? Math.floor((Date.now() - dutyStartTime) / 60000) : 0;
@@ -822,28 +850,34 @@ export default function App() {
         />
       ) : (
         <>
-          {/* Top High-Density Police Header Bar */}
+          {/* Top High-Density Header Bar */}
           <header id="main-header" className="h-14 border-b border-gray-800 flex items-center px-4 justify-between bg-[#161B22]/95 backdrop-blur-md sticky top-0 z-40 shadow-xl">
             <div className="flex items-center gap-3">
               <div 
-                className={`relative shrink-0 ${hasFullAccess ? 'cursor-pointer group' : ''}`}
+                className={`relative shrink-0 ${hasFullAccess && !isGovernment ? 'cursor-pointer group' : ''}`}
                 onClick={() => {
-                  if (hasFullAccess) {
+                  if (hasFullAccess && !isGovernment) {
                     setIsBrandingModalOpen(true);
                   }
                 }} 
-                title={hasFullAccess ? "Pengaturan Logo & Background (Full Access)" : `${branding.departmentName} Official Crest`}
+                title={isGovernment ? "Lambang Resmi Dewan Pemerintahan Negara" : (hasFullAccess ? "Pengaturan Logo & Background (Full Access)" : `${branding.departmentName} Official Crest`)}
               >
-                <img
-                  src={branding.logoUrl || HSPD_LOGO_URL}
-                  alt={`${branding.departmentName} Official Crest`}
-                  referrerPolicy="no-referrer"
-                  className={`w-9 h-9 rounded-full object-contain drop-shadow-md border border-amber-500/40 bg-black/60 p-0.5 ${hasFullAccess ? 'group-hover:scale-105 transition' : ''}`}
-                  onError={e => {
-                    (e.target as HTMLImageElement).src = HSPD_LOGO_URL;
-                  }}
-                />
-                {hasFullAccess && (
+                {isGovernment ? (
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500/20 to-yellow-600/10 border border-amber-500 flex items-center justify-center text-amber-400 p-1 shadow-sm">
+                    <Building2 className="w-5 h-5" />
+                  </div>
+                ) : (
+                  <img
+                    src={branding.logoUrl || HSPD_LOGO_URL}
+                    alt={`${branding.departmentName} Official Crest`}
+                    referrerPolicy="no-referrer"
+                    className={`w-9 h-9 rounded-full object-contain drop-shadow-md border border-amber-500/40 bg-black/60 p-0.5 ${hasFullAccess ? 'group-hover:scale-105 transition' : ''}`}
+                    onError={e => {
+                      (e.target as HTMLImageElement).src = HSPD_LOGO_URL;
+                    }}
+                  />
+                )}
+                {hasFullAccess && !isGovernment && (
                   <div className="absolute -bottom-1 -right-1 z-20 bg-amber-500 text-black p-0.5 rounded-full border border-black text-[9px] group-hover:block transition">
                     <Palette className="w-2 h-2" />
                   </div>
@@ -852,11 +886,20 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-gray-100 text-sm tracking-tight">{branding.departmentCode} <span className="text-amber-400">{branding.subTitle}</span></span>
-                    <span className="text-[9px] text-amber-300 font-mono bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/60 font-bold">{branding.cadBadgeText}</span>
+                    {isGovernment ? (
+                      <>
+                        <span className="font-bold text-gray-100 text-sm tracking-tight">STATE GOVERNMENT <span className="text-amber-400">HIGHSTATE</span></span>
+                        <span className="text-[9px] text-black font-mono bg-amber-500 px-1.5 py-0.5 rounded font-black">EKSEKUTIF</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-bold text-gray-100 text-sm tracking-tight">{branding.departmentCode} <span className="text-amber-400">{branding.subTitle}</span></span>
+                        <span className="text-[9px] text-amber-300 font-mono bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/60 font-bold">{branding.cadBadgeText}</span>
+                      </>
+                    )}
                   </div>
                   <div className="text-[9px] text-gray-400 font-mono hidden sm:block">
-                    {branding.agencyJurisdiction}
+                    {isGovernment ? 'Kantor Kepresidenan & Dewan Pemerintahan Negara' : branding.agencyJurisdiction}
                   </div>
                 </div>
               </div>
@@ -864,9 +907,19 @@ export default function App() {
               <div className="hidden lg:flex h-6 w-[1px] bg-gray-800 mx-1"></div>
 
               <div className="hidden xl:flex gap-2 text-[10px] uppercase tracking-wider font-semibold text-gray-500 items-center font-mono">
-                <span>FREQ: <strong className="text-green-400">{branding.radioFreq}</strong></span>
-                <span className="text-gray-700">•</span>
-                <span>ROSTER: <strong className="text-amber-400">{roster.length} Personel</strong></span>
+                {isGovernment ? (
+                  <>
+                    <span>OTORITAS: <strong className="text-amber-400">EKSEKUTIF TERTINGGI NEGARA</strong></span>
+                    <span className="text-gray-700">•</span>
+                    <span>ROSTER: <strong className="text-amber-400">{govRosterCount} Pejabat</strong></span>
+                  </>
+                ) : (
+                  <>
+                    <span>FREQ: <strong className="text-green-400">{branding.radioFreq}</strong></span>
+                    <span className="text-gray-700">•</span>
+                    <span>ROSTER: <strong className="text-amber-400">{roster.length} Personel</strong></span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -896,36 +949,51 @@ export default function App() {
                 <span className="text-[9px] text-emerald-400 font-bold">AUTO-SYNC</span>
               </div>
 
-              {/* ON/OFF DUTY DISPATCH TOGGLE BUTTON */}
-              <button
-                id="duty-dispatch-toggle-btn"
-                onClick={() => setIsDutyModalOpen(true)}
-                className={`px-3 py-1.5 rounded-lg border font-mono text-xs font-bold transition flex items-center gap-1.5 shadow-sm shrink-0 ${
-                  isDuty
-                    ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 hover:bg-emerald-900/80 ring-1 ring-emerald-500/50'
-                    : 'bg-rose-950/80 border-rose-500 text-rose-300 hover:bg-rose-900/80 ring-1 ring-rose-500/50'
-                }`}
-                title="Klik untuk ubah status tugas & kirim report duty ke Discord Webhook"
-              >
-                <Power className="w-3.5 h-3.5" />
-                <span>{isDuty ? '🟢 8-1-1 ON DUTY' : '🔴 8-1-0 OFF DUTY'}</span>
-                {isDuty && (
-                  <span className="text-[9px] bg-black/50 px-1.5 py-0.2 rounded border border-emerald-700/60 hidden sm:inline text-emerald-200">
-                    {dutyDurationStr}
-                  </span>
-                )}
-              </button>
+              {/* ON/OFF DUTY DISPATCH TOGGLE BUTTON (Police only; Executive badge for government) */}
+              {isGovernment ? (
+                <div 
+                  className="px-3 py-1.5 rounded-lg border border-amber-500/50 bg-amber-950/40 text-amber-300 font-mono text-xs font-bold flex items-center gap-1.5 shadow-sm shrink-0"
+                >
+                  <Crown className="w-3.5 h-3.5 text-amber-400" />
+                  <span>KANTOR PEMERINTAHAN</span>
+                </div>
+              ) : (
+                <button
+                  id="duty-dispatch-toggle-btn"
+                  onClick={() => setIsDutyModalOpen(true)}
+                  className={`px-3 py-1.5 rounded-lg border font-mono text-xs font-bold transition flex items-center gap-1.5 shadow-sm shrink-0 ${
+                    isDuty
+                      ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 hover:bg-emerald-900/80 ring-1 ring-emerald-500/50'
+                      : 'bg-rose-950/80 border-rose-500 text-rose-300 hover:bg-rose-900/80 ring-1 ring-rose-500/50'
+                  }`}
+                  title="Klik untuk ubah status tugas & kirim report duty ke Discord Webhook"
+                >
+                  <Power className="w-3.5 h-3.5" />
+                  <span>{isDuty ? '🟢 8-1-1 ON DUTY' : '🔴 8-1-0 OFF DUTY'}</span>
+                  {isDuty && (
+                    <span className="text-[9px] bg-black/50 px-1.5 py-0.2 rounded border border-emerald-700/60 hidden sm:inline text-emerald-200">
+                      {dutyDurationStr}
+                    </span>
+                  )}
+                </button>
+              )}
 
-              {/* Active Officer Identity Badge */}
+              {/* Active Officer / Government Official Identity Badge */}
               <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border font-mono transition shrink-0 ${
-                isHighRank
-                  ? 'bg-amber-950/40 border-amber-700/70 text-amber-300 shadow-sm'
-                  : 'bg-[#0D1117] border-gray-800 text-gray-200'
+                isGovernment
+                  ? 'bg-amber-950/50 border-amber-500/80 text-amber-200 shadow-sm'
+                  : isHighRank
+                    ? 'bg-amber-950/40 border-amber-700/70 text-amber-300 shadow-sm'
+                    : 'bg-[#0D1117] border-gray-800 text-gray-200'
               }`}>
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold shrink-0 ${
-                  isHighRank ? 'bg-amber-900/80 border border-amber-500/80 text-amber-300' : 'bg-blue-900/60 border border-blue-700/60 text-blue-300'
+                  isGovernment
+                    ? 'bg-amber-500 text-black font-black'
+                    : isHighRank 
+                      ? 'bg-amber-900/80 border border-amber-500/80 text-amber-300' 
+                      : 'bg-blue-900/60 border border-blue-700/60 text-blue-300'
                 }`}>
-                  <User className="w-3.5 h-3.5" />
+                  {isGovernment ? <Crown className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
                 </div>
                 <div className="text-left leading-tight">
                   <div className="flex items-center gap-1.5">
@@ -937,15 +1005,9 @@ export default function App() {
                     </span>
                   </div>
                   <div className="flex items-center gap-1 text-[9px]">
-                    {isHighRank ? (
-                      <span className="text-amber-400 font-bold flex items-center gap-0.5">
-                        ★ {currentOfficer.rank}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400">
-                        {currentOfficer.rank}
-                      </span>
-                    )}
+                    <span className="text-amber-400 font-bold flex items-center gap-0.5">
+                      {isGovernment ? '🏛️ ' : '★ '}{currentOfficer.rank}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -967,7 +1029,10 @@ export default function App() {
           {/* High Density Sub-Navigation Strip */}
           <div className="bg-[#11141A] border-b border-gray-800 px-4 py-1.5 flex items-center justify-between overflow-x-auto no-scrollbar">
             <nav className="flex items-center gap-1 text-[11px] font-medium">
-              {[
+              {(isGovernment ? [
+                { id: 'documents', label: '📄 Surat & Dokumen Kenegaraan', icon: StampIcon, code: 'DOC', moduleKey: undefined },
+                { id: 'gov_roster', label: `🏛️ Roster Pemerintah (${govRosterCount})`, icon: Building2, code: 'GOV', moduleKey: undefined },
+              ] : [
                 { id: 'calc', label: 'Kalkulator Pasal', icon: Calculator, code: 'CALC', moduleKey: undefined },
                 { id: 'dmv', label: '👤 Sipil & DMV', icon: UserCheck, code: 'DMV', moduleKey: 'DMV_CITIZEN' as ModuleAccessKey },
                 { id: 'divisions', label: '🎖️ Divisi Khusus', icon: Award, code: 'DIV', moduleKey: 'SPECIAL_DIVISIONS' as ModuleAccessKey },
@@ -1006,7 +1071,7 @@ export default function App() {
                     isHighRankOnly: true
                   }
                 ] : []),
-              ].map(tab => {
+              ]).map(tab => {
                 const Icon = tab.icon;
                 const isActive = activeNav === tab.id;
                 
@@ -1026,7 +1091,7 @@ export default function App() {
                     onClick={() => setActiveNav(tab.id as any)}
                     className={`px-2.5 py-1.5 rounded flex items-center gap-1.5 transition whitespace-nowrap text-xs ${
                       isActive
-                        ? 'bg-blue-600 text-white font-bold shadow-sm shadow-blue-600/30 ring-1 ring-blue-400/40'
+                        ? (isGovernment ? 'bg-amber-600 text-white font-bold shadow-sm shadow-amber-600/30 ring-1 ring-amber-400/50' : 'bg-blue-600 text-white font-bold shadow-sm shadow-blue-600/30 ring-1 ring-blue-400/40')
                         : isLocked
                           ? 'text-gray-400 hover:text-amber-300 hover:bg-amber-950/20 border border-transparent hover:border-amber-700/40'
                           : hasOtpActive
@@ -1053,9 +1118,15 @@ export default function App() {
             </nav>
 
             <div className="hidden md:flex items-center gap-2 text-[10px] font-mono text-gray-500">
-              <span>STATUS: <strong className={isDuty ? 'text-emerald-400' : 'text-rose-400'}>{isDuty ? '10-8 ON DUTY' : '10-7 OFF DUTY'}</strong></span>
-              <span className="text-gray-700">|</span>
-              <span>CLEARANCE: <strong className={isHighRank ? 'text-amber-400' : 'text-blue-400'}>{isHighRank ? 'HIGH COMMAND (AKSES PENUH)' : 'PATROL'}</strong></span>
+              {isGovernment ? (
+                <span>WILAYAH: <strong className="text-amber-400">STATE OF HIGHSTATE (PEMERINTAHAN RESMI)</strong></span>
+              ) : (
+                <>
+                  <span>STATUS: <strong className={isDuty ? 'text-emerald-400' : 'text-rose-400'}>{isDuty ? '10-8 ON DUTY' : '10-7 OFF DUTY'}</strong></span>
+                  <span className="text-gray-700">|</span>
+                  <span>CLEARANCE: <strong className={isHighRank ? 'text-amber-400' : 'text-blue-400'}>{isHighRank ? 'HIGH COMMAND (AKSES PENUH)' : 'PATROL'}</strong></span>
+                </>
+              )}
             </div>
           </div>
         </>
@@ -1069,6 +1140,7 @@ export default function App() {
           totalCases={detectiveCases.length}
           totalRecords={records.length}
           totalRoster={roster.length}
+          totalGovRoster={govRosterCount}
           activeBoloCount={boloList.filter(b => b.active).length}
         />
 
@@ -1113,16 +1185,29 @@ export default function App() {
           </ModuleClearanceGuard>
         )}
         {activeNav === 'documents' && (
-          <ModuleClearanceGuard
-            moduleKey="OFFICIAL_DOCS"
-            currentOfficer={currentOfficer}
-            roster={roster}
-          >
+          isGovernment ? (
             <OfficialDocumentStudio
               currentOfficer={currentOfficer}
               webhookConfig={getDiscordWebhookConfig()}
             />
-          </ModuleClearanceGuard>
+          ) : (
+            <ModuleClearanceGuard
+              moduleKey="OFFICIAL_DOCS"
+              currentOfficer={currentOfficer}
+              roster={roster}
+            >
+              <OfficialDocumentStudio
+                currentOfficer={currentOfficer}
+                webhookConfig={getDiscordWebhookConfig()}
+              />
+            </ModuleClearanceGuard>
+          )
+        )}
+        {activeNav === 'gov_roster' && (
+          <GovernmentRosterManagement
+            currentOfficer={currentOfficer}
+            onNavigateToDocuments={() => setActiveNav('documents')}
+          />
         )}
         {activeNav === 'detective' && (
           <ModuleClearanceGuard

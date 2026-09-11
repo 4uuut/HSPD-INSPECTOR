@@ -120,7 +120,7 @@ export interface OfficerAccount {
   id: string;
   name: string;
   badge: string;
-  rank: OfficerRankLevel;
+  rank: OfficerRankLevel | GovernmentRankLevel | string;
   division: string;
   pin: string; // Personal login PIN
   phone?: string;
@@ -132,20 +132,137 @@ export interface OfficerAccount {
   isDuty?: boolean;
   dutyStartTime?: number;
   dutyStatus?: DutyStatusCode;
+  accountType?: 'POLICE' | 'GOVERNMENT';
   _updatedAt?: number;
 }
 
 export interface OfficerProfile {
   name: string;
   badge: string;
-  rank: OfficerRankLevel;
+  rank: OfficerRankLevel | GovernmentRankLevel | string;
   division: string;
   loginTime: number;
   discordTag?: string;
+  phone?: string;
   isDuty?: boolean;
   dutyStartTime?: number;
   dutyStatus?: DutyStatusCode;
+  accountType?: 'POLICE' | 'GOVERNMENT';
+  govRank?: GovernmentRankLevel;
 }
+
+// ==========================================
+// 🏛️ STATE GOVERNMENT (PEMERINTAHAN) TYPES
+// ==========================================
+export type GovernmentRankLevel =
+  | 'PRESIDENT [RANK 6]'
+  | 'VICE PRESIDENT [RANK 5]'
+  | 'SECRETARY OF STATE [RANK 4]'
+  | 'CABINET / DIRECTORS [RANK 3]'
+  | 'HIGH OFFICIALS [RANK 2]'
+  | 'STAFF [RANK 1]';
+
+export const ALL_GOVERNMENT_RANKS: GovernmentRankLevel[] = [
+  'PRESIDENT [RANK 6]',
+  'VICE PRESIDENT [RANK 5]',
+  'SECRETARY OF STATE [RANK 4]',
+  'CABINET / DIRECTORS [RANK 3]',
+  'HIGH OFFICIALS [RANK 2]',
+  'STAFF [RANK 1]'
+];
+
+export type GovernmentDivision =
+  | 'Government Affairs Official'
+  | 'Assistent Government Affairs Official'
+  | 'BLP DIRECTOR'
+  | 'FBI DIRECTOR'
+  | 'Tax & Revenue'
+  | 'Property Enforcement'
+  | 'Economic Analysis'
+  | 'SECURITY COMMANDER'
+  | 'BLP — Senior Prosecutor'
+  | 'FBI — Senior FBI Official'
+  | 'DREA — Revenue & Economic Officer'
+  | 'Security — Senior Security Guard'
+  | 'BLP — Prosecutor'
+  | 'FBI — Agent'
+  | 'DREA— Revenue & Economic Staff'
+  | 'Security — Junior';
+
+export const ALL_GOVERNMENT_DIVISIONS: GovernmentDivision[] = [
+  'Government Affairs Official',
+  'Assistent Government Affairs Official',
+  'BLP DIRECTOR',
+  'FBI DIRECTOR',
+  'Tax & Revenue',
+  'Property Enforcement',
+  'Economic Analysis',
+  'SECURITY COMMANDER',
+  'BLP — Senior Prosecutor',
+  'FBI — Senior FBI Official',
+  'DREA — Revenue & Economic Officer',
+  'Security — Senior Security Guard',
+  'BLP — Prosecutor',
+  'FBI — Agent',
+  'DREA— Revenue & Economic Staff',
+  'Security — Junior'
+];
+
+export interface GovernmentAccount {
+  id: string;
+  name: string;
+  badge: string; // e.g. #GOV-01, #GOV-02
+  rank: GovernmentRankLevel;
+  division: GovernmentDivision | string;
+  pin: string;
+  phone?: string;
+  discordTag?: string;
+  registeredAt: number;
+  registeredBy?: string;
+  lastLogin?: number;
+  _updatedAt?: number;
+}
+
+export const isGovernmentRank = (rank?: string): boolean => {
+  if (!rank) return false;
+  const r = rank.toUpperCase();
+  return (
+    r.includes('PRESIDENT') ||
+    r.includes('SECRETARY OF STATE') ||
+    r.includes('CABINET') ||
+    r.includes('DIRECTORS') ||
+    r.includes('HIGH OFFICIALS') ||
+    (r.includes('RANK ') && (r.includes('6') || r.includes('5') || r.includes('4') || r.includes('3') || r.includes('2') || r.includes('1')))
+  );
+};
+
+export const isGovernmentPresidentOrVice = (rank?: string): boolean => {
+  if (!rank) return false;
+  const r = rank.toUpperCase();
+  return r.includes('PRESIDENT') || r.includes('RANK 6') || r.includes('RANK 5');
+};
+
+export const canManageGovernmentPersonnel = (rank?: string): boolean => {
+  if (!rank) return false;
+  const r = rank.toUpperCase();
+  return r.includes('PRESIDENT') || r.includes('RANK 6') || r.includes('RANK 5') || r.includes('SECRETARY OF STATE') || r.includes('RANK 4') || r.includes('CABINET') || r.includes('RANK 3');
+};
+
+export const isGovernmentOfficer = (officer?: { accountType?: string; rank?: string; badge?: string; division?: string; name?: string } | null): boolean => {
+  if (!officer) return false;
+  if (officer.accountType === 'GOVERNMENT') return true;
+  if (officer.badge && officer.badge.toUpperCase().includes('GOV')) return true;
+  if (isGovernmentRank(officer.rank)) return true;
+  if (officer.name && officer.name.toLowerCase().includes('momo hatakeyama')) return true;
+  if (officer.division && (
+    officer.division.toLowerCase().includes('government') ||
+    officer.division.toLowerCase().includes('pemerintah') ||
+    officer.division.toLowerCase().includes('state') ||
+    officer.division.toLowerCase().includes('blp') ||
+    officer.division.toLowerCase().includes('drea')
+  )) return true;
+  return false;
+};
 
 // Duty Status and Report Interface (8-1-1 On Duty / 8-1-0 Off Duty)
 export type DutyStatusCode = '8-1-1' | '8-1-0' | '10-8' | '10-7' | '10-6' | '10-97';
@@ -722,7 +839,9 @@ export type SealType =
   | 'INTERNAL_AFFAIRS'  // IAD Disciplinary Seal (Purple/Red)
   | 'HIGH_COMMAND'      // Chief of Police Stamp (Golden Seal)
   | 'APPROVED_PASSED'   // Approved / Lolos Uji (Emerald)
-  | 'CONFIDENTIAL';     // Top Secret / Classified (Crimson)
+  | 'CONFIDENTIAL'      // Top Secret / Classified (Crimson)
+  | 'PRESIDENTIAL_SEAL' // Executive Seal of the President (Gold & Navy Eagle)
+  | 'GOVERNMENT_SEAL';  // State Government Departmental Seal (Navy/Gold)
 
 export interface DocumentClause {
   id: string;
@@ -782,7 +901,10 @@ export interface OfficialDocument {
   showQrVerification: boolean;
   
   // Signatures configuration
+  showIssuerSignature?: boolean;   // Tampilkan / Sembunyikan tanda tangan pihak penerbit (default: true)
   issuerSignatureTitle: string;    // e.g. "Pejabat Pemberi Perintah,"
+  issuerSignatureName?: string;    // Nama cetak di bawah garis tanda tangan (default: issuerName, bisa diubah manual atau dikosongkan)
+  issuerSignatureSubtitle?: string; // Keterangan/Pangkat di bawah nama cetak (e.g. "PRESIDENT [RANK 6] [#GOV-01]", bisa diubah manual atau dikosongkan)
   issuerSignatureStyle: 'handwriting1' | 'handwriting2' | 'formal' | 'badge_stamp' | 'blank';
   issuerSignatureType?: 'font' | 'upload' | 'draw' | 'blank';
   issuerSignatureImage?: string;   // Base64 upload / digital canvas
