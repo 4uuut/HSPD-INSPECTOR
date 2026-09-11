@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from '../assets/logo';
 import { RecruitmentInfoPanel } from './RecruitmentInfoPanel';
+import { GovernmentRecruitmentInfoPanel } from './GovernmentRecruitmentInfoPanel';
 import { RequestPinDiscordModal } from './RequestPinDiscordModal';
 import { CaptchaVerification } from './CaptchaVerification';
 import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from '../utils/brandingStorage';
@@ -365,19 +366,19 @@ export const OfficerLogin: React.FC<Props> = ({
                 onClick={() => setMobileView('recruitment')}
                 className={`px-2.5 py-1 rounded font-bold transition flex items-center gap-1 ${
                   mobileView === 'recruitment'
-                    ? 'bg-amber-600 text-black shadow'
+                    ? authPortalTab === 'GOVERNMENT' ? 'bg-amber-600 text-black shadow' : 'bg-blue-600 text-white shadow'
                     : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
                 <BookOpen className="w-3 h-3" />
-                <span>Info Rekrutmen</span>
+                <span>{authPortalTab === 'GOVERNMENT' ? 'Portal Rekrutmen' : 'Info Rekrutmen'}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setMobileView('auth')}
                 className={`px-2.5 py-1 rounded font-bold transition flex items-center gap-1 ${
                   mobileView === 'auth'
-                    ? 'bg-blue-600 text-white shadow'
+                    ? authPortalTab === 'GOVERNMENT' ? 'bg-amber-600 text-black shadow' : 'bg-blue-600 text-white shadow'
                     : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
@@ -392,7 +393,11 @@ export const OfficerLogin: React.FC<Props> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start">
           {/* ================= LEFT SIDE: RECRUITMENT INFO PANEL (~7 cols on desktop) ================= */}
           <div className={`lg:col-span-7 h-full ${mobileView === 'recruitment' ? 'block' : 'hidden lg:block'}`}>
-            <RecruitmentInfoPanel />
+            {authPortalTab === 'GOVERNMENT' ? (
+              <GovernmentRecruitmentInfoPanel />
+            ) : (
+              <RecruitmentInfoPanel />
+            )}
           </div>
 
           {/* ================= RIGHT SIDE: AUTHENTICATION & LOGIN PORTAL (~5 cols on desktop) ================= */}
@@ -406,6 +411,7 @@ export const OfficerLogin: React.FC<Props> = ({
                   id="tab-login-police"
                   onClick={() => {
                     setAuthPortalTab('POLICE');
+                    setIsCaptchaVerified(false);
                     setLoginError('');
                     setLoginSuccess('');
                   }}
@@ -424,6 +430,7 @@ export const OfficerLogin: React.FC<Props> = ({
                   id="tab-login-government"
                   onClick={() => {
                     setAuthPortalTab('GOVERNMENT');
+                    setIsCaptchaVerified(false);
                     setLoginError('');
                     setLoginSuccess('');
                   }}
@@ -465,26 +472,6 @@ export const OfficerLogin: React.FC<Props> = ({
                   {authPortalTab === 'GOVERNMENT' ? 'STATE GOV' : 'CAD v3.8'}
                 </span>
               </div>
-
-              {/* Quick Preset Banner for Government Momo Hatakeyama */}
-              {authPortalTab === 'GOVERNMENT' && (
-                <div className="bg-amber-950/30 border-b border-amber-800/40 p-2.5 px-4 flex items-center justify-between gap-2">
-                  <div className="text-[11px] text-amber-200 font-sans">
-                    <span className="font-bold font-mono text-amber-300">👑 Akun Presiden:</span> Momo Hatakeyama (#GOV-01)
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLoginIdentifier('Momo Hatakeyama');
-                      setLoginPin('10-4');
-                      setLoginError('');
-                    }}
-                    className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-[10px] font-mono font-bold shrink-0 transition"
-                  >
-                    Isi Otomatis
-                  </button>
-                </div>
-              )}
 
               {/* TAB CONTENT CONTAINER */}
               <div className="p-4 sm:p-5 space-y-4">
@@ -583,6 +570,7 @@ export const OfficerLogin: React.FC<Props> = ({
                   <div className="pt-1">
                     <CaptchaVerification
                       isVerified={isCaptchaVerified}
+                      mode={authPortalTab}
                       onVerify={(verified) => {
                         setIsCaptchaVerified(verified);
                         if (verified) setLoginError('');

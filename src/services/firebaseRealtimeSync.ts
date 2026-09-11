@@ -96,6 +96,11 @@ export const SYNC_COLLECTIONS = {
     storageKey: 'hspd_impound_records_v1',
     event: 'hspd-impound-updated'
   },
+  TRAFFIC_CITATIONS: {
+    name: 'traffic_citations',
+    storageKey: 'hspd_traffic_citations_v1',
+    event: 'hspd-traffic-citations-updated'
+  },
   DETECTIVE_CASES: {
     name: 'detective_cases',
     storageKey: 'hspd_detective_cases_v1',
@@ -145,6 +150,26 @@ export const SYNC_COLLECTIONS = {
     name: 'government_roster',
     storageKey: 'hspd_government_roster_v1',
     event: 'hspd-gov-roster-updated'
+  },
+  GOV_SECURITY: {
+    name: 'gov_security',
+    storageKey: 'state_security_status_v1',
+    event: 'state-security-updated'
+  },
+  GOV_PERMITS: {
+    name: 'gov_permits',
+    storageKey: 'government_permits_registry_v1',
+    event: 'government-permits-updated'
+  },
+  GOV_TREASURY: {
+    name: 'gov_treasury',
+    storageKey: 'government_treasury_records_v1',
+    event: 'government-treasury-updated'
+  },
+  GOV_ANNOUNCEMENTS: {
+    name: 'gov_announcements',
+    storageKey: 'government_announcements_v1',
+    event: 'government-announcements-updated'
   }
 } as const;
 
@@ -587,6 +612,10 @@ export const ALL_WEBHOOK_CONFIG_KEYS = [
   'hspd_impound_bot_name',
   'hspd_impound_bot_avatar',
   'hspd_impound_auto_send',
+  'hspd_traffic_citation_webhook_url',
+  'hspd_traffic_citation_bot_name',
+  'hspd_traffic_citation_bot_avatar',
+  'hspd_traffic_citation_auto_send',
   'hspd_vault_webhook_url',
   'hspd_vault_bot_name',
   'hspd_vault_bot_avatar',

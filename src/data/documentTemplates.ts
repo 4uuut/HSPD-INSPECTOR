@@ -925,5 +925,489 @@ export const DOCUMENT_PRESET_TEMPLATES: DocumentTemplatePreset[] = [
       acknowledgedByRank: 'GOVERNMENT EXECUTIVE',
       acknowledgedByRole: 'Biro Hukum & Tata Usaha Negara'
     }
+  },
+
+  // 15. SURAT DPO / RED NOTICE KRIMINALITAS (WANTED BULLETIN)
+  {
+    id: 'tpl-dpo-red-notice',
+    category: 'DPO_WANTED',
+    name: 'Surat DPO / Red Notice Kriminalitas (Wanted Bulletin)',
+    badgeLabel: 'DPO / RED NOTICE',
+    description: 'Maklumat penetapan buronan paling dicari (Most Wanted Fugitive) dengan ancaman bersenjata dan sayembara penangkapan.',
+    defaultDoc: {
+      docNumber: `DPO/HSPD-CID/RED/${new Date().getFullYear()}/019`,
+      category: 'DPO_WANTED',
+      classification: 'SANGAT RAHASIA',
+      title: 'SURAT DAFTAR PENCARIAN ORANG (DPO) & RED NOTICE',
+      subject: 'Maklumat Buronan Kriminalitas Tingkat Tinggi & Peringatan Bersenjata Berbahaya',
+      date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      validUntil: 'Hingga Tersangka Tertangkap Hidup atau Mati Sesuai SOP',
+      location: 'Markas Besar Kepolisian HSPD, Biro Kriminalitas Khusus (CID)',
+      issuerName: 'Raymond Holt',
+      issuerBadge: '#401',
+      issuerRank: 'CAPTAIN [CPT]',
+      issuerRole: 'Kepala Divisi Reserse Kriminalitas (CID)',
+      recipientName: 'Seluruh Jajaran Penegak Hukum & Masyarakat Kota',
+      recipientId: 'PUBLIK / ALL-UNITS',
+      recipientRoleOrStatus: 'Status DPO: BERSENJATA & SANGAT BERBAHAYA (ARMED & DANGEROUS)',
+      recipientAddress: 'Wilayah Hukum Negara HighState & Perbatasan',
+      openingText: 'Berdasarkan Laporan Polisi, Hasil Olah Tempat Kejadian Perkara (TKP), serta Alat Bukti Valid, Kepolisian HSPD menetapkan status BURONAN DPO TERTINGGI terhadap individu berikut:',
+      clauses: [
+        {
+          id: 'dpo-c1',
+          clauseNumber: 'Pasal 1',
+          title: 'IDENTITAS & PROFIL BURONAN',
+          content: 'Nama Tersangka: John "Ghost" Doe (Alias: The Phantom). Usia sekitar 30-35 tahun, perawakan tegap, memiliki tato tengkorak pada lengan kanan, kerap mengenakan jaket kulit hitam.'
+        },
+        {
+          id: 'dpo-c2',
+          clauseNumber: 'Pasal 2',
+          title: 'PASAL PIDANA YANG DILANGGAR',
+          content: 'Didakwa melanggar Pasal Perampokan Bersenjata Berat, Pembunuhan Berencana Aparat Penegak Hukum, serta Kepemilikan Senjata Api Militer Ilegal Tanpa Izin Sah.'
+        },
+        {
+          id: 'dpo-c3',
+          clauseNumber: 'Pasal 3',
+          title: 'STATUS ANCAMAN & ATURAN PENINDAKAN (ROE)',
+          content: 'Tersangka berstatus BERSENJATA API OTOMATIS & BERBAHAYA. Seluruh personel patroli diberikan otorisasi tindakan tegas terukur (Deadly Force Authorization) apabila tersangka melawan saat penangkapan.'
+        },
+        {
+          id: 'dpo-c4',
+          clauseNumber: 'Pasal 4',
+          title: 'SAYEMBARA & KERAHASIAAN INFORMASI',
+          content: 'Disediakan hadiah imbalan apresiasi negara (Bounty) sebesar $25,000 bagi masyarakat sipil yang memberikan koordinat valid keberadaan tersangka. Kerahasiaan pelapor dijamin 100% di bawah perlindungan saksi.'
+        }
+      ],
+      closingText: 'Masyarakat yang melihat tersangka dihimbau untuk TIDAK MENDEKATI secara mandiri dan segera menghubungi panggilan darurat 911 Markas Besar HSPD.',
+      notes: 'Penyembunyian buronan DPO merupakan tindak pidana Obstruction of Justice dengan ancaman kurungan penjara.',
+      primarySeal: 'CID_DETECTIVE',
+      secondarySeal: 'CONFIDENTIAL',
+      showWatermark: true,
+      showQrVerification: true,
+      issuerSignatureTitle: 'Kepala Divisi Reserse Kriminalitas,',
+      issuerSignatureStyle: 'formal',
+      recipientSignatureTitle: 'Disposisi Satuan Taktis Gabungan,',
+      recipientSignatureName: 'Satuan Kejar Taktis CID/SWAT',
+      recipientSignatureStyle: 'badge_stamp',
+      acknowledgedByTitle: 'Mengetahui & Mengesahkan,',
+      acknowledgedByName: 'Leoarnd Neave',
+      acknowledgedByRank: 'CHIEF OF POLICE [COP]',
+      acknowledgedByRole: 'Kepala Kepolisian HighState'
+    }
+  },
+
+  // 16. SURAT IZIN PENGAWALAN KONVOI & VVIP (VIP ESCORT CLEARANCE)
+  {
+    id: 'tpl-izin-pengawalan-konvoi',
+    category: 'IZIN_PENGAWALAN',
+    name: 'Surat Izin Pengawalan Konvoi & VVIP (VIP Escort Clearance)',
+    badgeLabel: 'VIP ESCORT PERMIT',
+    description: 'Izin dan disposisi pengawalan unit kepolisian bersirene untuk rombongan kenegaraan, cash-in-transit, atau acara resmi.',
+    defaultDoc: {
+      docNumber: `ESCORT/HSPD-TEU/VII/${new Date().getFullYear()}/0288`,
+      category: 'IZIN_PENGAWALAN',
+      classification: 'TERBATAS',
+      title: 'SURAT IZIN & PENUGASAN PENGAWALAN KONVOI RESMI',
+      subject: 'Otorisasi Pengawalan Jalan Raya & Pengamanan Iring-Iringan Kendaraan VVIP',
+      date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      validUntil: 'Berlaku Selama Agenda Perjalanan Berlangsung',
+      location: 'Markas Besar HSPD, Divisi Lalu Lintas (Traffic Enforcement Unit)',
+      issuerName: 'Terry Jeffords',
+      issuerBadge: '#302',
+      issuerRank: 'SERGEANT [SGT]',
+      issuerRole: 'Kepala Bagian Pengawalan & Pengaturan Lalu Lintas',
+      recipientName: 'Delegasi Rombongan Kepresidenan & Pejabat Negara',
+      recipientId: 'VVIP-CORTEGE-01',
+      recipientRoleOrStatus: 'Pihak Pemohon Pengawalan VVIP',
+      recipientAddress: 'Rute Jalur: City Hall → Los Santos International Airport',
+      openingText: 'Menindaklanjuti Surat Permohonan Pengawalan Resmi dan telah dilakukan survei kelayakan rute jalan raya, dengan ini diterbitkan izin pengawalan berstandar operasional kepolisian:',
+      clauses: [
+        {
+          id: 'esc-c1',
+          clauseNumber: 'Pasal 1',
+          title: 'KORIDOR RUTE & WAKTU PELAKSANAAN',
+          content: 'Konvoi diberangkatkan melalui jalur protokol utama dengan rute khusus yang telah disterilkan dan diatur lampu lalu lintasnya oleh unit pengatur jalan.'
+        },
+        {
+          id: 'esc-c2',
+          clauseNumber: 'Pasal 2',
+          title: 'KOMPOSISI ARMADA PENGAWAL',
+          content: 'Pengerahan unit pengawal meliputi 2 (dua) unit sepeda motor patroli sebagai pembuka jalur (Lead Escort) dan 2 (dua) unit cruiser interceptor sebagai pengawal sisi samping dan penutup formasi.'
+        },
+        {
+          id: 'esc-c3',
+          clauseNumber: 'Pasal 3',
+          title: 'PENGGUNAAN SIRENE & PRIORITAS JALAN',
+          content: 'Rombongan konvoi berhak mendapatkan prioritas utama di persimpangan jalan (Right of Way) dengan aktivasi sirine darurat dan lampu strobo kode resmi.'
+        },
+        {
+          id: 'esc-c4',
+          clauseNumber: 'Pasal 4',
+          title: 'KEPATUHAN PESERTA KONVOI',
+          content: 'Seluruh pengemudi kendaraan dalam rangkaian wajib menjaga jarak aman formasi, dilarang memisahkan diri tanpa instruksi, dan mematuhi komando Kepala Regu Pengawal.'
+        }
+      ],
+      closingText: 'Surat izin pengawalan ini diterbitkan agar seluruh pengguna jalan memberikan prioritas dan kerjasama yang baik demi kelancaran agenda negara.',
+      notes: 'Izin dapat dialihkan jalurnya sewaktu-waktu oleh petugas demi keselamatan rombongan.',
+      primarySeal: 'TRAFFIC_TEU',
+      secondarySeal: 'HSPD_OFFICIAL',
+      showWatermark: true,
+      showQrVerification: true,
+      issuerSignatureTitle: 'Komandan Regu Pengawalan Lalu Lintas,',
+      issuerSignatureStyle: 'formal',
+      recipientSignatureTitle: 'Penanggung Jawab Rombongan / Pemohon,',
+      recipientSignatureName: 'Momo Hatakeyama',
+      recipientSignatureStyle: 'handwriting1',
+      acknowledgedByTitle: 'Mengesahkan Kasat Lantas,',
+      acknowledgedByName: 'Raymond Holt',
+      acknowledgedByRank: 'CAPTAIN [CPT]',
+      acknowledgedByRole: 'Kepala Biro Operasional HSPD'
+    }
+  },
+
+  // 17. SURAT PENYITAAN & PEMBEKUAN ASET KEJAHATAN (ASSET FORFEITURE)
+  {
+    id: 'tpl-penyitaan-aset',
+    category: 'SURAT_PENYITAAN',
+    name: 'Surat Sita Eksekusi & Pembekuan Aset Kejahatan',
+    badgeLabel: 'SITA EKSEKUSI ASET',
+    description: 'Surat perintah penyitaan dan pengamanan kendaraan balap liar, properti markas sindikat, dan rekening hasil kejahatan.',
+    defaultDoc: {
+      docNumber: `SITA-ASET/HSPD-CID/${new Date().getFullYear()}/0411`,
+      category: 'SURAT_PENYITAAN',
+      classification: 'RAHASIA',
+      title: 'SURAT PERINTAH PENYITAAN & PEMBEKUAN ASET HASIL KEJAHATAN',
+      subject: 'Penyitaan Fisik Kendaraan Bermotor, Properti, dan Dana Terkait Sindikat Terorganisir',
+      date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      validUntil: 'Hingga Putusan Tetap Pengadilan Negeri Diterbitkan',
+      location: 'Depot Penyimpanan Barang Sitaan Negara (Impound Lot), HSPD',
+      issuerName: 'Raymond Holt',
+      issuerBadge: '#401',
+      issuerRank: 'CAPTAIN [CPT]',
+      issuerRole: 'Kepala Divisi Reserse Kriminalitas Khusus',
+      recipientName: 'Tersangka / Kuasa Hukum Pemilik Aset Terduga',
+      recipientId: 'SITA-ID-992',
+      recipientRoleOrStatus: 'Pihak Tersita / Terlapor',
+      recipientAddress: 'Gudang Kawasan Industri Willowfield, Los Santos',
+      openingText: 'Berdasarkan Penetapan Pengadilan Negeri dan Bukti Permulaan yang Cukup mengenai Tindak Pidana Pencucian Uang dan Balap Liar / Peredaran Gelap, dengan ini MEMERINTAHKAN penyitaan aset:',
+      clauses: [
+        {
+          id: 'sita-c1',
+          clauseNumber: 'Pasal 1',
+          title: 'OBJEK ASET YANG DISITA',
+          content: 'Penyitaan terhadap 3 (tiga) unit kendaraan sport modifikasi balap liar tanpa surat kepemilikan sah, serta uang tunai sejumlah $150,000 yang ditemukan di brankas tersembunyi.'
+        },
+        {
+          id: 'sita-c2',
+          clauseNumber: 'Pasal 2',
+          title: 'PEMASANGAN SEGEL KEPOLISIAN (POLICE LINE)',
+          content: 'Lokasi garasi/bengkel operasional dipasang garis polisi (Police Line) dan disegel resmi. Dilarang keras merusak segel atau memindahkan barang inventaris di dalamnya.'
+        },
+        {
+          id: 'sita-c3',
+          clauseNumber: 'Pasal 3',
+          title: 'TEMPAT PENYIMPANAN AMAN',
+          content: 'Seluruh kendaraan dipindahkan ke Depo Penyimpanan Kendaraan Khusus Kepolisian (High Security Impound Lot) dengan pengawasan kamera CCTV 24 jam.'
+        },
+        {
+          id: 'sita-c4',
+          clauseNumber: 'Pasal 4',
+          title: 'HAK PENGAJUAN KEBERATAN HUKUM',
+          content: 'Pihak tersangka atau kuasa hukum diberikan hak mengajukan keberatan atau gugatan praperadilan selambat-lambatnya 7 (tujuh) hari kerja sejak tanda terima surat ini.'
+        }
+      ],
+      closingText: 'Berita Acara Penyitaan dibuat dengan sebenarnya di hadapan saksi-saksi dan ditandatangani oleh pejabat penyidik kepolisian yang berwenang.',
+      notes: 'Setiap upaya memindahtangankan barang sitaan negara diancam pidana kurungan maksimal 5 tahun.',
+      primarySeal: 'HSPD_OFFICIAL',
+      secondarySeal: 'APPROVED_PASSED',
+      showWatermark: true,
+      showQrVerification: true,
+      issuerSignatureTitle: 'Penyidik Utama / Kasat Reskrim,',
+      issuerSignatureStyle: 'formal',
+      recipientSignatureTitle: 'Pihak Yang Menyaksikan / Kuasa Pemilik,',
+      recipientSignatureName: 'Saksi Lapangan / Petugas Garasi',
+      recipientSignatureStyle: 'handwriting1',
+      acknowledgedByTitle: 'Mengetahui & Menyetujui,',
+      acknowledgedByName: 'Leoarnd Neave',
+      acknowledgedByRank: 'CHIEF OF POLICE [COP]',
+      acknowledgedByRole: 'Kepala Kepolisian HighState'
+    }
+  },
+
+  // 18. SURAT IZIN USAHA PERDAGANGAN (SIUP / COMMERCIAL LICENSE)
+  {
+    id: 'tpl-izin-usaha-siup',
+    category: 'IZIN_USAHA',
+    name: 'Surat Izin Usaha Perdagangan (SIUP / Commercial Business Permit)',
+    badgeLabel: 'IZIN USAHA (SIUP)',
+    description: 'Lisensi resmi pemerintahan kota untuk legalitas operasional bengkel, showroom, restoran, bar, atau perusahaan logistik.',
+    defaultDoc: {
+      docNumber: `SIUP/GOV-DEPLU/KOTA/${new Date().getFullYear()}/0891`,
+      category: 'IZIN_USAHA',
+      classification: 'TERBATAS',
+      title: 'SURAT KEPUTUSAN IZIN USAHA PERDAGANGAN & KOMERSIAL (SIUP)',
+      subject: 'Pengesahan Izin Operasional Usaha Komersial Legal di Wilayah Negara HighState',
+      date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      validUntil: '2 (Dua) Tahun Sejak Tanggal Pengesahan',
+      location: 'Dinas Penanaman Modal & Pelayanan Terpadu Satu Pintu, Balaikota',
+      issuerName: 'Momo Hatakeyama',
+      issuerBadge: '#GOV-01',
+      issuerRank: 'PRESIDENT [RANK 6]',
+      issuerRole: 'Kepala Pemerintahan Negara HighState',
+      recipientName: 'Nama Pemilik Usaha / Perusahaan',
+      recipientId: 'NIB-8849201',
+      recipientPhone: '555-BIZ-01',
+      recipientRoleOrStatus: 'Pengusaha / Pemegang Saham Utama',
+      recipientAddress: 'Alamat Lokasi Gedung Usaha / Komersial',
+      openingText: 'Membaca Surat Permohonan Izin Usaha dan menimbang kelayakan tempat, dokumen amdal ketertiban umum, serta pembayaran retribusi kas negara, Pemerintah menerbitkan izin usaha kepada:',
+      clauses: [
+        {
+          id: 'siup-c1',
+          clauseNumber: 'Pasal 1',
+          title: 'BIDANG & KLASIFIKASI USAHA',
+          content: 'Diberikan izin legalitas untuk menjalankan aktivitas usaha komersial dalam bidang Jasa Otomotif, Perbengkelan, Restoran & Kafe, atau Perdagangan Ritel Barang Kebutuhan Sipil.'
+        },
+        {
+          id: 'siup-c2',
+          clauseNumber: 'Pasal 2',
+          title: 'KEPATUHAN ZONA & JAM OPERASIONAL',
+          content: 'Wajib beroperasi sesuai zona peruntukan tata kota dan mematuhi batas jam operasional suara bising agar tidak mengganggu ketertiban lingkungan hunian sekitar.'
+        },
+        {
+          id: 'siup-c3',
+          clauseNumber: 'Pasal 3',
+          title: 'KEWAJIBAN PAJAK & TRANSAKSI LEGAL',
+          content: 'Pemilik usaha wajib mencatat pembukuan keuangan secara transparan, menggunakan nota resmi, serta menyetorkan pajak pendapatan daerah (PAD) sesuai tarif regulasi negara.'
+        },
+        {
+          id: 'siup-c4',
+          clauseNumber: 'Pasal 4',
+          title: 'PENGAWASAN & SANKSI PENCABUTAN',
+          content: 'Apabila tempat usaha terbukti digunakan untuk peredaran narkotika, perjudian liar, penimbunan senjata ilegal, izin usaha ini dicabut seketika tanpa kompensasi.'
+        }
+      ],
+      closingText: 'Surat Izin Usaha Perdagangan ini wajib dipajang di dinding ruang utama tempat usaha agar mudah diperiksa oleh aparatur pengawas dan kepolisian.',
+      notes: 'Perpanjangan izin usaha wajib diajukan sekurang-kurangnya 30 hari kalender sebelum masa berlaku berakhir.',
+      primarySeal: 'GOVERNMENT_SEAL',
+      secondarySeal: 'APPROVED_PASSED',
+      showWatermark: true,
+      showQrVerification: true,
+      issuerSignatureTitle: 'Presiden / Kepala Pemerintahan Negara,',
+      issuerSignatureStyle: 'formal',
+      recipientSignatureTitle: 'Pemilik Usaha / Penanggung Jawab,',
+      recipientSignatureName: 'Nama Pemilik Usaha',
+      recipientSignatureStyle: 'handwriting1',
+      acknowledgedByTitle: 'Kepala Dinas Perizinan & Perdagangan,',
+      acknowledgedByName: 'State Commerce Bureau',
+      acknowledgedByRank: 'HEAD OF LICENSING',
+      acknowledgedByRole: 'Biro Pelayanan Usaha Negara'
+    }
+  },
+
+  // 19. MAKLUMAT DARURAT SIPIL & JAM MALAM KOTA (CURFEW DECREE)
+  {
+    id: 'tpl-maklumat-darurat-jam-malam',
+    category: 'MAKLUMAT_DARURAT',
+    name: 'Maklumat Darurat Sipil & Jam Malam Kota (State of Emergency Decree)',
+    badgeLabel: 'MAKLUMAT DARURAT SIPIL',
+    description: 'Dekrit darurat Presiden/Gubernur pemberlakuan jam malam dan sterilisasi jalan raya demi menjaga stabilitas keamanan kota.',
+    defaultDoc: {
+      docNumber: `DEKRIT-DARURAT/PRESIDEN/${new Date().getFullYear()}/007`,
+      category: 'MAKLUMAT_DARURAT',
+      classification: 'KILAT / URGENT',
+      title: 'MAKLUMAT DARURAT SIPIL & PENETAPAN JAM MALAM KOTA',
+      subject: 'Pemberlakuan Pembatasan Aktivitas Luar Ruang dan Sterilisasi Keamanan Wilayah',
+      date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      validUntil: '14 (Empat Belas) Hari atau Hingga Keadaan Dinyatakan Kondusif',
+      location: 'Istana Kepresidenan Negara HighState',
+      issuerName: 'Momo Hatakeyama',
+      issuerBadge: '#GOV-01',
+      issuerRank: 'PRESIDENT [RANK 6]',
+      issuerRole: 'Kepala Negara & Panglima Tertinggi Aparatur',
+      recipientName: 'Seluruh Warga Negara & Aparatur Penegak Hukum',
+      recipientId: 'WARGA-NEGARA',
+      recipientRoleOrStatus: 'Masyarakat Umum & Satuan Keamanan',
+      recipientAddress: 'Seluruh Batas Administrasi Wilayah Kota & Negara',
+      openingText: 'Demi melindungi segenap tumpah darah warga negara dan menanggulangi eskalasi kerusuhan serta ancaman terorisme terorganisir, Presiden Negara MENETAPKAN STATUS DARURAT SIPIL:',
+      clauses: [
+        {
+          id: 'curf-c1',
+          clauseNumber: 'Pasal 1',
+          title: 'PEMBERLAKUAN JAM MALAM KOTA',
+          content: 'Diberlakukan JAM MALAM dimulai pukul 22.00 malam hingga 05.00 pagi waktu setempat. Seluruh warga sipil dilarang beraktivitas, berkumpul, atau berkeliaran di jalanan umum tanpa izin darurat.'
+        },
+        {
+          id: 'curf-c2',
+          clauseNumber: 'Pasal 2',
+          title: 'MANDAT PENEGAKAN HUKUM KEPOLISIAN & MILITER',
+          content: 'Kepolisian HighState (HSPD) diberikan wewenang penuh mendirikan pos pemeriksaan (Checkpoints), memeriksa identitas, menghentikan kendaraan mencurigakan, dan membubarkan kerumunan.'
+        },
+        {
+          id: 'curf-c3',
+          clauseNumber: 'Pasal 3',
+          title: 'PENGECUALIAN AKSES KELUAR MASUK',
+          content: 'Pembatasan tidak berlaku bagi tenaga medis rumah sakit darurat, pemadam kebakaran, aparatur penegak hukum yang bertugas, serta kendaraan logistik bahan makanan bersurat izin khusus.'
+        },
+        {
+          id: 'curf-c4',
+          clauseNumber: 'Pasal 4',
+          title: 'TINDAKAN TEGAS BAGI PERUSUH',
+          content: 'Setiap individu atau kelompok yang kedapatan menjarah, membakar fasilitas umum, atau melawan petugas bersenjata akan ditindak tegas tanpa kompromi sesuai protokol darurat keamanan.'
+        }
+      ],
+      closingText: 'Maklumat ini mulai berlaku efektif sejak tanggal ditetapkan. Dihimbau seluruh warga tetap berada di kediaman masing-masing dan menjaga ketenangan.',
+      notes: 'Pelanggaran maklumat darurat dikenakan kurungan penahanan darurat minimal 72 jam.',
+      primarySeal: 'PRESIDENTIAL_SEAL',
+      secondarySeal: 'GOVERNMENT_SEAL',
+      showWatermark: true,
+      showQrVerification: true,
+      issuerSignatureTitle: 'Presiden Negara HighState,',
+      issuerSignatureStyle: 'formal',
+      recipientSignatureTitle: 'Komandan Penegakan Keamanan Kota,',
+      recipientSignatureName: 'Leoarnd Neave (Chief of Police)',
+      recipientSignatureStyle: 'badge_stamp',
+      acknowledgedByTitle: 'Mengesahkan Sekretaris Negara,',
+      acknowledgedByName: 'State Security Council',
+      acknowledgedByRank: 'NATIONAL SECURITY ADVISOR',
+      acknowledgedByRole: 'Dewan Pertahanan & Keamanan Negara'
+    }
+  },
+
+  // 20. SURAT KEPUTUSAN GRASI & AMNESTI KHUSUS PRESIDEN (EXECUTIVE CLEMENCY)
+  {
+    id: 'tpl-grasi-amnesti-presiden',
+    category: 'GRASI_PRESIDEN',
+    name: 'Surat Keputusan Grasi & Amnesti Khusus Presiden',
+    badgeLabel: 'HAK GRASI PRESIDEN',
+    description: 'Keputusan pengampunan hukum atau pemotongan masa tahanan oleh Presiden atas dasar kelakuan baik dan jasa kenegaraan.',
+    defaultDoc: {
+      docNumber: `KEPPRES-GRASI/${new Date().getFullYear()}/0034`,
+      category: 'GRASI_PRESIDEN',
+      classification: 'TERBATAS',
+      title: 'KEPUTUSAN PRESIDEN TENTANG PEMBERIAN GRASI & PENGAMPUNAN HUKUM',
+      subject: 'Pemberian Pengampunan Hukuman Pidana & Pembebasan Bersyarat Narapidana Terpilih',
+      date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      validUntil: 'Berlaku Tetap & Mengikat Sejak Tanggal Pengesahan',
+      location: 'Istana Kepresidenan Negara HighState, Los Santos',
+      issuerName: 'Momo Hatakeyama',
+      issuerBadge: '#GOV-01',
+      issuerRank: 'PRESIDENT [RANK 6]',
+      issuerRole: 'Presiden / Pemegang Hak Prerogatif Konstitusi',
+      recipientName: 'Nama Narapidana / Warga Terpidana',
+      recipientId: 'NAPI-20491',
+      recipientRoleOrStatus: 'Warga Binaan Pemasyarakatan Lembaga Pemasyarakatan',
+      recipientAddress: 'Lapas Bolingbroke Penitentiary, San Andreas',
+      openingText: 'Membaca Surat Permohonan Grasi dari Terpidana, serta Menimbang Rekomendasi Tertulis dari Kepala Kepolisian dan Dewan Pertimbangan Pemasyarakatan, Presiden memutuskan:',
+      clauses: [
+        {
+          id: 'grs-c1',
+          clauseNumber: 'Pasal 1',
+          title: 'DASAR HAK PREROGATIF PRESIDEN',
+          content: 'Sesuai wewenang konstitusional kepala negara, Presiden berhak memberikan pengampunan hukum (Grasi / Amnesti) kepada warga negara yang dinilai layak menerima belas kasihan negara.'
+        },
+        {
+          id: 'grs-c2',
+          clauseNumber: 'Pasal 2',
+          title: 'BENTUK PENGURANGAN HUKUMAN',
+          content: 'Memberikan pengurangan masa pidana penjara dari sebelumnya 60 bulan menjadi SEGERA DIBEBASKAN DENGAN STATUS PELEPASAN BERSYARAT (Parole Status).'
+        },
+        {
+          id: 'grs-c3',
+          clauseNumber: 'Pasal 3',
+          title: 'KEWAJIBAN WAJIB LAPOR & KELAKUAN BAIK',
+          content: 'Penerima grasi wajib melapor secara rutin setiap minggu ke Markas Kepolisian terdekat selama masa pengawasan 6 bulan dan tidak boleh mengulangi tindak pidana apapun.'
+        },
+        {
+          id: 'grs-c4',
+          clauseNumber: 'Pasal 4',
+          title: 'PEMBATALAN OTOMATIS JIKA MELANGGAR',
+          content: 'Apabila yang bersangkutan kembali terbukti melakukan tindak kejahatan selama masa pembebasan bersyarat, grasi ini BATAL DEMI HUKUM dan sisa hukuman awal akan ditambah penuh.'
+        }
+      ],
+      closingText: 'Keputusan ini disampaikan kepada Kepala Lembaga Pemasyarakatan dan Kepolisian untuk segera dieksekusi proses administrasinya.',
+      notes: 'Surat keputusan ini memiliki kekuatan hukum tertinggi dan tidak dapat diganggu gugat oleh pihak manapun.',
+      primarySeal: 'PRESIDENTIAL_SEAL',
+      secondarySeal: 'APPROVED_PASSED',
+      showWatermark: true,
+      showQrVerification: true,
+      issuerSignatureTitle: 'Presiden Negara HighState,',
+      issuerSignatureStyle: 'formal',
+      recipientSignatureTitle: 'Narapidana Penerima Grasi,',
+      recipientSignatureName: 'Nama Narapidana Pemohon',
+      recipientSignatureStyle: 'handwriting1',
+      acknowledgedByTitle: 'Mengetahui Kepala Lapas Pemasyarakatan,',
+      acknowledgedByName: 'Warden of Bolingbroke Penitentiary',
+      acknowledgedByRank: 'CHIEF WARDEN',
+      acknowledgedByRole: 'Lembaga Pemasyarakatan Negara'
+    }
+  },
+
+  // 21. SURAT PENETAPAN ANGGARAN & HIBAH OPERASIONAL (TREASURY GRANT)
+  {
+    id: 'tpl-hibah-anggaran-dinas',
+    category: 'ANGGARAN_DINAS',
+    name: 'Surat Penetapan Anggaran Dinas & Kas Negara (Treasury Grant)',
+    badgeLabel: 'PENGESAHAN ANGGARAN',
+    description: 'Surat persetujuan pencairan dana kas daerah/negara dari Departemen Keuangan (Treasury) untuk operasional kedinasan.',
+    defaultDoc: {
+      docNumber: `DPA/TREASURY-GOV/${new Date().getFullYear()}/0142`,
+      category: 'ANGGARAN_DINAS',
+      classification: 'RAHASIA',
+      title: 'SURAT KEPUTUSAN PENETAPAN & PENCAIRAN ANGGARAN OPERASIONAL DINAS',
+      subject: 'Persetujuan Alokasi Dana Kas Negara (Treasury) untuk Belanja Taktis Kepolisian & Instansi',
+      date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }),
+      validUntil: 'Tahun Anggaran Berjalan (1 Tahun Fiskal)',
+      location: 'Departemen Keuangan & Perbendaharaan Negara (State Treasury)',
+      issuerName: 'Momo Hatakeyama',
+      issuerBadge: '#GOV-01',
+      issuerRank: 'PRESIDENT [RANK 6]',
+      issuerRole: 'Otoritas Pengesahan Anggaran Negara Tertinggi',
+      recipientName: 'HighState Police Department (HSPD)',
+      recipientId: 'INSTANSI-HSPD-01',
+      recipientRoleOrStatus: 'Instansi Penerima Alokasi Anggaran',
+      recipientAddress: 'Biro Logistik & Sarpras, Markas Besar HSPD',
+      openingText: 'Membaca Rencana Kebutuhan Anggaran Dinas yang diajukan oleh Pimpinan Kepolisian dan hasil audit kepatutan kas daerah, dengan ini MENYETUJUI alokasi dana operasional:',
+      clauses: [
+        {
+          id: 'ang-c1',
+          clauseNumber: 'Pasal 1',
+          title: 'BESARAN NOMINAL ANGGARAN',
+          content: 'Disetujui pencairan dana hibah kas negara senilai total $500,000 (Lima Ratus Ribu Dollar) dari pos Anggaran Pendapatan dan Belanja Negara (APBN).'
+        },
+        {
+          id: 'ang-c2',
+          clauseNumber: 'Pasal 2',
+          title: 'PERUNTUKAN PENGGUNAAN DANA',
+          content: 'Dana dialokasikan khusus untuk: Pemeliharaan Kendaraan Armada Patroli ($200,000), Pengadaan Rompi & Amunisi Anti-Peluru ($150,000), serta Dana Operasi Intelijen Khusus ($150,000).'
+        },
+        {
+          id: 'ang-c3',
+          clauseNumber: 'Pasal 3',
+          title: 'MEKANISME PENCAIRAN KAS NEGARA',
+          content: 'Pencairan dilakukan secara bertahap dalam 2 (dua) termin melalui transfer rekening dinas resmi Bendahara Pengeluaran Markas Besar HSPD.'
+        },
+        {
+          id: 'ang-c4',
+          clauseNumber: 'Pasal 4',
+          title: 'PERTANGGUNGJAWABAN & AUDIT (SPJ)',
+          content: 'Laporan Pertanggungjawaban (SPJ) beserta nota kuitansi asli wajib diserahkan kepada Badan Pengawas Keuangan selambat-lambatnya 30 hari pasca realisasi.'
+        }
+      ],
+      closingText: 'Keputusan ini berlaku sejak tanggal pengesahan untuk dimanfaatkan sebesar-besarnya demi keamanan, stabilitas, dan perlindungan masyarakat.',
+      notes: 'Penyalahgunaan dana perbendaharaan negara dikenakan sanksi tindak pidana korupsi dan pemecatan tidak terhormat.',
+      primarySeal: 'GOVERNMENT_SEAL',
+      secondarySeal: 'HIGH_COMMAND',
+      showWatermark: true,
+      showQrVerification: true,
+      issuerSignatureTitle: 'Presiden / Pengesah Anggaran Negara,',
+      issuerSignatureStyle: 'formal',
+      recipientSignatureTitle: 'Penerima Alokasi / Kepala Kepolisian,',
+      recipientSignatureName: 'Leoarnd Neave (Chief of Police)',
+      recipientSignatureStyle: 'badge_stamp',
+      acknowledgedByTitle: 'Menyetujui Menteri Keuangan,',
+      acknowledgedByName: 'State Treasury Director',
+      acknowledgedByRank: 'TREASURY SECRETARY',
+      acknowledgedByRole: 'Departemen Keuangan & Kas Daerah'
+    }
   }
 ];

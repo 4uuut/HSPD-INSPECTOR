@@ -101,6 +101,15 @@ export const AndroidMdtView: React.FC<Props> = ({
   // All MDT Police Apps definitions for Android Grid Drawer
   const allApps = isGovernment ? [
     { 
+      id: 'gov_suite', 
+      title: 'Pusat Layanan & Operasional Negara', 
+      desc: 'Maklumat, Jam Malam, Izin Senjata/Bisnis & Kas APBN',
+      icon: Crown, 
+      color: 'from-amber-500 to-yellow-600',
+      badge: 'EXECUTIVE',
+      badgeColor: 'bg-amber-950 text-amber-300 border-amber-500'
+    },
+    { 
       id: 'documents', 
       title: 'Surat & Dokumen Kenegaraan', 
       desc: 'Pembuatan & Pengesahan Dokumen Resmi Negara',
@@ -108,6 +117,24 @@ export const AndroidMdtView: React.FC<Props> = ({
       color: 'from-amber-600 to-yellow-700',
       badge: 'RESMI',
       badgeColor: 'bg-amber-950 text-amber-300 border-amber-600'
+    },
+    { 
+      id: 'dmv', 
+      title: 'Data Sipil & DMV Kependudukan', 
+      desc: 'Cek KTP Warga, Catatan Kriminal & Izin Kendaraan',
+      icon: UserCheck, 
+      color: 'from-teal-600 to-emerald-700',
+      badge: 'DATABASE',
+      badgeColor: 'bg-teal-950 text-teal-300 border-teal-700'
+    },
+    { 
+      id: 'history', 
+      title: 'Catatan Kasus & Rekam Jejak', 
+      desc: 'Penelusuran Riwayat Kriminal untuk Rekomendasi/Grasi',
+      icon: FileText, 
+      color: 'from-blue-600 to-indigo-700',
+      badge: `${totalRecordsCount} Berkas`,
+      badgeColor: 'bg-blue-950 text-blue-300 border-blue-700'
     },
     { 
       id: 'gov_roster', 
@@ -644,42 +671,70 @@ export const AndroidMdtView: React.FC<Props> = ({
 
       {/* 5. ANDROID FIXED BOTTOM NAVIGATION DOCK */}
       {isGovernment ? (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#10141D]/95 backdrop-blur-md border-t border-amber-600/40 px-3 py-2 flex items-center justify-around text-xs font-mono shadow-2xl">
-          {/* Tab 1: Dokumen Resmi */}
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#10141D]/95 backdrop-blur-md border-t border-amber-600/40 px-2 py-1.5 flex items-center justify-around text-[10px] font-mono shadow-2xl">
+          {/* Tab 1: Pusat Operasional & Eksekutif */}
+          <button
+            type="button"
+            onClick={() => setActiveNav('gov_suite')}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] ${
+              activeNav === 'gov_suite'
+                ? 'text-amber-400 font-bold bg-amber-500/20 border border-amber-500/50 shadow-sm'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            <Crown className={`w-5 h-5 mb-0.5 ${activeNav === 'gov_suite' ? 'scale-110 text-amber-400' : ''}`} />
+            <span>Eksekutif</span>
+          </button>
+
+          {/* Tab 2: Dokumen Resmi */}
           <button
             type="button"
             onClick={() => setActiveNav('documents')}
-            className={`flex flex-col items-center justify-center py-1.5 px-4 rounded-xl transition min-w-[90px] ${
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] ${
               activeNav === 'documents'
                 ? 'text-amber-400 font-bold bg-amber-500/20 border border-amber-500/50 shadow-sm'
                 : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            <StampIcon className={`w-5 h-5 mb-1 ${activeNav === 'documents' ? 'scale-110 text-amber-400' : ''}`} />
-            <span>Surat & Dokumen</span>
+            <StampIcon className={`w-5 h-5 mb-0.5 ${activeNav === 'documents' ? 'scale-110 text-amber-400' : ''}`} />
+            <span>Dokumen</span>
           </button>
 
-          {/* Tab 2: Roster Pemerintah */}
+          {/* Tab 3: Kependudukan DMV */}
+          <button
+            type="button"
+            onClick={() => setActiveNav('dmv')}
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] ${
+              activeNav === 'dmv'
+                ? 'text-teal-400 font-bold bg-teal-500/20 border border-teal-500/50 shadow-sm'
+                : 'text-gray-400 hover:text-gray-200'
+            }`}
+          >
+            <UserCheck className={`w-5 h-5 mb-0.5 ${activeNav === 'dmv' ? 'scale-110 text-teal-400' : ''}`} />
+            <span>Sipil DMV</span>
+          </button>
+
+          {/* Tab 4: Roster Pemerintah */}
           <button
             type="button"
             onClick={() => setActiveNav('gov_roster')}
-            className={`flex flex-col items-center justify-center py-1.5 px-4 rounded-xl transition min-w-[90px] ${
+            className={`flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] ${
               activeNav === 'gov_roster'
                 ? 'text-amber-400 font-bold bg-amber-500/20 border border-amber-500/50 shadow-sm'
                 : 'text-gray-400 hover:text-gray-200'
             }`}
           >
-            <Building2 className={`w-5 h-5 mb-1 ${activeNav === 'gov_roster' ? 'scale-110 text-amber-400' : ''}`} />
-            <span>Roster Pemerintah</span>
+            <Building2 className={`w-5 h-5 mb-0.5 ${activeNav === 'gov_roster' ? 'scale-110 text-amber-400' : ''}`} />
+            <span>Roster</span>
           </button>
 
-          {/* Tab 3: All Apps Menu */}
+          {/* Tab 5: All Apps Menu */}
           <button
             type="button"
             onClick={() => setIsAppDrawerOpen(true)}
-            className="flex flex-col items-center justify-center py-1.5 px-4 rounded-xl transition min-w-[70px] text-gray-400 hover:text-white"
+            className="flex flex-col items-center justify-center py-1 px-2 rounded-lg transition min-w-[56px] text-gray-400 hover:text-white"
           >
-            <div className="w-5 h-5 mb-1 rounded bg-amber-600/30 flex items-center justify-center text-amber-300">
+            <div className="w-5 h-5 mb-0.5 rounded bg-amber-600/30 flex items-center justify-center text-amber-300">
               <Grid className="w-3.5 h-3.5" />
             </div>
             <span>Menu</span>

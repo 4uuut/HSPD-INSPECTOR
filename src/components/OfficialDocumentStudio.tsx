@@ -36,7 +36,8 @@ import {
   Minimize2,
   Maximize2,
   FilePlus2,
-  Hash
+  Hash,
+  Crown
 } from 'lucide-react';
 import { 
   OfficialDocument, 
@@ -63,6 +64,7 @@ import {
   sendOfficialDocumentToDiscord 
 } from '../utils/discordWebhook';
 import { HSPD_LOGO_URL, HSPD_LOGO_FALLBACK, getActiveLogoUrl } from '../assets/logo';
+import { GovernmentCentralAuthModal } from './GovernmentCentralAuthModal';
 
 interface OfficialDocumentStudioProps {
   currentOfficer: OfficerProfile | null;
@@ -89,8 +91,35 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
         setSavedDocs(getSavedOfficialDocuments());
       }
     };
+
+    // Load draft from external triggers (e.g. Government Executive Suite)
+    const handleLoadDraft = (e: any) => {
+      if (e && e.detail) {
+        const { presetId, docData } = e.detail;
+        let baseDoc = DOCUMENT_PRESET_TEMPLATES[0].defaultDoc;
+        if (presetId) {
+          const found = DOCUMENT_PRESET_TEMPLATES.find(p => p.id === presetId);
+          if (found) baseDoc = found.defaultDoc;
+        }
+        setActiveDoc(prev => ({
+          ...baseDoc,
+          ...prev,
+          id: `doc-${Date.now()}`,
+          ...(docData || {}),
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }));
+        setSaveSuccessMsg(`Template dokumen "${docData?.title || 'Resmi'}" berhasil dimuat dari Pusat Operasional Pemerintah!`);
+        setTimeout(() => setSaveSuccessMsg(null), 3500);
+      }
+    };
+
     window.addEventListener('hspd-documents-updated', handleDocsSync);
-    return () => window.removeEventListener('hspd-documents-updated', handleDocsSync);
+    window.addEventListener('load-official-document-draft', handleLoadDraft);
+    return () => {
+      window.removeEventListener('hspd-documents-updated', handleDocsSync);
+      window.removeEventListener('load-official-document-draft', handleLoadDraft);
+    };
   }, []);
 
   // Active Working Document State
@@ -129,6 +158,10 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
   // Signature Modal Target State
   const [activeSigPadTarget, setActiveSigPadTarget] = useState<SignatureTarget>(null);
+
+  // Government Central Auth Modal State
+  const [isGovCentralAuthModalOpen, setIsGovCentralAuthModalOpen] = useState(false);
+  const [forceGovMode, setForceGovMode] = useState(false);
 
   // File Upload Refs
   const customStampInputRef = useRef<HTMLInputElement>(null);
@@ -475,7 +508,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
       {/* Top Header & Quick Action Bar */}
       <div className="bg-[#11141A] border border-gray-800 rounded-xl p-4 shadow-lg">
-        {currentOfficer?.accountType === 'GOVERNMENT' && (
+        {(currentOfficer?.accountType === 'GOVERNMENT' || (currentOfficer && isGovernmentOfficer(currentOfficer)) || forceGovMode || activeDoc.category === 'IZIN_USAHA' || activeDoc.category === 'MAKLUMAT_DARURAT' || activeDoc.category === 'GRASI_PRESIDEN' || activeDoc.category === 'ANGGARAN_DINAS' || activeDoc.primarySeal === 'GOVERNMENT_SEAL' || activeDoc.primarySeal === 'PRESIDENTIAL_SEAL' || activeDoc.secondarySeal === 'GOVERNMENT_SEAL' || activeDoc.secondarySeal === 'PRESIDENTIAL_SEAL') && (
           <div className="mb-3 p-3 bg-gradient-to-r from-amber-950/80 via-yellow-950/60 to-black/80 border border-amber-500/70 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-mono">
             <div className="flex items-center gap-2.5">
               <span className="text-xl">🏛️</span>
@@ -485,31 +518,45 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                   <span className="px-1.5 py-0.2 rounded bg-amber-500 text-black font-black text-[9px]">EKSEKUTIF</span>
                 </div>
                 <p className="text-[11px] text-gray-300 mt-0.5">
-                  Pejabat Aktif: <strong className="text-white">{currentOfficer.name}</strong> • Pangkat: <strong className="text-amber-400">{currentOfficer.rank}</strong> ({currentOfficer.division || 'Kantor Pemerintahan'})
+                  Pejabat Aktif: <strong className="text-white">{currentOfficer?.name || 'Pejabat Negara'}</strong> • Pangkat: <strong className="text-amber-400">{currentOfficer?.rank || 'DEWAN EKSEKUTIF'}</strong> ({currentOfficer?.division || 'Kantor Pemerintahan'})
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
+              {/* TOMBOL OTORISASI PUSAT: BERISIKAN WEBHOOK DLL FITUR PEMERINTAH */}
+              <button
+                type="button"
+                onClick={() => setIsGovCentralAuthModalOpen(true)}
+                className="px-3 py-1.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-black font-black rounded-lg text-xs transition flex items-center gap-1.5 shadow-md shadow-amber-950/60 border border-amber-300 active:scale-95"
+                title="Buka Panel Otorisasi Pusat: Pengesahan Dokumen, Webhook Discord Kenegaraan & Fitur Pemerintah"
+              >
+                <Crown className="w-3.5 h-3.5 text-black" />
+                <span>👑 Otorisasi Pusat:</span>
+              </button>
               <button
                 type="button"
                 onClick={() => {
-                  const isPresident = currentOfficer.rank.toUpperCase().includes('PRESIDENT');
+                  const isPresident = (currentOfficer?.rank || '').toUpperCase().includes('PRESIDENT');
+                  const officerName = currentOfficer?.name || 'Momo Hatakeyama';
+                  const officerBadge = currentOfficer?.badge || '001';
+                  const officerRank = currentOfficer?.rank || 'PRESIDENT [RANK 6]';
+                  const officerDiv = currentOfficer?.division || 'Pemerintah Negara';
                   setActiveDoc(prev => ({
                     ...prev,
                     showIssuerSignature: true,
-                    issuerName: currentOfficer.name,
-                    issuerBadge: currentOfficer.badge,
-                    issuerRank: currentOfficer.rank,
-                    issuerRole: currentOfficer.division || 'Pemerintah Negara',
-                    issuerSignatureName: currentOfficer.name,
+                    issuerName: officerName,
+                    issuerBadge: officerBadge,
+                    issuerRank: officerRank,
+                    issuerRole: officerDiv,
+                    issuerSignatureName: officerName,
                     issuerSignatureTitle: isPresident ? 'Presiden / Pengesah Negara,' : 'Pemberi Perintah / Komandan Operasi,',
-                    issuerSignatureSubtitle: `${currentOfficer.rank} (${currentOfficer.badge})`,
+                    issuerSignatureSubtitle: `${officerRank} (${officerBadge})`,
                     issuerSignatureType: 'font',
                     issuerSignatureStyle: 'formal',
                     issuerSignatureImage: undefined,
                     secondarySeal: isPresident ? 'PRESIDENTIAL_SEAL' : 'GOVERNMENT_SEAL'
                   }));
-                  setSaveSuccessMsg(`✅ Dokumen berhasil ditandatangani oleh ${currentOfficer.name} (${currentOfficer.rank}) sebagai Pejabat Penerbit / Pengesah Negara.`);
+                  setSaveSuccessMsg(`✅ Dokumen berhasil ditandatangani oleh ${officerName} (${officerRank}) sebagai Pejabat Penerbit / Pengesah Negara.`);
                   setTimeout(() => setSaveSuccessMsg(null), 4000);
                 }}
                 className="px-2.5 py-1.5 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold rounded-lg text-xs transition flex items-center gap-1 shadow-md shadow-blue-950/40"
@@ -520,22 +567,26 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  const isPresident = currentOfficer.rank.toUpperCase().includes('PRESIDENT');
+                  const isPresident = (currentOfficer?.rank || '').toUpperCase().includes('PRESIDENT');
+                  const officerName = currentOfficer?.name || 'Momo Hatakeyama';
+                  const officerBadge = currentOfficer?.badge || '001';
+                  const officerRank = currentOfficer?.rank || 'PRESIDENT [RANK 6]';
+                  const officerDiv = currentOfficer?.division || 'Pemerintah Negara';
                   setActiveDoc(prev => ({
                     ...prev,
                     showRecipientSignature: true,
-                    recipientName: currentOfficer.name,
-                    recipientId: currentOfficer.badge,
-                    recipientRoleOrStatus: `${currentOfficer.rank} - ${currentOfficer.division || 'Pemerintah Negara'}`,
-                    recipientSignatureName: currentOfficer.name,
+                    recipientName: officerName,
+                    recipientId: officerBadge,
+                    recipientRoleOrStatus: `${officerRank} - ${officerDiv}`,
+                    recipientSignatureName: officerName,
                     recipientSignatureTitle: isPresident ? 'Presiden / Pengesah Negara,' : 'Pejabat Penerima Negara,',
-                    recipientSignatureSubtitle: `${currentOfficer.rank} (${currentOfficer.badge})`,
+                    recipientSignatureSubtitle: `${officerRank} (${officerBadge})`,
                     recipientSignatureType: 'font',
                     recipientSignatureStyle: 'handwriting1',
                     recipientSignatureImage: undefined,
                     secondarySeal: isPresident ? 'PRESIDENTIAL_SEAL' : 'GOVERNMENT_SEAL'
                   }));
-                  setSaveSuccessMsg(`✅ Dokumen berhasil ditandatangani oleh ${currentOfficer.name} (${currentOfficer.rank}) sebagai Penerima / Pengesah Negara.`);
+                  setSaveSuccessMsg(`✅ Dokumen berhasil ditandatangani oleh ${officerName} (${officerRank}) sebagai Penerima / Pengesah Negara.`);
                   setTimeout(() => setSaveSuccessMsg(null), 4000);
                 }}
                 className="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-bold rounded-lg text-xs transition flex items-center gap-1 shadow-md shadow-emerald-950/40"
@@ -620,6 +671,33 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
           {/* Top Main Action Buttons */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* Otorisasi Pusat / Fitur Pemerintah Button */}
+            <button
+              id="btn-doc-gov-central-auth"
+              type="button"
+              onClick={() => setIsGovCentralAuthModalOpen(true)}
+              className="px-3 py-1.5 bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 hover:from-amber-500 hover:to-yellow-400 text-black font-black rounded-lg text-xs font-mono transition flex items-center gap-1.5 shadow-md shadow-amber-950/50 border border-amber-300 active:scale-95"
+              title="Buka Panel Otorisasi Pusat & Webhook Discord Kenegaraan"
+            >
+              <Crown className="w-3.5 h-3.5 text-black" />
+              <span>👑 Otorisasi Pusat:</span>
+            </button>
+
+            {/* Toggle Portal Pemerintah */}
+            <button
+              type="button"
+              onClick={() => setForceGovMode(prev => !prev)}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1 border active:scale-95 ${
+                forceGovMode
+                  ? 'bg-amber-950/80 text-amber-300 border-amber-500'
+                  : 'bg-[#161B22] text-gray-300 border-gray-700 hover:text-white'
+              }`}
+              title="Aktifkan/Sembunyikan Bilah Surat Menyurat Kenegaraan"
+            >
+              <Building className="w-3.5 h-3.5 text-amber-400" />
+              <span>🏛️ {forceGovMode ? 'Portal Pemerintah: ON' : 'Mode Pemerintah'}</span>
+            </button>
+
             {/* Archive Button */}
             <button
               id="btn-doc-archive-open"
@@ -1598,6 +1676,24 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                           <div>
                             <div className="flex items-center justify-between mb-0.5">
                               <label className="block text-gray-400 text-[9px] font-mono">LABEL JABATAN / POSISI:</label>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, issuerSignatureTitle: '' }))}
+                                  className="text-[8px] text-amber-400 hover:underline"
+                                  title="Kosongkan label jabatan"
+                                >
+                                  [Kosongkan]
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, issuerSignatureTitle: 'Pejabat Penerbit,' }))}
+                                  className="text-[8px] text-blue-400 hover:underline"
+                                  title="Reset ke default"
+                                >
+                                  [Reset]
+                                </button>
+                              </div>
                             </div>
                             <input
                               type="text"
@@ -1936,7 +2032,27 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                         {/* Detailed Fields: Label, Custom Name, Subtitle, Style */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
                           <div>
-                            <label className="block text-gray-400 text-[9px] mb-0.5 font-mono">LABEL JABATAN / POSISI:</label>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <label className="block text-gray-400 text-[9px] font-mono">LABEL JABATAN / POSISI:</label>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, recipientSignatureTitle: '' }))}
+                                  className="text-[8px] text-amber-400 hover:underline"
+                                  title="Kosongkan label jabatan penerima"
+                                >
+                                  [Kosongkan]
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, recipientSignatureTitle: 'Pihak Penerima,' }))}
+                                  className="text-[8px] text-emerald-400 hover:underline"
+                                  title="Reset ke default"
+                                >
+                                  [Reset]
+                                </button>
+                              </div>
+                            </div>
                             <input
                               type="text"
                               value={activeDoc.recipientSignatureTitle ?? 'Pihak Penerima,'}
@@ -2055,72 +2171,306 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                   </div>
 
                   {/* 3. High Command Acknowledgment Signature */}
-                  <div className="bg-[#161B22] border border-gray-800 rounded-lg p-2.5 space-y-2">
+                  <div className={`bg-[#161B22] border rounded-lg p-2.5 space-y-2.5 transition ${activeDoc.showAcknowledgedBySignature === false || (!activeDoc.acknowledgedByName && !activeDoc.acknowledgedByRank) ? 'border-gray-800/60 opacity-80' : 'border-gray-800'}`}>
                     <div className="flex items-center justify-between text-[11px] font-bold text-gray-200">
                       <span className="flex items-center gap-1.5 text-amber-300">
                         <Lock className="w-3.5 h-3.5" />
-                        3. Pengesahan Pimpinan / Chief of Police
+                        3. Pengesahan Pimpinan / Otorisasi Pusat
                       </span>
-                      {activeDoc.acknowledgedSignatureImage && (
+                      <div className="flex items-center gap-2">
+                        {/* Otorisasi Pusat Modal Trigger */}
                         <button
-                          onClick={() => setActiveDoc(prev => ({ ...prev, acknowledgedSignatureImage: undefined, acknowledgedSignatureType: 'font' }))}
-                          className="text-rose-400 hover:text-rose-300 text-[10px] underline"
+                          type="button"
+                          onClick={() => setIsGovCentralAuthModalOpen(true)}
+                          className="text-[9px] text-amber-300 hover:text-amber-100 font-mono font-bold px-2 py-0.5 rounded bg-gradient-to-r from-amber-950 to-yellow-950 border border-amber-500/70 transition flex items-center gap-1 shadow-sm active:scale-95"
+                          title="Buka Panel Otorisasi Pusat & Webhook Discord Kenegaraan"
                         >
-                          Reset ke Font
+                          <Crown className="w-3 h-3 text-amber-400" />
+                          <span>👑 Otorisasi Pusat: & Webhook</span>
                         </button>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-gray-400 text-[9px] mb-0.5">NAMA CHIEF / PIMPINAN:</label>
-                        <input
-                          type="text"
-                          value={activeDoc.acknowledgedByName || ''}
-                          onChange={(e) => setActiveDoc(prev => ({ ...prev, acknowledgedByName: e.target.value }))}
-                          className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs"
-                          placeholder="Leoarnd Neave"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-gray-400 text-[9px] mb-0.5">METODE TTD:</label>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => setActiveSigPadTarget('acknowledged')}
-                            className="flex-1 px-1.5 py-1 bg-amber-700 hover:bg-amber-600 text-white rounded text-[10px] font-bold flex items-center justify-center gap-1"
-                          >
-                            <PenTool className="w-3 h-3" />
-                            <span>Gambar</span>
-                          </button>
-                          
+                        {/* Quick Empty / Kosongkan Button */}
+                        <button
+                          type="button"
+                          onClick={() => setActiveDoc(prev => ({
+                            ...prev,
+                            acknowledgedByName: '',
+                            acknowledgedByTitle: '',
+                            acknowledgedByRank: '',
+                            acknowledgedByRole: '',
+                            acknowledgedCustomStatus: '',
+                            acknowledgedSignatureImage: undefined,
+                            acknowledgedSignatureType: 'blank',
+                            acknowledgedSignatureStyle: 'blank'
+                          }))}
+                          className="text-[9px] text-amber-400 hover:text-amber-300 font-mono px-1.5 py-0.5 rounded bg-amber-950/40 border border-amber-800/60 transition"
+                          title="Kosongkan semua data strip pengesahan pimpinan"
+                        >
+                          Kosongkan
+                        </button>
+                        {/* Toggle Switch Tampilkan / Sembunyikan Pengesahan */}
+                        <label className="flex items-center gap-1.5 cursor-pointer text-[10px] font-mono px-2 py-0.5 rounded bg-black/40 border border-gray-700 hover:border-amber-500/50 transition">
                           <input
-                            type="file"
-                            ref={acknowledgedSigUploadRef}
-                            accept="image/*"
-                            onChange={(e) => handleUploadImageFile(e, (url) => setActiveDoc(prev => ({ ...prev, acknowledgedSignatureImage: url, acknowledgedSignatureType: 'upload' })))}
-                            className="hidden"
+                            type="checkbox"
+                            checked={activeDoc.showAcknowledgedBySignature !== false && (!!activeDoc.acknowledgedByName || !!activeDoc.acknowledgedByRank)}
+                            onChange={(e) => setActiveDoc(prev => ({ 
+                              ...prev, 
+                              showAcknowledgedBySignature: e.target.checked,
+                              ...(e.target.checked && !prev.acknowledgedByName ? {
+                                acknowledgedByName: 'Leoarnd Neave',
+                                acknowledgedByTitle: 'Otorisasi Pusat:',
+                                acknowledgedByRank: 'CHIEF OF POLICE [COP]',
+                                acknowledgedByRole: 'Kepala Kepolisian HighState',
+                                acknowledgedCustomStatus: 'DISAHKAN & DIAKREDITASI OLEH MARKAS BESAR'
+                              } : {})
+                            }))}
+                            className="rounded border-gray-700 text-amber-500 focus:ring-0 w-3 h-3 accent-amber-500 cursor-pointer"
                           />
-                          <button
-                            onClick={() => acknowledgedSigUploadRef.current?.click()}
-                            className="flex-1 px-1.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-200 rounded text-[10px] font-bold flex items-center justify-center gap-1 border border-gray-600"
-                          >
-                            <Upload className="w-3 h-3" />
-                            <span>Upload</span>
-                          </button>
-                        </div>
+                          <span className={activeDoc.showAcknowledgedBySignature !== false && (!!activeDoc.acknowledgedByName || !!activeDoc.acknowledgedByRank) ? 'text-amber-400 font-bold' : 'text-gray-400'}>
+                            {activeDoc.showAcknowledgedBySignature !== false && (!!activeDoc.acknowledgedByName || !!activeDoc.acknowledgedByRank) ? 'TAMPILKAN' : 'DISEMBUNYIKAN / KOSONG'}
+                          </span>
+                        </label>
                       </div>
                     </div>
 
-                    {activeDoc.acknowledgedSignatureImage && (
-                      <div className="h-10 bg-white/10 rounded flex items-center justify-center p-1 border border-gray-700">
-                        <img
-                          src={activeDoc.acknowledgedSignatureImage}
-                          alt="Acknowledged Signature Preview"
-                          className="max-h-full max-w-full object-contain"
-                          style={{ mixBlendMode: 'multiply' }}
-                        />
+                    {activeDoc.showAcknowledgedBySignature === false || (!activeDoc.acknowledgedByName && !activeDoc.acknowledgedByRank) ? (
+                      <div className="p-2 bg-black/30 border border-dashed border-gray-800 rounded text-[10px] text-gray-400 font-sans flex items-center justify-between">
+                        <span>Strip pengesahan pimpinan / otorisasi pusat saat ini <strong>kosong / tidak ditampilkan</strong> di lembar dokumen.</span>
+                        <button
+                          type="button"
+                          onClick={() => setActiveDoc(prev => ({
+                            ...prev,
+                            showAcknowledgedBySignature: true,
+                            acknowledgedByName: 'Leoarnd Neave',
+                            acknowledgedByTitle: 'Otorisasi Pusat:',
+                            acknowledgedByRank: 'CHIEF OF POLICE [COP]',
+                            acknowledgedByRole: 'Kepala Kepolisian HighState',
+                            acknowledgedCustomStatus: 'DISAHKAN & DIAKREDITASI OLEH MARKAS BESAR'
+                          }))}
+                          className="px-2 py-0.5 bg-amber-950 text-amber-300 border border-amber-700/60 rounded text-[10px] font-bold hover:bg-amber-900"
+                        >
+                          Tampilkan Pengesahan
+                        </button>
                       </div>
+                    ) : (
+                      <>
+                        {/* Format Mode Selector */}
+                        <div>
+                          <label className="block text-gray-400 text-[9px] mb-1 font-mono">FORMAT TANDA TANGAN PIMPINAN:</label>
+                          <div className="grid grid-cols-4 gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setActiveDoc(prev => ({
+                                ...prev,
+                                acknowledgedSignatureType: 'font',
+                                acknowledgedSignatureImage: undefined,
+                                acknowledgedSignatureStyle: prev.acknowledgedSignatureStyle === 'blank' ? 'formal' : (prev.acknowledgedSignatureStyle || 'formal')
+                              }))}
+                              className={`px-1.5 py-1 rounded text-[10px] font-bold flex items-center justify-center gap-1 border transition ${
+                                activeDoc.acknowledgedSignatureType === 'font' && activeDoc.acknowledgedSignatureStyle !== 'blank' && !activeDoc.acknowledgedSignatureImage
+                                  ? 'bg-amber-700 border-amber-500 text-white shadow-sm'
+                                  : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                              }`}
+                            >
+                              <span>✍️ Teks Font</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setActiveDoc(prev => ({
+                                ...prev,
+                                acknowledgedSignatureType: 'blank',
+                                acknowledgedSignatureStyle: 'blank',
+                                acknowledgedSignatureImage: undefined
+                              }))}
+                              className={`px-1.5 py-1 rounded text-[10px] font-bold flex items-center justify-center gap-1 border transition ${
+                                activeDoc.acknowledgedSignatureType === 'blank' || activeDoc.acknowledgedSignatureStyle === 'blank'
+                                  ? 'bg-amber-800 border-amber-500 text-white shadow-sm'
+                                  : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                              }`}
+                            >
+                              <span>📄 Kosongan</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setActiveSigPadTarget('acknowledged')}
+                              className={`px-1.5 py-1 rounded text-[10px] font-bold flex items-center justify-center gap-1 border transition ${
+                                activeDoc.acknowledgedSignatureType === 'draw' && activeDoc.acknowledgedSignatureImage
+                                  ? 'bg-blue-700 border-blue-500 text-white shadow-sm'
+                                  : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                              }`}
+                            >
+                              <PenTool className="w-3 h-3" />
+                              <span>Gambar</span>
+                            </button>
+
+                            <input
+                              type="file"
+                              ref={acknowledgedSigUploadRef}
+                              accept="image/*"
+                              onChange={(e) => handleUploadImageFile(e, (url) => setActiveDoc(prev => ({ ...prev, acknowledgedSignatureImage: url, acknowledgedSignatureType: 'upload' })))}
+                              className="hidden"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => acknowledgedSigUploadRef.current?.click()}
+                              className={`px-1.5 py-1 rounded text-[10px] font-bold flex items-center justify-center gap-1 border transition ${
+                                activeDoc.acknowledgedSignatureType === 'upload' && activeDoc.acknowledgedSignatureImage
+                                  ? 'bg-purple-700 border-purple-500 text-white shadow-sm'
+                                  : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700'
+                              }`}
+                            >
+                              <Upload className="w-3 h-3" />
+                              <span>Upload</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {activeDoc.acknowledgedSignatureImage && (
+                          <div className="h-10 bg-white/10 rounded flex items-center justify-center p-1 border border-gray-700 relative group">
+                            <img
+                              src={activeDoc.acknowledgedSignatureImage}
+                              alt="Acknowledged Signature Preview"
+                              className="max-h-full max-w-full object-contain"
+                              style={{ mixBlendMode: 'multiply' }}
+                            />
+                            <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                              <button
+                                type="button"
+                                onClick={() => setActiveDoc(prev => ({ ...prev, acknowledgedSignatureImage: undefined, acknowledgedSignatureType: 'font' }))}
+                                className="px-1.5 py-0.5 bg-rose-900/90 hover:bg-rose-800 text-rose-200 rounded text-[9px] border border-rose-600"
+                              >
+                                Hapus Gambar
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                          <div>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <label className="block text-gray-400 text-[9px] font-mono">LABEL / AWALAN:</label>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, acknowledgedByTitle: '' }))}
+                                  className="text-[8px] text-amber-400 hover:underline"
+                                >
+                                  [Kosongkan]
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, acknowledgedByTitle: 'Otorisasi Pusat:' }))}
+                                  className="text-[8px] text-blue-400 hover:underline"
+                                >
+                                  [Reset]
+                                </button>
+                              </div>
+                            </div>
+                            <input
+                              type="text"
+                              value={activeDoc.acknowledgedByTitle ?? 'Otorisasi Pusat:'}
+                              onChange={(e) => setActiveDoc(prev => ({ ...prev, acknowledgedByTitle: e.target.value }))}
+                              className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs focus:border-amber-500 focus:outline-none"
+                              placeholder="Otorisasi Pusat: / Mengetahui,"
+                            />
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <label className="block text-gray-400 text-[9px] font-mono">NAMA PIMPINAN:</label>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, acknowledgedByName: '' }))}
+                                  className="text-[8px] text-amber-400 hover:underline"
+                                >
+                                  [Kosongkan]
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, acknowledgedByName: 'Leoarnd Neave' }))}
+                                  className="text-[8px] text-blue-400 hover:underline"
+                                >
+                                  [Reset]
+                                </button>
+                              </div>
+                            </div>
+                            <input
+                              type="text"
+                              value={activeDoc.acknowledgedByName || ''}
+                              onChange={(e) => setActiveDoc(prev => ({ ...prev, acknowledgedByName: e.target.value }))}
+                              className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs focus:border-amber-500 focus:outline-none"
+                              placeholder="Leoarnd Neave (atau kosongkan)"
+                            />
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <label className="block text-gray-400 text-[9px] font-mono">PANGKAT & JABATAN:</label>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, acknowledgedByRank: '', acknowledgedByRole: '' }))}
+                                  className="text-[8px] text-amber-400 hover:underline"
+                                >
+                                  [Kosongkan]
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, acknowledgedByRank: 'CHIEF OF POLICE [COP]' }))}
+                                  className="text-[8px] text-blue-400 hover:underline"
+                                >
+                                  [COP]
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, acknowledgedByRank: 'PRESIDEN NEGARA' }))}
+                                  className="text-[8px] text-blue-400 hover:underline"
+                                >
+                                  [Gov]
+                                </button>
+                              </div>
+                            </div>
+                            <input
+                              type="text"
+                              value={activeDoc.acknowledgedByRank || ''}
+                              onChange={(e) => setActiveDoc(prev => ({ ...prev, acknowledgedByRank: e.target.value }))}
+                              className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs focus:border-amber-500 focus:outline-none"
+                              placeholder="CHIEF OF POLICE / PRESIDEN"
+                            />
+                          </div>
+
+                          <div>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <label className="block text-gray-400 text-[9px] font-mono">TEKS STATUS PENGESAHAN:</label>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, acknowledgedCustomStatus: '' }))}
+                                  className="text-[8px] text-amber-400 hover:underline"
+                                >
+                                  [Kosongkan]
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveDoc(prev => ({ ...prev, acknowledgedCustomStatus: 'DISAHKAN & DIAKREDITASI OLEH MARKAS BESAR' }))}
+                                  className="text-[8px] text-blue-400 hover:underline"
+                                >
+                                  [Reset]
+                                </button>
+                              </div>
+                            </div>
+                            <input
+                              type="text"
+                              value={activeDoc.acknowledgedCustomStatus ?? 'DISAHKAN & DIAKREDITASI OLEH MARKAS BESAR'}
+                              onChange={(e) => setActiveDoc(prev => ({ ...prev, acknowledgedCustomStatus: e.target.value }))}
+                              className="w-full bg-[#0D1117] border border-gray-700 rounded px-2 py-1 text-gray-100 text-xs focus:border-amber-500 focus:outline-none"
+                              placeholder="DISAHKAN & DIAKREDITASI OLEH MARKAS BESAR"
+                            />
+                          </div>
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
@@ -2854,24 +3204,44 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                 })()}
 
                 {/* High Command Final Acknowledgment Strip & Signature */}
-                {activeDoc.acknowledgedByName && (
+                {activeDoc.showAcknowledgedBySignature !== false && (!!activeDoc.acknowledgedByName || !!activeDoc.acknowledgedByRank) && (
                   <div className="mt-6 pt-3 border-t border-dashed border-gray-400 flex items-center justify-between text-[10px] font-mono text-gray-700">
                     <div className="flex items-center gap-2">
-                      <span>Otorisasi Pusat: </span>
-                      <strong className="text-black">{activeDoc.acknowledgedByName}</strong> ({activeDoc.acknowledgedByRank || 'CHIEF OF POLICE'})
-                      {activeDoc.acknowledgedSignatureImage && (
+                      {activeDoc.acknowledgedByTitle !== '' && (
+                        <span>{activeDoc.acknowledgedByTitle ?? 'Otorisasi Pusat:'} </span>
+                      )}
+                      {activeDoc.acknowledgedByName && (
+                        <strong className="text-black">{activeDoc.acknowledgedByName}</strong>
+                      )}
+                      {activeDoc.acknowledgedByRank && (
+                        <span>({activeDoc.acknowledgedByRank}{activeDoc.acknowledgedByRole ? ` - ${activeDoc.acknowledgedByRole}` : ''})</span>
+                      )}
+                      {activeDoc.acknowledgedSignatureImage ? (
                         <img
                           src={activeDoc.acknowledgedSignatureImage}
                           alt="High Command Signature"
                           className="h-7 object-contain inline-block ml-1"
                           style={{ mixBlendMode: 'multiply' }}
                         />
-                      )}
+                      ) : (activeDoc.acknowledgedSignatureType === 'blank' || activeDoc.acknowledgedSignatureStyle === 'blank') ? (
+                        <span className="inline-block w-20 border-b border-gray-500 mx-1"></span>
+                      ) : activeDoc.acknowledgedByName ? (
+                        <span 
+                          className="font-serif italic font-bold text-blue-950 ml-1 text-xs select-none"
+                          style={{ fontFamily: 'Georgia, serif' }}
+                        >
+                          {activeDoc.acknowledgedByName}
+                        </span>
+                      ) : null}
                     </div>
-                    <div>
-                      <span>STATUS: </span>
-                      <strong className="text-emerald-800">DISAHKAN & DIAKREDITASI OLEH MARKAS BESAR</strong>
-                    </div>
+                    {activeDoc.acknowledgedCustomStatus !== '' && (
+                      <div>
+                        <span>STATUS: </span>
+                        <strong className="text-emerald-800">
+                          {activeDoc.acknowledgedCustomStatus ?? 'DISAHKAN & DIAKREDITASI OLEH MARKAS BESAR'}
+                        </strong>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -3043,6 +3413,19 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL OTORISASI PUSAT & FITUR PEMERINTAH (WEBHOOK, PENGESAHAN, STATUS) */}
+      <GovernmentCentralAuthModal
+        isOpen={isGovCentralAuthModalOpen}
+        onClose={() => setIsGovCentralAuthModalOpen(false)}
+        currentOfficer={currentOfficer}
+        activeDoc={activeDoc}
+        onUpdateDoc={setActiveDoc}
+        onNavigateToExecutiveHub={() => {
+          setIsGovCentralAuthModalOpen(false);
+          window.dispatchEvent(new CustomEvent('switch-to-government-hub'));
+        }}
+      />
     </div>
   );
 };

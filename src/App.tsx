@@ -17,6 +17,7 @@ import { VaultAuditBoard } from './components/VaultAuditBoard';
 import { DestructionRegistryBoard } from './components/DestructionRegistryBoard';
 import { OfficialDocumentStudio } from './components/OfficialDocumentStudio';
 import { GovernmentRosterManagement } from './components/GovernmentRosterManagement';
+import { GovernmentExecutiveHub } from './components/GovernmentExecutiveHub';
 import { DivisionBadgeHero } from './components/DivisionBadgeHero';
 import { ModuleClearanceGuard } from './components/ModuleClearanceGuard';
 import { OtpGeneratorModal } from './components/OtpGeneratorModal';
@@ -236,14 +237,24 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const [activeNav, setActiveNav] = useState<'calc' | 'dmv' | 'divisions' | 'forensics' | 'documents' | 'detective' | 'traffic' | 'vault' | 'destruction' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster' | 'settings' | 'gov_roster'>('calc');
+  const [activeNav, setActiveNav] = useState<'calc' | 'dmv' | 'divisions' | 'forensics' | 'documents' | 'detective' | 'traffic' | 'vault' | 'destruction' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster' | 'settings' | 'gov_roster' | 'gov_suite'>('calc');
   const [govRosterCount, setGovRosterCount] = useState<number>(() => getGovernmentRoster().length);
 
   // Subscribe to government roster updates
   useEffect(() => {
-    return subscribeToGovernmentRoster(updated => {
+    const handleSwitchGovHub = () => {
+      setActiveNav('gov_suite');
+    };
+    window.addEventListener('switch-to-government-hub', handleSwitchGovHub);
+
+    const unsub = subscribeToGovernmentRoster(updated => {
       setGovRosterCount(updated.length);
     });
+
+    return () => {
+      window.removeEventListener('switch-to-government-hub', handleSwitchGovHub);
+      unsub();
+    };
   }, []);
 
   const [records, setRecords] = useState<ArrestRecord[]>(() => {
@@ -756,16 +767,17 @@ export default function App() {
     });
   };
 
-  // Guard: if current logged-in officer is Government, restrict strictly to 'documents' and 'gov_roster'
+  // Guard: if current logged-in officer is Government, restrict to government suite, documents, dmv, history, and gov_roster
   useEffect(() => {
     if (currentOfficer) {
       const isGov = currentOfficer.accountType === 'GOVERNMENT' || isGovernmentRank(currentOfficer.rank);
       if (isGov) {
-        if (activeNav !== 'documents' && activeNav !== 'gov_roster') {
-          setActiveNav('documents');
+        const allowedGovTabs = ['gov_suite', 'documents', 'dmv', 'history', 'gov_roster'];
+        if (!allowedGovTabs.includes(activeNav)) {
+          setActiveNav('gov_suite');
         }
       } else {
-        if (activeNav === 'gov_roster') {
+        if (activeNav === 'gov_roster' || activeNav === 'gov_suite') {
           setActiveNav('calc');
         } else if (!isOfficerHighRank(currentOfficer.rank)) {
           if (activeNav === 'settings' || activeNav === 'roster') {
@@ -1030,8 +1042,11 @@ export default function App() {
           <div className="bg-[#11141A] border-b border-gray-800 px-4 py-1.5 flex items-center justify-between overflow-x-auto no-scrollbar">
             <nav className="flex items-center gap-1 text-[11px] font-medium">
               {(isGovernment ? [
+                { id: 'gov_suite', label: '🏛️ Layanan & Operasional Negara', icon: Crown, code: 'EXEC', moduleKey: undefined },
                 { id: 'documents', label: '📄 Surat & Dokumen Kenegaraan', icon: StampIcon, code: 'DOC', moduleKey: undefined },
-                { id: 'gov_roster', label: `🏛️ Roster Pemerintah (${govRosterCount})`, icon: Building2, code: 'GOV', moduleKey: undefined },
+                { id: 'dmv', label: '👤 Sipil & DMV Kependudukan', icon: UserCheck, code: 'DMV', moduleKey: undefined },
+                { id: 'history', label: `📁 Catatan Kasus & Kriminal (${records.length})`, icon: FileText, code: 'LOG', moduleKey: undefined },
+                { id: 'gov_roster', label: `👥 Roster Pejabat (${govRosterCount})`, icon: Building2, code: 'GOV', moduleKey: undefined },
               ] : [
                 { id: 'calc', label: 'Kalkulator Pasal', icon: Calculator, code: 'CALC', moduleKey: undefined },
                 { id: 'dmv', label: '👤 Sipil & DMV', icon: UserCheck, code: 'DMV', moduleKey: 'DMV_CITIZEN' as ModuleAccessKey },
@@ -1151,15 +1166,21 @@ export default function App() {
           />
         )}
         {activeNav === 'dmv' && (
-          <ModuleClearanceGuard
-            moduleKey="DMV_CITIZEN"
-            currentOfficer={currentOfficer}
-            roster={roster}
-          >
+          isGovernment ? (
             <CitizenDmvDatabase
               currentOfficer={currentOfficer}
             />
-          </ModuleClearanceGuard>
+          ) : (
+            <ModuleClearanceGuard
+              moduleKey="DMV_CITIZEN"
+              currentOfficer={currentOfficer}
+              roster={roster}
+            >
+              <CitizenDmvDatabase
+                currentOfficer={currentOfficer}
+              />
+            </ModuleClearanceGuard>
+          )
         )}
         {activeNav === 'divisions' && (
           <ModuleClearanceGuard
@@ -1202,6 +1223,24 @@ export default function App() {
               />
             </ModuleClearanceGuard>
           )
+        )}
+        {activeNav === 'gov_suite' && (
+          <GovernmentExecutiveHub
+            currentOfficer={currentOfficer}
+            onNavigateToDocuments={(presetId, initialData) => {
+              setActiveNav('documents');
+              if (presetId || initialData) {
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('load-official-document-draft', {
+                    detail: { presetId, docData: initialData }
+                  }));
+                }, 100);
+              }
+            }}
+            onNavigateToDmv={() => setActiveNav('dmv')}
+            onNavigateToRoster={() => setActiveNav('gov_roster')}
+            onNavigateToHistory={() => setActiveNav('history')}
+          />
         )}
         {activeNav === 'gov_roster' && (
           <GovernmentRosterManagement
@@ -1265,11 +1304,7 @@ export default function App() {
         {activeNav === 'rp' && <RoleplayActions />}
         {activeNav === 'sop' && <SopLibrary />}
         {activeNav === 'history' && (
-          <ModuleClearanceGuard
-            moduleKey="CASE_HISTORY"
-            currentOfficer={currentOfficer}
-            roster={roster}
-          >
+          isGovernment ? (
             <ArrestHistory
               records={records}
               onDeleteRecord={handleDeleteRecord}
@@ -1278,7 +1313,22 @@ export default function App() {
               currentOfficer={currentOfficer}
               onSwitchOfficer={handleLogout}
             />
-          </ModuleClearanceGuard>
+          ) : (
+            <ModuleClearanceGuard
+              moduleKey="CASE_HISTORY"
+              currentOfficer={currentOfficer}
+              roster={roster}
+            >
+              <ArrestHistory
+                records={records}
+                onDeleteRecord={handleDeleteRecord}
+                onClearAll={handleClearAllRecords}
+                onImportRecords={handleImportRecords}
+                currentOfficer={currentOfficer}
+                onSwitchOfficer={handleLogout}
+              />
+            </ModuleClearanceGuard>
+          )
         )}
         {activeNav === 'roster' && isHighRank && (
           <RosterManagement

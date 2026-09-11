@@ -1,7 +1,7 @@
 import { 
   ArrestRecord, DutyLog, OfficerAccount, OfficerWarning, DischargeRecord, PromotionRecord,
   DetectiveCase, BoloAlert, ImpoundRecord, OfficerProfile, VaultAuditLog, DestructionRegistryItem,
-  OfficialDocument
+  OfficialDocument, TrafficCitationRecord
 } from '../types';
 import { dataURLtoBlob } from './imageCompressor';
 import { pushToFirestore, syncAllWebhooksToFirestore } from '../services/firebaseRealtimeSync';
@@ -11,6 +11,12 @@ export const WEBHOOK_STORAGE_KEY = 'hspd_discord_webhook_url';
 export const BOT_NAME_KEY = 'hspd_discord_bot_name';
 export const BOT_AVATAR_KEY = 'hspd_discord_bot_avatar';
 export const AUTO_WEBHOOK_KEY = 'hspd_auto_send_webhook_on_save';
+
+// Dedicated Traffic Citation / Tilang Webhook Keys
+export const TRAFFIC_CITATION_WEBHOOK_STORAGE_KEY = 'hspd_traffic_citation_webhook_url';
+export const TRAFFIC_CITATION_BOT_NAME_KEY = 'hspd_traffic_citation_bot_name';
+export const TRAFFIC_CITATION_BOT_AVATAR_KEY = 'hspd_traffic_citation_bot_avatar';
+export const TRAFFIC_CITATION_AUTO_SEND_KEY = 'hspd_traffic_citation_auto_send';
 
 // Dedicated Duty Log Webhook Keys
 export const DUTY_WEBHOOK_STORAGE_KEY = 'hspd_duty_webhook_url';
@@ -752,6 +758,36 @@ export function saveBoloWebhookConfig(config: Partial<WebhookConfig>) {
     syncAllWebhooksToFirestore();
   } catch (e) {
     console.error('Failed to save BOLO webhook settings', e);
+  }
+}
+
+export function getSavedTrafficCitationWebhookConfig(): WebhookConfig {
+  try {
+    return {
+      webhookUrl: localStorage.getItem(TRAFFIC_CITATION_WEBHOOK_STORAGE_KEY) || localStorage.getItem(IMPOUND_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
+      botName: localStorage.getItem(TRAFFIC_CITATION_BOT_NAME_KEY) || 'HSPD Traffic Enforcement & Citation Unit',
+      botAvatar: localStorage.getItem(TRAFFIC_CITATION_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: localStorage.getItem(TRAFFIC_CITATION_AUTO_SEND_KEY) !== 'false'
+    };
+  } catch {
+    return {
+      webhookUrl: '',
+      botName: 'HSPD Traffic Enforcement & Citation Unit',
+      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      autoSendOnSave: true
+    };
+  }
+}
+
+export function saveTrafficCitationWebhookConfig(config: Partial<WebhookConfig>) {
+  try {
+    if (config.webhookUrl !== undefined) localStorage.setItem(TRAFFIC_CITATION_WEBHOOK_STORAGE_KEY, config.webhookUrl);
+    if (config.botName !== undefined) localStorage.setItem(TRAFFIC_CITATION_BOT_NAME_KEY, config.botName);
+    if (config.botAvatar !== undefined) localStorage.setItem(TRAFFIC_CITATION_BOT_AVATAR_KEY, config.botAvatar);
+    if (config.autoSendOnSave !== undefined) localStorage.setItem(TRAFFIC_CITATION_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
+  } catch (e) {
+    console.error('Failed to save traffic citation webhook settings', e);
   }
 }
 
@@ -3534,9 +3570,239 @@ export async function testBoloDiscordWebhook(config: WebhookConfig): Promise<{ s
 
 /**
  * =========================================================================
- * 3. TRAFFIC ENFORCEMENT & IMPOUND LOT WEBHOOK FUNCTIONS
+ * 3. TRAFFIC ENFORCEMENT, TILANG & IMPOUND LOT WEBHOOK FUNCTIONS
  * =========================================================================
  */
+
+export async function sendTrafficCitationToDiscord(
+  citation: TrafficCitationRecord,
+  actor?: OfficerProfile,
+  customConfig?: Partial<WebhookConfig>
+): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedTrafficCitationWebhookConfig(), ...customConfig };
+
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'URL Webhook Discord untuk Log Tilang belum disetting.'
+    };
+  }
+
+  const dateStr = new Date().toLocaleString('id-ID', {
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+
+  const rawTextFormat = [
+    `Nama Petugas    : ${citation.officerName}${citation.officerBadge ? ` [${citation.officerBadge}]` : ''}`,
+    `Hari/Tanggal    : ${citation.dayDate}`,
+    `Jam             : ${citation.timeString}`,
+    `Nama            : ${citation.violatorName}`,
+    `Nama tempat     : ${citation.location}`,
+    `Jenis Kendaraan : ${citation.vehicleModel}`,
+    `Plat Nomor      : ${citation.plateNumber}`,
+    `Pasal Pelanggaran     : ${citation.violations}`,
+    `Total Denda     : $${(citation.totalFine || 0).toLocaleString('id-ID')}`,
+    `Catatan         : ${citation.notes || '-'}`,
+    ``,
+    `Bukti : ${citation.hasEvidence || (citation.evidenceImage && citation.evidenceImage.length > 0) ? 'Ada' : 'Tidak Ada'}`
+  ].join('\n');
+
+  const embedColor = citation.status === 'PAID' ? 0x10B981 : 0xF59E0B; // Emerald if paid, Amber if unpaid
+  const embedTitle = `🎫 [LOG TILANG] PENINDAKAN LALU LINTAS - PLAT #${citation.plateNumber}`;
+
+  const fields: Array<{ name: string; value: string; inline?: boolean }> = [
+    {
+      name: '👮 NAMA PETUGAS',
+      value: `**${citation.officerName}** (\`${citation.officerBadge || 'PATROL'}\`)${actor ? `\nPengirim: **${actor.rank} ${actor.name}**` : ''}`,
+      inline: true,
+    },
+    {
+      name: '📅 HARI / TANGGAL & JAM',
+      value: `**${citation.dayDate}**\n🕒 \`${citation.timeString}\``,
+      inline: true,
+    },
+    {
+      name: '👤 NAMA PELANGGAR',
+      value: `**${citation.violatorName}**`,
+      inline: true,
+    },
+    {
+      name: '🚗 KENDARAAN & PLAT',
+      value: `Model: **${citation.vehicleModel}**\nPlat: **\`${citation.plateNumber}\`**`,
+      inline: true,
+    },
+    {
+      name: '📍 NAMA TEMPAT (TKP)',
+      value: `**${citation.location}**`,
+      inline: true,
+    },
+    {
+      name: '💰 TOTAL DENDA TILANG',
+      value: `**$${(citation.totalFine || 0).toLocaleString('id-ID')}** (${citation.status === 'PAID' ? '✅ LUNAS' : '⚠️ BELUM LUNAS'})`,
+      inline: true,
+    },
+    {
+      name: '⚖️ PASAL PELANGGARAN',
+      value: `>>> ${citation.violations}`,
+      inline: false,
+    },
+    {
+      name: '📝 CATATAN PETUGAS',
+      value: `>>> ${citation.notes || 'Penindakan tilang resmi pelanggaran kode lalu lintas.'}`,
+      inline: false,
+    },
+    {
+      name: '📸 BUKTI PENILANGAN',
+      value: (citation.hasEvidence || (citation.evidenceImage && citation.evidenceImage.length > 0))
+        ? '✅ **Bukti : Ada** (Foto terlampir dari galeri perangkat)'
+        : '❌ **Bukti : Tidak Ada**',
+      inline: false,
+    }
+  ];
+
+  const primaryEmbed: any = {
+    title: embedTitle,
+    description: `\`\`\`yaml\n${rawTextFormat}\n\`\`\``,
+    color: embedColor,
+    fields,
+    footer: {
+      text: `HSPD Traffic Enforcement & Citation Division • Highstate Roleplay • ${dateStr}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  try {
+    if (citation.evidenceImage && citation.evidenceImage.startsWith('data:image/')) {
+      const formData = new FormData();
+      const { blob, extension } = dataURLtoBlob(citation.evidenceImage);
+      const filename = `bukti_tilang_${citation.plateNumber.replace(/\s+/g, '_')}_${Date.now()}.${extension}`;
+      formData.append('files[0]', blob, filename);
+      primaryEmbed.image = { url: `attachment://${filename}` };
+
+      const payload = {
+        username: config.botName.trim() || 'HSPD Traffic Enforcement & Citation Unit',
+        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        embeds: [primaryEmbed],
+      };
+
+      formData.append('payload_json', JSON.stringify(payload));
+
+      const res = await fetch(config.webhookUrl.trim(), {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+
+      return {
+        success: true,
+        message: `Surat Tilang plat ${citation.plateNumber} beserta foto bukti berhasil dikirim ke Webhook Discord!`
+      };
+    } else {
+      if (citation.evidenceImage && citation.evidenceImage.startsWith('http')) {
+        primaryEmbed.image = { url: citation.evidenceImage };
+      }
+
+      const payload = {
+        username: config.botName.trim() || 'HSPD Traffic Enforcement & Citation Unit',
+        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        embeds: [primaryEmbed],
+      };
+
+      const res = await fetch(config.webhookUrl.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+
+      return {
+        success: true,
+        message: `Surat Tilang plat ${citation.plateNumber} berhasil dikirim ke Webhook Discord!`
+      };
+    }
+  } catch (err: any) {
+    console.error('Traffic Citation Webhook Error:', err);
+    return {
+      success: false,
+      message: `Gagal mengirim data Tilang ke Webhook Discord: ${err.message || 'Cek URL Webhook'}`
+    };
+  }
+}
+
+export async function testTrafficCitationDiscordWebhook(config: WebhookConfig): Promise<{ success: boolean; message: string }> {
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'Masukkan URL Discord Webhook Log Tilang yang valid (dimulai dengan https://discord.com/api/webhooks/...)'
+    };
+  }
+
+  const sampleFormat = [
+    `Nama Petugas    : John Miller [012]`,
+    `Hari/Tanggal    : Jumat, 11 September 2026`,
+    `Jam             : 14:30 WIB`,
+    `Nama            : Dominic Toretto`,
+    `Nama tempat     : Commerce, Los Santos`,
+    `Jenis Kendaraan : Buffalo S / Dodge Charger`,
+    `Plat Nomor      : FAST-01`,
+    `Pasal Pelanggaran     : Pasal 24 (Reckless Driving) & Pasal 18 (Speeding 140 KM/J)`,
+    `Total Denda     : $4.500`,
+    `Catatan         : Pelanggar kooperatif, surat tilang diterbitkan resmi.`,
+    ``,
+    `Bukti : Ada`
+  ].join('\n');
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD Traffic Enforcement & Citation Unit',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    embeds: [
+      {
+        title: '🎫 UJI COBA INTEGRASI WEBHOOK LOG TILANG (TRAFFIC CITATION)',
+        description: `Koneksi sistem penilangan dan pencatatan pelanggaran lalu lintas berhasil terhubung.\n\`\`\`yaml\n${sampleFormat}\n\`\`\``,
+        color: 0xF59E0B,
+        fields: [
+          { name: 'Channel Target', value: '🟢 **Traffic Enforcement & Citation Log**', inline: true },
+          { name: 'Waktu Pengujian', value: new Date().toLocaleString('id-ID'), inline: true },
+          { name: 'Status Sistem', value: '🟢 **Siap Menerima Log Tilang & Bukti Galeri Device**', inline: true },
+        ],
+        footer: {
+          text: 'HSPD Traffic Enforcement • HighState Roleplay',
+        }
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return {
+      success: true,
+      message: '✅ Sinyal Webhook Log Tilang Berhasil Terhubung!'
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `❌ Gagal terhubung ke Webhook Log Tilang: ${err.message || 'Periksa kembali URL Webhook'}`
+    };
+  }
+}
+
 export async function sendImpoundRecordToDiscord(
   imp: ImpoundRecord,
   eventType: 'IMPOUNDED' | 'RELEASED' | 'DELETED',
@@ -3557,10 +3823,36 @@ export async function sendImpoundRecordToDiscord(
     timeStyle: 'medium',
   });
 
+  const dayDate = imp.dayDate || new Date(imp.timestamp).toLocaleDateString('id-ID', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+  const timeString = imp.timeString || new Date(imp.timestamp).toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit'
+  }) + ' WIB';
+
+  const rawTextFormat = [
+    `Nama Petugas    : ${imp.officerName}${imp.officerBadge ? ` [${imp.officerBadge}]` : ''}`,
+    `Hari/Tanggal    : ${dayDate}`,
+    `Jam             : ${timeString}`,
+    `Nama            : ${imp.ownerName}`,
+    `Nama tempat     : ${imp.locationFound || 'Commerce, Los Santos'}`,
+    `Jenis Kendaraan : ${imp.vehicleModel}${imp.color ? ` (${imp.color})` : ''}`,
+    `Plat Nomor      : ${imp.plateNumber}`,
+    `Pasal Pelanggaran     : ${imp.violations || imp.reason}`,
+    `Total Denda     : $${(imp.impoundFee || 0).toLocaleString('id-ID')} (Durasi Sita: ${imp.impoundDays} Hari)`,
+    `Catatan         : ${imp.notes || imp.reason || 'Penyitaan di Garasi Impound Lot'}`,
+    ``,
+    `Bukti : ${imp.hasEvidence || (imp.evidenceImage && imp.evidenceImage.length > 0) ? 'Ada' : 'Tidak Ada'}`
+  ].join('\n');
+
   const isImpounded = eventType === 'IMPOUNDED';
   const embedColor = isImpounded ? 0x059669 : 0x3B82F6; // Emerald for impounded, Blue for release
   const embedTitle = isImpounded 
-    ? `🚗 [IMPOUND LOT] PENYITAAN KENDARAAN - PLAT #${imp.plateNumber}` 
+    ? `🚗 [LOG IMPOUND] PENYITAAN KENDARAAN - PLAT #${imp.plateNumber}` 
     : `🔓 [IMPOUND RELEASE] KENDARAAN RESMI DITEBUS - PLAT #${imp.plateNumber}`;
 
   const fields: Array<{ name: string; value: string; inline?: boolean }> = [
@@ -3581,12 +3873,12 @@ export async function sendImpoundRecordToDiscord(
     },
     {
       name: '📜 ALASAN PENYITAAN / PASAL',
-      value: `>>> ${imp.reason}`,
+      value: `>>> ${imp.violations || imp.reason}`,
       inline: false,
     },
     {
       name: '💰 DURASI & BIAYA TEBUSAN DENDA',
-      value: `Durasi Sitaan: **${imp.impoundDays} Hari**\nBiaya Tebus: **$${imp.impoundFee.toLocaleString('id-ID')}** (Uang In-Game)`,
+      value: `Durasi Sitaan: **${imp.impoundDays} Hari**\nBiaya Tebus: **$${(imp.impoundFee || 0).toLocaleString('id-ID')}** (Uang In-Game)`,
       inline: true,
     },
     {
@@ -3598,14 +3890,19 @@ export async function sendImpoundRecordToDiscord(
       name: '👮 PETUGAS PENYITA',
       value: `**${imp.officerName}** (\`${imp.officerBadge}\`)${actor ? `\nPetugas Pelapor: **${actor.rank} ${actor.name}**` : ''}`,
       inline: false,
+    },
+    {
+      name: '📸 BUKTI PENYITAAN',
+      value: (imp.hasEvidence || (imp.evidenceImage && imp.evidenceImage.length > 0))
+        ? '✅ **Bukti : Ada** (Foto kendaraan di TKP / garasi sitaan terlampir)'
+        : '❌ **Bukti : Tidak Ada**',
+      inline: false,
     }
   ];
 
-  const embedObj = {
+  const primaryEmbed: any = {
     title: embedTitle,
-    description: isImpounded
-      ? `Kendaraan berikut telah disita oleh Satuan Lalu Lintas (Traffic Enforcement Unit) dan diamankan di Garasi Impound Lot HSPD.`
-      : `Kendaraan telah melunasi denda administrasi atau menyelesaikan masa sitaan dan diserahterimakan kembali ke pemilik.`,
+    description: `\`\`\`yaml\n${rawTextFormat}\n\`\`\``,
     color: embedColor,
     fields,
     footer: {
@@ -3615,27 +3912,61 @@ export async function sendImpoundRecordToDiscord(
     timestamp: new Date().toISOString(),
   };
 
-  const payload = {
-    username: config.botName.trim() || 'HSPD Traffic Enforcement & Impound Lot',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
-    embeds: [embedObj],
-  };
-
   try {
-    const res = await fetch(config.webhookUrl.trim(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    if (imp.evidenceImage && imp.evidenceImage.startsWith('data:image/')) {
+      const formData = new FormData();
+      const { blob, extension } = dataURLtoBlob(imp.evidenceImage);
+      const filename = `bukti_impound_${imp.plateNumber.replace(/\s+/g, '_')}_${Date.now()}.${extension}`;
+      formData.append('files[0]', blob, filename);
+      primaryEmbed.image = { url: `attachment://${filename}` };
 
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      const payload = {
+        username: config.botName.trim() || 'HSPD Traffic Enforcement & Impound Lot',
+        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        embeds: [primaryEmbed],
+      };
+
+      formData.append('payload_json', JSON.stringify(payload));
+
+      const res = await fetch(config.webhookUrl.trim(), {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+
+      return {
+        success: true,
+        message: `Rekor Impound plat ${imp.plateNumber} beserta foto bukti berhasil dikirim ke Webhook Discord!`
+      };
+    } else {
+      if (imp.evidenceImage && imp.evidenceImage.startsWith('http')) {
+        primaryEmbed.image = { url: imp.evidenceImage };
+      }
+
+      const payload = {
+        username: config.botName.trim() || 'HSPD Traffic Enforcement & Impound Lot',
+        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        embeds: [primaryEmbed],
+      };
+
+      const res = await fetch(config.webhookUrl.trim(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+      }
+
+      return {
+        success: true,
+        message: `Rekor Impound plat ${imp.plateNumber} berhasil dikirim ke Webhook Discord!`
+      };
     }
-
-    return {
-      success: true,
-      message: `Rekor Impound plat ${imp.plateNumber} berhasil dikirim ke Webhook Discord!`
-    };
   } catch (err: any) {
     console.error('Impound Webhook Error:', err);
     return {
@@ -4470,6 +4801,124 @@ export async function testGovDocumentDiscordWebhook(config: WebhookConfig): Prom
     return { success: true, message: '✅ Sinyal Webhook Dokumen Kenegaraan Berhasil Terhubung!' };
   } catch (err: any) {
     return { success: false, message: `❌ Gagal terhubung ke Webhook Dokumen: ${err.message}` };
+  }
+}
+
+/**
+ * Send official Government Document to Government Discord Webhook
+ */
+export async function sendGovOfficialDocumentToDiscord(
+  docItem: OfficialDocument,
+  customConfig?: Partial<WebhookConfig>
+): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedGovDocumentWebhookConfig(), ...customConfig };
+
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'URL Discord Webhook Dokumen Kenegaraan belum diatur. Silakan atur URL Webhook di panel Otorisasi Pusat atau Webhook Roster Pemerintah.'
+    };
+  }
+
+  const isRestricted = docItem.classification === 'RAHASIA' || docItem.classification === 'SANGAT RAHASIA';
+  const embedColor = isRestricted ? 0xDC2626 : 0xD97706; // Red or Amber-Gold
+
+  const fields: any[] = [
+    {
+      name: '🏛️ Pejabat Penerbit',
+      value: `**${docItem.issuerName}**\nBadge: \`#${docItem.issuerBadge}\` | Pangkat: **${docItem.issuerRank}**\nRole: *${docItem.issuerRole || 'Pemerintah Negara'}*`,
+      inline: true,
+    },
+    {
+      name: '👤 Pihak Penerima / Subjek',
+      value: `**${docItem.recipientName}**\nID/Status: \`${docItem.recipientId || docItem.recipientRoleOrStatus || '-'}\`${docItem.recipientPhone ? `\nTelp: \`${docItem.recipientPhone}\`` : ''}`,
+      inline: true,
+    },
+    {
+      name: '📅 Tanggal & Lokasi Pengesahan',
+      value: `**${docItem.date}**\n*${docItem.location}*`,
+      inline: true,
+    },
+    {
+      name: '🔏 Klasifikasi & Kategori',
+      value: `Klasifikasi: \`${docItem.classification}\`\nKategori: **${docItem.category.replace(/_/g, ' ')}**`,
+      inline: true,
+    },
+    {
+      name: '⌛ Masa Berlaku Legalitas',
+      value: docItem.validUntil ? `\`${docItem.validUntil}\`` : '*Tetap / Sesuai Ketentuan Hukum*',
+      inline: true,
+    },
+    {
+      name: '🛡️ Cap Stempel Resmi',
+      value: `\`${docItem.secondarySeal ? `${docItem.primarySeal} + ${docItem.secondarySeal}` : docItem.primarySeal}\``,
+      inline: true,
+    }
+  ];
+
+  if (docItem.acknowledgedByName || docItem.acknowledgedByRank) {
+    fields.push({
+      name: `👑 ${docItem.acknowledgedByTitle || 'Otorisasi Pusat:'}`,
+      value: `**${docItem.acknowledgedByName || 'Pemerintah Pusat'}**\nPangkat/Jabatan: \`${docItem.acknowledgedByRank || 'PRESIDENT'}\`${docItem.acknowledgedByRole ? ` - *${docItem.acknowledgedByRole}*` : ''}\nStatus: **${docItem.acknowledgedCustomStatus || 'DISAHKAN OLEH PEMERINTAH PUSAT'}**`,
+      inline: false,
+    });
+  }
+
+  if (docItem.clauses && docItem.clauses.length > 0) {
+    const clauseSummary = docItem.clauses.slice(0, 5).map(c => 
+      `• **${c.clauseNumber || 'Diktum'}:** ${c.title ? `${c.title} — ` : ''}${c.content.slice(0, 140)}${c.content.length > 140 ? '...' : ''}`
+    ).join('\n');
+
+    fields.push({
+      name: `📜 Diktum & Ketetapan Surat (${docItem.clauses.length} Poin)`,
+      value: clauseSummary,
+      inline: false,
+    });
+  }
+
+  if (docItem.notes && docItem.notes.trim()) {
+    fields.push({
+      name: '📝 Catatan & Lembaran Tambahan',
+      value: `>>> ${docItem.notes.trim()}`,
+      inline: false,
+    });
+  }
+
+  const embedObj = {
+    title: `🏛️ [LEMBARAN NEGARA & DOKUMEN RESMI] ${docItem.title.toUpperCase()}`,
+    description: `**Nomor Registrasi:** \`${docItem.docNumber}\`\n**Perihal:** ${docItem.subject}\n*Arsip lembaran resmi diterbitkan oleh Eksekutif & Pemerintahan Negara HighState.*`,
+    color: embedColor,
+    fields,
+    footer: {
+      text: `Executive Government of HighState • Lembaran Kenegaraan • Otorisasi: ${docItem.acknowledgedByName || 'Presiden Negara'} • ${docItem.date}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: config.botName.trim() || 'Arsip & Dokumen Resmi Kenegaraan',
+        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+        embeds: [embedObj],
+      })
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+
+    return {
+      success: true,
+      message: 'Arsip Dokumen Kenegaraan berhasil dikirim ke Channel Discord Pemerintah!'
+    };
+  } catch (err: any) {
+    console.error('Send Government Document to Discord failed:', err);
+    return {
+      success: false,
+      message: `Gagal mengirim dokumen kenegaraan: ${err.message || 'Periksa koneksi webhook.'}`
+    };
   }
 }
 

@@ -16,6 +16,7 @@ import {
   getSavedRosterWebhookConfig, saveRosterWebhookConfig,
   getSavedDetectiveWebhookConfig, saveDetectiveWebhookConfig,
   getSavedBoloWebhookConfig, saveBoloWebhookConfig,
+  getSavedTrafficCitationWebhookConfig, saveTrafficCitationWebhookConfig,
   getSavedImpoundWebhookConfig, saveImpoundWebhookConfig,
   getSavedVaultWebhookConfig, saveVaultWebhookConfig,
   getSavedDestructionWebhookConfig, saveDestructionWebhookConfig,
@@ -28,6 +29,7 @@ import {
   testWarningDiscordWebhook, testDischargeDiscordWebhook,
   testPinResetDiscordWebhook, testRosterDiscordWebhook,
   testDetectiveDiscordWebhook, testBoloDiscordWebhook,
+  testTrafficCitationDiscordWebhook,
   testImpoundDiscordWebhook,
   testVaultDiscordWebhook,
   testDestructionDiscordWebhook,
@@ -43,7 +45,7 @@ interface Props {
   currentOfficer?: OfficerProfile | null;
   onSaved?: () => void;
   onOpenBrandingModal?: () => void;
-  initialTab?: 'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm';
+  initialTab?: 'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'tilang' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm';
 }
 
 export const WebhookSettingsModal: React.FC<Props> = ({
@@ -54,7 +56,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
   onOpenBrandingModal,
   initialTab
 }) => {
-  const [activeTab, setActiveTab] = useState<'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm'>(initialTab || 'case');
+  const [activeTab, setActiveTab] = useState<'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'tilang' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm'>(initialTab || 'case');
 
   useEffect(() => {
     if (isOpen && initialTab) {
@@ -106,6 +108,11 @@ export const WebhookSettingsModal: React.FC<Props> = ({
   const [boloConfig, setBoloConfig] = useState<WebhookConfig>(() => getSavedBoloWebhookConfig());
   const [isTestingBolo, setIsTestingBolo] = useState(false);
   const [boloTestResult, setBoloTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Traffic Citation (Tilang) Webhook State
+  const [tilangConfig, setTilangConfig] = useState<WebhookConfig>(() => getSavedTrafficCitationWebhookConfig());
+  const [isTestingTilang, setIsTestingTilang] = useState(false);
+  const [tilangTestResult, setTilangTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Impound Lot Webhook State
   const [impoundConfig, setImpoundConfig] = useState<WebhookConfig>(() => getSavedImpoundWebhookConfig());
@@ -370,6 +377,23 @@ export const WebhookSettingsModal: React.FC<Props> = ({
       });
     } finally {
       setIsTestingBolo(false);
+    }
+  };
+
+  // Test Traffic Citation (Tilang) Webhook
+  const handleTestTilangWebhook = async () => {
+    setIsTestingTilang(true);
+    setTilangTestResult(null);
+    try {
+      const res = await testTrafficCitationDiscordWebhook(tilangConfig);
+      setTilangTestResult(res);
+    } catch (err: any) {
+      setTilangTestResult({
+        success: false,
+        message: err.message || 'Gagal terhubung ke Webhook Log Tilang'
+      });
+    } finally {
+      setIsTestingTilang(false);
     }
   };
 

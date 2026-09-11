@@ -643,6 +643,35 @@ export interface ImpoundRecord {
   status: 'IMPOUNDED' | 'RELEASED' | 'AUCTION';
   locationFound: string;
   timestamp: number;
+  // Fields for official citation & evidence
+  dayDate?: string;
+  timeString?: string;
+  violations?: string;
+  notes?: string;
+  evidenceImage?: string; // Base64 data URL from gallery/device
+  evidenceUrl?: string;
+  hasEvidence?: boolean;
+}
+
+export interface TrafficCitationRecord {
+  id: string;
+  officerName: string;
+  officerBadge: string;
+  dayDate: string; // e.g. "Jumat, 11 September 2026"
+  timeString: string; // e.g. "16:45 WIB"
+  violatorName: string; // Nama Pelanggar
+  location: string; // Nama tempat
+  vehicleModel: string; // Jenis Kendaraan
+  plateNumber: string; // Plat Nomor
+  violations: string; // Pasal Pelanggaran
+  totalFine: number; // Total Denda
+  notes: string; // Catatan
+  evidenceImage?: string; // Bukti dari galeri device (Base64 data URL)
+  evidenceUrl?: string;
+  hasEvidence: boolean; // Bukti : Ada / Tidak Ada
+  status: 'UNPAID' | 'PAID' | 'DISPUTED';
+  timestamp: number;
+  createdAt?: string;
 }
 
 export interface BoloAlert {
@@ -823,6 +852,12 @@ export type DocumentCategory =
   | 'SURAT_KEHILANGAN'   // Surat Tanda Penerimaan Laporan Kehilangan (Police Loss Report)
   | 'SURAT_PENYITAAN'    // Surat Perintah Penggeledahan & Penyitaan Barang Bukti
   | 'MEMO_INTERNAL'      // Nota Dinas / Perintah Pimpinan Harian
+  | 'DPO_WANTED'         // Surat DPO & Red Notice Kriminalitas (Wanted Bulletin)
+  | 'IZIN_PENGAWALAN'    // Surat Izin Pengawalan Konvoi & VVIP (VIP Police Escort)
+  | 'IZIN_USAHA'         // Surat Keputusan Izin Usaha / SIUP (Commercial Business Permit)
+  | 'MAKLUMAT_DARURAT'   // Maklumat Darurat & Jam Malam Kota (Emergency Curfew Decree)
+  | 'GRASI_PRESIDEN'     // Surat Keputusan Grasi & Amnesti Khusus Presiden (Executive Clemency)
+  | 'ANGGARAN_DINAS'     // Surat Pengesahan Anggaran Dinas & Kas Negara (Treasury Grant)
   | 'CUSTOM_BEBAS';      // Format Bebas / Blank Custom Official Document
 
 export type DocumentClassification = 
@@ -921,8 +956,11 @@ export interface OfficialDocument {
   acknowledgedByName?: string;     // e.g. "Leoarnd Neave"
   acknowledgedByRank?: string;     // e.g. "CHIEF OF POLICE [COP]"
   acknowledgedByRole?: string;     // e.g. "Kepala Kepolisian HighState"
-  acknowledgedSignatureType?: 'font' | 'upload' | 'draw';
+  acknowledgedSignatureType?: 'font' | 'upload' | 'draw' | 'blank';
+  acknowledgedSignatureStyle?: 'handwriting1' | 'handwriting2' | 'formal' | 'badge_stamp' | 'blank';
   acknowledgedSignatureImage?: string;
+  showAcknowledgedBySignature?: boolean; // Tampilkan / Sembunyikan blok pengesahan pimpinan
+  acknowledgedCustomStatus?: string; // e.g. "DISAHKAN & DIAKREDITASI OLEH MARKAS BESAR" / custom text
   
   createdAt: number;
   updatedAt: number;
