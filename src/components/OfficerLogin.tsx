@@ -6,13 +6,15 @@ import {
   Shield, Lock, User, KeyRound, CheckCircle2, 
   AlertTriangle, ArrowRight, Eye, EyeOff, HelpCircle, 
   LogIn, BookOpen, MessageSquare, ShieldAlert,
-  Sparkles, Crown, Building2
+  Sparkles, Crown, Building2, Globe, FileText
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from '../assets/logo';
 import { RecruitmentInfoPanel } from './RecruitmentInfoPanel';
 import { GovernmentRecruitmentInfoPanel } from './GovernmentRecruitmentInfoPanel';
 import { RequestPinDiscordModal } from './RequestPinDiscordModal';
+import { GovernmentRequestPinModal } from './GovernmentRequestPinModal';
 import { CaptchaVerification } from './CaptchaVerification';
+import { CitizenPublicServicePortal } from './CitizenPublicServicePortal';
 import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from '../utils/brandingStorage';
 import { isOfficerMatch, getPinResetRequests, updateOfficerPinInRoster, getRosterFromStorage, saveRosterToStorage } from '../utils/pinResetStorage';
 import { HSPD_OFFICIAL_ROSTER, mergeWithOfficialRoster } from '../data/hspdOfficialRoster';
@@ -43,8 +45,8 @@ export const OfficerLogin: React.FC<Props> = ({
   // Mobile / layout navigation: 'auth' (right side) or 'recruitment' (left side on mobile)
   const [mobileView, setMobileView] = useState<'auth' | 'recruitment'>('auth');
   
-  // Portal selector: 'POLICE' (HSPD MDT) vs 'GOVERNMENT' (State Government Portal)
-  const [authPortalTab, setAuthPortalTab] = useState<'POLICE' | 'GOVERNMENT'>('POLICE');
+  // Portal selector: 'POLICE' (HSPD MDT), 'GOVERNMENT' (State Government Portal), 'CITIZEN' (Public Citizen Hub)
+  const [authPortalTab, setAuthPortalTab] = useState<'POLICE' | 'GOVERNMENT' | 'CITIZEN'>('POLICE');
 
   // LOGIN FORM STATE
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -56,6 +58,7 @@ export const OfficerLogin: React.FC<Props> = ({
 
   // DISCORD PIN REQUEST MODAL STATE
   const [isDiscordModalOpen, setIsDiscordModalOpen] = useState(false);
+  const [isGovPinModalOpen, setIsGovPinModalOpen] = useState(false);
 
   // Live roster tracking so new members auto-appear immediately without refresh
   const [liveRoster, setLiveRoster] = useState<OfficerAccount[]>(() => {
@@ -295,6 +298,14 @@ export const OfficerLogin: React.FC<Props> = ({
     }, 400);
   };
 
+  if (authPortalTab === 'CITIZEN') {
+    return (
+      <CitizenPublicServicePortal
+        onBackToLogin={() => setAuthPortalTab('POLICE')}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#090B10] text-gray-200 flex flex-col justify-center items-center p-3 sm:p-4 lg:p-6 selection:bg-blue-600 selection:text-white relative">
       {/* Dynamic Background Wallpaper with Custom Opacity and Blur */}
@@ -349,8 +360,19 @@ export const OfficerLogin: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Right Status Badge */}
+          {/* Right Status Badge & Citizen Service Button */}
           <div className="flex items-center gap-2.5 font-mono text-xs">
+            <button
+              type="button"
+              id="btn-nav-citizen-portal"
+              onClick={() => setAuthPortalTab('CITIZEN')}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600/30 to-blue-600/30 hover:from-emerald-600/40 hover:to-blue-600/40 border border-emerald-500/50 text-emerald-300 rounded-lg text-xs font-bold transition shadow-md"
+              title="Buka Portal Layanan Warga Sipil (SKCK & Izin Usaha)"
+            >
+              <Globe className="w-3.5 h-3.5 text-emerald-400" />
+              <span>🌐 Layanan Warga (SKCK & Izin Usaha)</span>
+            </button>
+
             <div className="hidden md:flex flex-col items-end text-right">
               <span className="text-[10px] text-green-400 flex items-center gap-1 font-bold">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
@@ -364,26 +386,34 @@ export const OfficerLogin: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setMobileView('recruitment')}
-                className={`px-2.5 py-1 rounded font-bold transition flex items-center gap-1 ${
+                className={`px-2 py-1 rounded font-bold transition flex items-center gap-1 ${
                   mobileView === 'recruitment'
                     ? authPortalTab === 'GOVERNMENT' ? 'bg-amber-600 text-black shadow' : 'bg-blue-600 text-white shadow'
                     : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
                 <BookOpen className="w-3 h-3" />
-                <span>{authPortalTab === 'GOVERNMENT' ? 'Portal Rekrutmen' : 'Info Rekrutmen'}</span>
+                <span>{authPortalTab === 'GOVERNMENT' ? 'Rekrutmen' : 'Info'}</span>
               </button>
               <button
                 type="button"
                 onClick={() => setMobileView('auth')}
-                className={`px-2.5 py-1 rounded font-bold transition flex items-center gap-1 ${
+                className={`px-2 py-1 rounded font-bold transition flex items-center gap-1 ${
                   mobileView === 'auth'
                     ? authPortalTab === 'GOVERNMENT' ? 'bg-amber-600 text-black shadow' : 'bg-blue-600 text-white shadow'
                     : 'text-gray-400 hover:text-gray-200'
                 }`}
               >
                 <LogIn className="w-3 h-3" />
-                <span>Akses Login</span>
+                <span>Login</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthPortalTab('CITIZEN')}
+                className="px-2 py-1 rounded font-bold transition flex items-center gap-1 bg-emerald-950 text-emerald-300 border border-emerald-700/60"
+              >
+                <Globe className="w-3 h-3 text-emerald-400" />
+                <span>Warga</span>
               </button>
             </div>
           </div>
@@ -404,8 +434,8 @@ export const OfficerLogin: React.FC<Props> = ({
           <div className={`lg:col-span-5 ${mobileView === 'auth' ? 'block' : 'hidden lg:block'}`}>
             <div className={`bg-[#161B22] border ${authPortalTab === 'GOVERNMENT' ? 'border-amber-700/60 shadow-amber-950/30' : 'border-gray-800'} rounded-xl shadow-2xl overflow-hidden font-mono text-xs flex flex-col transition-colors duration-300`}>
               
-              {/* SLIDE / TAB SWITCHER: KEPOLISIAN VS PEMERINTAHAN */}
-              <div className="p-1.5 bg-[#0A0D14] border-b border-gray-800/90 grid grid-cols-2 gap-1 font-mono text-xs">
+              {/* SLIDE / TAB SWITCHER: KEPOLISIAN VS PEMERINTAHAN VS LAYANAN WARGA */}
+              <div className="p-1.5 bg-[#0A0D14] border-b border-gray-800/90 grid grid-cols-3 gap-1 font-mono text-xs">
                 <button
                   type="button"
                   id="tab-login-police"
@@ -415,14 +445,14 @@ export const OfficerLogin: React.FC<Props> = ({
                     setLoginError('');
                     setLoginSuccess('');
                   }}
-                  className={`py-2 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition ${
+                  className={`py-2 px-2 rounded-lg font-bold flex items-center justify-center gap-1 transition text-[11px] ${
                     authPortalTab === 'POLICE'
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
                       : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
                   }`}
                 >
                   <Shield className="w-3.5 h-3.5" />
-                  <span>👮 KEPOLISIAN</span>
+                  <span>POLISI</span>
                 </button>
 
                 <button
@@ -434,14 +464,27 @@ export const OfficerLogin: React.FC<Props> = ({
                     setLoginError('');
                     setLoginSuccess('');
                   }}
-                  className={`py-2 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition ${
+                  className={`py-2 px-2 rounded-lg font-bold flex items-center justify-center gap-1 transition text-[11px] ${
                     authPortalTab === 'GOVERNMENT'
                       ? 'bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-md shadow-amber-950/50'
                       : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/50'
                   }`}
                 >
                   <Crown className="w-3.5 h-3.5 text-amber-300" />
-                  <span>🏛️ PEMERINTAHAN</span>
+                  <span>PEMERINTAH</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="tab-login-citizen"
+                  onClick={() => {
+                    setAuthPortalTab('CITIZEN');
+                  }}
+                  className="py-2 px-2 rounded-lg font-bold flex items-center justify-center gap-1 transition text-[11px] bg-gradient-to-r from-emerald-600/20 to-teal-600/20 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-600/30"
+                  title="Pembuatan SKCK & Surat Izin Usaha Tanpa Login"
+                >
+                  <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>WARGA (SKCK)</span>
                 </button>
               </div>
 
@@ -531,11 +574,20 @@ export const OfficerLogin: React.FC<Props> = ({
                         <span>{authPortalTab === 'GOVERNMENT' ? 'PIN Keamanan Pejabat' : 'PIN Pribadi Petugas'}</span>
                         <span className="text-rose-400">*</span>
                       </label>
-                      {authPortalTab === 'POLICE' && (
+                      {authPortalTab === 'GOVERNMENT' ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsGovPinModalOpen(true)}
+                          className="text-[10px] text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 transition"
+                        >
+                          <KeyRound className="w-3 h-3 text-amber-400" />
+                          <span>Lupa / Ganti PIN?</span>
+                        </button>
+                      ) : (
                         <button
                           type="button"
                           onClick={() => setIsDiscordModalOpen(true)}
-                          className="text-[10px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1"
+                          className="text-[10px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 transition"
                         >
                           <MessageSquare className="w-3 h-3 text-indigo-400" />
                           <span>Lupa / Ganti PIN?</span>
@@ -636,6 +688,20 @@ export const OfficerLogin: React.FC<Props> = ({
             setLoginIdentifier(identifier);
           }
           setLoginSuccess(`✅ PIN baru (${appliedPin}) berhasil diterapkan secara otomatis! Silakan klik Masuk Terminal.`);
+        }}
+      />
+
+      {/* GOVERNMENT PIN RESET MODAL */}
+      <GovernmentRequestPinModal
+        isOpen={isGovPinModalOpen}
+        onClose={() => setIsGovPinModalOpen(false)}
+        initialIdentifier={loginIdentifier}
+        onPinApplied={(appliedPin, officialName) => {
+          setLoginPin(appliedPin);
+          if (officialName && !loginIdentifier) {
+            setLoginIdentifier(officialName);
+          }
+          setLoginSuccess(`✅ PIN baru (${appliedPin}) untuk pejabat ${officialName} berhasil diterapkan & log dikirim ke Discord! Silakan selesaikan verifikasi untuk masuk.`);
         }}
       />
     </div>

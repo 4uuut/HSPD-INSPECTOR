@@ -46,6 +46,7 @@ interface GovernmentCentralAuthModalProps {
   onUpdateDoc?: (updater: (prev: OfficialDocument) => OfficialDocument) => void;
   onNavigateToExecutiveHub?: () => void;
   onNavigateToRoster?: () => void;
+  onNavigateToSettings?: () => void;
   onOpenSignaturePad?: (target: 'acknowledged') => void;
 }
 
@@ -57,6 +58,7 @@ export const GovernmentCentralAuthModal: React.FC<GovernmentCentralAuthModalProp
   onUpdateDoc,
   onNavigateToExecutiveHub,
   onNavigateToRoster,
+  onNavigateToSettings,
   onOpenSignaturePad
 }) => {
   const [activeTab, setActiveTab] = useState<'AUTH' | 'WEBHOOK' | 'FEATURES'>('AUTH');
@@ -85,6 +87,7 @@ export const GovernmentCentralAuthModal: React.FC<GovernmentCentralAuthModalProp
       setGovDocBotName(cfg.botName || 'Arsip & Dokumen Resmi Kenegaraan');
       setGovDocBotAvatar(cfg.botAvatar || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png');
       setGovDocAutoSend(cfg.autoSendOnSave !== false);
+
       setSecurityStatus(getStateSecurityStatus());
     }
   }, [isOpen]);
@@ -297,6 +300,21 @@ export const GovernmentCentralAuthModal: React.FC<GovernmentCentralAuthModalProp
               <Building2 className="w-4 h-4 text-emerald-400" />
               <span>🏛️ Fitur Eksekutif Kenegaraan</span>
             </button>
+
+            {onNavigateToSettings && (
+              <button
+                type="button"
+                onClick={() => {
+                  onNavigateToSettings();
+                  onClose();
+                }}
+                className="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black text-[11px] rounded-lg shadow-sm flex items-center gap-1 transition hover:scale-105 active:scale-95 ml-1"
+                title="Buka Panel Setting & Otoritas Lengkap (Pengumuman Depan Login, Discord Kenegaraan, Webhook, Formulir)"
+              >
+                <Sliders className="w-3.5 h-3.5 text-black" />
+                <span>⚙️ Setting & Otoritas Lengkap</span>
+              </button>
+            )}
           </div>
 
           <div className="pb-2 text-[10px] font-mono text-gray-400 flex items-center gap-2">

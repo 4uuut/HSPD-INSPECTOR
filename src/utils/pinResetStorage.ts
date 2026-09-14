@@ -775,7 +775,18 @@ export function deletePinResetRequest(requestId: string): boolean {
 
 export function getPendingPinResetCount(): number {
   const current = getPinResetRequests();
-  return current.filter(r => r.status === 'PENDING').length;
+  const policeCount = current.filter(r => r.status === 'PENDING').length;
+  let govCount = 0;
+  try {
+    const rawGov = localStorage.getItem('hspd_gov_pin_requests_v1');
+    if (rawGov) {
+      const parsed = JSON.parse(rawGov);
+      if (Array.isArray(parsed)) {
+        govCount = parsed.filter((r: any) => r.status === 'PENDING').length;
+      }
+    }
+  } catch {}
+  return policeCount + govCount;
 }
 
 // ==============================================================

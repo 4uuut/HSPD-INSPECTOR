@@ -643,14 +643,21 @@ export interface ImpoundRecord {
   status: 'IMPOUNDED' | 'RELEASED' | 'AUCTION';
   locationFound: string;
   timestamp: number;
-  // Fields for official citation & evidence
+  // Fields for official citation & evidence (supports 2 photos from gallery)
   dayDate?: string;
   timeString?: string;
   violations?: string;
   notes?: string;
-  evidenceImage?: string; // Base64 data URL from gallery/device
+  evidenceImage?: string; // Foto Bukti 1 (Base64 data URL from gallery/device)
+  evidenceImage2?: string; // Foto Bukti 2 (Base64 data URL from gallery/device)
+  evidenceFileName?: string;
+  evidenceFileName2?: string;
+  evidenceSizeKb?: number;
+  evidenceSizeKb2?: number;
   evidenceUrl?: string;
+  evidenceUrl2?: string;
   hasEvidence?: boolean;
+  hasEvidence2?: boolean;
 }
 
 export interface TrafficCitationRecord {
@@ -962,6 +969,24 @@ export interface OfficialDocument {
   showAcknowledgedBySignature?: boolean; // Tampilkan / Sembunyikan blok pengesahan pimpinan
   acknowledgedCustomStatus?: string; // e.g. "DISAHKAN & DIAKREDITASI OLEH MARKAS BESAR" / custom text
   
+  // Document Attachments & Evidence Photos
+  attachments?: {
+    id: string;
+    label: string;
+    imageUrl: string;
+    uploadedAt?: number;
+  }[];
+  skckPhotos?: {
+    statsPhoto?: string;    // Foto /stats karakter IC
+    ktpPhoto?: string;      // Foto KTP pemohon
+  };
+  businessPhotos?: {
+    shopFrontPhoto?: string;         // Foto Depan Toko
+    businessInfoPhoto?: string;      // Screenshot /business info
+    businessPropertyPhoto?: string;  // Foto Properti & Tempat Usaha
+    ktpPhoto?: string;               // Foto KTP Pemilik Usaha
+  };
+
   createdAt: number;
   updatedAt: number;
 }

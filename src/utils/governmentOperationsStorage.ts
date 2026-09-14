@@ -24,6 +24,13 @@ export type PermitCategory =
 
 export type PermitStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVOKED';
 
+export interface BusinessPermitPhotos {
+  shopFrontPhoto?: string;         // Foto Depan Toko / Fasad
+  businessInfoPhoto?: string;      // Screenshot /business info
+  businessPropertyPhoto?: string;  // Foto Properti & Tempat Usaha
+  ktpPhoto?: string;               // Foto KTP Pemilik Usaha
+}
+
 export interface GovernmentPermit {
   id: string;
   permitNumber: string; // e.g. PERMIT/GOV-WCL/2026/042
@@ -41,6 +48,8 @@ export interface GovernmentPermit {
   approvedByRank?: string;
   approvedAt?: number;
   notes?: string;
+  photos?: BusinessPermitPhotos;
+  attachments?: string[];
   createdAt: number;
 }
 

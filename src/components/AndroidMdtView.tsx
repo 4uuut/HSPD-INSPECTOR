@@ -7,7 +7,7 @@ import {
   UserCheck, Microscope, Cloud, Palette, Bell, Battery,
   Wifi, Signal, Smartphone, Monitor, ChevronRight, X, AlertTriangle,
   FileSpreadsheet, Zap, Volume2, ShieldCheck, Grid, Settings,
-  Building2, Crown
+  Building2, Crown, Globe
 } from 'lucide-react';
 import { 
   OfficerProfile, OfficerAccount, OfficerRankLevel,
@@ -144,6 +144,15 @@ export const AndroidMdtView: React.FC<Props> = ({
       color: 'from-amber-700 to-yellow-900',
       badge: 'EKSEKUTIF',
       badgeColor: 'bg-amber-950 text-amber-300 border-amber-600'
+    },
+    { 
+      id: 'gov_settings', 
+      title: '⚙️ Setting & Otoritas Kenegaraan', 
+      desc: 'Webhook, Pengumuman Login, Formulir Selesai & Discord',
+      icon: Settings, 
+      color: 'from-amber-600 to-yellow-800',
+      badge: 'CONFIG',
+      badgeColor: 'bg-amber-950 text-amber-300 border-amber-500'
     }
   ] : [
     { 
@@ -208,6 +217,13 @@ export const AndroidMdtView: React.FC<Props> = ({
       icon: StampIcon, 
       color: 'from-sky-600 to-cyan-800',
       moduleKey: 'OFFICIAL_DOCS' as ModuleAccessKey
+    },
+    { 
+      id: 'citizen_portal', 
+      title: 'Layanan Warga (SKCK & Izin Usaha)', 
+      desc: 'Penerbitan SKCK, Izin Usaha, & Dokumen Sipil',
+      icon: Globe, 
+      color: 'from-emerald-600 to-teal-800'
     },
     { 
       id: 'vault', 

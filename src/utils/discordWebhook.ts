@@ -1,7 +1,7 @@
 import { 
   ArrestRecord, DutyLog, OfficerAccount, OfficerWarning, DischargeRecord, PromotionRecord,
   DetectiveCase, BoloAlert, ImpoundRecord, OfficerProfile, VaultAuditLog, DestructionRegistryItem,
-  OfficialDocument, TrafficCitationRecord
+  OfficialDocument, TrafficCitationRecord, GovernmentAccount
 } from '../types';
 import { dataURLtoBlob } from './imageCompressor';
 import { pushToFirestore, syncAllWebhooksToFirestore } from '../services/firebaseRealtimeSync';
@@ -3846,7 +3846,7 @@ export async function sendImpoundRecordToDiscord(
     `Total Denda     : $${(imp.impoundFee || 0).toLocaleString('id-ID')} (Durasi Sita: ${imp.impoundDays} Hari)`,
     `Catatan         : ${imp.notes || imp.reason || 'Penyitaan di Garasi Impound Lot'}`,
     ``,
-    `Bukti : ${imp.hasEvidence || (imp.evidenceImage && imp.evidenceImage.length > 0) ? 'Ada' : 'Tidak Ada'}`
+    `Bukti : ${[imp.evidenceImage, imp.evidenceImage2].filter(Boolean).length === 2 ? 'Ada (2 Foto Bukti Terlampir)' : [imp.evidenceImage, imp.evidenceImage2].filter(Boolean).length === 1 ? 'Ada (1 Foto Bukti Terlampir)' : (imp.hasEvidence ? 'Ada' : 'Tidak Ada')}`
   ].join('\n');
 
   const isImpounded = eventType === 'IMPOUNDED';
@@ -3855,6 +3855,7 @@ export async function sendImpoundRecordToDiscord(
     ? `🚗 [LOG IMPOUND] PENYITAAN KENDARAAN - PLAT #${imp.plateNumber}` 
     : `🔓 [IMPOUND RELEASE] KENDARAAN RESMI DITEBUS - PLAT #${imp.plateNumber}`;
 
+  const countEvidence = [imp.evidenceImage, imp.evidenceImage2].filter(Boolean).length;
   const fields: Array<{ name: string; value: string; inline?: boolean }> = [
     {
       name: '🚗 PLAT & MODEL KENDARAAN',
@@ -3892,10 +3893,12 @@ export async function sendImpoundRecordToDiscord(
       inline: false,
     },
     {
-      name: '📸 BUKTI PENYITAAN',
-      value: (imp.hasEvidence || (imp.evidenceImage && imp.evidenceImage.length > 0))
-        ? '✅ **Bukti : Ada** (Foto kendaraan di TKP / garasi sitaan terlampir)'
-        : '❌ **Bukti : Tidak Ada**',
+      name: '📸 BUKTI PENYITAAN (2 FOTO MAKS)',
+      value: countEvidence === 2
+        ? '✅ **Bukti : Ada (2 Foto Galeri: Foto 1 TKP & Foto 2 Kondisi/Plat)**'
+        : countEvidence === 1
+          ? '✅ **Bukti : Ada (1 Foto Terlampir)**'
+          : (imp.hasEvidence ? '✅ **Bukti : Ada**' : '❌ **Bukti : Tidak Ada**'),
       inline: false,
     }
   ];
@@ -3913,17 +3916,48 @@ export async function sendImpoundRecordToDiscord(
   };
 
   try {
-    if (imp.evidenceImage && imp.evidenceImage.startsWith('data:image/')) {
+    const hasDataUrl1 = imp.evidenceImage && imp.evidenceImage.startsWith('data:image/');
+    const hasDataUrl2 = imp.evidenceImage2 && imp.evidenceImage2.startsWith('data:image/');
+
+    if (hasDataUrl1 || hasDataUrl2) {
       const formData = new FormData();
-      const { blob, extension } = dataURLtoBlob(imp.evidenceImage);
-      const filename = `bukti_impound_${imp.plateNumber.replace(/\s+/g, '_')}_${Date.now()}.${extension}`;
-      formData.append('files[0]', blob, filename);
-      primaryEmbed.image = { url: `attachment://${filename}` };
+      const embedsToSend = [primaryEmbed];
+      let fileIdx = 0;
+
+      if (hasDataUrl1 && imp.evidenceImage) {
+        const { blob, extension } = dataURLtoBlob(imp.evidenceImage);
+        const filename1 = `bukti_impound_1_${imp.plateNumber.replace(/\s+/g, '_')}_${Date.now()}.${extension}`;
+        formData.append(`files[${fileIdx}]`, blob, filename1);
+        primaryEmbed.image = { url: `attachment://${filename1}` };
+        fileIdx++;
+      } else if (imp.evidenceImage && imp.evidenceImage.startsWith('http')) {
+        primaryEmbed.image = { url: imp.evidenceImage };
+      }
+
+      if (hasDataUrl2 && imp.evidenceImage2) {
+        const { blob, extension } = dataURLtoBlob(imp.evidenceImage2);
+        const filename2 = `bukti_impound_2_${imp.plateNumber.replace(/\s+/g, '_')}_${Date.now()}.${extension}`;
+        formData.append(`files[${fileIdx}]`, blob, filename2);
+        
+        // Add secondary embed with image for Discord side-by-side gallery
+        embedsToSend.push({
+          title: `📸 Foto Bukti 2 (Kondisi Sitaan / Plat #${imp.plateNumber})`,
+          color: embedColor,
+          image: { url: `attachment://${filename2}` }
+        });
+        fileIdx++;
+      } else if (imp.evidenceImage2 && imp.evidenceImage2.startsWith('http')) {
+        embedsToSend.push({
+          title: `📸 Foto Bukti 2 (Kondisi Sitaan / Plat #${imp.plateNumber})`,
+          color: embedColor,
+          image: { url: imp.evidenceImage2 }
+        });
+      }
 
       const payload = {
         username: config.botName.trim() || 'HSPD Traffic Enforcement & Impound Lot',
         avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
-        embeds: [primaryEmbed],
+        embeds: embedsToSend,
       };
 
       formData.append('payload_json', JSON.stringify(payload));
@@ -3939,17 +3973,25 @@ export async function sendImpoundRecordToDiscord(
 
       return {
         success: true,
-        message: `Rekor Impound plat ${imp.plateNumber} beserta foto bukti berhasil dikirim ke Webhook Discord!`
+        message: `Rekor Impound plat ${imp.plateNumber} beserta ${countEvidence} foto bukti berhasil dikirim ke Webhook Discord!`
       };
     } else {
+      const embedsToSend = [primaryEmbed];
       if (imp.evidenceImage && imp.evidenceImage.startsWith('http')) {
         primaryEmbed.image = { url: imp.evidenceImage };
+      }
+      if (imp.evidenceImage2 && imp.evidenceImage2.startsWith('http')) {
+        embedsToSend.push({
+          title: `📸 Foto Bukti 2 (Kondisi Sitaan / Plat #${imp.plateNumber})`,
+          color: embedColor,
+          image: { url: imp.evidenceImage2 }
+        });
       }
 
       const payload = {
         username: config.botName.trim() || 'HSPD Traffic Enforcement & Impound Lot',
         avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
-        embeds: [primaryEmbed],
+        embeds: embedsToSend,
       };
 
       const res = await fetch(config.webhookUrl.trim(), {
@@ -4957,6 +4999,405 @@ export async function testGovPinResetDiscordWebhook(config: WebhookConfig): Prom
     return { success: true, message: '✅ Sinyal Webhook Audit PIN Pejabat Berhasil Terhubung!' };
   } catch (err: any) {
     return { success: false, message: `❌ Gagal terhubung ke Webhook Audit PIN: ${err.message}` };
+  }
+}
+
+/**
+ * Send official Government PIN Reset Request Ticket to Discord Webhook
+ * (Formatted exactly matching HSPD's classic PIN Reset Request Ticket format)
+ */
+export async function sendGovPinResetRequestToDiscord(params: {
+  officialName: string;
+  officialBadge: string;
+  rank?: string;
+  division?: string;
+  reason: string;
+  requestedNewPin?: string;
+  discordTag?: string;
+  customConfig?: Partial<WebhookConfig>;
+}): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedGovPinResetWebhookConfig(), ...params.customConfig };
+
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'URL Webhook Discord Pemerintah belum disetting. Silakan hubungi Presiden atau Administrator di Discord.'
+    };
+  }
+
+  const dateStr = new Date().toLocaleString('id-ID', {
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+
+  const fields = [
+    {
+      name: '🏛️ IDENTITAS PEJABAT',
+      value: `Nama: **${params.officialName}**\nCallsign / Badge: \`${params.officialBadge}\`${params.rank ? `\nJabatan: **${params.rank}**` : ''}${params.division ? `\nDivisi/Kementerian: *${params.division}*` : ''}`,
+      inline: true,
+    },
+    {
+      name: '📋 JENIS PENGAJUAN',
+      value: `🔑 **PERMINTAAN RESET / UBAH PIN PORTAL PEMERINTAHAN**`,
+      inline: true,
+    },
+    {
+      name: '🕒 WAKTU PENGAJUAN',
+      value: `${dateStr}`,
+      inline: true,
+    },
+    {
+      name: '📝 ALASAN / KETERANGAN PEJABAT',
+      value: `>>> *${params.reason || 'Pejabat lupa PIN login atau mengajukan pembaruan kode akses akun pemerintahan.'}*`,
+      inline: false,
+    }
+  ];
+
+  if (params.discordTag && params.discordTag.trim()) {
+    fields.push({
+      name: '💬 KONTAK DISCORD PEJABAT',
+      value: `\`${params.discordTag.trim()}\``,
+      inline: true,
+    });
+  }
+
+  if (params.requestedNewPin && params.requestedNewPin.trim()) {
+    fields.push({
+      name: '🔒 PIN BARU YANG DIAJUKAN',
+      value: `\`${params.requestedNewPin.trim()}\``,
+      inline: true,
+    });
+  }
+
+  fields.push({
+    name: '👑 TINDAKAN UNTUK PIMPINAN EKSEKUTIF (PRESIDEN / WAPRES)',
+    value: 'Silakan verifikasi identitas aparatur, kemudian buka menu **Jajaran Aparatur & Roster (Pemerintahan)** untuk memperbarui atau mengesahkan PIN akun pejabat.',
+    inline: false,
+  });
+
+  const embedObj = {
+    title: `🚨 TIKET PENGAJUAN PERUBAHAN / RESET PIN LOGIN PEJABAT`,
+    description: `Terdapat permohonan pembaruan kredensial PIN login Portal Resmi Pemerintah Negara HighState.`,
+    color: 0xF59E0B, // Amber Gold
+    fields,
+    footer: {
+      text: `Executive Government Security & Helpdesk • Highstate Roleplay • ${dateStr}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  const payload = {
+    username: config.botName.trim() || 'Audit Sandi & Kredensial Negara',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    embeds: [embedObj],
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return {
+      success: true,
+      message: `Tiket permohonan reset PIN untuk ${params.officialName} (${params.officialBadge}) berhasil dikirim ke Discord Pimpinan!`
+    };
+  } catch (err: any) {
+    console.error('Government PIN Request Webhook Error:', err);
+    return {
+      success: false,
+      message: `Gagal mengirim tiket ke Discord: ${err.message}`
+    };
+  }
+}
+
+/**
+ * Send Auto-Grant PIN Resolution to Government Discord Webhook
+ */
+export async function sendGovPinResetAutoGrantedWebhookToDiscord(params: {
+  officialName: string;
+  officialBadge: string;
+  rank?: string;
+  division?: string;
+  newPin: string;
+  reason: string;
+  customConfig?: Partial<WebhookConfig>;
+}): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedGovPinResetWebhookConfig(), ...params.customConfig };
+
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return { success: false, message: 'URL Webhook Discord belum disetting.' };
+  }
+
+  const dateStr = new Date().toLocaleString('id-ID', {
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+
+  const fields = [
+    {
+      name: '🏛️ PEJABAT NEGARA',
+      value: `Nama: **${params.officialName}**\nCallsign: \`${params.officialBadge}\`${params.rank ? `\nJabatan: **${params.rank}**` : ''}${params.division ? `\nDivisi: *${params.division}*` : ''}`,
+      inline: true,
+    },
+    {
+      name: '🤖 SISTEM PEMBERI AKSES',
+      value: `**BOT OTORISASI KENEGARAAN**\n*(Pimpinan Tinggi Sedang Offline / Timeout 10 Menit)*`,
+      inline: true,
+    },
+    {
+      name: '🕒 WAKTU OTORISASI',
+      value: `${dateStr}`,
+      inline: true,
+    },
+    {
+      name: '🔒 PIN LOGIN BARU DIAKTIFKAN',
+      value: `\`${params.newPin}\` *(Aktif & Disinkronkan ke Database)*`,
+      inline: true,
+    },
+    {
+      name: '📋 STATUS OTORISASI',
+      value: `⚡ **AUTO-GRANTED / SELESAI (RESOLVED)**`,
+      inline: true,
+    },
+    {
+      name: '📝 KETERANGAN SISTEM',
+      value: `>>> *${params.reason || 'Akses darurat diberikan otomatis oleh sistem karena Pimpinan Tinggi tidak berada di tempat atau batas waktu respon 10 menit terlewati.'}*`,
+      inline: false,
+    }
+  ];
+
+  const embedObj = {
+    title: `⚡ OTORISASI OTOMATIS: PIN LOGIN PORTAL PEMERINTAHAN AKTIF`,
+    description: `Permohonan pembaruan PIN pejabat **${params.officialName} (${params.officialBadge})** telah disetujui otomatis oleh Bot Keamanan Negara.`,
+    color: 0x10B981, // Emerald Green
+    fields,
+    footer: {
+      text: `Executive Government Security & Automated Registry • Highstate Roleplay • ${dateStr}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  const payload = {
+    username: config.botName.trim() || 'Audit Sandi & Kredensial Negara',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    embeds: [embedObj],
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return { success: true, message: '✅ Notifikasi Auto-Grant PIN berhasil dikirim ke Discord!' };
+  } catch (err: any) {
+    return { success: false, message: `Gagal mengirim webhook auto-grant: ${err.message}` };
+  }
+}
+
+/**
+ * Send official Government PIN Reset Resolution by President / Leader to Discord Webhook
+ * (Formatted exactly matching HSPD's classic PIN Reset Resolution format)
+ */
+export async function sendGovPinResetResolvedWebhookToDiscord(params: {
+  officialName: string;
+  officialBadge: string;
+  rank?: string;
+  division?: string;
+  newPin: string;
+  resolvedBy: string;
+  resolvedByBadge: string;
+  resolvedByRank: string;
+  notes?: string;
+  customConfig?: Partial<WebhookConfig>;
+}): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedGovPinResetWebhookConfig(), ...params.customConfig };
+
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'URL Webhook Discord Pemerintah belum disetting.'
+    };
+  }
+
+  const dateStr = new Date().toLocaleString('id-ID', {
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+
+  const fields = [
+    {
+      name: '🏛️ PEJABAT NEGARA',
+      value: `Nama: **${params.officialName}**\nCallsign / Badge: \`${params.officialBadge}\`${params.rank ? `\nJabatan: **${params.rank}**` : ''}${params.division ? `\nDivisi: *${params.division}*` : ''}`,
+      inline: true,
+    },
+    {
+      name: '👑 ATASAN PENGESAH (PIMPINAN NEGARA)',
+      value: `Nama: **${params.resolvedBy}**\nBadge: \`${params.resolvedByBadge}\`\nJabatan: **${params.resolvedByRank}**`,
+      inline: true,
+    },
+    {
+      name: '🕒 WAKTU PENGESAHAN',
+      value: `${dateStr}`,
+      inline: true,
+    },
+    {
+      name: '🔒 PIN LOGIN BARU (STATUS AKTIF)',
+      value: `\`${params.newPin}\` *(Telah diperbarui di database Pemerintahan)*`,
+      inline: true,
+    },
+    {
+      name: '📋 STATUS VERIFIKASI',
+      value: `✅ **DISETUJUI & SELESAI (RESOLVED)**`,
+      inline: true,
+    },
+    {
+      name: '📝 CATATAN PIMPINAN',
+      value: `>>> *${params.notes || 'Kredensial PIN login portal kenegaraan telah diverifikasi dan disetujui. Pejabat dapat login kembali.'}*`,
+      inline: false,
+    }
+  ];
+
+  const embedObj = {
+    title: `✅ LAPORAN OTORISASI: PIN LOGIN PORTAL NEGARA TELAH DISETUJUI ATASAN`,
+    description: `Permohonan lupa/reset PIN untuk pejabat **${params.officialName} (${params.officialBadge})** telah disetujui dan diperbarui oleh pimpinan eksekutif.`,
+    color: 0x10B981, // Emerald Green
+    fields,
+    footer: {
+      text: `Executive Government Security & Credential Registry • Highstate Roleplay • ${dateStr}`,
+      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    },
+    timestamp: new Date().toISOString(),
+  };
+
+  const payload = {
+    username: config.botName.trim() || 'Audit Sandi & Kredensial Negara',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    embeds: [embedObj],
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+
+    return {
+      success: true,
+      message: `Persetujuan PIN untuk ${params.officialName} (${params.officialBadge}) berhasil dikirim ke Discord!`
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `Gagal mengirim ke Webhook Discord: ${err.message || 'Cek koneksi'}`
+    };
+  }
+}
+
+/**
+ * Send official Government PIN Reset / Change Notification to Discord Webhook
+ */
+export async function sendGovPinResetDiscordWebhook(params: {
+  account: GovernmentAccount;
+  newPin: string;
+  reason: string;
+  discordTag?: string;
+  customConfig?: Partial<WebhookConfig>;
+}): Promise<{ success: boolean; message: string }> {
+  const config = { ...getSavedGovPinResetWebhookConfig(), ...params.customConfig };
+
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return {
+      success: false,
+      message: 'URL Discord Webhook Audit PIN Pejabat belum diatur di sistem pemerintahan.'
+    };
+  }
+
+  const dateStr = new Date().toLocaleString('id-ID', {
+    dateStyle: 'full',
+    timeStyle: 'medium',
+  });
+
+  const fields: any[] = [
+    {
+      name: '🏛️ IDENTITAS PEJABAT',
+      value: `Nama: **${params.account.name}**\nCallsign / Badge: \`${params.account.badge}\`\nJabatan: **${params.account.rank}**\nDivisi: *${params.account.division}*`,
+      inline: true,
+    },
+    {
+      name: '📋 JENIS PENGAJUAN',
+      value: `🔑 **PERMINTAAN RESET / UBAH PIN PORTAL PEMERINTAHAN**`,
+      inline: true,
+    },
+    {
+      name: '🕒 WAKTU PERUBAHAN',
+      value: `${dateStr}`,
+      inline: true,
+    },
+    {
+      name: '📝 ALASAN / KETERANGAN PEJABAT',
+      value: `>>> *${params.reason || 'Pejabat lupa PIN login atau mengajukan pembaruan kode akses keamanan akun pemerintahan.'}*`,
+      inline: false,
+    },
+    {
+      name: '🔒 PIN KEAMANAN BARU',
+      value: `\`${params.newPin}\` *(Aktif & Disinkronkan ke Database)*`,
+      inline: true,
+    },
+    {
+      name: '💬 KONTAK DISCORD PEJABAT',
+      value: params.discordTag?.trim() ? `\`${params.discordTag.trim()}\`` : (params.account.discordTag ? `\`${params.account.discordTag}\`` : '*(Tidak ada data)*'),
+      inline: true,
+    },
+    {
+      name: '👑 TINDAKAN UNTUK PIMPINAN EKSEKUTIF',
+      value: '🟢 **PIN Telah Berhasil Diperbarui & Disinkronkan ke Database Pemerintahan**',
+      inline: false,
+    }
+  ];
+
+  const payload = {
+    username: config.botName.trim() || 'Audit Sandi & Kredensial Negara',
+    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    embeds: [
+      {
+        title: '🚨 TIKET PENGAJUAN PERUBAHAN / RESET PIN LOGIN PEJABAT',
+        description: `Log resmi pembaruan kredensial PIN login Portal Resmi Pemerintah Negara HighState.`,
+        color: 0xF59E0B, // Amber Gold
+        fields,
+        footer: {
+          text: 'Executive Government of HighState • National Cybersecurity & Credential Registry',
+          icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
+        },
+        timestamp: new Date().toISOString()
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return { success: true, message: '✅ Webhook log perubahan PIN berhasil dikirim ke Discord!' };
+  } catch (err: any) {
+    return { success: false, message: `❌ Gagal mengirim webhook Discord: ${err.message}` };
   }
 }
 

@@ -19,8 +19,24 @@ import {
   getOnlineSuperiorsList, isAnySuperiorOnline,
   playPoliceChime, PinResetAutoGrantConfig
 } from '../utils/pinResetStorage';
-import { sendPinResetResolvedWebhookToDiscord, sendPinResetRequestToDiscord } from '../utils/discordWebhook';
+import { 
+  sendPinResetResolvedWebhookToDiscord, 
+  sendPinResetRequestToDiscord,
+  sendGovPinResetResolvedWebhookToDiscord
+} from '../utils/discordWebhook';
+import { 
+  getGovPinResetRequests, 
+  saveGovPinResetRequests, 
+  updateGovernmentPin, 
+  getGovernmentRoster, 
+  GovPinResetRequest 
+} from '../utils/governmentStorage';
 import { pushAllToFirestore } from '../services/firebaseRealtimeSync';
+
+export interface EnrichedPinResetRequest extends PinResetRequest {
+  sourceType: 'POLICE' | 'GOVERNMENT';
+  division?: string;
+}
 
 interface Props {
   isOpen: boolean;
@@ -39,7 +55,37 @@ export const PinResetAuditModal: React.FC<Props> = ({
   onUpdateOfficerPin,
   onOpenWebhookSettings
 }) => {
-  const [requests, setRequests] = useState<PinResetRequest[]>(() => getPinResetRequests());
+  const loadAllUnifiedRequests = (): EnrichedPinResetRequest[] => {
+    const policeReqs: EnrichedPinResetRequest[] = getPinResetRequests().map(r => ({
+      ...r,
+      sourceType: 'POLICE' as const
+    }));
+    const govReqs: EnrichedPinResetRequest[] = getGovPinResetRequests().map(g => ({
+      id: g.id,
+      officerName: g.officialName,
+      officerBadge: g.officialBadge,
+      officerRank: g.officialRank,
+      discordTag: g.discordTag,
+      reason: g.reason,
+      requestedPin: g.requestedPin,
+      status: g.status,
+      createdAt: g.createdAt,
+      resolvedAt: g.resolvedAt,
+      resolvedBy: g.resolvedBy,
+      resolvedByBadge: g.resolvedByBadge,
+      resolvedByRank: g.resolvedByRank,
+      resolvedNewPin: g.resolvedNewPin,
+      resolutionNotes: g.resolutionNotes,
+      autoGranted: g.autoGranted,
+      autoGrantReason: g.autoGrantReason,
+      sourceType: 'GOVERNMENT' as const,
+      division: g.division
+    }));
+    return [...policeReqs, ...govReqs].sort((a, b) => b.createdAt - a.createdAt);
+  };
+
+  const [requests, setRequests] = useState<EnrichedPinResetRequest[]>(() => loadAllUnifiedRequests());
+  const [scopeFilter, setScopeFilter] = useState<'ALL' | 'POLICE' | 'GOVERNMENT'>('ALL');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'MANUAL_RESOLVED' | 'AUTO_GRANTED' | 'REJECTED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -48,7 +94,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
   const [showConfigPanel, setShowConfigPanel] = useState(false);
 
   // Resolution Dialog State
-  const [resolvingRequest, setResolvingRequest] = useState<PinResetRequest | null>(null);
+  const [resolvingRequest, setResolvingRequest] = useState<EnrichedPinResetRequest | null>(null);
   const [newPinInput, setNewPinInput] = useState('');
   const [supervisorNotes, setSupervisorNotes] = useState('');
   const [sendWebhookOnResolve, setSendWebhookOnResolve] = useState(true);
@@ -58,24 +104,26 @@ export const PinResetAuditModal: React.FC<Props> = ({
   const [showNewPin, setShowNewPin] = useState(false);
 
   // Reject Dialog State
-  const [rejectingRequest, setRejectingRequest] = useState<PinResetRequest | null>(null);
+  const [rejectingRequest, setRejectingRequest] = useState<EnrichedPinResetRequest | null>(null);
   const [rejectReason, setRejectReason] = useState('');
 
   // Manual Reset Dialog State
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [manualTargetType, setManualTargetType] = useState<'POLICE' | 'GOVERNMENT'>('POLICE');
   const [manualOfficerId, setManualOfficerId] = useState('');
   const [manualNewPin, setManualNewPin] = useState('');
-  const [manualReason, setManualReason] = useState('Pembaruan Kredensial Langsung oleh High Command');
+  const [manualReason, setManualReason] = useState('Pembaruan Kredensial Langsung oleh Pimpinan');
 
   // Online Superiors List
   const onlineSuperiors = useMemo(() => getOnlineSuperiorsList(roster), [roster, isOpen]);
+  const govRoster = useMemo(() => getGovernmentRoster(), [isOpen]);
 
   // Sync requests when modal opens & on realtime events
   useEffect(() => {
     if (!isOpen) return;
 
     const sync = () => {
-      setRequests(getPinResetRequests());
+      setRequests(loadAllUnifiedRequests());
       setAutoGrantConfig(getPinResetAutoGrantConfig());
     };
 
@@ -84,11 +132,15 @@ export const PinResetAuditModal: React.FC<Props> = ({
     const handleReqUpdate = () => sync();
     window.addEventListener('hspd-pin-requests-updated', handleReqUpdate);
     window.addEventListener('hspd-pin-reset-requested', handleReqUpdate);
+    window.addEventListener('gov-pin-requests-updated', handleReqUpdate);
+    window.addEventListener('gov-pin-reset-requested', handleReqUpdate);
     window.addEventListener('storage', handleReqUpdate);
 
     return () => {
       window.removeEventListener('hspd-pin-requests-updated', handleReqUpdate);
       window.removeEventListener('hspd-pin-reset-requested', handleReqUpdate);
+      window.removeEventListener('gov-pin-requests-updated', handleReqUpdate);
+      window.removeEventListener('gov-pin-reset-requested', handleReqUpdate);
       window.removeEventListener('storage', handleReqUpdate);
     };
   }, [isOpen]);
@@ -96,6 +148,9 @@ export const PinResetAuditModal: React.FC<Props> = ({
   // Filtered list
   const filteredRequests = useMemo(() => {
     return requests.filter(r => {
+      if (scopeFilter === 'POLICE' && r.sourceType !== 'POLICE') return false;
+      if (scopeFilter === 'GOVERNMENT' && r.sourceType !== 'GOVERNMENT') return false;
+
       let matchStatus = true;
       if (statusFilter === 'PENDING') {
         matchStatus = r.status === 'PENDING';
@@ -113,16 +168,17 @@ export const PinResetAuditModal: React.FC<Props> = ({
         r.officerBadge.toLowerCase().includes(q) ||
         (r.discordTag && r.discordTag.toLowerCase().includes(q)) ||
         r.reason.toLowerCase().includes(q) ||
-        (r.resolvedBy && r.resolvedBy.toLowerCase().includes(q))
+        (r.resolvedBy && r.resolvedBy.toLowerCase().includes(q)) ||
+        (r.division && r.division.toLowerCase().includes(q))
       );
       return matchStatus && matchQuery;
     });
-  }, [requests, statusFilter, searchQuery]);
+  }, [requests, scopeFilter, statusFilter, searchQuery]);
 
   if (!isOpen) return null;
 
   const refreshRequests = () => {
-    setRequests(getPinResetRequests());
+    setRequests(loadAllUnifiedRequests());
   };
 
   // Stats calculation
@@ -144,34 +200,72 @@ export const PinResetAuditModal: React.FC<Props> = ({
   };
 
   // Quick 1-Click Accept
-  const handleQuickAccept = async (req: PinResetRequest) => {
+  const handleQuickAccept = async (req: EnrichedPinResetRequest) => {
     const assignedPin = req.requestedPin?.trim() || '10-4';
     setIsProcessingResolve(true);
     setActionErrorNotice('');
 
     try {
-      // 1. Update in roster
-      onUpdateOfficerPin(req.officerBadge || req.officerName, assignedPin);
+      if (req.sourceType === 'GOVERNMENT') {
+        // 1. Update in government roster
+        updateGovernmentPin(req.officerBadge || req.officerName, assignedPin);
 
-      // 2. Resolve request
-      resolvePinResetRequest(
-        req.id,
-        assignedPin,
-        currentOfficer,
-        `Disetujui langsung oleh ${currentOfficer.rank} ${currentOfficer.name} (Quick 1-Click Accept).`
-      );
+        // 2. Resolve request in government storage
+        const govReqs = getGovPinResetRequests();
+        const idx = govReqs.findIndex(r => r.id === req.id);
+        if (idx !== -1) {
+          govReqs[idx] = {
+            ...govReqs[idx],
+            status: 'RESOLVED',
+            resolvedAt: Date.now(),
+            resolvedBy: `${currentOfficer.rank} ${currentOfficer.name}`,
+            resolvedByBadge: currentOfficer.badge,
+            resolvedByRank: currentOfficer.rank,
+            resolvedNewPin: assignedPin,
+            resolutionNotes: `Disetujui langsung oleh ${currentOfficer.rank} ${currentOfficer.name} (Quick 1-Click Accept).`
+          };
+          saveGovPinResetRequests(govReqs);
+        }
 
-      // 3. Webhook
-      await sendPinResetResolvedWebhookToDiscord({
-        officerName: req.officerName,
-        officerBadge: req.officerBadge,
-        officerRank: req.officerRank,
-        newPin: assignedPin,
-        resolvedBy: currentOfficer.name,
-        resolvedByBadge: currentOfficer.badge,
-        resolvedByRank: currentOfficer.rank,
-        notes: `Disetujui langsung via Quick 1-Click Accept di Dashboard Atasan.`
-      });
+        // 3. Send Government Discord Webhook
+        await sendGovPinResetResolvedWebhookToDiscord({
+          officialName: req.officerName,
+          officialBadge: req.officerBadge,
+          rank: req.officerRank,
+          division: req.division,
+          newPin: assignedPin,
+          resolvedBy: currentOfficer.name,
+          resolvedByBadge: currentOfficer.badge,
+          resolvedByRank: currentOfficer.rank,
+          notes: `Disetujui langsung via Quick 1-Click Accept di Dashboard Pimpinan.`
+        });
+
+        window.dispatchEvent(new CustomEvent('gov-pin-requests-updated'));
+        window.dispatchEvent(new CustomEvent('hspd-pin-requests-updated'));
+      } else {
+        // 1. Update in police roster
+        onUpdateOfficerPin(req.officerBadge || req.officerName, assignedPin);
+
+        // 2. Resolve request
+        resolvePinResetRequest(
+          req.id,
+          assignedPin,
+          currentOfficer,
+          `Disetujui langsung oleh ${currentOfficer.rank} ${currentOfficer.name} (Quick 1-Click Accept).`
+        );
+
+        // 3. Webhook
+        await sendPinResetResolvedWebhookToDiscord({
+          officerName: req.officerName,
+          officerBadge: req.officerBadge,
+          officerRank: req.officerRank,
+          newPin: assignedPin,
+          resolvedBy: currentOfficer.name,
+          resolvedByBadge: currentOfficer.badge,
+          resolvedByRank: currentOfficer.rank,
+          notes: `Disetujui langsung via Quick 1-Click Accept di Dashboard Atasan.`
+        });
+      }
 
       refreshRequests();
       setActionSuccessNotice(`✅ Permintaan ${req.officerName} (${req.officerBadge}) langsung disetujui dengan PIN "${assignedPin}"!`);
@@ -184,17 +278,33 @@ export const PinResetAuditModal: React.FC<Props> = ({
   };
 
   // Open resolve dialog for a specific ticket
-  const handleOpenResolve = (req: PinResetRequest) => {
+  const handleOpenResolve = (req: EnrichedPinResetRequest) => {
     setResolvingRequest(req);
     const cleanIdent = req.officerName.trim().toLowerCase();
     const cleanBadge = req.officerBadge.trim().toLowerCase();
-    const found = roster.find(o => 
-      o.name.toLowerCase() === cleanIdent || 
-      o.badge.toLowerCase() === cleanBadge ||
-      o.name.toLowerCase().includes(cleanIdent)
+    
+    let existingPin = '10-4';
+    if (req.sourceType === 'GOVERNMENT') {
+      const foundGov = govRoster.find(g => 
+        g.name.toLowerCase() === cleanIdent || 
+        g.badge.toLowerCase() === cleanBadge ||
+        g.name.toLowerCase().includes(cleanIdent)
+      );
+      if (foundGov) existingPin = foundGov.pin;
+    } else {
+      const found = roster.find(o => 
+        o.name.toLowerCase() === cleanIdent || 
+        o.badge.toLowerCase() === cleanBadge ||
+        o.name.toLowerCase().includes(cleanIdent)
+      );
+      if (found) existingPin = found.pin;
+    }
+
+    setNewPinInput(req.requestedPin || existingPin);
+    setSupervisorNotes(req.sourceType === 'GOVERNMENT'
+      ? 'Kredensial identitas pejabat negara telah diverifikasi & PIN login portal kenegaraan telah diperbarui.'
+      : 'Kredensial identitas telah diverifikasi & PIN login MDT telah diperbarui.'
     );
-    setNewPinInput(req.requestedPin || (found ? found.pin : '10-4'));
-    setSupervisorNotes('Kredensial identitas telah diverifikasi & PIN login MDT telah diperbarui.');
     setActionErrorNotice('');
     setActionSuccessNotice('');
   };
@@ -214,26 +324,63 @@ export const PinResetAuditModal: React.FC<Props> = ({
     setActionErrorNotice('');
 
     try {
-      onUpdateOfficerPin(resolvingRequest.officerBadge || resolvingRequest.officerName, trimmedPin);
+      if (resolvingRequest.sourceType === 'GOVERNMENT') {
+        updateGovernmentPin(resolvingRequest.officerBadge || resolvingRequest.officerName, trimmedPin);
 
-      resolvePinResetRequest(
-        resolvingRequest.id,
-        trimmedPin,
-        currentOfficer,
-        supervisorNotes
-      );
+        const govReqs = getGovPinResetRequests();
+        const idx = govReqs.findIndex(r => r.id === resolvingRequest.id);
+        if (idx !== -1) {
+          govReqs[idx] = {
+            ...govReqs[idx],
+            status: 'RESOLVED',
+            resolvedAt: Date.now(),
+            resolvedBy: `${currentOfficer.rank} ${currentOfficer.name}`,
+            resolvedByBadge: currentOfficer.badge,
+            resolvedByRank: currentOfficer.rank,
+            resolvedNewPin: trimmedPin,
+            resolutionNotes: supervisorNotes
+          };
+          saveGovPinResetRequests(govReqs);
+        }
 
-      if (sendWebhookOnResolve) {
-        await sendPinResetResolvedWebhookToDiscord({
-          officerName: resolvingRequest.officerName,
-          officerBadge: resolvingRequest.officerBadge,
-          officerRank: resolvingRequest.officerRank,
-          newPin: trimmedPin,
-          resolvedBy: currentOfficer.name,
-          resolvedByBadge: currentOfficer.badge,
-          resolvedByRank: currentOfficer.rank,
-          notes: supervisorNotes,
-        });
+        if (sendWebhookOnResolve) {
+          await sendGovPinResetResolvedWebhookToDiscord({
+            officialName: resolvingRequest.officerName,
+            officialBadge: resolvingRequest.officerBadge,
+            rank: resolvingRequest.officerRank,
+            division: resolvingRequest.division,
+            newPin: trimmedPin,
+            resolvedBy: currentOfficer.name,
+            resolvedByBadge: currentOfficer.badge,
+            resolvedByRank: currentOfficer.rank,
+            notes: supervisorNotes,
+          });
+        }
+
+        window.dispatchEvent(new CustomEvent('gov-pin-requests-updated'));
+        window.dispatchEvent(new CustomEvent('hspd-pin-requests-updated'));
+      } else {
+        onUpdateOfficerPin(resolvingRequest.officerBadge || resolvingRequest.officerName, trimmedPin);
+
+        resolvePinResetRequest(
+          resolvingRequest.id,
+          trimmedPin,
+          currentOfficer,
+          supervisorNotes
+        );
+
+        if (sendWebhookOnResolve) {
+          await sendPinResetResolvedWebhookToDiscord({
+            officerName: resolvingRequest.officerName,
+            officerBadge: resolvingRequest.officerBadge,
+            officerRank: resolvingRequest.officerRank,
+            newPin: trimmedPin,
+            resolvedBy: currentOfficer.name,
+            resolvedByBadge: currentOfficer.badge,
+            resolvedByRank: currentOfficer.rank,
+            notes: supervisorNotes,
+          });
+        }
       }
 
       refreshRequests();
@@ -252,7 +399,27 @@ export const PinResetAuditModal: React.FC<Props> = ({
     e.preventDefault();
     if (!rejectingRequest) return;
 
-    rejectPinResetRequest(rejectingRequest.id, currentOfficer, rejectReason);
+    if (rejectingRequest.sourceType === 'GOVERNMENT') {
+      const govReqs = getGovPinResetRequests();
+      const idx = govReqs.findIndex(r => r.id === rejectingRequest.id);
+      if (idx !== -1) {
+        govReqs[idx] = {
+          ...govReqs[idx],
+          status: 'REJECTED',
+          resolvedAt: Date.now(),
+          resolvedBy: `${currentOfficer.rank} ${currentOfficer.name}`,
+          resolvedByBadge: currentOfficer.badge,
+          resolvedByRank: currentOfficer.rank,
+          resolutionNotes: rejectReason || 'Permohonan reset PIN ditolak oleh pimpinan eksekutif.'
+        };
+        saveGovPinResetRequests(govReqs);
+        window.dispatchEvent(new CustomEvent('gov-pin-requests-updated'));
+        window.dispatchEvent(new CustomEvent('hspd-pin-requests-updated'));
+      }
+    } else {
+      rejectPinResetRequest(rejectingRequest.id, currentOfficer, rejectReason);
+    }
+
     refreshRequests();
     setRejectingRequest(null);
     setRejectReason('');
@@ -261,9 +428,17 @@ export const PinResetAuditModal: React.FC<Props> = ({
   };
 
   // Delete Request Log
-  const handleDelete = (id: string, name: string) => {
+  const handleDelete = (id: string, name: string, sourceType?: 'POLICE' | 'GOVERNMENT') => {
     if (window.confirm(`Hapus catatan log pengajuan reset PIN untuk ${name}?`)) {
-      deletePinResetRequest(id);
+      if (sourceType === 'GOVERNMENT' || id.startsWith('gov-req-')) {
+        const govReqs = getGovPinResetRequests();
+        const filteredGov = govReqs.filter(r => r.id !== id);
+        saveGovPinResetRequests(filteredGov);
+        window.dispatchEvent(new CustomEvent('gov-pin-requests-updated'));
+        window.dispatchEvent(new CustomEvent('hspd-pin-requests-updated'));
+      } else {
+        deletePinResetRequest(id);
+      }
       refreshRequests();
     }
   };
@@ -272,17 +447,70 @@ export const PinResetAuditModal: React.FC<Props> = ({
   const handleManualResetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualOfficerId) {
-      setActionErrorNotice('Pilih petugas yang akan diubah PIN-nya!');
+      setActionErrorNotice('Pilih personel / pejabat yang akan diubah PIN-nya!');
       return;
     }
-    const targetOfficer = roster.find(o => o.id === manualOfficerId);
-    if (!targetOfficer) return;
 
     const trimmedPin = manualNewPin.trim();
     if (!trimmedPin) {
       setActionErrorNotice('PIN baru wajib diisi!');
       return;
     }
+
+    if (manualTargetType === 'GOVERNMENT') {
+      const targetGov = govRoster.find(g => g.id === manualOfficerId);
+      if (!targetGov) return;
+
+      updateGovernmentPin(targetGov.badge, trimmedPin);
+
+      // Record in government requests
+      const govReqs = getGovPinResetRequests();
+      const newGovReq: GovPinResetRequest = {
+        id: `gov-req-${Date.now()}`,
+        officialName: targetGov.name,
+        officialBadge: targetGov.badge,
+        officialRank: targetGov.rank,
+        division: targetGov.division,
+        reason: manualReason,
+        requestedPin: trimmedPin,
+        status: 'RESOLVED',
+        createdAt: Date.now(),
+        resolvedAt: Date.now(),
+        resolvedBy: `${currentOfficer.rank} ${currentOfficer.name}`,
+        resolvedByBadge: currentOfficer.badge,
+        resolvedByRank: currentOfficer.rank,
+        resolvedNewPin: trimmedPin,
+        resolutionNotes: `Reset manual langsung oleh ${currentOfficer.rank} ${currentOfficer.name}: ${manualReason}`
+      };
+      govReqs.unshift(newGovReq);
+      saveGovPinResetRequests(govReqs);
+
+      await sendGovPinResetResolvedWebhookToDiscord({
+        officialName: targetGov.name,
+        officialBadge: targetGov.badge,
+        rank: targetGov.rank,
+        division: targetGov.division,
+        newPin: trimmedPin,
+        resolvedBy: currentOfficer.name,
+        resolvedByBadge: currentOfficer.badge,
+        resolvedByRank: currentOfficer.rank,
+        notes: `Reset PIN Manual Pemerintahan: ${manualReason}`
+      });
+
+      window.dispatchEvent(new CustomEvent('gov-pin-requests-updated'));
+      window.dispatchEvent(new CustomEvent('hspd-pin-requests-updated'));
+
+      refreshRequests();
+      setIsManualModalOpen(false);
+      setManualOfficerId('');
+      setManualNewPin('');
+      setActionSuccessNotice(`✅ PIN Pejabat ${targetGov.name} (${targetGov.badge}) berhasil diperbarui menjadi "${trimmedPin}" dan disiarkan ke Discord!`);
+      setTimeout(() => setActionSuccessNotice(''), 4000);
+      return;
+    }
+
+    const targetOfficer = roster.find(o => o.id === manualOfficerId);
+    if (!targetOfficer) return;
 
     onUpdateOfficerPin(targetOfficer.badge, trimmedPin);
 
@@ -544,9 +772,76 @@ export const PinResetAuditModal: React.FC<Props> = ({
           </div>
 
           {/* FILTER & ACTIONS BAR */}
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 bg-[#0D1117] p-2.5 border border-gray-800 rounded-lg">
-            {/* Filter Buttons */}
-            <div className="flex flex-wrap items-center gap-1">
+          <div className="flex flex-col gap-2.5 bg-[#0D1117] p-2.5 border border-gray-800 rounded-lg">
+            {/* Row 1: Scope Filter (Police vs Government) & Search */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-1 bg-black/40 p-1 rounded-lg border border-gray-800">
+                <button
+                  type="button"
+                  onClick={() => setScopeFilter('ALL')}
+                  className={`px-2.5 py-1 rounded text-xs transition font-bold cursor-pointer ${
+                    scopeFilter === 'ALL'
+                      ? 'bg-amber-500 text-black shadow-sm'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+                >
+                  🌐 Semua ({requests.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScopeFilter('POLICE')}
+                  className={`px-2.5 py-1 rounded text-xs transition font-bold cursor-pointer flex items-center gap-1 ${
+                    scopeFilter === 'POLICE'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-blue-400 hover:text-blue-300'
+                  }`}
+                >
+                  👮 HSPD ({requests.filter(r => r.sourceType === 'POLICE').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScopeFilter('GOVERNMENT')}
+                  className={`px-2.5 py-1 rounded text-xs transition font-bold cursor-pointer flex items-center gap-1 ${
+                    scopeFilter === 'GOVERNMENT'
+                      ? 'bg-amber-600 text-black shadow-sm'
+                      : 'text-amber-400 hover:text-amber-300'
+                  }`}
+                >
+                  🏛️ Pemerintahan ({requests.filter(r => r.sourceType === 'GOVERNMENT').length})
+                </button>
+              </div>
+
+              {/* Search Input & Manual Action */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1 sm:w-60">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-gray-500" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Cari nama / badge / discord..."
+                    className="w-full pl-8 pr-3 py-1.5 bg-black/50 border border-gray-700 rounded text-xs text-gray-200 placeholder:text-gray-600 outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsManualModalOpen(true);
+                    setManualTargetType('POLICE');
+                    setManualOfficerId('');
+                    setManualNewPin('');
+                  }}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-black font-bold rounded transition flex items-center gap-1 text-xs shrink-0 shadow-sm cursor-pointer"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  <span>+ Reset Manual</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Row 2: Status Filter Buttons */}
+            <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-gray-800/60">
               <button
                 type="button"
                 onClick={() => setStatusFilter('ALL')}
@@ -556,7 +851,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
                     : 'bg-gray-800/80 text-gray-400 hover:text-gray-200'
                 }`}
               >
-                Semua ({totalCount})
+                Semua Status
               </button>
               <button
                 type="button"
@@ -601,29 +896,6 @@ export const PinResetAuditModal: React.FC<Props> = ({
                 }`}
               >
                 <span>🔴 Ditolak ({rejectedCount})</span>
-              </button>
-            </div>
-
-            {/* Search Input & Manual Action */}
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1 sm:w-60">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-gray-500" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Cari nama / badge / discord..."
-                  className="w-full pl-8 pr-3 py-1.5 bg-black/50 border border-gray-700 rounded text-xs text-gray-200 placeholder:text-gray-600 outline-none focus:border-amber-500 font-mono"
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsManualModalOpen(true)}
-                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-black font-bold rounded transition flex items-center gap-1 text-xs shrink-0 shadow-sm cursor-pointer"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>+ Reset Manual</span>
               </button>
             </div>
           </div>
@@ -678,11 +950,25 @@ export const PinResetAuditModal: React.FC<Props> = ({
                           {isAutoGranted ? <Zap className="w-4 h-4 text-emerald-400" /> : <User className="w-4 h-4" />}
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-gray-100 text-sm">{req.officerName}</span>
                             <span className="px-1.5 py-0.5 bg-black/60 border border-gray-700 text-gray-300 rounded font-bold text-[10px]">
                               {req.officerBadge}
                             </span>
+                            {req.sourceType === 'GOVERNMENT' ? (
+                              <span className="px-1.5 py-0.5 bg-amber-500/20 border border-amber-500/60 text-amber-300 rounded font-bold text-[10px] flex items-center gap-1">
+                                🏛️ PEMERINTAH
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.5 bg-blue-500/20 border border-blue-500/60 text-blue-300 rounded font-bold text-[10px] flex items-center gap-1">
+                                👮 HSPD
+                              </span>
+                            )}
+                            {req.division && (
+                              <span className="px-1.5 py-0.5 bg-gray-800 text-gray-300 rounded text-[10px] font-mono">
+                                {req.division}
+                              </span>
+                            )}
                             {req.officerRank && (
                               <span className="text-[10px] text-amber-400 font-bold hidden sm:inline">
                                 {req.officerRank}
@@ -855,7 +1141,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
 
                         <button
                           type="button"
-                          onClick={() => handleDelete(req.id, req.officerName)}
+                          onClick={() => handleDelete(req.id, req.officerName, req.sourceType)}
                           className="p-1.5 text-gray-500 hover:text-rose-400 transition cursor-pointer"
                           title="Hapus Tiket Log Ini"
                         >
@@ -1058,7 +1344,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
               <div className="flex items-center gap-2">
                 <PlusCircle className="w-5 h-5 text-amber-400" />
                 <h4 className="font-bold text-sm text-gray-100 uppercase font-sans">
-                  RESET PIN PETUGAS MANUAL
+                  RESET PIN MANUAL (HIGH COMMAND)
                 </h4>
               </div>
               <button
@@ -1070,28 +1356,87 @@ export const PinResetAuditModal: React.FC<Props> = ({
             </div>
 
             <form onSubmit={handleManualResetSubmit} className="space-y-3.5">
-              {/* Select Officer */}
+              {/* Target Type Selector: Police vs Government */}
               <div className="space-y-1">
                 <label className="text-[11px] font-bold uppercase text-gray-300">
-                  Pilih Anggota Kepolisian <span className="text-rose-400">*</span>
+                  Pilih Instansi Target
                 </label>
-                <select
-                  value={manualOfficerId}
-                  onChange={(e) => {
-                    setManualOfficerId(e.target.value);
-                    const sel = roster.find(o => o.id === e.target.value);
-                    if (sel) setManualNewPin(sel.pin);
-                  }}
-                  className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 rounded-lg text-xs text-gray-200 outline-none font-mono"
-                  required
-                >
-                  <option value="">-- Pilih Petugas dari Roster --</option>
-                  {roster.map(o => (
-                    <option key={o.id} value={o.id}>
-                      {o.badge} - {o.name} ({o.rank})
-                    </option>
-                  ))}
-                </select>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManualTargetType('POLICE');
+                      setManualOfficerId('');
+                      setManualNewPin('');
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 border cursor-pointer ${
+                      manualTargetType === 'POLICE'
+                        ? 'bg-blue-600 border-blue-500 text-white'
+                        : 'bg-black/40 border-gray-800 text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    <span>👮 Kepolisian (HSPD)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManualTargetType('GOVERNMENT');
+                      setManualOfficerId('');
+                      setManualNewPin('');
+                    }}
+                    className={`py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 border cursor-pointer ${
+                      manualTargetType === 'GOVERNMENT'
+                        ? 'bg-amber-600 border-amber-500 text-black'
+                        : 'bg-black/40 border-gray-800 text-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    <span>🏛️ Pemerintahan</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Select Officer / Official */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold uppercase text-gray-300">
+                  {manualTargetType === 'GOVERNMENT' ? 'Pilih Pejabat Pemerintahan' : 'Pilih Anggota Kepolisian'} <span className="text-rose-400">*</span>
+                </label>
+                {manualTargetType === 'GOVERNMENT' ? (
+                  <select
+                    value={manualOfficerId}
+                    onChange={(e) => {
+                      setManualOfficerId(e.target.value);
+                      const sel = govRoster.find(g => g.id === e.target.value);
+                      if (sel) setManualNewPin(sel.pin);
+                    }}
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 rounded-lg text-xs text-gray-200 outline-none font-mono"
+                    required
+                  >
+                    <option value="">-- Pilih Pejabat dari Roster Pemerintahan --</option>
+                    {govRoster.map(g => (
+                      <option key={g.id} value={g.id}>
+                        {g.badge} - {g.name} ({g.rank} - {g.division})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    value={manualOfficerId}
+                    onChange={(e) => {
+                      setManualOfficerId(e.target.value);
+                      const sel = roster.find(o => o.id === e.target.value);
+                      if (sel) setManualNewPin(sel.pin);
+                    }}
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 rounded-lg text-xs text-gray-200 outline-none font-mono"
+                    required
+                  >
+                    <option value="">-- Pilih Petugas dari Roster --</option>
+                    {roster.map(o => (
+                      <option key={o.id} value={o.id}>
+                        {o.badge} - {o.name} ({o.rank})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Input New PIN */}

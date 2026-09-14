@@ -43,7 +43,19 @@ export const GovernmentRecruitmentInfoPanel: React.FC<Props> = ({ currentOfficer
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   useEffect(() => {
-    return subscribeToGovernmentPortal(cfg => setPortal(cfg));
+    const unsub = subscribeToGovernmentPortal(cfg => setPortal(cfg));
+    const handleDbChange = () => {
+      setPortal(getGovernmentPortalConfig());
+    };
+    window.addEventListener('hspd-gov-roster-updated', handleDbChange);
+    window.addEventListener('hspd-gov-permits-updated', handleDbChange);
+    window.addEventListener('gov-security-status-updated', handleDbChange);
+    return () => {
+      unsub();
+      window.removeEventListener('hspd-gov-roster-updated', handleDbChange);
+      window.removeEventListener('hspd-gov-permits-updated', handleDbChange);
+      window.removeEventListener('gov-security-status-updated', handleDbChange);
+    };
   }, []);
 
   return (

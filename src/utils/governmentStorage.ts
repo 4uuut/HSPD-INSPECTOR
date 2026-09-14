@@ -6,6 +6,10 @@ import {
   ALL_GOVERNMENT_DIVISIONS 
 } from '../types';
 import { syncCollectionWithFirestore, pushToFirestore, deleteFromFirestore } from '../services/firebaseRealtimeSync';
+import { 
+  sendGovPinResetRequestToDiscord, 
+  sendGovPinResetAutoGrantedWebhookToDiscord 
+} from './discordWebhook';
 
 export const GOVERNMENT_ROSTER_STORAGE_KEY = 'hspd_government_roster_v1';
 
@@ -227,5 +231,285 @@ export function subscribeToGovernmentRoster(callback: (roster: GovernmentAccount
   return () => {
     window.removeEventListener('hspd-gov-roster-updated', handler);
     window.removeEventListener('storage', () => callback(getGovernmentRoster()));
+  };
+}
+
+export function updateGovernmentPin(
+  identifier: string,
+  newPin: string
+): { success: boolean; message: string; account?: GovernmentAccount } {
+  const current = getGovernmentRoster();
+  const trimmedPin = newPin.trim();
+  if (!trimmedPin) {
+    return { success: false, message: 'PIN baru tidak boleh kosong!' };
+  }
+
+  const index = current.findIndex(g => isGovernmentMatch(g, identifier));
+  if (index === -1) {
+    return { 
+      success: false, 
+      message: `Pejabat dengan identitas "${identifier}" tidak ditemukan dalam database Pemerintahan!` 
+    };
+  }
+
+  const target = current[index];
+  const updatedAccount: GovernmentAccount = {
+    ...target,
+    pin: trimmedPin,
+    _updatedAt: Date.now()
+  };
+
+  current[index] = updatedAccount;
+  saveGovernmentRoster(current);
+  pushToFirestore('GOVERNMENT_ROSTER' as any, updatedAccount).catch(() => {});
+
+  return {
+    success: true,
+    message: `PIN pejabat ${updatedAccount.name} (${updatedAccount.badge}) berhasil diperbarui!`,
+    account: updatedAccount
+  };
+}
+
+export interface GovPinResetRequest {
+  id: string;
+  officialName: string;
+  officialBadge: string;
+  officialRank?: string;
+  division?: string;
+  discordTag?: string;
+  reason: string;
+  requestedPin?: string;
+  status: 'PENDING' | 'RESOLVED' | 'REJECTED';
+  createdAt: number;
+  resolvedAt?: number;
+  resolvedBy?: string;
+  resolvedByBadge?: string;
+  resolvedByRank?: string;
+  resolvedNewPin?: string;
+  resolutionNotes?: string;
+  webhookSent?: boolean;
+  autoGranted?: boolean;
+  autoGrantReason?: string;
+}
+
+export const GOV_PIN_RESET_REQUESTS_KEY = 'hspd_gov_pin_reset_requests_v1';
+export const GOV_PIN_RESET_AUTO_ACCEPT_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+export function getGovPinResetRequests(): GovPinResetRequest[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(GOV_PIN_RESET_REQUESTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.error('Failed to get Gov PIN reset requests:', err);
+    return [];
+  }
+}
+
+export function saveGovPinResetRequests(requests: GovPinResetRequest[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(GOV_PIN_RESET_REQUESTS_KEY, JSON.stringify(requests));
+    window.dispatchEvent(new CustomEvent('hspd-gov-pin-requests-updated', { detail: requests }));
+  } catch (err) {
+    console.error('Failed to save Gov PIN reset requests:', err);
+  }
+}
+
+export function isGovLeader(rank?: string): boolean {
+  if (!rank) return false;
+  const upper = rank.toUpperCase();
+  return (
+    upper.includes('PRESIDENT') ||
+    upper.includes('VICE PRESIDENT') ||
+    upper.includes('MINISTER') ||
+    upper.includes('RANK 6') ||
+    upper.includes('RANK 5') ||
+    upper.includes('RANK 4')
+  );
+}
+
+export function getGovOnlineLeadersList(roster?: GovernmentAccount[]): { name: string; badge: string; rank: string }[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const leaders: { name: string; badge: string; rank: string }[] = [];
+    const sessionRaw = localStorage.getItem('HSPD_CURRENT_OFFICER_SESSION_V2');
+    if (sessionRaw) {
+      const active = JSON.parse(sessionRaw);
+      if (active && isGovLeader(active.rank)) {
+        leaders.push({
+          name: active.name,
+          badge: active.badge,
+          rank: active.rank
+        });
+      }
+    }
+    return leaders;
+  } catch {
+    return [];
+  }
+}
+
+export function isAnyGovLeaderOnline(roster?: GovernmentAccount[]): boolean {
+  return getGovOnlineLeadersList(roster).length > 0;
+}
+
+export function autoApproveGovPinRequestDueToTimeout(
+  requestId: string,
+  customPin?: string
+): { success: boolean; message: string; pin?: string; request?: GovPinResetRequest } {
+  const requests = getGovPinResetRequests();
+  const index = requests.findIndex(r => r.id === requestId);
+  if (index === -1) {
+    return { success: false, message: 'Tiket pengajuan PIN pemerintahan tidak ditemukan.' };
+  }
+
+  const req = requests[index];
+  if (req.status === 'RESOLVED') {
+    return { 
+      success: true, 
+      message: 'Tiket sudah disetujui sebelumnya.', 
+      pin: req.resolvedNewPin, 
+      request: req 
+    };
+  }
+
+  const appliedPin = customPin?.trim() || req.requestedPin?.trim() || '10-4';
+  
+  const pinRes = updateGovernmentPin(req.officialBadge || req.officialName, appliedPin);
+  if (!pinRes.success) {
+    return { success: false, message: pinRes.message };
+  }
+
+  const updatedReq: GovPinResetRequest = {
+    ...req,
+    status: 'RESOLVED',
+    resolvedAt: Date.now(),
+    resolvedBy: 'Bot Otomasi Kenegaraan (High Command Timeout)',
+    resolvedByBadge: '#BOT-GOV',
+    resolvedByRank: 'AUTOMATED GOV DISPATCH',
+    resolvedNewPin: appliedPin,
+    resolutionNotes: 'Disetujui otomatis oleh bot sistem karena Pimpinan Tinggi tidak berada di tempat selama 10 menit.',
+    autoGranted: true,
+    autoGrantReason: 'Timeout 10 Menit / Pimpinan Offline'
+  };
+
+  requests[index] = updatedReq;
+  saveGovPinResetRequests(requests);
+
+  sendGovPinResetAutoGrantedWebhookToDiscord({
+    officialName: req.officialName,
+    officialBadge: req.officialBadge,
+    rank: req.officialRank,
+    division: req.division,
+    newPin: appliedPin,
+    reason: req.reason
+  }).catch(() => {});
+
+  return {
+    success: true,
+    message: `Akses berhasil disetujui otomatis! PIN baru Anda adalah: ${appliedPin}`,
+    pin: appliedPin,
+    request: updatedReq
+  };
+}
+
+export async function executeGovPinResetSubmission(params: {
+  account: GovernmentAccount;
+  reason: string;
+  requestedNewPin?: string;
+  discordTag?: string;
+}): Promise<{
+  success: boolean;
+  message: string;
+  autoGranted: boolean;
+  assignedPin?: string;
+  ticket?: GovPinResetRequest;
+}> {
+  const leadersOnline = isAnyGovLeaderOnline();
+
+  if (!leadersOnline) {
+    const finalPin = params.requestedNewPin?.trim() || '10-4';
+    const updateRes = updateGovernmentPin(params.account.badge, finalPin);
+    if (!updateRes.success) {
+      return { success: false, message: updateRes.message, autoGranted: false };
+    }
+
+    const ticket: GovPinResetRequest = {
+      id: `gov-req-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      officialName: params.account.name,
+      officialBadge: params.account.badge,
+      officialRank: params.account.rank,
+      division: params.account.division,
+      discordTag: params.discordTag || params.account.discordTag,
+      reason: params.reason,
+      requestedPin: finalPin,
+      status: 'RESOLVED',
+      createdAt: Date.now(),
+      resolvedAt: Date.now(),
+      resolvedBy: 'Bot Otomasi Kenegaraan (High Command Offline)',
+      resolvedByBadge: '#BOT-GOV',
+      resolvedByRank: 'SECURITY DISPATCH',
+      resolvedNewPin: finalPin,
+      resolutionNotes: 'Otorisasi otomatis instan karena Pimpinan Tinggi (Presiden/Wapres) sedang offline.',
+      autoGranted: true,
+      autoGrantReason: 'Pimpinan Tinggi Sedang Offline'
+    };
+
+    const currentReqs = getGovPinResetRequests();
+    saveGovPinResetRequests([ticket, ...currentReqs]);
+
+    sendGovPinResetAutoGrantedWebhookToDiscord({
+      officialName: params.account.name,
+      officialBadge: params.account.badge,
+      rank: params.account.rank,
+      division: params.account.division,
+      newPin: finalPin,
+      reason: params.reason
+    }).catch(() => {});
+
+    return {
+      success: true,
+      message: 'Pimpinan Tinggi sedang tidak berada di tempat. Akses login baru Anda telah disetujui otomatis oleh sistem!',
+      autoGranted: true,
+      assignedPin: finalPin,
+      ticket
+    };
+  }
+
+  const ticket: GovPinResetRequest = {
+    id: `gov-req-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+    officialName: params.account.name,
+    officialBadge: params.account.badge,
+    officialRank: params.account.rank,
+    division: params.account.division,
+    discordTag: params.discordTag || params.account.discordTag,
+    reason: params.reason,
+    requestedPin: params.requestedNewPin?.trim(),
+    status: 'PENDING',
+    createdAt: Date.now(),
+    webhookSent: true
+  };
+
+  const currentReqs = getGovPinResetRequests();
+  saveGovPinResetRequests([ticket, ...currentReqs]);
+
+  await sendGovPinResetRequestToDiscord({
+    officialName: params.account.name,
+    officialBadge: params.account.badge,
+    rank: params.account.rank,
+    division: params.account.division,
+    reason: params.reason,
+    requestedNewPin: params.requestedNewPin?.trim(),
+    discordTag: params.discordTag || params.account.discordTag
+  });
+
+  return {
+    success: true,
+    message: 'Tiket permohonan berhasil dikirim ke Discord Pimpinan! Menunggu konfirmasi atasan (maksimal 10 menit).',
+    autoGranted: false,
+    ticket
   };
 }

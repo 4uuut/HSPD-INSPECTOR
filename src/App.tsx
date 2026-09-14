@@ -18,6 +18,7 @@ import { DestructionRegistryBoard } from './components/DestructionRegistryBoard'
 import { OfficialDocumentStudio } from './components/OfficialDocumentStudio';
 import { GovernmentRosterManagement } from './components/GovernmentRosterManagement';
 import { GovernmentExecutiveHub } from './components/GovernmentExecutiveHub';
+import { GovernmentSettingsView } from './components/GovernmentSettingsView';
 import { DivisionBadgeHero } from './components/DivisionBadgeHero';
 import { ModuleClearanceGuard } from './components/ModuleClearanceGuard';
 import { OtpGeneratorModal } from './components/OtpGeneratorModal';
@@ -29,10 +30,12 @@ import { RecruitmentPortalSettingsModal } from './components/RecruitmentPortalSe
 import { AndroidMdtView } from './components/AndroidMdtView';
 import { ExportAttendanceModal } from './components/ExportAttendanceModal';
 import { SettingsView } from './components/SettingsView';
+import { CitizenPublicServicePortal } from './components/CitizenPublicServicePortal';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
 import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch, isSameOfficerAccount, saveRosterToStorage, updateOfficerPinInRoster } from './utils/pinResetStorage';
 import { getSavedDetectiveCases, saveDetectiveCases } from './utils/detectiveCaseStorage';
 import { getSavedBoloAlerts, saveBoloAlerts, getSavedImpounds, saveImpounds } from './utils/boloImpoundStorage';
+import { getSavedTrafficCitations, saveTrafficCitations } from './utils/trafficCitationStorage';
 import { getOfficerDutyState, saveOfficerDutyState, formatDutyDuration } from './utils/officerDutyStorage';
 import { getDiscordWebhookConfig, getSavedDiscordBotConfig, startDiscordBotGateway, buildApiUrl } from './utils/discordWebhook';
 import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from './utils/brandingStorage';
@@ -40,7 +43,7 @@ import { checkDirectRankClearance, hasActiveUnlockedSession } from './utils/otpC
 import { getGovernmentRoster, subscribeToGovernmentRoster } from './utils/governmentStorage';
 import { 
   ArrestRecord, OfficerProfile, OfficerAccount, isOfficerHighRank, isSupervisorOrAbove, isAtasanRank,
-  DetectiveCase, BoloAlert, ImpoundRecord, getDivisionArchetype, ModuleAccessKey, isGovernmentRank 
+  DetectiveCase, BoloAlert, ImpoundRecord, TrafficCitationRecord, getDivisionArchetype, ModuleAccessKey, isGovernmentRank 
 } from './types';
 import { 
   Shield, Calculator, Megaphone, BookOpen, FileText, 
@@ -48,7 +51,7 @@ import {
   Users, ShieldAlert, KeyRound, Power, Clock, CheckCircle2, Sliders,
   Search, Car, Crosshair, Landmark, Flame, Stamp as StampIcon,
   UserCheck, Microscope, Cloud, Database, Palette, Smartphone, Monitor, Settings,
-  Building2, Crown
+  Building2, Crown, Globe
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from './assets/logo';
 import { 
@@ -237,7 +240,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const [activeNav, setActiveNav] = useState<'calc' | 'dmv' | 'divisions' | 'forensics' | 'documents' | 'detective' | 'traffic' | 'vault' | 'destruction' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster' | 'settings' | 'gov_roster' | 'gov_suite'>('calc');
+  const [activeNav, setActiveNav] = useState<'calc' | 'dmv' | 'divisions' | 'forensics' | 'documents' | 'detective' | 'traffic' | 'vault' | 'destruction' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster' | 'settings' | 'gov_roster' | 'gov_suite' | 'gov_settings' | 'citizen_portal'>('calc');
   const [govRosterCount, setGovRosterCount] = useState<number>(() => getGovernmentRoster().length);
 
   // Subscribe to government roster updates
@@ -312,6 +315,21 @@ export default function App() {
     setImpoundList(newList);
     saveImpounds(newList);
   };
+
+  // Traffic Citations (Tilang) State
+  const [trafficCitations, setTrafficCitations] = useState<TrafficCitationRecord[]>(() => getSavedTrafficCitations());
+  const handleSaveTrafficCitations = (newList: TrafficCitationRecord[]) => {
+    setTrafficCitations(newList);
+    saveTrafficCitations(newList);
+  };
+
+  useEffect(() => {
+    const handleCitationsUpdated = () => {
+      setTrafficCitations(getSavedTrafficCitations());
+    };
+    window.addEventListener('hspd-traffic-citations-updated', handleCitationsUpdated);
+    return () => window.removeEventListener('hspd-traffic-citations-updated', handleCitationsUpdated);
+  }, []);
 
   // Track initial mount to avoid spamming Firestore writes on page load
   const isRosterFirstMount = useRef(true);
@@ -772,7 +790,7 @@ export default function App() {
     if (currentOfficer) {
       const isGov = currentOfficer.accountType === 'GOVERNMENT' || isGovernmentRank(currentOfficer.rank);
       if (isGov) {
-        const allowedGovTabs = ['gov_suite', 'documents', 'dmv', 'history', 'gov_roster'];
+        const allowedGovTabs = ['gov_suite', 'documents', 'dmv', 'history', 'gov_roster', 'gov_settings', 'citizen_portal'];
         if (!allowedGovTabs.includes(activeNav)) {
           setActiveNav('gov_suite');
         }
@@ -1043,12 +1061,15 @@ export default function App() {
             <nav className="flex items-center gap-1 text-[11px] font-medium">
               {(isGovernment ? [
                 { id: 'gov_suite', label: '🏛️ Layanan & Operasional Negara', icon: Crown, code: 'EXEC', moduleKey: undefined },
+                { id: 'citizen_portal', label: '🌐 Layanan Warga (SKCK & Izin Usaha)', icon: Globe, code: 'WARGA', moduleKey: undefined },
                 { id: 'documents', label: '📄 Surat & Dokumen Kenegaraan', icon: StampIcon, code: 'DOC', moduleKey: undefined },
                 { id: 'dmv', label: '👤 Sipil & DMV Kependudukan', icon: UserCheck, code: 'DMV', moduleKey: undefined },
                 { id: 'history', label: `📁 Catatan Kasus & Kriminal (${records.length})`, icon: FileText, code: 'LOG', moduleKey: undefined },
                 { id: 'gov_roster', label: `👥 Roster Pejabat (${govRosterCount})`, icon: Building2, code: 'GOV', moduleKey: undefined },
+                { id: 'gov_settings', label: '⚙️ Setting & Otoritas', icon: Settings, code: 'CFG', moduleKey: undefined },
               ] : [
                 { id: 'calc', label: 'Kalkulator Pasal', icon: Calculator, code: 'CALC', moduleKey: undefined },
+                { id: 'citizen_portal', label: '🌐 Layanan Warga (SKCK & Izin)', icon: Globe, code: 'WARGA', moduleKey: undefined },
                 { id: 'dmv', label: '👤 Sipil & DMV', icon: UserCheck, code: 'DMV', moduleKey: 'DMV_CITIZEN' as ModuleAccessKey },
                 { id: 'divisions', label: '🎖️ Divisi Khusus', icon: Award, code: 'DIV', moduleKey: 'SPECIAL_DIVISIONS' as ModuleAccessKey },
                 { id: 'forensics', label: '🔬 Lab Forensik', icon: Microscope, code: 'LAB', moduleKey: 'FORENSICS' as ModuleAccessKey },
@@ -1224,6 +1245,11 @@ export default function App() {
             </ModuleClearanceGuard>
           )
         )}
+        {activeNav === 'citizen_portal' && (
+          <CitizenPublicServicePortal
+            currentOfficer={currentOfficer}
+          />
+        )}
         {activeNav === 'gov_suite' && (
           <GovernmentExecutiveHub
             currentOfficer={currentOfficer}
@@ -1240,12 +1266,29 @@ export default function App() {
             onNavigateToDmv={() => setActiveNav('dmv')}
             onNavigateToRoster={() => setActiveNav('gov_roster')}
             onNavigateToHistory={() => setActiveNav('history')}
+            onNavigateToSettings={() => setActiveNav('gov_settings')}
           />
         )}
         {activeNav === 'gov_roster' && (
           <GovernmentRosterManagement
             currentOfficer={currentOfficer}
             onNavigateToDocuments={() => setActiveNav('documents')}
+          />
+        )}
+        {activeNav === 'gov_settings' && (
+          <GovernmentSettingsView
+            currentOfficer={currentOfficer}
+            onNavigateToDocuments={(presetId, initialData) => {
+              setActiveNav('documents');
+              if (presetId || initialData) {
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('load-official-document-draft', {
+                    detail: { presetId, docData: initialData }
+                  }));
+                }, 100);
+              }
+            }}
+            onNavigateToHub={() => setActiveNav('gov_suite')}
           />
         )}
         {activeNav === 'detective' && (
@@ -1272,9 +1315,12 @@ export default function App() {
             <BoloAndTrafficHub
               boloList={boloList}
               impoundList={impoundList}
+              citationList={trafficCitations}
               currentOfficer={currentOfficer}
               onSaveBolo={handleSaveBoloAlerts}
               onSaveImpound={handleSaveImpoundRecords}
+              onSaveCitation={handleSaveTrafficCitations}
+              onOpenWebhookSettings={() => setIsWebhookModalOpen(true)}
             />
           </ModuleClearanceGuard>
         )}

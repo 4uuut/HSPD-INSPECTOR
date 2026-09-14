@@ -35,7 +35,9 @@ import {
   Shield,
   Briefcase,
   Crosshair,
-  BadgeAlert
+  BadgeAlert,
+  Settings,
+  Camera
 } from 'lucide-react';
 import { OfficerProfile } from '../types';
 import { 
@@ -74,6 +76,7 @@ interface GovernmentExecutiveHubProps {
   onNavigateToDmv?: () => void;
   onNavigateToRoster?: () => void;
   onNavigateToHistory?: () => void;
+  onNavigateToSettings?: () => void;
 }
 
 export const GovernmentExecutiveHub: React.FC<GovernmentExecutiveHubProps> = ({
@@ -81,7 +84,8 @@ export const GovernmentExecutiveHub: React.FC<GovernmentExecutiveHubProps> = ({
   onNavigateToDocuments,
   onNavigateToDmv,
   onNavigateToRoster,
-  onNavigateToHistory
+  onNavigateToHistory,
+  onNavigateToSettings
 }) => {
   // Navigation Sub-tab
   const [activeTab, setActiveTab] = useState<'ANNOUNCEMENTS' | 'PERMITS' | 'TREASURY' | 'SOP'>('PERMITS');
@@ -516,12 +520,19 @@ export const GovernmentExecutiveHub: React.FC<GovernmentExecutiveHubProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setIsGovCentralAuthModalOpen(true)}
+              id="btn-gov-settings-and-authority"
+              onClick={() => {
+                if (onNavigateToSettings) {
+                  onNavigateToSettings();
+                } else {
+                  setIsGovCentralAuthModalOpen(true);
+                }
+              }}
               className="px-3 py-1.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-black font-black text-xs rounded-lg shadow-md shadow-amber-950/40 flex items-center gap-1.5 transition active:scale-95 border border-amber-300"
-              title="Buka Otorisasi Pusat & Webhook Kenegaraan"
+              title="Buka Pengaturan & Otoritas Kenegaraan (Webhook, Pengumuman Login, Formulir Selesai, Discord Kenegaraan)"
             >
-              <Crown className="w-3.5 h-3.5 text-black" />
-              <span>👑 Otorisasi Pusat:</span>
+              <Settings className="w-3.5 h-3.5 text-black" />
+              <span>⚙️ Setting & Otoritas</span>
             </button>
           </div>
 
@@ -740,6 +751,42 @@ export const GovernmentExecutiveHub: React.FC<GovernmentExecutiveHubProps> = ({
                       {permit.notes && (
                         <div className="mt-2.5 p-2 bg-[#0D1117] rounded border border-gray-800 text-[11px] text-gray-400 italic">
                           "{permit.notes}"
+                        </div>
+                      )}
+
+                      {/* Lampiran 4 Foto Berkas Usaha jika tersedia */}
+                      {permit.photos && (permit.photos.shopFrontPhoto || permit.photos.businessInfoPhoto || permit.photos.businessPropertyPhoto || permit.photos.ktpPhoto) && (
+                        <div className="mt-2.5 p-2 bg-[#0D1117] rounded-lg border border-amber-900/40">
+                          <span className="text-[10px] text-amber-400 font-mono font-bold flex items-center gap-1 mb-1.5">
+                            <Camera className="w-3 h-3 text-amber-400" />
+                            4 Foto Berkas Usaha Terlampir:
+                          </span>
+                          <div className="grid grid-cols-4 gap-1">
+                            {permit.photos.shopFrontPhoto && (
+                              <div className="relative rounded overflow-hidden border border-gray-700 bg-black/60 group/img">
+                                <img src={permit.photos.shopFrontPhoto} alt="Depan" className="w-full h-10 object-cover" />
+                                <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[6.5px] text-center text-amber-300 font-mono">Depan</span>
+                              </div>
+                            )}
+                            {permit.photos.businessInfoPhoto && (
+                              <div className="relative rounded overflow-hidden border border-gray-700 bg-black/60 group/img">
+                                <img src={permit.photos.businessInfoPhoto} alt="Info" className="w-full h-10 object-cover" />
+                                <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[6.5px] text-center text-amber-300 font-mono">/biz info</span>
+                              </div>
+                            )}
+                            {permit.photos.businessPropertyPhoto && (
+                              <div className="relative rounded overflow-hidden border border-gray-700 bg-black/60 group/img">
+                                <img src={permit.photos.businessPropertyPhoto} alt="Properti" className="w-full h-10 object-cover" />
+                                <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[6.5px] text-center text-amber-300 font-mono">Properti</span>
+                              </div>
+                            )}
+                            {permit.photos.ktpPhoto && (
+                              <div className="relative rounded overflow-hidden border border-gray-700 bg-black/60 group/img">
+                                <img src={permit.photos.ktpPhoto} alt="KTP" className="w-full h-10 object-cover" />
+                                <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[6.5px] text-center text-amber-300 font-mono">KTP</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1839,6 +1886,7 @@ Fasilitas medis, logistik pangan, dan petugas berwenang dikecualikan dari aturan
           setActiveTab('ANNOUNCEMENTS');
         }}
         onNavigateToRoster={onNavigateToRoster}
+        onNavigateToSettings={onNavigateToSettings}
       />
     </div>
   );

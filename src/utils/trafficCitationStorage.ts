@@ -117,7 +117,12 @@ export function formatImpoundAsText(imp: ImpoundRecord): string {
   }) + ' WIB';
 
   const fineFormatted = `$${(imp.impoundFee || 0).toLocaleString('id-ID')} (Sita ${imp.impoundDays || 3} Hari)`;
-  const buktiStatus = (imp.hasEvidence || (imp.evidenceImage && imp.evidenceImage.length > 0)) ? 'Ada' : 'Tidak Ada';
+  const countBukti = [imp.evidenceImage, imp.evidenceImage2].filter(Boolean).length;
+  const buktiStatus = countBukti === 2 
+    ? 'Ada (2 Foto Bukti Terlampir)' 
+    : countBukti === 1 
+      ? 'Ada (1 Foto Bukti Terlampir)' 
+      : (imp.hasEvidence ? 'Ada' : 'Tidak Ada');
 
   return [
     `Nama Petugas    : ${imp.officerName}${imp.officerBadge ? ` [${imp.officerBadge}]` : ''}`,
@@ -157,3 +162,6 @@ export function getCurrentTimeString(): string {
   const mm = String(now.getMinutes()).padStart(2, '0');
   return `${hh}:${mm} WIB`;
 }
+
+export const getCurrentIndonesianDayDate = getCurrentDayDateString;
+export const getCurrentIndonesianTimeString = getCurrentTimeString;

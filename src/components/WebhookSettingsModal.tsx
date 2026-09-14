@@ -4,7 +4,7 @@ import {
   X, Globe, Settings, Lock, Check, Copy, ExternalLink, Sparkles, Sliders,
   AlertTriangle, UserX, Award, KeyRound, Users, Search, ShieldAlert, Car,
   Landmark, Flame, Hammer, Coins, Palette, FileText, Bot, Eye, EyeOff, MessageSquare,
-  Upload, Image, Activity, Zap
+  Upload, Image, Activity, Zap, Ticket
 } from 'lucide-react';
 import { 
   getSavedWebhookConfig, saveWebhookConfig, 
@@ -501,6 +501,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
     saveRosterWebhookConfig(rosterConfig);
     saveDetectiveWebhookConfig(detectiveConfig);
     saveBoloWebhookConfig(boloConfig);
+    saveTrafficCitationWebhookConfig(tilangConfig);
     saveImpoundWebhookConfig(impoundConfig);
     saveVaultWebhookConfig(vaultConfig);
     saveDestructionWebhookConfig(destructionConfig);
@@ -697,6 +698,20 @@ export const WebhookSettingsModal: React.FC<Props> = ({
 
           <button
             type="button"
+            onClick={() => setActiveTab('tilang')}
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
+              activeTab === 'tilang'
+                ? 'border-amber-500 text-amber-400 bg-[#161B22]'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+            }`}
+            title="Log Tilang / Penindakan Pelanggaran Lalu Lintas"
+          >
+            <Ticket className="w-3 h-3 shrink-0 text-amber-400" />
+            <span className="truncate">10. Tilang</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('impound')}
             className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
               activeTab === 'impound'
@@ -706,7 +721,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
             title="Sita Kendaraan & Impound Lot"
           >
             <Car className="w-3 h-3 shrink-0 text-emerald-400" />
-            <span className="truncate">10. Impound</span>
+            <span className="truncate">11. Impound</span>
           </button>
 
           <button
@@ -714,13 +729,13 @@ export const WebhookSettingsModal: React.FC<Props> = ({
             onClick={() => setActiveTab('vault')}
             className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
               activeTab === 'vault'
-                ? 'border-amber-500 text-amber-400 bg-[#161B22]'
+                ? 'border-yellow-500 text-yellow-400 bg-[#161B22]'
                 : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
             }`}
             title="Brankas & Audit Log Mingguan (1x Seminggu)"
           >
-            <Landmark className="w-3 h-3 shrink-0 text-amber-400" />
-            <span className="truncate">11. Brankas</span>
+            <Landmark className="w-3 h-3 shrink-0 text-yellow-400" />
+            <span className="truncate">12. Brankas</span>
           </button>
 
           <button
@@ -734,7 +749,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
             title="Peleburan & Pemusnahan Kendaraan / Senjata"
           >
             <Flame className="w-3 h-3 shrink-0 text-orange-400" />
-            <span className="truncate">12. Peleburan</span>
+            <span className="truncate">13. Peleburan</span>
           </button>
 
           <button
@@ -748,7 +763,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
             title="Arsip Surat & Dokumen Resmi Kepolisian"
           >
             <FileText className="w-3 h-3 shrink-0 text-cyan-400" />
-            <span className="truncate">13. Dokumen</span>
+            <span className="truncate">14. Dokumen</span>
           </button>
 
           <button
@@ -762,7 +777,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
             title="Bot Discord Pesan Pribadi (PM / DM)"
           >
             <Bot className="w-3 h-3 shrink-0 text-sky-400" />
-            <span className="truncate">14. Bot PM (DM)</span>
+            <span className="truncate">15. Bot PM (DM)</span>
           </button>
         </div>
 
@@ -1887,7 +1902,144 @@ export const WebhookSettingsModal: React.FC<Props> = ({
             </div>
           )}
 
-          {/* TAB 10: IMPOUND LOT WEBHOOK */}
+          {/* TAB 10: TRAFFIC CITATION / LOG TILANG WEBHOOK */}
+          {activeTab === 'tilang' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-amber-950/30 border border-amber-900/60 rounded-lg text-[11px] text-amber-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-amber-200">
+                  <Ticket className="w-3.5 h-3.5" />
+                  <span>Channel Rekor Penindakan Tilang Lalu Lintas (Traffic Citation & Enforcement Log)</span>
+                </div>
+                <p className="text-gray-400">
+                  Format log penilangan resmi HSPD dengan bukti upload dari galeri perangkat, pasal pelanggaran lalu lintas, rincian denda, dan data pengemudi.
+                </p>
+                <div className="mt-2 p-2 bg-black/40 rounded border border-amber-900/40 text-[10px] font-mono text-amber-200/90 whitespace-pre">
+{`Nama Petugas    : John Miller [012]
+Hari/Tanggal    : Jumat, 11 September 2026
+Jam             : 14:30 WIB
+Nama            : Dominic Toretto
+Nama tempat     : Commerce, Los Santos
+Jenis Kendaraan : Buffalo S
+Plat Nomor      : FAST-01
+Pasal Pelanggaran     : Reckless Driving & Speeding
+Total Denda     : $4.500
+Catatan         : Penindakan resmi surat tilang
+
+Bukti : Ada`}
+                </div>
+              </div>
+
+              {/* Webhook URL Input */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-300 uppercase block">
+                  URL Discord Webhook Log Tilang (Traffic Citation):
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    value={tilangConfig.webhookUrl}
+                    onChange={(e) => setTilangConfig({ ...tilangConfig, webhookUrl: e.target.value })}
+                    placeholder="https://discord.com/api/webhooks/..."
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded text-xs text-amber-300 font-mono outline-none"
+                  />
+                  {tilangConfig.webhookUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setTilangConfig({ ...tilangConfig, webhookUrl: '' })}
+                      className="absolute right-2.5 top-2 text-gray-500 hover:text-gray-300"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-gray-400">
+                  Contoh channel: <code className="text-amber-400 bg-black/40 px-1 rounded">#log-tilang</code>, <code className="text-amber-400 bg-black/40 px-1 rounded">#traffic-citation</code>, atau <code className="text-amber-400 bg-black/40 px-1 rounded">#penindakan-lalin</code>
+                </p>
+              </div>
+
+              {/* Bot Customization */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    Nama Bot Discord (Custom)
+                  </label>
+                  <input
+                    type="text"
+                    value={tilangConfig.botName}
+                    onChange={(e) => setTilangConfig({ ...tilangConfig, botName: e.target.value })}
+                    placeholder="HSPD Traffic Enforcement & Citation Unit"
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-gray-300">
+                    URL Avatar Bot (Opsional)
+                  </label>
+                  <input
+                    type="url"
+                    value={tilangConfig.botAvatar}
+                    onChange={(e) => setTilangConfig({ ...tilangConfig, botAvatar: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded text-xs text-gray-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Auto Send Toggle */}
+              <div className="p-3 bg-[#0D1117] border border-gray-800 rounded-lg flex items-center justify-between">
+                <div>
+                  <div className="font-bold text-gray-200 text-xs">Kirim Otomatis saat Terbitkan Surat Tilang</div>
+                  <div className="text-[10px] text-gray-400">Otomatis mengirim data tilang dan lampiran foto bukti galeri langsung ke webhook Discord</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={tilangConfig.autoSendOnSave}
+                  onChange={(e) => setTilangConfig({ ...tilangConfig, autoSendOnSave: e.target.checked })}
+                  className="w-4 h-4 rounded border-gray-700 text-amber-500 focus:ring-0 cursor-pointer"
+                />
+              </div>
+
+              {/* Test Connection Button & Result */}
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestTilangWebhook}
+                  disabled={isTestingTilang || !tilangConfig.webhookUrl.trim()}
+                  className="w-full py-2 bg-gray-800 hover:bg-amber-900/40 text-amber-300 border border-amber-700/50 hover:border-amber-500 rounded font-bold transition flex items-center justify-center gap-2 disabled:opacity-40"
+                >
+                  {isTestingTilang ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menguji Koneksi Webhook Log Tilang...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Ticket className="w-3.5 h-3.5" />
+                      <span>UJI COBA PING WEBHOOK LOG TILANG (TEST EMBED)</span>
+                    </>
+                  )}
+                </button>
+
+                {tilangTestResult && (
+                  <div className={`p-2.5 rounded border text-xs flex items-center gap-2 ${
+                    tilangTestResult.success 
+                      ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' 
+                      : 'bg-rose-950/60 border-rose-700 text-rose-300'
+                  }`}>
+                    {tilangTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    )}
+                    <span>{tilangTestResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 11: IMPOUND LOT WEBHOOK */}
           {activeTab === 'impound' && (
             <div className="space-y-4">
               <div className="p-3 bg-emerald-950/30 border border-emerald-900/60 rounded-lg text-[11px] text-emerald-300 space-y-1">

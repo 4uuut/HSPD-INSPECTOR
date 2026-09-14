@@ -1,4 +1,6 @@
 import { pushToFirestore } from '../services/firebaseRealtimeSync';
+import { getGovernmentRoster } from './governmentStorage';
+import { getGovernmentPermits, getStateSecurityStatus } from './governmentOperationsStorage';
 
 export interface GovCoreValueItem {
   id: string;
@@ -274,11 +276,109 @@ export const DEFAULT_GOVERNMENT_PORTAL_CONFIG: GovernmentPortalConfig = {
 };
 
 /**
- * Retrieve current active government portal configuration from storage.
+ * Synchronize quick stats dynamically with the real Government database:
+ * - APARATUR AKTIF: Count of registered officials in government roster database
+ * - KEMENTERIAN / BIRO: Count of active ministries / departments
+ * - PERIZINAN TERDATA: Count of permits recorded in government operations database
+ * - STATUS KEAMANAN: Current state security status level & condition
+ */
+export function getSynchronizedGovQuickStats(): GovQuickStatItem[] {
+  let rosterCount = 24;
+  try {
+    const roster = getGovernmentRoster();
+    if (Array.isArray(roster) && roster.length > 0) {
+      rosterCount = roster.length;
+    }
+  } catch {}
+
+  let ministriesCount = 5;
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(GOV_RECRUITMENT_STORAGE_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.ministries) && parsed.ministries.length > 0) {
+        ministriesCount = parsed.ministries.length;
+      }
+    }
+  } catch {}
+
+  let permitsCount = '180+';
+  try {
+    const permits = getGovernmentPermits();
+    if (Array.isArray(permits)) {
+      if (permits.length >= 10) {
+        permitsCount = `${permits.length}+`;
+      } else if (permits.length > 0) {
+        permitsCount = `${permits.length} Izin`;
+      }
+    }
+  } catch {}
+
+  let securityLevelTitle = 'NORMAL';
+  let securitySublabel = 'Kondisi Kota Terkendali';
+  let securityColor: GovQuickStatItem['color'] = 'purple';
+  try {
+    const sec = getStateSecurityStatus();
+    if (sec) {
+      if (sec.level === 1) {
+        securityLevelTitle = 'NORMAL';
+        securitySublabel = sec.curfewActive ? 'Jam Malam Aktif' : 'Kondisi Kota Terkendali';
+        securityColor = 'emerald';
+      } else if (sec.level === 2) {
+        securityLevelTitle = 'WASPADA';
+        securitySublabel = sec.curfewActive ? 'Jam Malam Aktif' : 'Peningkatan Patroli';
+        securityColor = 'amber';
+      } else if (sec.level === 3) {
+        securityLevelTitle = 'SIAGA';
+        securitySublabel = sec.curfewActive ? 'Jam Malam Diberlakukan' : 'Siaga Wilayah Kota';
+        securityColor = 'amber';
+      } else if (sec.level === 4) {
+        securityLevelTitle = 'DARURAT';
+        securitySublabel = 'Darurat Militer & Bencana';
+        securityColor = 'rose';
+      }
+    }
+  } catch {}
+
+  return [
+    {
+      id: 'stat_apparatus',
+      label: 'APARATUR AKTIF',
+      value: String(rosterCount),
+      sublabel: 'Pejabat & Staf Khusus',
+      color: 'amber'
+    },
+    {
+      id: 'stat_ministries',
+      label: 'KEMENTERIAN / BIRO',
+      value: String(ministriesCount),
+      sublabel: 'Departemen Pelayanan',
+      color: 'blue'
+    },
+    {
+      id: 'stat_permits',
+      label: 'PERIZINAN TERDATA',
+      value: permitsCount,
+      sublabel: 'Usaha & Senjata Legal',
+      color: 'emerald'
+    },
+    {
+      id: 'stat_status',
+      label: 'STATUS KEAMANAN',
+      value: securityLevelTitle,
+      sublabel: securitySublabel,
+      color: securityColor
+    }
+  ];
+}
+
+/**
+ * Retrieve current active government portal configuration from storage with synchronized stats.
  */
 export function getGovernmentPortalConfig(): GovernmentPortalConfig {
+  const synchronizedStats = getSynchronizedGovQuickStats();
   try {
-    const raw = localStorage.getItem(GOV_RECRUITMENT_STORAGE_KEY);
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(GOV_RECRUITMENT_STORAGE_KEY) : null;
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
@@ -286,7 +386,7 @@ export function getGovernmentPortalConfig(): GovernmentPortalConfig {
           ...DEFAULT_GOVERNMENT_PORTAL_CONFIG,
           ...parsed,
           coreValues: Array.isArray(parsed.coreValues) ? parsed.coreValues : DEFAULT_GOVERNMENT_PORTAL_CONFIG.coreValues,
-          quickStats: Array.isArray(parsed.quickStats) ? parsed.quickStats : DEFAULT_GOVERNMENT_PORTAL_CONFIG.quickStats,
+          quickStats: synchronizedStats,
           icRequirements: Array.isArray(parsed.icRequirements) ? parsed.icRequirements : DEFAULT_GOVERNMENT_PORTAL_CONFIG.icRequirements,
           oocRequirements: Array.isArray(parsed.oocRequirements) ? parsed.oocRequirements : DEFAULT_GOVERNMENT_PORTAL_CONFIG.oocRequirements,
           phases: Array.isArray(parsed.phases) ? parsed.phases : DEFAULT_GOVERNMENT_PORTAL_CONFIG.phases,
@@ -297,7 +397,30 @@ export function getGovernmentPortalConfig(): GovernmentPortalConfig {
   } catch (e) {
     console.error('Failed to parse government portal config from storage:', e);
   }
-  return { ...DEFAULT_GOVERNMENT_PORTAL_CONFIG };
+  return { 
+    ...DEFAULT_GOVERNMENT_PORTAL_CONFIG,
+    quickStats: synchronizedStats
+  };
+}
+
+/**
+ * Explicitly synchronize and persist database quick stats into government portal config.
+ */
+export function syncGovernmentPortalQuickStatsWithDb(): GovQuickStatItem[] {
+  const synced = getSynchronizedGovQuickStats();
+  const current = getGovernmentPortalConfig();
+  const updated: GovernmentPortalConfig = {
+    ...current,
+    quickStats: synced,
+    updatedAt: Date.now()
+  };
+  try {
+    localStorage.setItem(GOV_RECRUITMENT_STORAGE_KEY, JSON.stringify(updated));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(GOV_RECRUITMENT_UPDATED_EVENT, { detail: updated }));
+    }
+  } catch {}
+  return synced;
 }
 
 /**
