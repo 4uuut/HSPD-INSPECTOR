@@ -413,6 +413,24 @@ export const isSupervisorOrAbove = (rank?: string): boolean => {
 export const isCommandStaff = isSupervisorOrAbove;
 
 /**
+ * Check if officer holds Rank 2 or above (e.g. PO II, PO III, SLO, SGT, LT, CPT, CDR, D/C, COP, or Gov Rank 2+)
+ * Authorized to sign and edit official signatory in citizen portal.
+ */
+export const isRank2OrAbove = (rank?: string): boolean => {
+  if (!rank) return false;
+  const r = rank.toUpperCase().trim();
+  // Check if Cadet or Rank 1
+  if (r.includes('CADET') || r.includes('[CDT]') || r.includes('[RANK 1]') || r.includes('STAFF [RANK 1]')) {
+    return false;
+  }
+  // If explicitly Police Officer I and not Police Officer II / III
+  if ((r.includes('POLICE OFFICER I') || r.includes('[PO I]')) && !r.includes('POLICE OFFICER II') && !r.includes('[PO II]') && !r.includes('POLICE OFFICER III') && !r.includes('[PO III]')) {
+    return false;
+  }
+  return true;
+};
+
+/**
  * Rank Clearance Hierarchy Tier:
  * Tier 1: High Command (Chief of Police, Assistant Chief, Deputy Chief, Commander)
  * Tier 2: Command & Supervisory Staff (Captain, Lieutenant)
@@ -968,6 +986,24 @@ export interface OfficialDocument {
   acknowledgedSignatureImage?: string;
   showAcknowledgedBySignature?: boolean; // Tampilkan / Sembunyikan blok pengesahan pimpinan
   acknowledgedCustomStatus?: string; // e.g. "DISAHKAN & DIAKREDITASI OLEH MARKAS BESAR" / custom text
+  
+  // Specific Petugas & Petinggi Signatories for Layanan Warga & Perizinan
+  officerSignatureName?: string;       // Nama Petugas Pelaksana (Rank 2 s/d Atasan)
+  officerSignatureRank?: string;       // Pangkat Petugas Pelaksana
+  officerSignatureBadge?: string;      // Badge Petugas
+  officerSignatureTitle?: string;      // Jabatan Petugas Penandatangan
+  officerSignatureStatus?: 'SIGNED' | 'UNSIGNED';
+  officerSignedAt?: number;
+  
+  highOfficialSignatureName?: string;   // Nama Petinggi / Atasan Pengesah
+  highOfficialSignatureRank?: string;   // Pangkat Petinggi
+  highOfficialSignatureBadge?: string;  // Badge Petinggi
+  highOfficialSignatureTitle?: string;  // Jabatan Petinggi Pengesah
+  highOfficialSignatureStatus?: 'SIGNED' | 'UNSIGNED';
+  highOfficialSignedAt?: number;
+  
+  documentStatus?: 'APPROVED' | 'PENDING' | 'REJECTED' | 'REVOKED';
+  documentVerificationNotes?: string;
   
   // Document Attachments & Evidence Photos
   attachments?: {

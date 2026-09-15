@@ -30,6 +30,18 @@ export const INITIAL_BOLO_ALERTS: BoloAlert[] = [
     timestamp: Date.now() - 3600000 * 5
   },
   {
+    id: 'BOLO-04',
+    type: 'PERSON',
+    title: 'Trevor Philips - BURONAN / DPO Kasus Perampokan Bersenjata & Penyerangan',
+    description: 'Tersangka DPO nomor 1 kasus perampokan bersenjata bank, penyelundupan senjata ilegal, dan penyerangan aparat HSPD. Sangat berbahaya.',
+    dangerLevel: 'EXTREME_ARMED_DANGEROUS',
+    lastSeenLocation: 'Sandy Shores Trailer Park / Grand Senora Desert',
+    issuedBy: 'Jackie Xianlao',
+    issuedByBadge: '#001',
+    active: true,
+    timestamp: Date.now() - 3600000 * 8
+  },
+  {
     id: 'BOLO-03',
     type: 'ALL_POINTS_BULLETIN',
     title: 'Patroli Khusus Area Santa Maria Beach & Verona',
@@ -47,7 +59,7 @@ export const INITIAL_IMPOUND_RECORDS: ImpoundRecord[] = [
   {
     id: 'IMP-01',
     plateNumber: 'LS-9921',
-    vehicleModel: 'Elegy',
+    vehicleModel: 'Elegy RH8',
     color: 'Merah Putih',
     ownerName: 'Kenji Sato',
     reason: 'Pasal E - Balap Liar Ilegal di Commerce + Kecepatan Tinggi Tanpa Lampu',
@@ -62,7 +74,7 @@ export const INITIAL_IMPOUND_RECORDS: ImpoundRecord[] = [
   {
     id: 'IMP-02',
     plateNumber: 'LS-1184',
-    vehicleModel: 'Sanchez',
+    vehicleModel: 'Sanchez Motocross',
     color: 'Hijau Tosca',
     ownerName: 'Rico Cortez',
     reason: 'Pasal C - Kendaraan Ditinggalkan di TKP Baku Tembak Idlewood',
@@ -73,6 +85,66 @@ export const INITIAL_IMPOUND_RECORDS: ImpoundRecord[] = [
     status: 'IMPOUNDED',
     locationFound: 'Belakang Motel Idlewood',
     timestamp: Date.now() - 86400000 * 2
+  },
+  {
+    id: 'IMP-03',
+    plateNumber: 'LS-8831',
+    vehicleModel: 'Karin Sultan RS',
+    color: 'Hitam Metalik',
+    ownerName: 'Carl Johnson',
+    reason: 'Penyitaan Senjata: Ditemukan Senjata Ilegal (Micro SMG & Pistol Tanpa Serial Sah) di Dalam Kendaraan saat Razia Gabungan',
+    impoundDays: 14,
+    impoundFee: 35000,
+    officerName: 'Momo Hatakeyama',
+    officerBadge: '#001',
+    status: 'IMPOUNDED',
+    locationFound: 'Persimpangan Ganton - Idlewood',
+    timestamp: Date.now() - 3600000 * 10
+  },
+  {
+    id: 'IMP-04',
+    plateNumber: 'LS-7749',
+    vehicleModel: 'Bravado Buffalo STX',
+    color: 'Abu-abu Gelap',
+    ownerName: 'Trevor Philips',
+    reason: 'Penyitaan BB Kejahatan: Kendaraan Bekas Merampok Bank Fleeca Market (Getaway Vehicle Perampokan Bersenjata Api & Pembobolan Vault)',
+    impoundDays: 30,
+    impoundFee: 50000,
+    officerName: 'Terry Jeffords',
+    officerBadge: '#302',
+    status: 'IMPOUNDED',
+    locationFound: 'Gudang Pelabuhan Ocean Docks',
+    timestamp: Date.now() - 3600000 * 16
+  },
+  {
+    id: 'IMP-05',
+    plateNumber: 'LS-2490',
+    vehicleModel: 'Vapid Speedo Custom',
+    color: 'Putih Dop',
+    ownerName: 'Dmitri Voronin',
+    reason: 'Penyitaan Berat: Ditemukan Muatan Senjata Ilegal Otomatis Laras Panjang (AK-47 & Box Amunisi) di Bagasi Belakang Kendaraan',
+    impoundDays: 21,
+    impoundFee: 45000,
+    officerName: 'Amy Santiago',
+    officerBadge: '#215',
+    status: 'IMPOUNDED',
+    locationFound: 'Docks Warehouse #4, Los Santos',
+    timestamp: Date.now() - 86400000 * 3
+  },
+  {
+    id: 'IMP-06',
+    plateNumber: 'LS-4402',
+    vehicleModel: 'Ubermacht Oracle XS',
+    color: 'Biru Tua',
+    ownerName: 'Vance Rodriguez',
+    reason: 'Penyitaan BB Pidana: Kendaraan Bekas Merampok Toko Perhiasan Vangelico Jewelry (Barang Bukti Aksi Perampokan & Pencurian Bersenjata)',
+    impoundDays: 28,
+    impoundFee: 40000,
+    officerName: 'Jake Peralta',
+    officerBadge: '#204',
+    status: 'IMPOUNDED',
+    locationFound: 'Pillbox Hill Underground Parking',
+    timestamp: Date.now() - 86400000 * 4
   }
 ];
 

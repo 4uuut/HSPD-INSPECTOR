@@ -6,7 +6,7 @@ import {
   Sparkles, RefreshCw, X, ShieldAlert, Award, ChevronRight, Eye,
   ExternalLink, FileCheck, HelpCircle, BadgeCheck, Zap, DollarSign,
   Car, Lock, Coffee, Wrench, GlassWater, ShoppingBag, Truck, Crosshair,
-  Camera, Upload, Image as ImageIcon, ZoomIn, Trash2, Maximize2
+  Camera, Upload, Image as ImageIcon, ZoomIn, Trash2, Maximize2, PenTool
 } from 'lucide-react';
 import { 
   OfficialDocument, 
@@ -14,7 +14,8 @@ import {
   CitizenProfile, 
   OfficerProfile,
   BoloAlert,
-  TrafficCitationRecord 
+  TrafficCitationRecord,
+  ImpoundRecord 
 } from '../types';
 import { 
   getGovernmentPermits, 
@@ -24,10 +25,15 @@ import {
 } from '../utils/governmentOperationsStorage';
 import { 
   getSavedOfficialDocuments, 
-  saveOfficialDocument 
+  saveOfficialDocument,
+  deleteOfficialDocument 
 } from '../utils/documentStorage';
+import { CitizenServiceSignatoryModal } from './CitizenServiceSignatoryModal';
+import { CitizenServiceRegisteredBoard } from './CitizenServiceRegisteredBoard';
+import { CitizenPublicLookupViews } from './CitizenPublicLookupViews';
+import { isRank2OrAbove } from '../types';
 import { getSavedCitizens } from '../utils/citizenDmvStorage';
-import { getSavedBoloAlerts } from '../utils/boloImpoundStorage';
+import { getSavedBoloAlerts, getSavedImpounds } from '../utils/boloImpoundStorage';
 import { getSavedTrafficCitations } from '../utils/trafficCitationStorage';
 import { exportElementAsImage } from '../utils/exportDocumentAsImage';
 import { processAndCompressImage } from '../utils/imageCompressor';
@@ -35,10 +41,12 @@ import { OfficialSeal } from './OfficialSeals';
 import { HSPD_LOGO_URL } from '../assets/logo';
 import { getCustomBranding } from '../utils/brandingStorage';
 
+export type PortalTabType = 'registered' | 'skck' | 'business' | 'other' | 'wanted' | 'citations' | 'impounds' | 'verify';
+
 interface Props {
   currentOfficer?: OfficerProfile | null;
   onBackToLogin?: () => void;
-  initialTab?: 'skck' | 'business' | 'other' | 'verify';
+  initialTab?: PortalTabType;
 }
 
 export const CitizenPublicServicePortal: React.FC<Props> = ({
@@ -47,13 +55,16 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
   initialTab = 'skck'
 }) => {
   const branding = getCustomBranding();
-  const [activeTab, setActiveTab] = useState<'skck' | 'business' | 'other' | 'verify'>(initialTab);
+  const [activeTab, setActiveTab] = useState<PortalTabType>(
+    currentOfficer ? 'registered' : initialTab
+  );
 
   // Database States
   const [arrestRecords, setArrestRecords] = useState<ArrestRecord[]>([]);
   const [citizens, setCitizens] = useState<CitizenProfile[]>([]);
   const [boloList, setBoloList] = useState<BoloAlert[]>([]);
   const [citations, setCitations] = useState<TrafficCitationRecord[]>([]);
+  const [impounds, setImpounds] = useState<ImpoundRecord[]>([]);
   const [govPermits, setGovPermits] = useState<GovernmentPermit[]>([]);
   const [officialDocs, setOfficialDocs] = useState<OfficialDocument[]>([]);
 
@@ -61,6 +72,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<OfficialDocument | null>(null);
+  const [selectedSignatoryDoc, setSelectedSignatoryDoc] = useState<OfficialDocument | null>(null);
 
   // Load all databases from localStorage
   const loadDatabases = () => {
@@ -72,6 +84,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
     setCitizens(getSavedCitizens());
     setBoloList(getSavedBoloAlerts());
     setCitations(getSavedTrafficCitations());
+    setImpounds(getSavedImpounds());
     setGovPermits(getGovernmentPermits());
     setOfficialDocs(getSavedOfficialDocuments());
   };
@@ -84,12 +97,18 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
     window.addEventListener('hspd-citizens-updated', handleSync);
     window.addEventListener('gov-permits-updated', handleSync);
     window.addEventListener('hspd-documents-updated', handleSync);
+    window.addEventListener('hspd-impound-updated', handleSync);
+    window.addEventListener('hspd-bolo-updated', handleSync);
+    window.addEventListener('hspd-traffic-citations-updated', handleSync);
 
     return () => {
       window.removeEventListener('hspd-records-updated', handleSync);
       window.removeEventListener('hspd-citizens-updated', handleSync);
       window.removeEventListener('gov-permits-updated', handleSync);
       window.removeEventListener('hspd-documents-updated', handleSync);
+      window.removeEventListener('hspd-impound-updated', handleSync);
+      window.removeEventListener('hspd-bolo-updated', handleSync);
+      window.removeEventListener('hspd-traffic-citations-updated', handleSync);
     };
   }, []);
 
@@ -913,6 +932,23 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
 
         {/* NAVIGATION SLIDE TABS */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex overflow-x-auto gap-2 border-t border-gray-800/80 pt-1.5 pb-2 text-xs scrollbar-none font-medium">
+          {/* TAB 0: DATA DOKUMEN & PERIZINAN TERDAFTAR RESMI (PRIMARY FOR HSPD / PEMERINTAHAN) */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('registered')}
+            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition ${
+              activeTab === 'registered'
+                ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-900/40 ring-1 ring-blue-400/50'
+                : 'text-blue-300 hover:text-white hover:bg-blue-950/60 border border-blue-800/40'
+            }`}
+          >
+            <FileCheck className="w-4 h-4 text-blue-400" />
+            <span>📋 Data Surat Terdaftar & TTD (HSPD / Gov)</span>
+            <span className="text-[10px] font-mono bg-blue-950 text-blue-300 px-1.5 py-0.2 rounded border border-blue-700">
+              {officialDocs.length}
+            </span>
+          </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('skck')}
@@ -923,7 +959,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
             }`}
           >
             <Shield className="w-4 h-4" />
-            <span>Penerbitan SKCK Online (HSPD)</span>
+            <span>{currentOfficer ? '➕ Input SKCK Walk-In' : 'Penerbitan SKCK Online (HSPD)'}</span>
           </button>
 
           <button
@@ -936,7 +972,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
             }`}
           >
             <Building2 className="w-4 h-4" />
-            <span>Surat Izin Usaha / NIB (Pemerintah)</span>
+            <span>{currentOfficer ? '➕ Input Izin Usaha Walk-In' : 'Surat Izin Usaha / NIB (Pemerintah)'}</span>
           </button>
 
           <button
@@ -949,7 +985,58 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
             }`}
           >
             <FileText className="w-4 h-4" />
-            <span>Layanan Lain (WCL Senjata, STLK, Izin Acara)</span>
+            <span>{currentOfficer ? '➕ Input Izin Lain (WCL/STLK)' : 'Layanan Lain (WCL, STLK, Acara)'}</span>
+          </button>
+
+          {/* TAB 5: CEK BURONAN / DPO (BOLO) */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('wanted')}
+            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition ${
+              activeTab === 'wanted'
+                ? 'bg-red-600 text-white font-bold shadow-lg shadow-red-950/50 ring-1 ring-red-400'
+                : 'text-red-300 hover:text-white hover:bg-red-950/50 border border-red-900/50'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4 text-red-400" />
+            <span>🚨 Cek Status Buronan (DPO)</span>
+            <span className="text-[10px] font-mono bg-red-950 text-red-300 px-1.5 py-0.2 rounded border border-red-800">
+              {boloList.filter(b => b.status === 'ACTIVE').length}
+            </span>
+          </button>
+
+          {/* TAB 6: CEK NAMA KENA TILANG */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('citations')}
+            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition ${
+              activeTab === 'citations'
+                ? 'bg-amber-600 text-white font-bold shadow-lg shadow-amber-950/50 ring-1 ring-amber-400'
+                : 'text-amber-300 hover:text-white hover:bg-amber-950/50 border border-amber-900/50'
+            }`}
+          >
+            <FileText className="w-4 h-4 text-amber-400" />
+            <span>🚦 Cek Tilang Warga</span>
+            <span className="text-[10px] font-mono bg-amber-950 text-amber-300 px-1.5 py-0.2 rounded border border-amber-800">
+              {citations.length}
+            </span>
+          </button>
+
+          {/* TAB 7: CEK KENDARAAN IMPOUND (SENJATA ILEGAL / MERAMPOK) */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('impounds')}
+            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition ${
+              activeTab === 'impounds'
+                ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-950/50 ring-1 ring-blue-400'
+                : 'text-blue-300 hover:text-white hover:bg-blue-950/50 border border-blue-900/50'
+            }`}
+          >
+            <Car className="w-4 h-4 text-blue-400" />
+            <span>🚗 Kendaraan Impound (Senjata/Rampok)</span>
+            <span className="text-[10px] font-mono bg-blue-950 text-blue-300 px-1.5 py-0.2 rounded border border-blue-800">
+              {impounds.length}
+            </span>
           </button>
 
           <button
@@ -967,8 +1054,69 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
         </div>
       </header>
 
+      {/* QUICK CITIZEN SHORTCUTS BANNER */}
+      {!currentOfficer && (
+        <div className="bg-[#0B0E14] border-b border-gray-800/90 py-2.5 px-4 sm:px-6">
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-gray-300">
+              <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="font-semibold text-white">Layanan Pengecekan Cepat Warga:</span>
+              <span className="text-gray-400 hidden md:inline">Cari status hukum, denda tilang, atau mobil disita polisi</span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('wanted')}
+                className="px-3 py-1.5 bg-red-950/70 hover:bg-red-900 border border-red-700/60 text-red-200 rounded-lg font-semibold flex items-center gap-1.5 transition shadow"
+              >
+                <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+                <span>Cari Status Buronan (DPO)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('citations')}
+                className="px-3 py-1.5 bg-amber-950/70 hover:bg-amber-900 border border-amber-700/60 text-amber-200 rounded-lg font-semibold flex items-center gap-1.5 transition shadow"
+              >
+                <FileText className="w-3.5 h-3.5 text-amber-400" />
+                <span>Cari Nama Kena Tilang</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('impounds')}
+                className="px-3 py-1.5 bg-blue-950/70 hover:bg-blue-900 border border-blue-700/60 text-blue-200 rounded-lg font-semibold flex items-center gap-1.5 transition shadow"
+              >
+                <Car className="w-3.5 h-3.5 text-blue-400" />
+                <span>Cari Kendaraan Impound</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MAIN CONTAINER */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 relative z-10">
+
+        {/* ========================================================================= */}
+        {/* TAB 0: DATA DOKUMEN TERDAFTAR RESMI & PENGESAHAN TTD (HSPD & PEMERINTAHAN) */}
+        {/* ========================================================================= */}
+        {activeTab === 'registered' && (
+          <CitizenServiceRegisteredBoard
+            documents={officialDocs}
+            currentOfficer={currentOfficer}
+            onOpenSignatoryModal={(doc) => setSelectedSignatoryDoc(doc)}
+            onOpenPrintPreview={(doc) => setPreviewDoc(doc)}
+            onOpenLightbox={(item) => setLightboxItem(item)}
+            onDeleteDocument={(docId) => {
+              const updated = deleteOfficialDocument(docId);
+              setOfficialDocs(updated);
+            }}
+            onSwitchToCreateForm={() => setActiveTab('skck')}
+            onRefreshData={() => loadDatabases()}
+          />
+        )}
 
         {/* ========================================================================= */}
         {/* TAB 1: PEMBUATAN SKCK ONLINE (TERKONEKSI DATABASE KEPOLISIAN HSPD) */}
@@ -1004,10 +1152,10 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
             </div>
 
             {/* MAIN SPLIT: FORM & REAL-TIME BACKGROUND CHECK RESULT */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className={currentOfficer || skckSuccessDoc ? "grid grid-cols-1 lg:grid-cols-12 gap-6" : "max-w-4xl mx-auto"}>
               
-              {/* LEFT FORM (7 COLS) */}
-              <div className="lg:col-span-7 bg-[#131823] border border-gray-800 rounded-xl p-5 shadow-xl space-y-4">
+              {/* LEFT FORM (7 COLS IF OFFICER/SUCCESS, ELSE CENTERED CLEAN) */}
+              <div className={currentOfficer || skckSuccessDoc ? "lg:col-span-7 bg-[#131823] border border-gray-800 rounded-xl p-5 shadow-xl space-y-4" : "bg-[#131823] border border-gray-800 rounded-xl p-6 shadow-xl space-y-4"}>
                 <div className="border-b border-gray-800 pb-3 flex items-center justify-between">
                   <h3 className="text-sm font-bold text-gray-200 flex items-center gap-2">
                     <FileText className="w-4 h-4 text-blue-400" />
@@ -1224,11 +1372,13 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
                 </form>
               </div>
 
-              {/* RIGHT LIVE DATABASE BACKGROUND CHECK STATUS (5 COLS) */}
-              <div className="lg:col-span-5 space-y-4">
-                
-                {/* STATUS BADGE BOX */}
-                <div className="bg-[#131823] border border-gray-800 rounded-xl p-5 shadow-xl space-y-3.5">
+              {/* RIGHT LIVE DATABASE BACKGROUND CHECK STATUS (ONLY SHOWN FOR OFFICERS OR IF SUCCESS DOC GENERATED) */}
+              {(currentOfficer || skckSuccessDoc) && (
+                <div className="lg:col-span-5 space-y-4">
+                  
+                  {/* STATUS BADGE BOX (POLICE OFFICERS ONLY - HIDDEN IN CITIZEN VIEW) */}
+                  {currentOfficer && (
+                    <div className="bg-[#131823] border border-gray-800 rounded-xl p-5 shadow-xl space-y-3.5">
                   <div className="flex items-center justify-between border-b border-gray-800 pb-2.5">
                     <span className="font-bold text-xs text-gray-200 uppercase tracking-wider flex items-center gap-1.5 font-mono">
                       <ShieldAlert className="w-4 h-4 text-blue-400" />
@@ -1338,6 +1488,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
                     </div>
                   </div>
                 </div>
+              )}
 
                 {/* SUCCESS ISSUANCE CARD */}
                 {skckSuccessDoc && (
@@ -1423,7 +1574,8 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
                   </div>
                 )}
 
-              </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -2228,6 +2380,20 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
           </div>
         )}
 
+        {/* ========================================================================= */}
+        {/* TAB 5, 6, 7: CITIZEN LOOKUP (BURONAN/DPO, TILANG, KENDARAAN IMPOUND) */}
+        {/* ========================================================================= */}
+        {(activeTab === 'wanted' || activeTab === 'citations' || activeTab === 'impounds') && (
+          <CitizenPublicLookupViews
+            activeSubTab={activeTab}
+            onSelectSubTab={(tab) => setActiveTab(tab)}
+            boloList={boloList}
+            citations={citations}
+            impounds={impounds}
+            currentOfficer={currentOfficer}
+          />
+        )}
+
       </main>
 
       {/* ========================================================================= */}
@@ -2248,6 +2414,15 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
               </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedSignatoryDoc(previewDoc)}
+                  className="px-3 py-1.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white rounded font-bold flex items-center gap-1.5 transition shadow"
+                  title="Kelola & edit tanda tangan manual petugas (Rank 2+) dan petinggi pengesah"
+                >
+                  <PenTool className="w-3.5 h-3.5" />
+                  <span>Penandatangan (Rank 2+)</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => window.print()}
@@ -2368,8 +2543,8 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
                   {previewDoc.closingText}
                 </p>
 
-                {/* LAMPIRAN BERKAS FOTO SKCK (FOTO /STATS & FOTO KTP) */}
-                {previewDoc.skckPhotos && (previewDoc.skckPhotos.statsPhoto || previewDoc.skckPhotos.ktpPhoto) && (
+                {/* LAMPIRAN BERKAS FOTO SKCK (FOTO /STATS & FOTO KTP) - KHUSUS PEMERIKSAAN PETUGAS */}
+                {Boolean(currentOfficer) && previewDoc.skckPhotos && (previewDoc.skckPhotos.statsPhoto || previewDoc.skckPhotos.ktpPhoto) && (
                   <div className="my-4 pt-3 border-t-2 border-dashed border-gray-400 relative z-10 font-sans">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-bold text-[10px] uppercase tracking-wide text-gray-800">
@@ -2423,8 +2598,8 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
                   </div>
                 )}
 
-                {/* LAMPIRAN 4 FOTO BADAN USAHA */}
-                {previewDoc.businessPhotos && (previewDoc.businessPhotos.shopFrontPhoto || previewDoc.businessPhotos.businessInfoPhoto || previewDoc.businessPhotos.businessPropertyPhoto || previewDoc.businessPhotos.ktpPhoto) && (
+                {/* LAMPIRAN 4 FOTO BADAN USAHA - KHUSUS PEMERIKSAAN PETUGAS */}
+                {Boolean(currentOfficer) && previewDoc.businessPhotos && (previewDoc.businessPhotos.shopFrontPhoto || previewDoc.businessPhotos.businessInfoPhoto || previewDoc.businessPhotos.businessPropertyPhoto || previewDoc.businessPhotos.ktpPhoto) && (
                   <div className="my-4 pt-3 border-t-2 border-dashed border-gray-400 relative z-10 font-sans">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-bold text-[10px] uppercase tracking-wide text-gray-800">
@@ -2524,35 +2699,54 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
                   <span>Pada tanggal: {previewDoc.date}</span>
                 </div>
 
-                {/* SIGNATURES & OFFICIAL SEALS */}
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-300 relative z-10 items-end">
-                  {/* LEFT: PEMOHON / RECIPIENT */}
-                  <div className="text-center font-sans">
-                    <p className="text-[10px] text-gray-600 mb-10">
-                      {previewDoc.recipientSignatureTitle || 'Pemohon,'}
+                {/* SIGNATURES & OFFICIAL SEALS (PEMOHON, PETUGAS PELAKSANA RANK 2+, & PETINGGI PENGESAH) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-gray-300 relative z-10 items-end text-center font-sans">
+                  {/* 1. PEMOHON / RECIPIENT */}
+                  <div className="flex flex-col items-center">
+                    <p className="text-[9.5px] text-gray-600 mb-8 leading-tight">
+                      {previewDoc.recipientSignatureTitle || 'Pemohon / Pemegang Hak,'}
                     </p>
-                    <p className="font-bold underline text-xs">
+                    <p className="font-bold underline text-xs text-gray-900">
                       {previewDoc.recipientSignatureName || previewDoc.recipientName}
                     </p>
-                    <p className="text-[10px] text-gray-500">Pemegang Sah Dokumen</p>
+                    <p className="text-[9px] text-gray-500 font-mono mt-0.5">Pemohon Yang Bersangkutan</p>
                   </div>
 
-                  {/* RIGHT: ISSUING AUTHORITY WITH OFFICIAL STAMP */}
-                  <div className="text-center font-sans relative flex flex-col items-center">
+                  {/* 2. PETUGAS PELAKSANA (RANK 2 S/D ATASAN) */}
+                  <div className="flex flex-col items-center border-t sm:border-t-0 sm:border-l sm:border-r border-gray-200/80 pt-2 sm:pt-0 px-1">
+                    <p className="text-[9.5px] text-blue-900 font-semibold mb-8 leading-tight">
+                      {previewDoc.officerSignatureTitle || previewDoc.issuerSignatureTitle || 'Petugas Pelaksana & Pemeriksa,'}
+                    </p>
+                    <p className="font-bold underline text-xs text-blue-950">
+                      {previewDoc.officerSignatureName || previewDoc.issuerSignatureName || previewDoc.issuerName || 'Amy Santiago'}
+                    </p>
+                    <p className="text-[8.5px] text-gray-600 font-mono mt-0.5">
+                      {previewDoc.officerSignatureRank || previewDoc.issuerSignatureSubtitle || previewDoc.issuerRank || 'POLICE OFFICER II [PO II]'} [{previewDoc.officerSignatureBadge || previewDoc.issuerBadge || '#215'}]
+                    </p>
+                    <span className="text-[7.5px] text-blue-800 font-mono mt-0.5 font-semibold bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
+                      {previewDoc.officerSignatureStatus === 'PENDING' ? '⏳ Menunggu TTD Petugas' : '✓ Tanda Tangan Petugas Sah'}
+                    </span>
+                  </div>
+
+                  {/* 3. PETINGGI / ATASAN PENGESAH DENGAN STEMPEL RESMI */}
+                  <div className="relative flex flex-col items-center pt-2 sm:pt-0">
                     {/* STAMP OVERLAY */}
-                    <div className="absolute -top-6 -right-2 opacity-85 pointer-events-none">
-                      <OfficialSeal type={previewDoc.primarySeal} size={110} />
+                    <div className="absolute -top-7 -right-1 sm:right-0 opacity-85 pointer-events-none">
+                      <OfficialSeal type={previewDoc.highOfficialSeal || previewDoc.primarySeal || 'HSPD_OFFICIAL'} size={100} />
                     </div>
 
-                    <p className="text-[10px] text-gray-600 mb-10">
-                      {previewDoc.issuerSignatureTitle || 'Pejabat Pengesah,'}
+                    <p className="text-[9.5px] text-amber-950 font-semibold mb-8 leading-tight">
+                      {previewDoc.highOfficialSignatureTitle || previewDoc.acknowledgedByTitle || 'Mengetahui & Mengesahkan,'}
                     </p>
-                    <p className="font-bold underline text-xs">
-                      {previewDoc.issuerSignatureName || previewDoc.issuerName}
+                    <p className="font-bold underline text-xs text-amber-950">
+                      {previewDoc.highOfficialSignatureName || previewDoc.acknowledgedByName || (previewDoc.category === 'IZIN_USAHA' ? 'Momo Hatakeyama' : 'Jackie Xianlao')}
                     </p>
-                    <p className="text-[10px] text-gray-500 font-mono">
-                      {previewDoc.issuerSignatureSubtitle || previewDoc.issuerRank}
+                    <p className="text-[8.5px] text-amber-900 font-mono mt-0.5">
+                      {previewDoc.highOfficialSignatureRank || previewDoc.acknowledgedByRank || (previewDoc.category === 'IZIN_USAHA' ? 'PRESIDENT [RANK 6]' : 'CHIEF OF POLICE [COP]')}
                     </p>
+                    <span className="text-[7.5px] text-amber-800 font-mono mt-0.5 font-semibold bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                      {previewDoc.highOfficialSignatureStatus === 'PENDING' ? '⏳ Menunggu Pengesahan Petinggi' : '✓ Otoritas Petinggi Sah'}
+                    </span>
                   </div>
                 </div>
 
@@ -2630,6 +2824,24 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* SIGNATORY & STATUS MANAGEMENT MODAL (FOR RANK 2 S/D ATASAN) */}
+      {selectedSignatoryDoc && (
+        <CitizenServiceSignatoryModal
+          document={selectedSignatoryDoc}
+          currentOfficer={currentOfficer}
+          isOpen={Boolean(selectedSignatoryDoc)}
+          onClose={() => setSelectedSignatoryDoc(null)}
+          onSaveSignatories={(updatedDoc, openPreviewImmediately) => {
+            const updated = saveOfficialDocument(updatedDoc);
+            setOfficialDocs(updated);
+            setSelectedSignatoryDoc(null);
+            if (openPreviewImmediately || (previewDoc && previewDoc.id === updatedDoc.id)) {
+              setPreviewDoc(updatedDoc);
+            }
+          }}
+        />
       )}
 
     </div>

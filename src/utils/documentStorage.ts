@@ -1,6 +1,7 @@
 import { OfficialDocument } from '../types';
 import { DOCUMENT_PRESET_TEMPLATES } from '../data/documentTemplates';
 import { syncCollectionWithFirestore } from '../services/firebaseRealtimeSync';
+import { INITIAL_REGISTERED_CITIZEN_DOCS } from './citizenRegisteredDataSeed';
 
 export const DOCUMENTS_STORAGE_KEY = 'hspd_official_documents_archive_v1';
 
@@ -10,32 +11,34 @@ export function getSavedOfficialDocuments(): OfficialDocument[] {
     if (raw !== null) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed;
+        // Merge initial registered citizen docs if not present
+        const existingIds = new Set(parsed.map((d: OfficialDocument) => d.id));
+        let changed = false;
+        const merged = [...parsed];
+        for (const seedDoc of INITIAL_REGISTERED_CITIZEN_DOCS) {
+          if (!existingIds.has(seedDoc.id)) {
+            merged.push(seedDoc);
+            changed = true;
+          }
+        }
+        if (changed) {
+          localStorage.setItem(DOCUMENTS_STORAGE_KEY, JSON.stringify(merged));
+        }
+        return merged;
       }
     }
   } catch (e) {
     console.error('Failed to load official documents from storage', e);
   }
 
-  // Seed with 3 realistic initial archived documents only on first launch
+  // Seed with initial registered citizen documents and templates
   const initialDocs: OfficialDocument[] = [
+    ...INITIAL_REGISTERED_CITIZEN_DOCS,
     {
       ...DOCUMENT_PRESET_TEMPLATES[0].defaultDoc,
       id: 'doc-seed-001',
       createdAt: Date.now() - 3600000 * 24 * 2,
       updatedAt: Date.now() - 3600000 * 24 * 2
-    },
-    {
-      ...DOCUMENT_PRESET_TEMPLATES[1].defaultDoc,
-      id: 'doc-seed-002',
-      createdAt: Date.now() - 3600000 * 18,
-      updatedAt: Date.now() - 3600000 * 18
-    },
-    {
-      ...DOCUMENT_PRESET_TEMPLATES[2].defaultDoc,
-      id: 'doc-seed-003',
-      createdAt: Date.now() - 3600000 * 4,
-      updatedAt: Date.now() - 3600000 * 4
     }
   ];
 
