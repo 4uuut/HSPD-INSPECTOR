@@ -1,13 +1,19 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { PASAL_LIST, OFFENCE_CATEGORIES, getSavedPasalList, savePasalList, resetPasalList } from '../data/pasalData';
-import { PasalItem, ArrestRecord, OfficerProfile, isOfficerHighRank } from '../types';
+import { 
+  PasalItem, ArrestRecord, OfficerProfile, 
+  isOfficerHighRank, isAtasanRank, isSupervisorOrAbove, isGovernmentRank,
+  VALID_SUPERVISOR_PASSCODES 
+} from '../types';
 import { 
   Search, Shield, CheckCircle2, XCircle, Copy, Check, 
   Car, AlertTriangle, FileText, Send, Percent, Sparkles, Plus, Trash2,
   User, BadgeCheck, MapPin, Camera, Package, Link2, Image as ImageIcon, 
   ChevronDown, ChevronUp, Radio, Settings2, Globe, RefreshCw, X, SlidersHorizontal,
-  Edit3, RotateCcw, PlusCircle, Save
+  Edit3, RotateCcw, PlusCircle, Save,
+  Lock, Unlock, KeyRound, Crown, ShieldAlert
 } from 'lucide-react';
+import { validateAuthorityPin } from '../utils/authorityPin';
 import { EvidenceUploader } from './EvidenceUploader';
 import { 
   getSavedWebhookConfig, saveWebhookConfig, sendArrestRecordToDiscord, 
@@ -42,6 +48,39 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
   // Delete & Reset Confirmation Modals
   const [pasalToDelete, setPasalToDelete] = useState<PasalItem | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
+
+  // Authorization / Access Control: Only Atasan or officers with valid access code/PIN
+  const isAtasanOfficer = useMemo(() => {
+    if (!currentOfficer?.rank) return false;
+    return Boolean(
+      isOfficerHighRank(currentOfficer.rank) ||
+      isAtasanRank(currentOfficer.rank) ||
+      isSupervisorOrAbove(currentOfficer.rank) ||
+      isGovernmentRank(currentOfficer.rank)
+    );
+  }, [currentOfficer?.rank]);
+
+  const [isAccessUnlocked, setIsAccessUnlocked] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('hspd_pasal_editor_unlocked') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const canManagePasal = isAtasanOfficer || isAccessUnlocked;
+
+  // Access Verification Modal State
+  const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
+  const [authInput, setAuthInput] = useState<string>('');
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<
+    | { type: 'add'; targetCat?: string }
+    | { type: 'edit'; item: PasalItem }
+    | { type: 'delete'; item: PasalItem }
+    | { type: 'reset' }
+    | null
+  >(null);
 
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -83,6 +122,110 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
     return `${cat}${nextNum < 10 ? '0' + nextNum : nextNum}`;
   };
 
+  // Guarded actions: Only allow if Atasan or authorized
+  const handleRequestAdd = (targetCat?: string) => {
+    if (!canManagePasal) {
+      setPendingAction({ type: 'add', targetCat });
+      setAuthError(null);
+      setAuthInput('');
+      setShowAuthModal(true);
+      return;
+    }
+    handleOpenAddModal(targetCat);
+  };
+
+  const handleRequestEdit = (item: PasalItem) => {
+    if (!canManagePasal) {
+      setPendingAction({ type: 'edit', item });
+      setAuthError(null);
+      setAuthInput('');
+      setShowAuthModal(true);
+      return;
+    }
+    handleOpenEditModal(item);
+  };
+
+  const handleRequestDelete = (item: PasalItem) => {
+    if (!canManagePasal) {
+      setPendingAction({ type: 'delete', item });
+      setAuthError(null);
+      setAuthInput('');
+      setShowAuthModal(true);
+      return;
+    }
+    setPasalToDelete(item);
+  };
+
+  const handleRequestReset = () => {
+    if (!canManagePasal) {
+      setPendingAction({ type: 'reset' });
+      setAuthError(null);
+      setAuthInput('');
+      setShowAuthModal(true);
+      return;
+    }
+    setShowResetConfirm(true);
+  };
+
+  const handleVerifyAuth = (e: React.FormEvent) => {
+    e.preventDefault();
+    const input = authInput.trim();
+    if (!input) {
+      setAuthError('Harap masukkan PIN Otoritas Atasan atau Passcode HQ.');
+      return;
+    }
+
+    const pinResult = validateAuthorityPin(input);
+    const cleanUpper = input.toUpperCase();
+    const isEmergencySupervisor = VALID_SUPERVISOR_PASSCODES.some(c => c.toUpperCase() === cleanUpper);
+
+    if (pinResult.valid || isEmergencySupervisor) {
+      setIsAccessUnlocked(true);
+      try {
+        sessionStorage.setItem('hspd_pasal_editor_unlocked', 'true');
+      } catch {}
+
+      setShowAuthModal(false);
+      setAuthInput('');
+      setAuthError(null);
+
+      setPasalNotice({
+        type: 'success',
+        text: '🔓 Otorisasi Akses Diterima! Fitur penambahan & edit pasal KUHP kini aktif.'
+      });
+      setTimeout(() => setPasalNotice(null), 4000);
+
+      // Execute pending action if any
+      const pending = pendingAction;
+      setPendingAction(null);
+      if (pending) {
+        if (pending.type === 'add') {
+          handleOpenAddModal(pending.targetCat);
+        } else if (pending.type === 'edit') {
+          handleOpenEditModal(pending.item);
+        } else if (pending.type === 'delete') {
+          setPasalToDelete(pending.item);
+        } else if (pending.type === 'reset') {
+          setShowResetConfirm(true);
+        }
+      }
+    } else {
+      setAuthError('Kode Akses / PIN salah. Minta PIN Otoritas aktif dari Atasan (Lieutenant/Captain/Commander/Chief).');
+    }
+  };
+
+  const handleLockAccess = () => {
+    setIsAccessUnlocked(false);
+    try {
+      sessionStorage.removeItem('hspd_pasal_editor_unlocked');
+    } catch {}
+    setPasalNotice({
+      type: 'info',
+      text: '🔒 Akses editor pasal telah dikunci kembali.'
+    });
+    setTimeout(() => setPasalNotice(null), 3000);
+  };
+
   const handleOpenAddModal = (targetCat?: string) => {
     const defaultCat = (targetCat && targetCat !== 'ALL' ? targetCat : (selectedCategory !== 'ALL' ? selectedCategory : 'A')) as PasalItem['cat'];
     setEditingPasalCode(null);
@@ -110,6 +253,10 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
 
   const handleSavePasal = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManagePasal) {
+      setFormError('Akses ditolak: Hanya Atasan atau personel dengan otorisasi yang dapat menyimpan pasal.');
+      return;
+    }
     const cleanCode = formCode.trim().toUpperCase();
     const cleanDesc = formDesc.trim();
     const fineNum = Math.max(0, parseInt(formFine, 10) || 0);
@@ -178,6 +325,14 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
   };
 
   const handleDeletePasal = (item: PasalItem) => {
+    if (!canManagePasal) {
+      setPasalNotice({
+        type: 'error',
+        text: '⛔ Akses ditolak: Hanya Atasan atau personel dengan otorisasi yang dapat menghapus pasal.'
+      });
+      setTimeout(() => setPasalNotice(null), 4000);
+      return;
+    }
     const updated = pasalList.filter(p => p.code !== item.code);
     savePasalList(updated);
     setPasalList(updated);
@@ -193,6 +348,14 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
   };
 
   const handleResetToDefaultPasal = () => {
+    if (!canManagePasal) {
+      setPasalNotice({
+        type: 'error',
+        text: '⛔ Akses ditolak: Hanya Atasan atau personel dengan otorisasi yang dapat me-reset pasal.'
+      });
+      setTimeout(() => setPasalNotice(null), 4000);
+      return;
+    }
     const defaults = resetPasalList();
     setPasalList(defaults);
     setShowResetConfirm(false);
@@ -417,22 +580,71 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            {isAtasanOfficer ? (
+              <span 
+                className="px-2 py-1 bg-amber-950/70 border border-amber-800/80 text-amber-300 rounded text-[10px] font-mono font-bold flex items-center gap-1"
+                title={`Akses Atasan Aktif (${currentOfficer?.rank || 'High Command'})`}
+              >
+                <Crown className="w-3 h-3 text-amber-400" />
+                <span>Atasan</span>
+              </span>
+            ) : isAccessUnlocked ? (
+              <div className="flex items-center gap-1">
+                <span 
+                  className="px-2 py-1 bg-emerald-950/70 border border-emerald-800/80 text-emerald-300 rounded text-[10px] font-mono font-bold flex items-center gap-1"
+                  title="Otorisasi Akses Terbuka via PIN / Passcode"
+                >
+                  <Unlock className="w-3 h-3 text-emerald-400" />
+                  <span>Akses Terbuka</span>
+                </span>
+                <button
+                  type="button"
+                  id="btn-relock-access"
+                  onClick={handleLockAccess}
+                  title="Kunci kembali akses editor pasal"
+                  className="p-1 text-gray-400 hover:text-rose-400 hover:bg-gray-800 rounded border border-gray-800 transition"
+                >
+                  <Lock className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <button
+                id="btn-request-access"
+                type="button"
+                onClick={() => {
+                  setPendingAction(null);
+                  setAuthError(null);
+                  setAuthInput('');
+                  setShowAuthModal(true);
+                }}
+                title="Buka akses edit pasal (Khusus Atasan atau Kode Akses)"
+                className="px-2 py-1 bg-gray-800/80 hover:bg-gray-700 text-amber-400 hover:text-amber-300 border border-amber-500/30 rounded text-[10px] font-mono font-bold flex items-center gap-1 transition"
+              >
+                <Lock className="w-3 h-3" />
+                <span>Otorisasi</span>
+              </button>
+            )}
+
             <button
               id="btn-add-new-pasal"
               type="button"
-              onClick={() => handleOpenAddModal()}
-              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[11px] font-bold flex items-center gap-1.5 transition shadow-sm shadow-blue-600/30"
-              title="Tambah pasal KUHP baru ke kalkulator"
+              onClick={() => handleRequestAdd()}
+              className={`px-2.5 py-1 rounded text-[11px] font-bold flex items-center gap-1.5 transition shadow-sm ${
+                canManagePasal 
+                  ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30'
+                  : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700'
+              }`}
+              title={canManagePasal ? "Tambah pasal KUHP baru ke kalkulator" : "Khusus Atasan / Personel berizin (Klik untuk verifikasi otorisasi)"}
             >
-              <Plus className="w-3.5 h-3.5" />
+              {canManagePasal ? <Plus className="w-3.5 h-3.5" /> : <Lock className="w-3 h-3 text-amber-400" />}
               <span>Tambah Pasal</span>
             </button>
 
             <button
               id="btn-reset-pasal-default"
               type="button"
-              onClick={() => setShowResetConfirm(true)}
-              title="Reset seluruh daftar pasal ke standar resmi HSPD"
+              onClick={() => handleRequestReset()}
+              title={canManagePasal ? "Reset seluruh daftar pasal ke standar resmi HSPD" : "Khusus Atasan (Klik untuk verifikasi otorisasi)"}
               className="p-1.5 text-gray-400 hover:text-amber-300 hover:bg-gray-800 rounded transition border border-gray-800 flex items-center justify-center"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -516,10 +728,10 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
               <p>[NO_MATCH] Tidak ada pasal yang cocok dengan kriteria pencarian "{searchQuery}".</p>
               <button
                 type="button"
-                onClick={() => handleOpenAddModal(selectedCategory !== 'ALL' ? selectedCategory : undefined)}
+                onClick={() => handleRequestAdd(selectedCategory !== 'ALL' ? selectedCategory : undefined)}
                 className="px-3 py-1 bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/50 text-blue-300 rounded text-xs font-bold inline-flex items-center gap-1.5 transition"
               >
-                <Plus className="w-3.5 h-3.5" />
+                {canManagePasal ? <Plus className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5 text-amber-400" />}
                 <span>Tambah Pasal Baru Sekarang</span>
               </button>
             </div>
@@ -572,30 +784,46 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
                       </span>
                     )}
 
-                    {/* Action buttons: Edit & Hapus Pasal */}
+                    {/* Action buttons: Edit & Hapus Pasal (Khusus Atasan / Terotorisasi) */}
                     <div className="flex items-center gap-0.5 pl-1.5 ml-1 border-l border-gray-800/80">
                       <button
                         id={`btn-edit-pasal-${item.code}`}
                         type="button"
-                        title={`Edit rincian pasal ${item.code}`}
+                        title={
+                          canManagePasal 
+                            ? `Edit rincian pasal ${item.code}` 
+                            : `Terkunci: Otorisasi Atasan diperlukan untuk mengedit pasal ${item.code}`
+                        }
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleOpenEditModal(item);
+                          handleRequestEdit(item);
                         }}
-                        className="p-1 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition"
+                        className={`p-1 rounded transition ${
+                          canManagePasal
+                            ? 'text-gray-500 hover:text-blue-400 hover:bg-blue-500/10'
+                            : 'text-gray-600 hover:text-amber-400 hover:bg-amber-500/10'
+                        }`}
                       >
-                        <Edit3 className="w-3.5 h-3.5" />
+                        {canManagePasal ? <Edit3 className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5 text-amber-500/70" />}
                       </button>
 
                       <button
                         id={`btn-delete-pasal-${item.code}`}
                         type="button"
-                        title={`Hapus pasal ${item.code} dari kalkulator`}
+                        title={
+                          canManagePasal 
+                            ? `Hapus pasal ${item.code} dari kalkulator` 
+                            : `Terkunci: Otorisasi Atasan diperlukan untuk menghapus pasal ${item.code}`
+                        }
                         onClick={(e) => {
                           e.stopPropagation();
-                          setPasalToDelete(item);
+                          handleRequestDelete(item);
                         }}
-                        className="p-1 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition"
+                        className={`p-1 rounded transition ${
+                          canManagePasal
+                            ? 'text-gray-500 hover:text-red-400 hover:bg-red-500/10'
+                            : 'text-gray-600 hover:text-amber-400 hover:bg-amber-500/10'
+                        }`}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -1449,6 +1677,127 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
                 <span>YA, RESET KE STANDAR</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: OTORISASI AKSES EDIT PASAL (ATASAN / KODE AKSES)   */}
+      {/* ========================================================= */}
+      {showAuthModal && (
+        <div 
+          id="modal-auth-pasal-backdrop" 
+          className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150"
+        >
+          <div 
+            id="modal-auth-pasal-content" 
+            className="bg-[#161B22] border border-amber-800/60 rounded-xl max-w-md w-full p-5 space-y-4 shadow-2xl"
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-gray-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-amber-500/15 border border-amber-500/30 rounded-lg text-amber-400">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-100 font-mono flex items-center gap-2">
+                    OTORISASI AKSES EDIT PASAL
+                  </h3>
+                  <p className="text-[11px] text-gray-400">
+                    Khusus Atasan atau personel dengan Kode Akses / PIN Otoritas.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                id="btn-close-auth-modal"
+                onClick={() => {
+                  setShowAuthModal(false);
+                  setAuthInput('');
+                  setAuthError(null);
+                  setPendingAction(null);
+                }}
+                className="text-gray-400 hover:text-white p-1 rounded-md hover:bg-gray-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Restriksi Info */}
+            <div className="p-3 bg-amber-950/40 border border-amber-800/60 rounded-lg text-xs text-amber-200 space-y-1.5">
+              <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                <Crown className="w-3.5 h-3.5" />
+                <span>Restriksi Wewenang KUHP & SOP</span>
+              </div>
+              <p className="text-[11px] text-gray-300 leading-relaxed">
+                Penambahan, pengubahan, dan penghapusan pasal KUHP dibatasi ketat hanya untuk <strong>Atasan (Supervisor / Command Staff / High Command)</strong> atau personel yang memegang PIN Otoritas / Passcode Komando HQ.
+              </p>
+              {currentOfficer?.rank && (
+                <div className="pt-1 text-[11px] font-mono text-gray-400 flex items-center gap-1.5">
+                  <span>Pangkat Anda saat ini:</span>
+                  <span className="px-1.5 py-0.2 bg-gray-900 border border-gray-700 text-amber-300 rounded font-bold">
+                    {currentOfficer.rank}
+                  </span>
+                  <span className="text-[10px] text-gray-500">(Butuh Izin Atasan)</span>
+                </div>
+              )}
+            </div>
+
+            {/* Auth Verification Form */}
+            <form onSubmit={handleVerifyAuth} className="space-y-3">
+              <div>
+                <label className="text-[11px] font-bold uppercase text-gray-300 block mb-1 font-mono flex items-center gap-1">
+                  <KeyRound className="w-3 h-3 text-amber-400" />
+                  <span>PIN Otoritas Atasan / Passcode Komando</span>
+                </label>
+                <input
+                  type="password"
+                  id="input-auth-pasal-pin"
+                  autoFocus
+                  value={authInput}
+                  onChange={(e) => {
+                    setAuthInput(e.target.value);
+                    if (authError) setAuthError(null);
+                  }}
+                  placeholder="Masukkan 6-digit PIN aktif atau Passcode HQ..."
+                  className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded text-xs text-gray-100 font-mono tracking-wider outline-none transition"
+                />
+                <p className="text-[10px] text-gray-500 mt-1">
+                  Dapatkan PIN Otoritas aktif dari Supervisor / High Command bertugas, atau gunakan Passcode Komando HSPD.
+                </p>
+              </div>
+
+              {authError && (
+                <div className="p-2.5 bg-rose-950/60 border border-rose-800 text-rose-300 rounded text-xs font-mono flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-800">
+                <button
+                  type="button"
+                  id="btn-cancel-auth-modal"
+                  onClick={() => {
+                    setShowAuthModal(false);
+                    setAuthInput('');
+                    setAuthError(null);
+                    setPendingAction(null);
+                  }}
+                  className="px-3.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-mono rounded transition"
+                >
+                  BATAL
+                </button>
+                <button
+                  type="submit"
+                  id="btn-submit-auth-modal"
+                  className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs font-mono rounded-lg transition shadow-md shadow-amber-600/30 flex items-center gap-1.5"
+                >
+                  <Unlock className="w-3.5 h-3.5" />
+                  <span>BUKA KUNCI AKSES</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
