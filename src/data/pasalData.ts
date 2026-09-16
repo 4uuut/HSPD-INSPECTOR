@@ -166,3 +166,45 @@ export const HSPD_COMMANDS_LIST = [
   { name: "Radio Polisi", cmd: "/r", desc: "Komunikasi frekuensi internal kepolisian" },
   { name: "Department Radio", cmd: "/d", desc: "Radio antar instansi (HSPD, Medic/FD, Gov)" }
 ];
+
+export const PASAL_STORAGE_KEY = 'hspd_custom_pasal_list_v1';
+
+export function getSavedPasalList(): PasalItem[] {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const raw = localStorage.getItem(PASAL_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter(item => item && item.code && item.desc);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed reading custom pasal list:', e);
+  }
+  return [...PASAL_LIST];
+}
+
+export function savePasalList(list: PasalItem[]): void {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(PASAL_STORAGE_KEY, JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('hspd-pasal-updated', { detail: list }));
+    }
+  } catch (e) {
+    console.error('Failed saving custom pasal list:', e);
+  }
+}
+
+export function resetPasalList(): PasalItem[] {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.removeItem(PASAL_STORAGE_KEY);
+      window.dispatchEvent(new CustomEvent('hspd-pasal-updated', { detail: PASAL_LIST }));
+    }
+  } catch (e) {
+    console.error('Failed resetting pasal list:', e);
+  }
+  return [...PASAL_LIST];
+}

@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { PASAL_LIST, OFFENCE_CATEGORIES } from '../data/pasalData';
+import { PASAL_LIST, OFFENCE_CATEGORIES, getSavedPasalList, savePasalList, resetPasalList } from '../data/pasalData';
 import { PasalItem, ArrestRecord, OfficerProfile, isOfficerHighRank } from '../types';
 import { 
   Search, Shield, CheckCircle2, XCircle, Copy, Check, 
   Car, AlertTriangle, FileText, Send, Percent, Sparkles, Plus, Trash2,
   User, BadgeCheck, MapPin, Camera, Package, Link2, Image as ImageIcon, 
-  ChevronDown, ChevronUp, Radio, Settings2, Globe, RefreshCw, X, SlidersHorizontal
+  ChevronDown, ChevronUp, Radio, Settings2, Globe, RefreshCw, X, SlidersHorizontal,
+  Edit3, RotateCcw, PlusCircle, Save
 } from 'lucide-react';
 import { EvidenceUploader } from './EvidenceUploader';
 import { 
@@ -23,6 +24,25 @@ const OFFICER_BADGE_KEY = 'hspd_saved_officer_badge';
 const OFFICER_PARTNER_KEY = 'hspd_saved_officer_partner';
 
 export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer }) => {
+  // Custom Pasal List State & Persistence
+  const [pasalList, setPasalList] = useState<PasalItem[]>(() => getSavedPasalList());
+  const [pasalNotice, setPasalNotice] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+
+  // Add / Edit Modal State
+  const [showAddModal, setShowAddModal] = useState<boolean>(false);
+  const [editingPasalCode, setEditingPasalCode] = useState<string | null>(null);
+  const [formCategory, setFormCategory] = useState<PasalItem['cat']>('A');
+  const [formCode, setFormCode] = useState<string>('');
+  const [formDesc, setFormDesc] = useState<string>('');
+  const [formFine, setFormFine] = useState<string>('1500');
+  const [formTime, setFormTime] = useState<string>('0');
+  const [formImp, setFormImp] = useState<string>('0');
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Delete & Reset Confirmation Modals
+  const [pasalToDelete, setPasalToDelete] = useState<PasalItem | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
+
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
@@ -36,6 +56,152 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
   const [officerName, setOfficerName] = useState<string>(() => currentOfficer?.name || localStorage.getItem(OFFICER_NAME_KEY) || '');
   const [officerBadge, setOfficerBadge] = useState<string>(() => currentOfficer?.badge || localStorage.getItem(OFFICER_BADGE_KEY) || '');
   const [partnerOfficer, setPartnerOfficer] = useState<string>(() => localStorage.getItem(OFFICER_PARTNER_KEY) || '');
+
+  // Sync with global updates across tabs or windows
+  useEffect(() => {
+    const handleUpdate = (e: any) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setPasalList(e.detail);
+      }
+    };
+    window.addEventListener('hspd-pasal-updated', handleUpdate);
+    return () => window.removeEventListener('hspd-pasal-updated', handleUpdate);
+  }, []);
+
+  // Helper to suggest next available code for a category
+  const getSuggestedNextCode = (cat: PasalItem['cat']): string => {
+    const catItems = pasalList.filter(p => p.cat === cat);
+    let maxNum = 0;
+    for (const item of catItems) {
+      const match = item.code.match(/^[A-Z](\d+)/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    }
+    const nextNum = maxNum + 1;
+    return `${cat}${nextNum < 10 ? '0' + nextNum : nextNum}`;
+  };
+
+  const handleOpenAddModal = (targetCat?: string) => {
+    const defaultCat = (targetCat && targetCat !== 'ALL' ? targetCat : (selectedCategory !== 'ALL' ? selectedCategory : 'A')) as PasalItem['cat'];
+    setEditingPasalCode(null);
+    setFormCategory(defaultCat);
+    setFormCode(getSuggestedNextCode(defaultCat));
+    setFormDesc('');
+    setFormFine('1500');
+    setFormTime('0');
+    setFormImp('0');
+    setFormError(null);
+    setShowAddModal(true);
+  };
+
+  const handleOpenEditModal = (item: PasalItem) => {
+    setEditingPasalCode(item.code);
+    setFormCategory(item.cat);
+    setFormCode(item.code);
+    setFormDesc(item.desc);
+    setFormFine(String(item.fine));
+    setFormTime(String(item.time));
+    setFormImp(String(item.imp));
+    setFormError(null);
+    setShowAddModal(true);
+  };
+
+  const handleSavePasal = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanCode = formCode.trim().toUpperCase();
+    const cleanDesc = formDesc.trim();
+    const fineNum = Math.max(0, parseInt(formFine, 10) || 0);
+    const timeNum = Math.max(0, parseInt(formTime, 10) || 0);
+    const impNum = Math.max(0, parseInt(formImp, 10) || 0);
+
+    if (!cleanCode) {
+      setFormError('Kode pasal wajib diisi (contoh: A21, F17, K01).');
+      return;
+    }
+    if (!cleanDesc) {
+      setFormError('Deskripsi / rincian pelanggaran pasal wajib diisi.');
+      return;
+    }
+
+    // Check duplicate if not editing or if code changed
+    if (!editingPasalCode || editingPasalCode.toLowerCase() !== cleanCode.toLowerCase()) {
+      const duplicate = pasalList.some(p => p.code.toLowerCase() === cleanCode.toLowerCase());
+      if (duplicate) {
+        setFormError(`Kode pasal "${cleanCode}" sudah terdaftar dalam sistem. Gunakan kode lain.`);
+        return;
+      }
+    }
+
+    const newItem: PasalItem = {
+      cat: formCategory,
+      code: cleanCode,
+      desc: cleanDesc,
+      fine: fineNum,
+      time: timeNum,
+      imp: impNum,
+    };
+
+    let updatedList: PasalItem[];
+    if (editingPasalCode) {
+      if (editingPasalCode !== cleanCode && selectedCodes.includes(editingPasalCode)) {
+        setSelectedCodes(prev => prev.map(c => c === editingPasalCode ? cleanCode : c));
+      }
+      updatedList = pasalList.map(p => p.code === editingPasalCode ? newItem : p);
+    } else {
+      // Add new pasal grouped nicely with category
+      const sameCatIndex = pasalList.map(p => p.cat).lastIndexOf(formCategory);
+      if (sameCatIndex >= 0) {
+        updatedList = [
+          ...pasalList.slice(0, sameCatIndex + 1),
+          newItem,
+          ...pasalList.slice(sameCatIndex + 1)
+        ];
+      } else {
+        updatedList = [...pasalList, newItem];
+      }
+    }
+
+    savePasalList(updatedList);
+    setPasalList(updatedList);
+    setShowAddModal(false);
+    setEditingPasalCode(null);
+    setFormError(null);
+    setPasalNotice({
+      type: 'success',
+      text: editingPasalCode 
+        ? `✅ Perubahan Pasal ${cleanCode} berhasil disimpan!` 
+        : `✅ Pasal baru ${cleanCode} (${cleanDesc}) berhasil ditambahkan ke kalkulator!`
+    });
+    setTimeout(() => setPasalNotice(null), 4000);
+  };
+
+  const handleDeletePasal = (item: PasalItem) => {
+    const updated = pasalList.filter(p => p.code !== item.code);
+    savePasalList(updated);
+    setPasalList(updated);
+    if (selectedCodes.includes(item.code)) {
+      setSelectedCodes(prev => prev.filter(c => c !== item.code));
+    }
+    setPasalToDelete(null);
+    setPasalNotice({
+      type: 'info',
+      text: `🗑️ Pasal ${item.code} (${item.desc}) telah dihapus dari kalkulator.`
+    });
+    setTimeout(() => setPasalNotice(null), 4000);
+  };
+
+  const handleResetToDefaultPasal = () => {
+    const defaults = resetPasalList();
+    setPasalList(defaults);
+    setShowResetConfirm(false);
+    setPasalNotice({
+      type: 'success',
+      text: '🔄 Seluruh daftar pasal berhasil dikembalikan ke KUHP/SOP standar HSPD.'
+    });
+    setTimeout(() => setPasalNotice(null), 4000);
+  };
 
   // Keep synced if currentOfficer changes
   useEffect(() => {
@@ -79,17 +245,17 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
   }, [officerName, officerBadge, partnerOfficer]);
 
   const filteredPasal = useMemo(() => {
-    return PASAL_LIST.filter(item => {
+    return pasalList.filter(item => {
       const matchCat = selectedCategory === 'ALL' || item.cat === selectedCategory;
       const q = searchQuery.toLowerCase().trim();
       const matchQuery = !q || item.code.toLowerCase().includes(q) || item.desc.toLowerCase().includes(q);
       return matchCat && matchQuery;
     });
-  }, [selectedCategory, searchQuery]);
+  }, [pasalList, selectedCategory, searchQuery]);
 
   const selectedItems = useMemo(() => {
-    return selectedCodes.map(c => PASAL_LIST.find(p => p.code === c)).filter(Boolean) as PasalItem[];
-  }, [selectedCodes]);
+    return selectedCodes.map(c => pasalList.find(p => p.code === c)).filter(Boolean) as PasalItem[];
+  }, [selectedCodes, pasalList]);
 
   const rawDenda = useMemo(() => {
     return selectedItems.reduce((acc, item) => acc + item.fine, 0);
@@ -238,22 +404,85 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
     <div id="pasal-calculator-root" className="grid grid-cols-1 lg:grid-cols-12 gap-4">
       {/* LEFT COLUMN: Pasal Browser & Categories */}
       <div id="pasal-browser-column" className="lg:col-span-6 flex flex-col space-y-3">
+        {/* Top Control Bar: Total Pasal Count + Add & Reset Action Buttons */}
+        <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[11px] font-mono text-gray-300 font-bold uppercase tracking-wider flex items-center gap-1.5 truncate">
+              <FileText className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              KUHP & SOP HSPD
+              <span className="px-1.5 py-0.2 bg-blue-950/60 border border-blue-800/80 text-blue-300 rounded text-[10px]">
+                {pasalList.length} Pasal
+              </span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              id="btn-add-new-pasal"
+              type="button"
+              onClick={() => handleOpenAddModal()}
+              className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[11px] font-bold flex items-center gap-1.5 transition shadow-sm shadow-blue-600/30"
+              title="Tambah pasal KUHP baru ke kalkulator"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Tambah Pasal</span>
+            </button>
+
+            <button
+              id="btn-reset-pasal-default"
+              type="button"
+              onClick={() => setShowResetConfirm(true)}
+              title="Reset seluruh daftar pasal ke standar resmi HSPD"
+              className="p-1.5 text-gray-400 hover:text-amber-300 hover:bg-gray-800 rounded transition border border-gray-800 flex items-center justify-center"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Dynamic Notification / Feedback Banner */}
+        {pasalNotice && (
+          <div className={`p-2 rounded text-xs flex items-center justify-between gap-2 font-mono transition-all ${
+            pasalNotice.type === 'success' ? 'bg-emerald-950/80 border border-emerald-800 text-emerald-300' :
+            pasalNotice.type === 'error' ? 'bg-rose-950/80 border border-rose-800 text-rose-300' :
+            'bg-blue-950/80 border border-blue-800 text-blue-300'
+          }`}>
+            <span className="text-[11px]">{pasalNotice.text}</span>
+            <button 
+              type="button" 
+              onClick={() => setPasalNotice(null)} 
+              className="text-gray-400 hover:text-white p-0.5"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Category Pills Header Bar */}
         <div id="pasal-category-filter" className="flex flex-wrap gap-1 p-1.5 bg-[#161B22] border border-gray-800 rounded-md">
           {OFFENCE_CATEGORIES.map((cat) => {
             const isSelected = selectedCategory === cat.key;
+            const countInCat = cat.key === 'ALL' 
+              ? pasalList.length 
+              : pasalList.filter(p => p.cat === cat.key).length;
+
             return (
               <button
                 key={cat.key}
                 id={`cat-btn-${cat.key}`}
                 onClick={() => setSelectedCategory(cat.key)}
-                className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition whitespace-nowrap ${
+                className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition whitespace-nowrap flex items-center gap-1.5 ${
                   isSelected
                     ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/30'
                     : 'bg-[#0D0F14] text-gray-400 border border-gray-800 hover:bg-gray-800 hover:text-gray-200'
                 }`}
               >
-                {cat.title}
+                <span>{cat.title}</span>
+                <span className={`text-[9px] px-1 rounded font-mono ${
+                  isSelected ? 'bg-blue-800 text-white' : 'bg-gray-800 text-gray-500'
+                }`}>
+                  {countInCat}
+                </span>
               </button>
             );
           })}
@@ -283,8 +512,16 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
         {/* Pasal List Inspector Panel */}
         <div id="pasal-items-container" className="bg-[#161B22] border border-gray-800 rounded-md p-2 flex-1 max-h-[700px] overflow-y-auto space-y-1.5">
           {filteredPasal.length === 0 ? (
-            <div className="py-12 text-center text-gray-500 text-xs font-mono">
-              [NO_MATCH] Tidak ada pasal yang cocok dengan kriteria pencarian "{searchQuery}".
+            <div className="py-12 text-center text-gray-500 text-xs font-mono space-y-2">
+              <p>[NO_MATCH] Tidak ada pasal yang cocok dengan kriteria pencarian "{searchQuery}".</p>
+              <button
+                type="button"
+                onClick={() => handleOpenAddModal(selectedCategory !== 'ALL' ? selectedCategory : undefined)}
+                className="px-3 py-1 bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/50 text-blue-300 rounded text-xs font-bold inline-flex items-center gap-1.5 transition"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Tambah Pasal Baru Sekarang</span>
+              </button>
             </div>
           ) : (
             filteredPasal.map((item) => {
@@ -294,30 +531,32 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
                   key={item.code}
                   id={`pasal-row-${item.code}`}
                   onClick={() => toggleSelect(item.code)}
-                  className={`p-2 rounded border cursor-pointer transition flex items-center justify-between gap-3 ${
+                  className={`group p-2 rounded border cursor-pointer transition flex items-center justify-between gap-3 ${
                     isChecked
                       ? 'bg-blue-600/10 border-blue-500 text-gray-100 shadow-inner'
                       : 'bg-[#0D0F14] border-gray-800 hover:border-gray-700 text-gray-300'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <div className={`w-4 h-4 rounded flex items-center justify-center border transition shrink-0 ${
                       isChecked ? 'bg-blue-600 border-blue-500 text-white' : 'border-gray-700 bg-black/40'
                     }`}>
                       {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-bold text-[11px] px-1.5 py-0.2 rounded bg-black/50 border border-gray-700 text-blue-400">
+                        <span className="font-mono font-bold text-[11px] px-1.5 py-0.2 rounded bg-black/50 border border-gray-700 text-blue-400 shrink-0">
                           {item.code}
                         </span>
-                        <span className="text-[10px] text-gray-500 uppercase font-mono font-bold">Kategori {item.cat}</span>
+                        <span className="text-[10px] text-gray-500 uppercase font-mono font-bold shrink-0">
+                          Kategori {item.cat}
+                        </span>
                       </div>
                       <p className="text-xs text-gray-200 font-normal mt-0.5 truncate">{item.desc}</p>
                     </div>
                   </div>
 
-                  {/* Badges / Metrics */}
+                  {/* Badges / Metrics & Row Actions */}
                   <div className="flex items-center gap-1.5 text-right shrink-0">
                     <span className="px-1.5 py-0.5 bg-green-950/40 border border-green-800/60 text-green-400 rounded text-[10px] font-mono font-bold">
                       ${item.fine.toLocaleString()}
@@ -332,6 +571,35 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
                         {item.imp}d Imp
                       </span>
                     )}
+
+                    {/* Action buttons: Edit & Hapus Pasal */}
+                    <div className="flex items-center gap-0.5 pl-1.5 ml-1 border-l border-gray-800/80">
+                      <button
+                        id={`btn-edit-pasal-${item.code}`}
+                        type="button"
+                        title={`Edit rincian pasal ${item.code}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditModal(item);
+                        }}
+                        className="p-1 text-gray-500 hover:text-blue-400 hover:bg-blue-500/10 rounded transition"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        id={`btn-delete-pasal-${item.code}`}
+                        type="button"
+                        title={`Hapus pasal ${item.code} dari kalkulator`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPasalToDelete(item);
+                        }}
+                        className="p-1 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -339,6 +607,7 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
           )}
         </div>
       </div>
+
 
       {/* RIGHT COLUMN: Suspect Case Details, Evidence Uploader & Command Summary */}
       <div id="pasal-summary-column" className="lg:col-span-6 flex flex-col space-y-3">
@@ -882,6 +1151,308 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
           </div>
         </div>
       )}
+
+      {/* ========================================================= */}
+      {/* MODAL: TAMBAH / EDIT PASAL BARU */}
+      {/* ========================================================= */}
+      {showAddModal && (
+        <div 
+          id="modal-add-pasal-backdrop" 
+          className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150"
+        >
+          <div 
+            id="modal-add-pasal-content" 
+            className="bg-[#161B22] border border-gray-700 rounded-xl max-w-lg w-full p-5 space-y-4 shadow-2xl"
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-gray-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-blue-600/20 border border-blue-500/30 rounded-lg text-blue-400">
+                  {editingPasalCode ? <Edit3 className="w-5 h-5" /> : <PlusCircle className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-100 flex items-center gap-2 font-mono">
+                    {editingPasalCode ? `EDIT PASAL ${editingPasalCode}` : 'TAMBAH PASAL BARU'}
+                  </h3>
+                  <p className="text-[11px] text-gray-400">
+                    {editingPasalCode 
+                      ? 'Perbarui rincian nominal denda, waktu penjara, atau masa impound pasal ini.' 
+                      : 'Tambahkan pasal pelanggaran baru ke dalam Kitab KUHP & Kalkulator HSPD.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                id="btn-close-add-modal"
+                onClick={() => {
+                  setShowAddModal(false);
+                  setEditingPasalCode(null);
+                  setFormError(null);
+                }}
+                className="text-gray-400 hover:text-white p-1 rounded-md hover:bg-gray-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSavePasal} className="space-y-3.5">
+              {/* Row 1: Kategori & Kode */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold uppercase text-gray-300 block mb-1">
+                    Kategori Pelanggaran
+                  </label>
+                  <select
+                    id="input-pasal-category"
+                    value={formCategory}
+                    onChange={(e) => {
+                      const newCat = e.target.value as PasalItem['cat'];
+                      setFormCategory(newCat);
+                      if (!editingPasalCode) {
+                        setFormCode(getSuggestedNextCode(newCat));
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-blue-500 rounded text-xs text-gray-100 outline-none"
+                  >
+                    {OFFENCE_CATEGORIES.filter(c => c.key !== 'ALL').map((c) => (
+                      <option key={c.key} value={c.key}>
+                        {c.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold uppercase text-gray-300 block mb-1">
+                    Kode Pasal (Contoh: A21, F17)
+                  </label>
+                  <input
+                    type="text"
+                    id="input-pasal-code"
+                    value={formCode}
+                    onChange={(e) => setFormCode(e.target.value.toUpperCase().replace(/\s+/g, ''))}
+                    placeholder="Contoh: A21"
+                    required
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-blue-500 rounded text-xs text-gray-100 font-mono font-bold outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Deskripsi Pelanggaran */}
+              <div>
+                <label className="text-[11px] font-bold uppercase text-gray-300 block mb-1">
+                  Deskripsi / Nama Pelanggaran
+                </label>
+                <input
+                  type="text"
+                  id="input-pasal-desc"
+                  value={formDesc}
+                  onChange={(e) => setFormDesc(e.target.value)}
+                  placeholder="Contoh: Penggunaan Strobo/Sirene Ilegal pada Kendaraan Sipil"
+                  required
+                  className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-blue-500 rounded text-xs text-gray-100 outline-none"
+                />
+              </div>
+
+              {/* Row 3: Nominal Denda, Waktu Penjara & Impound */}
+              <div className="grid grid-cols-3 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold uppercase text-gray-300 block mb-1">
+                    Denda ($)
+                  </label>
+                  <input
+                    type="number"
+                    id="input-pasal-fine"
+                    min="0"
+                    step="50"
+                    value={formFine}
+                    onChange={(e) => setFormFine(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-blue-500 rounded text-xs text-gray-100 font-mono outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold uppercase text-gray-300 block mb-1">
+                    Penjara (Bulan)
+                  </label>
+                  <input
+                    type="number"
+                    id="input-pasal-time"
+                    min="0"
+                    step="1"
+                    value={formTime}
+                    onChange={(e) => setFormTime(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-blue-500 rounded text-xs text-gray-100 font-mono outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold uppercase text-gray-300 block mb-1">
+                    Impound (Hari)
+                  </label>
+                  <input
+                    type="number"
+                    id="input-pasal-imp"
+                    min="0"
+                    step="1"
+                    value={formImp}
+                    onChange={(e) => setFormImp(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-blue-500 rounded text-xs text-gray-100 font-mono outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Error Box */}
+              {formError && (
+                <div className="p-2.5 bg-rose-950/60 border border-rose-800 text-rose-300 rounded text-xs font-mono flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>{formError}</span>
+                </div>
+              )}
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-800">
+                <button
+                  type="button"
+                  id="btn-cancel-add-pasal"
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setEditingPasalCode(null);
+                    setFormError(null);
+                  }}
+                  className="px-3.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-mono rounded transition"
+                >
+                  BATAL
+                </button>
+                <button
+                  type="submit"
+                  id="btn-submit-add-pasal"
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs font-mono rounded-lg transition shadow-md shadow-blue-600/30 flex items-center gap-1.5"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{editingPasalCode ? 'SIMPAN PERUBAHAN' : 'TAMBAH PASAL BARU'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: KONFIRMASI PENGHAPUSAN PASAL */}
+      {/* ========================================================= */}
+      {pasalToDelete && (
+        <div 
+          id="modal-delete-pasal-backdrop" 
+          className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150"
+        >
+          <div 
+            id="modal-delete-pasal-content" 
+            className="bg-[#161B22] border border-red-900/60 rounded-xl max-w-md w-full p-5 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-red-500/15 border border-red-500/30 rounded-xl text-red-400 shrink-0">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-gray-100 font-mono">
+                  Hapus Pasal {pasalToDelete.code}?
+                </h3>
+                <p className="text-xs text-gray-300 font-medium">
+                  "{pasalToDelete.desc}"
+                </p>
+                <p className="text-[11px] text-gray-400">
+                  Apakah Anda yakin ingin menghapus pasal ini dari kalkulator?
+                </p>
+              </div>
+            </div>
+
+            {/* Detail Preview */}
+            <div className="p-2.5 bg-[#0D1117] border border-gray-800 rounded-lg flex items-center justify-between text-xs font-mono">
+              <span className="text-gray-400">Kategori {pasalToDelete.cat}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-green-400 font-bold">${pasalToDelete.fine.toLocaleString()}</span>
+                {pasalToDelete.time > 0 && <span className="text-amber-300 font-bold">{pasalToDelete.time} Bln</span>}
+                {pasalToDelete.imp > 0 && <span className="text-red-400 font-bold">{pasalToDelete.imp}d Imp</span>}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-800">
+              <button
+                type="button"
+                id="btn-cancel-delete-pasal"
+                onClick={() => setPasalToDelete(null)}
+                className="px-3.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-mono rounded transition"
+              >
+                BATAL
+              </button>
+              <button
+                type="button"
+                id="btn-confirm-delete-pasal"
+                onClick={() => handleDeletePasal(pasalToDelete)}
+                className="px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold text-xs font-mono rounded-lg transition shadow-md shadow-red-600/30 flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>YA, HAPUS PASAL</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL: KONFIRMASI RESET DAFTAR PASAL KE STANDAR */}
+      {/* ========================================================= */}
+      {showResetConfirm && (
+        <div 
+          id="modal-reset-pasal-backdrop" 
+          className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-150"
+        >
+          <div 
+            id="modal-reset-pasal-content" 
+            className="bg-[#161B22] border border-amber-900/60 rounded-xl max-w-md w-full p-5 space-y-4 shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-amber-500/15 border border-amber-500/30 rounded-xl text-amber-400 shrink-0">
+                <RotateCcw className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-gray-100 font-mono">
+                  Reset Daftar Pasal ke Standar KUHP?
+                </h3>
+                <p className="text-xs text-gray-300 leading-relaxed">
+                  Tindakan ini akan mengembalikan seluruh pasal KUHP ke daftar standar resmi HSPD (Pasal A01 s/d H06). Semua pasal kustom yang Anda tambahkan atau edit akan diatur ulang.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-800">
+              <button
+                type="button"
+                id="btn-cancel-reset-pasal"
+                onClick={() => setShowResetConfirm(false)}
+                className="px-3.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-mono rounded transition"
+              >
+                BATAL
+              </button>
+              <button
+                type="button"
+                id="btn-confirm-reset-pasal"
+                onClick={handleResetToDefaultPasal}
+                className="px-4 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs font-mono rounded-lg transition shadow-md shadow-amber-600/30 flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>YA, RESET KE STANDAR</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

@@ -66,9 +66,25 @@ const LOCAL_DISCORD_USERS_MAP_PATH = path.join(process.cwd(), '.discord_register
 class DiscordRosterService {
   private db: any = null;
   private isInitialized = false;
+  private quotaExceededUntil = 0;
+  private cachedOfficers: OfficerRecord[] = [];
+  private lastCacheFetchTime = 0;
+  private readonly CACHE_TTL_MS = 60 * 1000; // 60 seconds memory cache
 
   constructor() {
     this.initDb();
+  }
+
+  private isQuotaError(err: any): boolean {
+    if (!err) return false;
+    const msg = String(err?.message || err || '').toLowerCase();
+    const code = String(err?.code || '').toLowerCase();
+    return (
+      msg.includes('quota exceeded') ||
+      msg.includes('resource-exhausted') ||
+      code.includes('resource-exhausted') ||
+      code.includes('quota')
+    );
   }
 
   private initDb() {
@@ -135,6 +151,14 @@ class DiscordRosterService {
       const filtered = list.filter(o => o.badge !== officer.badge && o.name.toLowerCase() !== officer.name.toLowerCase());
       filtered.unshift(officer);
       fs.writeFileSync(LOCAL_ROSTER_BACKUP_PATH, JSON.stringify(filtered, null, 2), 'utf-8');
+
+      // Update in-memory cache immediately
+      const existingIdx = this.cachedOfficers.findIndex(o => o.badge === officer.badge || o.name.toLowerCase() === officer.name.toLowerCase());
+      if (existingIdx >= 0) {
+        this.cachedOfficers[existingIdx] = officer;
+      } else {
+        this.cachedOfficers.unshift(officer);
+      }
     } catch (e) {
       console.warn('[Discord Roster Service] Failed to save local roster backup:', e);
     }
@@ -150,14 +174,28 @@ class DiscordRosterService {
   }
 
   public async getAllOfficers(): Promise<OfficerRecord[]> {
+    // 1. Return fresh in-memory cache if valid
+    const now = Date.now();
+    if (this.cachedOfficers.length > 0 && (now - this.lastCacheFetchTime < this.CACHE_TTL_MS)) {
+      return this.cachedOfficers;
+    }
+
     this.initDb();
     const map = new Map<string, OfficerRecord>();
 
-    // Load local backup first
+    // 2. Load local disk backup first (offline fallback)
     const local = this.getLocalBackups();
-    local.forEach(o => map.set(o.badge, o));
+    local.forEach(o => {
+      if (o && o.badge) map.set(o.badge, o);
+    });
 
-    if (!this.db) return Array.from(map.values());
+    // 3. If Firestore is in quota cooldown or unavailable, return local backup directly
+    if (!this.db || now < this.quotaExceededUntil) {
+      const result = Array.from(map.values());
+      this.cachedOfficers = result;
+      this.lastCacheFetchTime = now;
+      return result;
+    }
 
     try {
       const colRef = collection(this.db, 'roster');
@@ -168,11 +206,21 @@ class DiscordRosterService {
           map.set(data.badge, { ...data, id: data.id || d.id });
         }
       });
+      // Reading succeeded, clear any quota cooldown
+      this.quotaExceededUntil = 0;
     } catch (err: any) {
-      console.warn('[Discord Roster Service] Failed to read officers from Firestore:', err?.message || err);
+      if (this.isQuotaError(err)) {
+        this.quotaExceededUntil = Date.now() + 10 * 60 * 1000; // 10 minute cooldown
+        console.info('[Discord Roster Service] ℹ️ Firestore quota limit reached. Falling back safely to local database & cache (10m cooldown).');
+      } else {
+        console.warn('[Discord Roster Service] Failed to read officers from Firestore:', err?.message || err);
+      }
     }
 
-    return Array.from(map.values());
+    const result = Array.from(map.values());
+    this.cachedOfficers = result;
+    this.lastCacheFetchTime = Date.now();
+    return result;
   }
 
   public async findOfficer(query: {
@@ -365,7 +413,7 @@ class DiscordRosterService {
 
     // 2. Commit directly to Firestore collection 'roster'
     this.initDb();
-    if (this.db) {
+    if (this.db && Date.now() >= this.quotaExceededUntil) {
       try {
         const docKey = officerId || this.sanitizeDocId(badge);
         const docRef = doc(this.db, 'roster', docKey);
@@ -373,29 +421,43 @@ class DiscordRosterService {
         console.log(`[Discord Roster Service] ✅ Officer ${formattedName} (${badge}) saved to Firestore!`);
 
         // If officer was previously marked as discharged, remove them from discharged_officers
-        try {
-          const dischargeDocRef = doc(this.db, 'system_configs', 'discharged_officers');
-          const dSnap = await getDoc(dischargeDocRef);
-          if (dSnap.exists()) {
-            const dData = dSnap.data();
-            const dList = dData.data?.list || dData.list || [];
-            const cleanDigits = badge.replace(/[^0-9]/g, '');
-            const filtered = dList.filter((item: any) => {
-              const itemBadge = (item.badge || '').replace(/[^0-9]/g, '');
-              const itemName = (item.name || '').toLowerCase().trim();
-              return itemBadge !== cleanDigits && itemName !== formattedName.toLowerCase();
-            });
-            if (filtered.length !== dList.length) {
-              await setDoc(dischargeDocRef, { ...dData, data: { list: filtered }, updatedAt: Date.now() }, { merge: true });
-              console.log(`[Discord Roster Service] Removed ${formattedName} from discharged_officers archive.`);
+        if (Date.now() >= this.quotaExceededUntil) {
+          try {
+            const dischargeDocRef = doc(this.db, 'system_configs', 'discharged_officers');
+            const dSnap = await getDoc(dischargeDocRef);
+            if (dSnap.exists()) {
+              const dData = dSnap.data();
+              const dList = dData.data?.list || dData.list || [];
+              const cleanDigits = badge.replace(/[^0-9]/g, '');
+              const filtered = dList.filter((item: any) => {
+                const itemBadge = (item.badge || '').replace(/[^0-9]/g, '');
+                const itemName = (item.name || '').toLowerCase().trim();
+                return itemBadge !== cleanDigits && itemName !== formattedName.toLowerCase();
+              });
+              if (filtered.length !== dList.length) {
+                await setDoc(dischargeDocRef, { ...dData, data: { list: filtered }, updatedAt: Date.now() }, { merge: true });
+                console.log(`[Discord Roster Service] Removed ${formattedName} from discharged_officers archive.`);
+              }
+            }
+          } catch (dErr: any) {
+            if (this.isQuotaError(dErr)) {
+              this.quotaExceededUntil = Date.now() + 10 * 60 * 1000;
+              console.info('[Discord Roster Service] ℹ️ Notice checking discharged archive: Firestore quota limit reached.');
+            } else {
+              console.warn('[Discord Roster Service] Notice checking discharged archive:', dErr?.message || dErr);
             }
           }
-        } catch (dErr) {
-          console.warn('[Discord Roster Service] Notice checking discharged archive:', dErr);
         }
       } catch (err: any) {
-        console.error('[Discord Roster Service] Error writing to Firestore:', err?.message || err);
+        if (this.isQuotaError(err)) {
+          this.quotaExceededUntil = Date.now() + 10 * 60 * 1000;
+          console.info(`[Discord Roster Service] ℹ️ Firestore quota limit reached. Officer ${formattedName} (${badge}) saved safely in local database.`);
+        } else {
+          console.error('[Discord Roster Service] Error writing to Firestore:', err?.message || err);
+        }
       }
+    } else if (Date.now() < this.quotaExceededUntil) {
+      console.info(`[Discord Roster Service] ℹ️ Cloud quota cooldown active. Officer ${formattedName} (${badge}) saved safely in local database.`);
     }
 
     return {
@@ -452,15 +514,22 @@ class DiscordRosterService {
 
     // 4. Update langsung ke Firestore collection 'roster'
     this.initDb();
-    if (this.db) {
+    if (this.db && Date.now() >= this.quotaExceededUntil) {
       try {
         const docKey = officer.id || this.sanitizeDocId(officer.badge);
         const docRef = doc(this.db, 'roster', docKey);
         await setDoc(docRef, updatedOfficer, { merge: true });
         console.log(`[Discord Roster Service] ✅ PIN updated successfully in Firestore for ${officer.name} (${officer.badge})!`);
       } catch (err: any) {
-        console.error('[Discord Roster Service] Error updating PIN in Firestore:', err?.message || err);
+        if (this.isQuotaError(err)) {
+          this.quotaExceededUntil = Date.now() + 10 * 60 * 1000;
+          console.info(`[Discord Roster Service] ℹ️ Firestore quota limit reached. PIN for ${officer.name} (${officer.badge}) updated safely in local database.`);
+        } else {
+          console.error('[Discord Roster Service] Error updating PIN in Firestore:', err?.message || err);
+        }
       }
+    } else if (Date.now() < this.quotaExceededUntil) {
+      console.info(`[Discord Roster Service] ℹ️ Cloud quota cooldown active. PIN for ${officer.name} updated in local database.`);
     }
 
     return {
@@ -490,13 +559,18 @@ class DiscordRosterService {
       requestedFrom: 'discord_bot_panel'
     };
 
-    if (this.db) {
+    if (this.db && Date.now() >= this.quotaExceededUntil) {
       try {
         const docRef = doc(this.db, 'pin_reset_requests', ticketId);
         await setDoc(docRef, ticketData);
         console.log(`[Discord Roster Service] Pin reset ticket created for ${cleanName}`);
       } catch (err: any) {
-        console.warn('[Discord Roster Service] Failed to write ticket to Firestore:', err?.message || err);
+        if (this.isQuotaError(err)) {
+          this.quotaExceededUntil = Date.now() + 10 * 60 * 1000;
+          console.info(`[Discord Roster Service] ℹ️ Firestore quota limit reached. Ticket for ${cleanName} accepted locally.`);
+        } else {
+          console.warn('[Discord Roster Service] Failed to write ticket to Firestore:', err?.message || err);
+        }
       }
     }
 

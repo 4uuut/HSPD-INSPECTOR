@@ -43,7 +43,29 @@ function getServerDb() {
   return null;
 }
 
+let vercelQuotaExceededUntil = 0;
+let cachedCloudOfficers: any[] = [];
+let lastCloudOfficersFetchTime = 0;
+const CLOUD_CACHE_TTL_MS = 60 * 1000;
+
+function isVercelQuotaError(err: any): boolean {
+  if (!err) return false;
+  const msg = String(err?.message || err || '').toLowerCase();
+  const code = String(err?.code || '').toLowerCase();
+  return (
+    msg.includes('quota exceeded') ||
+    msg.includes('resource-exhausted') ||
+    code.includes('resource-exhausted') ||
+    code.includes('quota')
+  );
+}
+
 async function getAllCloudOfficers(): Promise<any[]> {
+  const now = Date.now();
+  if (cachedCloudOfficers.length > 0 && now - lastCloudOfficersFetchTime < CLOUD_CACHE_TTL_MS) {
+    return cachedCloudOfficers;
+  }
+
   const map = new Map<string, any>();
 
   // 1. Read local backup file if present
@@ -53,13 +75,21 @@ async function getAllCloudOfficers(): Promise<any[]> {
       const list = JSON.parse(fs.readFileSync(backupPath, 'utf-8'));
       if (Array.isArray(list)) {
         list.forEach(o => {
-          if (o.badge) map.set(o.badge, o);
+          if (o && o.badge) map.set(o.badge, o);
         });
       }
     }
   } catch {}
 
-  // 2. Fetch from Firestore roster collection
+  // 2. Return local backup if Firestore is in quota cooldown
+  if (now < vercelQuotaExceededUntil) {
+    const result = Array.from(map.values());
+    cachedCloudOfficers = result;
+    lastCloudOfficersFetchTime = now;
+    return result;
+  }
+
+  // 3. Fetch from Firestore roster collection
   const db = getServerDb();
   if (db) {
     try {
@@ -71,12 +101,21 @@ async function getAllCloudOfficers(): Promise<any[]> {
           map.set(data.badge, { ...data, id: data.id || d.id });
         }
       });
-    } catch (err) {
-      console.warn('[Vercel API] Error fetching roster from Firestore:', err);
+      vercelQuotaExceededUntil = 0;
+    } catch (err: any) {
+      if (isVercelQuotaError(err)) {
+        vercelQuotaExceededUntil = Date.now() + 10 * 60 * 1000;
+        console.info('[Vercel API] ℹ️ Firestore quota limit reached. Serving from local backup & cache (10m cooldown).');
+      } else {
+        console.warn('[Vercel API] Error fetching roster from Firestore:', err?.message || err);
+      }
     }
   }
 
-  return Array.from(map.values());
+  const result = Array.from(map.values());
+  cachedCloudOfficers = result;
+  lastCloudOfficersFetchTime = Date.now();
+  return result;
 }
 
 async function updateCloudOfficerPin(params: {
