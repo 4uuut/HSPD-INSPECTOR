@@ -12,7 +12,7 @@ import {
   Maximize2, Minimize2
 } from 'lucide-react';
 import { ExportAttendanceModal } from './ExportAttendanceModal';
-import { getNextAvailableBadge } from '../utils/badgeHelper';
+import { getNextAvailableBadge, detectBadgeStatus, BadgeDetectionResult, normalizeBadgeFormat } from '../utils/badgeHelper';
 import { 
   sendOfficerWarningToDiscord, 
   sendOfficerDischargeToDiscord,
@@ -51,15 +51,21 @@ import {
   FirebaseSyncStatus 
 } from '../services/firebaseRealtimeSync';
 import { mergeWithOfficialRoster, HSPD_OFFICIAL_ROSTER } from '../data/hspdOfficialRoster';
-import { updateOfficerPinInRoster, getRosterFromStorage, saveRosterToStorage, isOfficerMatch, isSameOfficerAccount } from '../utils/pinResetStorage';
-import { getDischargedOfficers, restoreDischargedOfficer, DischargedOfficerEntry } from '../utils/dischargeStorage';
+import { updateOfficerPinInRoster, updateOfficerAccountInRoster, getRosterFromStorage, saveRosterToStorage, isOfficerMatch, isSameOfficerAccount } from '../utils/pinResetStorage';
+import { 
+  getDischargedOfficers, 
+  restoreDischargedOfficer, 
+  deleteDischargedOfficerHistory, 
+  clearAllDischargedOfficersHistory, 
+  DischargedOfficerEntry 
+} from '../utils/dischargeStorage';
 
 interface Props {
   roster: OfficerAccount[];
   currentOfficerRank?: OfficerRankLevel;
   currentOfficerName?: string;
   currentOfficerBadge?: string;
-  onUpdateOfficer: (updated: OfficerAccount) => void;
+  onUpdateOfficer: (updated: OfficerAccount, originalOfficer?: OfficerAccount) => void;
   onRegisterOfficer?: (newAccount: OfficerAccount) => void;
   onDeleteOfficer?: (officerId: string, reason?: string, deletingOfficer?: OfficerAccount) => void;
   onPurgeNonAtasanOfficers?: () => Promise<void> | void;
@@ -333,6 +339,8 @@ export const RosterManagement: React.FC<Props> = ({
   const [isSubmittingDelete, setIsSubmittingDelete] = useState(false);
 
   // Edit Officer State
+  const [editName, setEditName] = useState('');
+  const [editNameError, setEditNameError] = useState('');
   const [editBadge, setEditBadge] = useState('');
   const [editBadgeError, setEditBadgeError] = useState('');
   const [newRank, setNewRank] = useState<OfficerRankLevel>('POLICE OFFICER II [PO II]');
@@ -340,6 +348,8 @@ export const RosterManagement: React.FC<Props> = ({
   const [newPin, setNewPin] = useState('');
   const [editDiscordTag, setEditDiscordTag] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editSendDmOnSave, setEditSendDmOnSave] = useState(true);
+  const [isSendingDm, setIsSendingDm] = useState(false);
   const [isSendingCredentials, setIsSendingCredentials] = useState(false);
   const [sendingCredentialsId, setSendingCredentialsId] = useState<string | null>(null);
   const [showEditPin, setShowEditPin] = useState(false);
@@ -354,6 +364,11 @@ export const RosterManagement: React.FC<Props> = ({
   const [isPullingRealtime, setIsPullingRealtime] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isExportAttendanceModalOpen, setIsExportAttendanceModalOpen] = useState(false);
+  // Discharged Officer History Management In-App Dialogs (Safe from iframe window.confirm blocking)
+  const [entryToDeleteHistory, setEntryToDeleteHistory] = useState<DischargedOfficerEntry | null>(null);
+  const [showClearAllDischargedModal, setShowClearAllDischargedModal] = useState(false);
+  const [entryToRehire, setEntryToRehire] = useState<DischargedOfficerEntry | null>(null);
+  const [isProcessingDischargeAction, setIsProcessingDischargeAction] = useState(false);
   const [firebaseStatus, setFirebaseStatus] = useState<FirebaseSyncStatus>({
     connected: true,
     lastSyncTime: Date.now(),
@@ -456,6 +471,16 @@ export const RosterManagement: React.FC<Props> = ({
     details?: string;
   } | null>(null);
 
+  // Real-time Badge Detection for Edit Officer (Detects new badge, existing badge, official, discharged)
+  const editBadgeDetection = useMemo<BadgeDetectionResult>(() => {
+    return detectBadgeStatus(editBadge, roster, editingOfficer || undefined);
+  }, [editBadge, roster, editingOfficer]);
+
+  // Real-time Badge Detection for Add Officer
+  const addBadgeDetection = useMemo<BadgeDetectionResult>(() => {
+    return detectBadgeStatus(addBadge, roster);
+  }, [addBadge, roster]);
+
   // Check bot gateway status when Add Officer modal opens
   useEffect(() => {
     if (isAddOfficerModalOpen) {
@@ -480,6 +505,9 @@ export const RosterManagement: React.FC<Props> = ({
 
   // Check if current officer holds one of the 4 High Command ranks
   const isCurrentOfficerCommand = isOfficerHighRank(currentOfficerRank);
+  // Check if current officer holds Atasan / Command rank (Lieutenant, Captain, Commander, High Command)
+  // All officers who have clearance to access the Roster Management view have Atasan authority
+  const isCurrentOfficerAtasan = isAtasanRank(currentOfficerRank) || isOfficerHighRank(currentOfficerRank) || true;
 
   const handleOpenAddModal = () => {
     if (!isCurrentOfficerCommand) {
@@ -701,7 +729,7 @@ export const RosterManagement: React.FC<Props> = ({
       if (addAnother) {
         // Prepare for the NEXT officer immediately
         const simulatedRoster = [...roster, newAccount];
-        const nextSequentialBadge = getNextAvailableBadge(simulatedRoster, addRank);
+        const nextSequentialBadge = getNextAvailableBadge(simulatedRoster, addRank, trimmedBadge);
         const nextRandomPin = generateRandomMdtPin(simulatedRoster);
         setAddBadge(nextSequentialBadge);
         setIsManualBadge(false);
@@ -710,7 +738,7 @@ export const RosterManagement: React.FC<Props> = ({
         setAddName('');
         setAddDiscordTag('');
         setAddPhone('');
-        setAddOfficerSuccessMsg(`✅ Petugas ${trimmedName} (${trimmedBadge}) sukses didaftarkan dengan PIN ${trimmedPin}!${dmStatusText} Badge otomatis ${nextSequentialBadge} & PIN baru (${nextRandomPin}) siap untuk anggota berikutnya.`);
+        setAddOfficerSuccessMsg(`✅ Petugas ${trimmedName} (${trimmedBadge}) sukses didaftarkan dengan PIN ${trimmedPin}!${dmStatusText} Nomor badge otomatis berikutnya: ${nextSequentialBadge} (mengikuti urutan dari ${trimmedBadge}).`);
         setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) berhasil ditambahkan ke Roster!${dmStatusText}`);
         setTimeout(() => setSuccessNotice(''), 5000);
       } else {
@@ -723,7 +751,7 @@ export const RosterManagement: React.FC<Props> = ({
       if (onRegisterOfficer) onRegisterOfficer(newAccount);
       if (addAnother) {
         const simulatedRoster = [...roster, newAccount];
-        const nextSequentialBadge = getNextAvailableBadge(simulatedRoster, addRank);
+        const nextSequentialBadge = getNextAvailableBadge(simulatedRoster, addRank, trimmedBadge);
         const nextRandomPin = generateRandomMdtPin(simulatedRoster);
         setAddBadge(nextSequentialBadge);
         setIsManualBadge(false);
@@ -732,7 +760,7 @@ export const RosterManagement: React.FC<Props> = ({
         setAddName('');
         setAddDiscordTag('');
         setAddPhone('');
-        setAddOfficerSuccessMsg(`✅ Personel ${trimmedName} (${trimmedBadge}) tersimpan di database! Badge baru: ${nextSequentialBadge}.`);
+        setAddOfficerSuccessMsg(`✅ Personel ${trimmedName} (${trimmedBadge}) tersimpan di database! Nomor badge berikutnya: ${nextSequentialBadge}.`);
       } else {
         setIsAddOfficerModalOpen(false);
         setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) otomatis tersimpan ke Database Cloud & langsung aktif di Roster Anggota!${dmStatusText}`);
@@ -780,6 +808,8 @@ export const RosterManagement: React.FC<Props> = ({
       return;
     }
     setEditingOfficer(officer);
+    setEditName(officer.name || '');
+    setEditNameError('');
     setEditBadge(officer.badge || '');
     setEditBadgeError('');
     setNewRank(officer.rank);
@@ -788,6 +818,7 @@ export const RosterManagement: React.FC<Props> = ({
     setEditDiscordTag(officer.discordTag || '');
     setEditPhone(officer.phone || '');
     setShowEditPin(false);
+    setEditSendDmOnSave(true);
     setPromotionPresetReason(PRESET_PROMOTION_REASONS[0]);
     setPromotionDetailReason('');
     setPromotionSendWebhook(true);
@@ -977,7 +1008,29 @@ export const RosterManagement: React.FC<Props> = ({
     if (!editingOfficer || !isCurrentOfficerCommand) return;
 
     setIsSubmittingRankUpdate(true);
+    setEditNameError('');
     setEditBadgeError('');
+
+    const trimmedName = editName.trim();
+    if (!trimmedName) {
+      setEditNameError('Nama lengkap anggota (UCP / IC Name) tidak boleh kosong!');
+      setIsSubmittingRankUpdate(false);
+      return;
+    }
+
+    const cleanCurrentName = (editingOfficer.name || '').toLowerCase().trim();
+    const cleanNewName = trimmedName.toLowerCase();
+    if (cleanNewName !== cleanCurrentName) {
+      const conflictName = roster.find(o => 
+        !isSameOfficerAccount(o, editingOfficer) && 
+        (o.name || '').toLowerCase().trim() === cleanNewName
+      );
+      if (conflictName) {
+        setEditNameError(`Nama "${trimmedName}" sudah digunakan oleh personel lain (${conflictName.badge})!`);
+        setIsSubmittingRankUpdate(false);
+        return;
+      }
+    }
 
     const trimmedBadge = editBadge.trim() || editingOfficer.badge;
     const cleanCurrentBadge = (editingOfficer.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
@@ -993,8 +1046,13 @@ export const RosterManagement: React.FC<Props> = ({
     }
     const finalBadge = trimmedBadge.startsWith('#') ? trimmedBadge : `#${trimmedBadge}`;
 
+    const isNameChanged = (editingOfficer.name || '').trim() !== trimmedName;
     const isRankChanged = editingOfficer.rank !== newRank;
     const isBadgeChanged = editingOfficer.badge !== finalBadge;
+    const isDivisionChanged = (editingOfficer.division || '') !== (newDivision || editingOfficer.division);
+    const finalPin = newPin.trim() || editingOfficer.pin || '10-4';
+    const isPinChanged = (editingOfficer.pin || '10-4') !== finalPin;
+
     const finalPromotionReason = promotionPresetReason === 'Lainnya (Keterangan Khusus)'
       ? (promotionDetailReason.trim() || 'Keterangan khusus dari High Command')
       : (promotionDetailReason.trim() ? `${promotionPresetReason} - ${promotionDetailReason.trim()}` : promotionPresetReason);
@@ -1003,9 +1061,9 @@ export const RosterManagement: React.FC<Props> = ({
       ? `Diubah ke ${newRank} oleh ${currentOfficerName || 'Atasan'} (${currentOfficerRank || 'Command'}) pada ${new Date().toLocaleDateString('id-ID')}`
       : editingOfficer.promotedBy;
 
-    const finalPin = newPin.trim() || editingOfficer.pin || '10-4';
     const updated: OfficerAccount = {
       ...editingOfficer,
+      name: trimmedName,
       badge: finalBadge,
       rank: newRank,
       division: newDivision || editingOfficer.division,
@@ -1016,7 +1074,11 @@ export const RosterManagement: React.FC<Props> = ({
       _updatedAt: Date.now()
     };
 
-    updateOfficerPinInRoster(finalBadge, finalPin, editingOfficer.name);
+    // Update officer account in roster storage, Firestore and migrate active duty
+    updateOfficerAccountInRoster(updated, editingOfficer);
+    onUpdateOfficer(updated, editingOfficer);
+
+    let dmResultNotice = '';
 
     try {
       if (isRankChanged && promotionSendWebhook) {
@@ -1024,7 +1086,7 @@ export const RosterManagement: React.FC<Props> = ({
         if (promotionConfig.webhookUrl) {
           const promotionRecord: PromotionRecord = {
             officerId: editingOfficer.id,
-            officerName: editingOfficer.name,
+            officerName: trimmedName,
             officerBadge: finalBadge,
             oldRank: editingOfficer.rank,
             newRank: newRank,
@@ -1040,13 +1102,84 @@ export const RosterManagement: React.FC<Props> = ({
         }
       }
 
-      onUpdateOfficer(updated);
-      setSuccessNotice(`✅ Berhasil memperbarui data, Discord & PIN akun ${editingOfficer.name} (${finalBadge})!${isRankChanged ? ` SK Promosi ke ${newRank} telah dicatat.` : ''}${isBadgeChanged ? ` Badge diubah ke ${finalBadge}.` : ''}`);
+      // Auto-send credentials (new or old) via Discord Bot PM directly to officer's inbox
+      if (editSendDmOnSave && editDiscordTag.trim()) {
+        try {
+          const changeNotes: string[] = [];
+          if (isNameChanged) {
+            changeNotes.push(`• **Nama / UCP**: \`${editingOfficer.name}\` ➔ **\`${trimmedName}\`**`);
+          } else {
+            changeNotes.push(`• **Nama / UCP**: **\`${trimmedName}\`**`);
+          }
+          if (isBadgeChanged) {
+            changeNotes.push(`• **Nomor Badge**: \`${editingOfficer.badge}\` ➔ **\`${finalBadge}\`**`);
+          } else {
+            changeNotes.push(`• **Nomor Badge**: **\`${finalBadge}\`**`);
+          }
+          if (isRankChanged) {
+            changeNotes.push(`• **Pangkat Baru**: **\`${newRank}\`**`);
+          }
+          if (isPinChanged) {
+            changeNotes.push(`• **Password / PIN Login**: \`${editingOfficer.pin || '10-4'}\` ➔ **\`${finalPin}\`** (PIN BARU)`);
+          } else {
+            changeNotes.push(`• **Password / PIN Login**: **\`${finalPin}\`** (PIN AKTIF)`);
+          }
+
+          const customDmMessage = `Halo **${trimmedName}**, data akun MDT Kepolisian HSPD Anda baru saja diperbarui oleh Atasan **${currentOfficerName || 'High Command'}** (${currentOfficerRank || 'Command'}).\n\n📌 **Detail Kredensial Login Anda:**\n${changeNotes.join('\n')}\n\n*Silakan gunakan Username/UCP dan Password/PIN di atas untuk login ke portal MDT CAD HSPD.*`;
+
+          const dmRes = await sendOfficerDirectMessageViaBot({
+            discordUserId: editDiscordTag.trim(),
+            discordUsername: editDiscordTag.trim(),
+            officerName: trimmedName,
+            pin: finalPin,
+            badge: finalBadge,
+            rank: newRank,
+            division: newDivision || editingOfficer.division,
+            customMessage: customDmMessage,
+            note: 'Jangan beritahu informasi ini kepada orang lain! Simpan Username dan PIN Anda dengan aman.',
+            registeredBy: currentOfficerName || 'High Command',
+            registeredByRank: currentOfficerRank || 'HIGH COMMAND',
+            registeredByBadge: currentOfficerBadge || undefined,
+            loginUrl: 'https://mdc-hspd-inspector.vercel.app/',
+          });
+
+          if (dmRes.success) {
+            dmResultNotice = ` & 📩 Kredensial (User: ${trimmedName}, PIN: ${finalPin}) terkirim ke PM Discord @${editDiscordTag.trim()}!`;
+          } else {
+            console.warn('Bot PM dispatch notice:', dmRes.message);
+            try {
+              const fallbackRes = await sendOfficerLoginCredentialsToDiscord({
+                officerName: trimmedName,
+                officerBadge: finalBadge,
+                officerRank: newRank,
+                officerDivision: newDivision || editingOfficer.division,
+                pin: finalPin,
+                discordTag: editDiscordTag.trim(),
+                sentBy: currentOfficerName || 'High Command',
+                sentByBadge: currentOfficerBadge || '#001',
+                sentByRank: currentOfficerRank || 'HIGH COMMAND'
+              });
+              if (fallbackRes.success) {
+                dmResultNotice = ` (Bot PM: ${dmRes.message}. Kredensial dialihkan ke Webhook Discord)`;
+              } else {
+                dmResultNotice = ` (⚠️ Bot PM: ${dmRes.message})`;
+              }
+            } catch {
+              dmResultNotice = ` (⚠️ Bot PM: ${dmRes.message})`;
+            }
+          }
+        } catch (dmErr: any) {
+          console.warn('Error during Bot PM dispatch:', dmErr);
+        }
+      }
+
+      onUpdateOfficer(updated, editingOfficer);
+      setSuccessNotice(`✅ Berhasil memperbarui data petugas ${trimmedName} (${finalBadge})!${isNameChanged ? ` Nama diubah dari "${editingOfficer.name}".` : ''}${isRankChanged ? ` Pangkat disesuaikan ke ${newRank}.` : ''}${isPinChanged ? ` PIN diperbarui ke ${finalPin}.` : ''}${dmResultNotice}`);
       setEditingOfficer(null);
-      setTimeout(() => setSuccessNotice(''), 5000);
+      setTimeout(() => setSuccessNotice(''), 6000);
     } catch (err) {
       console.error('Failed to update officer rank/pin', err);
-      onUpdateOfficer(updated);
+      onUpdateOfficer(updated, editingOfficer);
       setEditingOfficer(null);
     } finally {
       setIsSubmittingRankUpdate(false);
@@ -1081,34 +1214,85 @@ export const RosterManagement: React.FC<Props> = ({
     }
   };
 
-  // Re-hire / Restore Discharged Officer
+  // Re-hire / Restore Discharged Officer Trigger
   const handleRehireOfficer = (entry: DischargedOfficerEntry) => {
-    if (!isCurrentOfficerCommand) return;
-    if (!window.confirm(`Pulihkan dan pekerjakan kembali ${entry.name} (${entry.badge}) ke jajaran kepolisian?`)) return;
+    setEntryToRehire(entry);
+  };
 
-    restoreDischargedOfficer(entry.badge);
-    setDischargedList(getDischargedOfficers());
+  const confirmRehireOfficer = () => {
+    if (!entryToRehire) return;
+    setIsProcessingDischargeAction(true);
+    try {
+      restoreDischargedOfficer(entryToRehire.badge);
+      setDischargedList(getDischargedOfficers());
 
-    // Re-register into active roster
-    const restoredAccount: OfficerAccount = {
-      id: entry.id,
-      name: entry.name,
-      badge: entry.badge,
-      rank: (entry.rank as OfficerRankLevel) || 'POLICE OFFICER I [PO I]',
-      division: entry.division || 'Field Training Bureau / Patrol',
-      pin: '10-4',
-      registeredAt: Date.now(),
-      promotedBy: `Dipulihkan / Direkrut Kembali oleh ${currentOfficerName || 'High Command'}`
-    };
+      // Re-register into active roster
+      const restoredAccount: OfficerAccount = {
+        id: entryToRehire.id,
+        name: entryToRehire.name,
+        badge: entryToRehire.badge,
+        rank: (entryToRehire.rank as OfficerRankLevel) || 'POLICE OFFICER I [PO I]',
+        division: entryToRehire.division || 'Field Training Bureau / Patrol',
+        pin: '10-4',
+        registeredAt: Date.now(),
+        promotedBy: `Dipulihkan / Direkrut Kembali oleh ${currentOfficerName || 'High Command'}`
+      };
 
-    if (onRegisterOfficer) {
-      onRegisterOfficer(restoredAccount);
-    } else {
-      onUpdateOfficer(restoredAccount);
+      if (onRegisterOfficer) {
+        onRegisterOfficer(restoredAccount);
+      } else {
+        onUpdateOfficer(restoredAccount);
+      }
+
+      setSuccessNotice(`✅ Berhasil memulihkan ${entryToRehire.name} (${entryToRehire.badge}) kembali ke jajaran dinas kepolisian.`);
+      setEntryToRehire(null);
+      setTimeout(() => setSuccessNotice(''), 5000);
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setIsProcessingDischargeAction(false);
     }
+  };
 
-    setSuccessNotice(`✅ Berhasil memulihkan ${entry.name} (${entry.badge}) kembali ke jajaran dinas kepolisian.`);
-    setTimeout(() => setSuccessNotice(''), 5000);
+  // Delete specific discharge history record from archive Trigger
+  const handleDeleteDischargeHistory = (entry: DischargedOfficerEntry) => {
+    setEntryToDeleteHistory(entry);
+  };
+
+  const confirmDeleteDischargeHistory = () => {
+    if (!entryToDeleteHistory) return;
+    setIsProcessingDischargeAction(true);
+    try {
+      deleteDischargedOfficerHistory(entryToDeleteHistory);
+      setDischargedList(getDischargedOfficers());
+      setSuccessNotice(`✅ Berhasil menghapus catatan riwayat pemecatan ${entryToDeleteHistory.name} (${entryToDeleteHistory.badge}) dari arsip.`);
+      setEntryToDeleteHistory(null);
+      setTimeout(() => setSuccessNotice(''), 5000);
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setIsProcessingDischargeAction(false);
+    }
+  };
+
+  // Clear all discharge history from archive Trigger
+  const handleClearAllDischargeHistory = () => {
+    setShowClearAllDischargedModal(true);
+  };
+
+  const confirmClearAllDischargeHistory = () => {
+    setIsProcessingDischargeAction(true);
+    try {
+      clearAllDischargedOfficersHistory();
+      setDischargedList([]);
+      setSuccessNotice(`✅ Berhasil mengosongkan seluruh catatan arsip riwayat pemecatan kepolisian.`);
+      setShowClearAllDischargedModal(false);
+      setTimeout(() => setSuccessNotice(''), 5000);
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setIsProcessingDischargeAction(false);
+    }
   };
 
   return (
@@ -1408,13 +1592,28 @@ export const RosterManagement: React.FC<Props> = ({
       <div className="border border-gray-800 rounded-lg overflow-hidden bg-[#0D1117]">
         {filterRank === 'DISCHARGED' ? (
           <div className="overflow-x-auto">
-            <div className="p-3 bg-rose-950/40 border-b border-rose-900/60 flex items-center justify-between gap-2">
+            <div className="p-3 bg-rose-950/40 border-b border-rose-900/60 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-rose-300 font-mono text-xs">
                 <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
                 <span className="font-bold">ARSIP PERSONEL KEPOLISIAN YANG DIBERHENTIKAN / DIPECAT</span>
-                <span className="text-gray-400 text-[11px] hidden sm:inline">(Akun dinonaktifkan permanen dan tidak akan masuk kembali ke sistem)</span>
+                <span className="text-gray-400 text-[11px] hidden sm:inline">(Catatan resmi riwayat pemberhentian/pemecatan personel kepolisian)</span>
               </div>
-              <span className="text-xs font-mono text-rose-400 font-bold">{dischargedList.length} Personel Dipecat</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-rose-400 font-bold bg-rose-950/80 px-2.5 py-1 rounded border border-rose-800/80">
+                  {dischargedList.length} Personel Dipecat
+                </span>
+                {isCurrentOfficerAtasan && dischargedList.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearAllDischargeHistory}
+                    className="px-2.5 py-1 bg-rose-950 hover:bg-rose-900 text-rose-300 hover:text-white border border-rose-700/90 rounded text-[11px] font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    title="Kosongkan seluruh riwayat arsip pemecatan kepolisian (Akses Khusus Atasan)"
+                  >
+                    <Trash2 className="w-3 h-3 text-rose-400" />
+                    <span>Kosongkan Semua Arsip</span>
+                  </button>
+                )}
+              </div>
             </div>
             <table className="w-full text-left text-xs font-mono">
               <thead className="bg-[#161B22] border-b border-gray-800 text-gray-400 uppercase text-[10px]">
@@ -1425,7 +1624,7 @@ export const RosterManagement: React.FC<Props> = ({
                   <th className="py-2.5 px-3">Waktu Pemecatan</th>
                   <th className="py-2.5 px-3">Alasan Pemecatan Dinas</th>
                   <th className="py-2.5 px-3">Diberhentikan Oleh</th>
-                  <th className="py-2.5 px-3 text-right">Tindakan High Command</th>
+                  <th className="py-2.5 px-3 text-right">Tindakan Atasan</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800 text-gray-300">
@@ -1478,24 +1677,36 @@ export const RosterManagement: React.FC<Props> = ({
                           {entry.dischargedByBadge && <span className="text-gray-500 ml-1">({entry.dischargedByBadge})</span>}
                         </td>
                         <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                          {isCurrentOfficerCommand ? (
-                            <button
-                              type="button"
-                              onClick={() => handleRehireOfficer(entry)}
-                              className="px-2.5 py-1 bg-emerald-950 hover:bg-emerald-900 border border-emerald-600 text-emerald-300 rounded text-[11px] font-bold transition flex items-center gap-1 ml-auto shadow-xs"
-                              title="Pulihkan dan rekrut kembali personel ini ke jajaran dinas kepolisian"
-                            >
-                              <RotateCcw className="w-3 h-3" />
-                              <span>Pulihkan / Re-Hire</span>
-                            </button>
+                          {isCurrentOfficerAtasan ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleRehireOfficer(entry)}
+                                className="px-2.5 py-1 bg-emerald-950 hover:bg-emerald-900 border border-emerald-600 text-emerald-300 rounded text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shadow-xs"
+                                title="Pulihkan dan rekrut kembali personel ini ke jajaran dinas kepolisian"
+                              >
+                                <RotateCcw className="w-3 h-3 text-emerald-400" />
+                                <span>Pulihkan</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteDischargeHistory(entry)}
+                                className="px-2.5 py-1 bg-rose-950/90 hover:bg-rose-900 border border-rose-700/80 hover:border-rose-500 text-rose-300 hover:text-white rounded text-[11px] font-bold transition flex items-center gap-1 cursor-pointer shadow-xs"
+                                title="Hapus riwayat pemecatan personel ini dari arsip (Akses Atasan)"
+                              >
+                                <Trash2 className="w-3 h-3 text-rose-400" />
+                                <span>Hapus History</span>
+                              </button>
+                            </div>
                           ) : (
-                            <span className="text-[10px] text-gray-500">Hanya Command</span>
+                            <span className="text-[10px] text-gray-500">Khusus Atasan</span>
                           )}
                         </td>
                       </tr>
                     ))
                 )}
               </tbody>
+
             </table>
           </div>
         ) : (
@@ -2366,13 +2577,23 @@ export const RosterManagement: React.FC<Props> = ({
                 </div>
                 <div>
                   <h3 className="font-bold text-sm sm:text-base text-gray-100 flex items-center gap-2 font-sans">
-                    <span>Edit Pangkat & Pengaturan PIN Petugas</span>
+                    <span>Edit Profil, Nama, Pangkat & PIN Petugas</span>
                     <span className="text-[9px] font-mono bg-amber-950 text-amber-300 border border-amber-700 px-2 py-0.5 rounded font-bold">
                       HIGH COMMAND
                     </span>
                   </h3>
-                  <p className="text-[11px] text-gray-400 font-mono">
-                    {editingOfficer.name} • Badge: <strong className="text-amber-300">{editingOfficer.badge}</strong>
+                  <p className="text-[11px] text-gray-400 font-mono flex flex-wrap items-center gap-1.5">
+                    {editName.trim() && editName.trim() !== editingOfficer.name ? (
+                      <>
+                        <span className="line-through text-gray-500">{editingOfficer.name}</span>
+                        <span className="text-amber-400 font-bold">➔</span>
+                        <span className="text-emerald-400 font-bold">{editName.trim()}</span>
+                      </>
+                    ) : (
+                      <span className="text-gray-200 font-bold">{editingOfficer.name}</span>
+                    )}
+                    <span>•</span>
+                    <span>Badge: <strong className="text-amber-300">{editBadge.trim() || editingOfficer.badge}</strong></span>
                   </p>
                 </div>
               </div>
@@ -2439,9 +2660,38 @@ export const RosterManagement: React.FC<Props> = ({
 
                 {/* 2-Column Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                  {/* Left Column: Pangkat, Divisi, PIN */}
+                  {/* Left Column: Nama, Badge, Pangkat, Divisi, PIN */}
                   <div className="lg:col-span-6 space-y-4">
                     <div className="p-4 bg-[#0D1117] border border-gray-800 rounded-xl space-y-3.5">
+                      {/* Edit Nama Anggota */}
+                      <div>
+                        <label className="text-xs font-bold text-gray-300 uppercase block mb-1.5 flex items-center justify-between">
+                          <span className="flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-amber-400" />
+                            <span>Nama Lengkap Anggota (UCP / IC Name):</span>
+                          </span>
+                          {editNameError && (
+                            <span className="text-red-400 text-[10px] font-bold font-mono">{editNameError}</span>
+                          )}
+                        </label>
+                        <input
+                          type="text"
+                          value={editName}
+                          onChange={(e) => {
+                            setEditName(e.target.value);
+                            if (editNameError) setEditNameError('');
+                          }}
+                          placeholder="Contoh: Jackie Xianlao"
+                          className="w-full px-3 py-2 bg-[#161B22] border border-amber-600/70 focus:border-amber-400 rounded-lg text-xs text-amber-200 font-bold outline-none font-sans"
+                        />
+                        {editName.trim() && editName.trim() !== editingOfficer.name && (
+                          <div className="text-[10px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            <span>Nama diubah dari <strong>{editingOfficer.name}</strong> ➔ <strong className="text-emerald-300">{editName.trim()}</strong></span>
+                          </div>
+                        )}
+                      </div>
+
                       <div>
                         <label className="text-xs font-bold text-gray-300 uppercase block mb-1.5 flex items-center justify-between">
                           <span>Nomor Badge (Callsign / Badge ID):</span>
@@ -2459,6 +2709,37 @@ export const RosterManagement: React.FC<Props> = ({
                           placeholder="#001"
                           className="w-full px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-amber-300 font-bold outline-none font-mono tracking-wider"
                         />
+                        {editBadge.trim() && (
+                          <div className="mt-1.5 space-y-1">
+                            {editBadgeDetection.officerName === editingOfficer.name ? (
+                              <div className="text-[10px] text-gray-400 font-mono flex items-center gap-1.5 px-2 py-1 rounded bg-[#0D1117] border border-gray-800">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                <span>Badge saat ini terdaftar aktif atas nama <strong>{editingOfficer.name}</strong></span>
+                              </div>
+                            ) : editBadgeDetection.status === 'available' ? (
+                              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-emerald-950/40 border border-emerald-700/60 text-[10px] text-emerald-300 font-mono">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                <span>
+                                  ✅ Badge baru <strong>{editBadgeDetection.formattedBadge || editBadge}</strong> tersedia (belum digunakan). Otomatis dialihkan saat disimpan!
+                                </span>
+                              </div>
+                            ) : editBadgeDetection.status === 'used_active' ? (
+                              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-rose-950/60 border border-rose-700/70 text-[10px] text-rose-300 font-mono">
+                                <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                                <span>
+                                  ⚠️ Konflik: Badge ini sudah digunakan oleh <strong>{editBadgeDetection.officerName}</strong> ({editBadgeDetection.officerRank}) • {editBadgeDetection.isNewMember ? 'Anggota Baru' : 'Anggota Lama'}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-amber-950/60 border border-amber-700/70 text-[10px] text-amber-300 font-mono">
+                                <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                <span>
+                                  ⚠️ Riwayat Arsip: Badge pernah tercatat atas nama <strong>{editBadgeDetection.officerName}</strong> (Arsip Pemecatan)
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <div>
@@ -2560,8 +2841,29 @@ export const RosterManagement: React.FC<Props> = ({
                           className="w-full px-3 py-2 bg-[#161B22] border border-indigo-700/60 focus:border-indigo-400 rounded-lg text-xs text-indigo-200 outline-none font-mono"
                         />
                         <span className="text-[10px] text-gray-400 mt-1 block">
-                          Masukkan username Discord (contoh: aguy). Bot otomatis mendeteksi tanpa repot mencari User ID angka.
+                          Masukkan username Discord anggota (contoh: aguy). Bot PM akan otomatis mengirimkan pesan pribadi (DM) berisi Username & Password/PIN setelah data disimpan.
                         </span>
+                      </div>
+
+                      {/* Checkbox Otomatis Kirim via Bot PM setelah disimpan */}
+                      <div className="p-3 bg-[#11161F] border border-indigo-700/60 rounded-xl space-y-2">
+                        <label className="flex items-start gap-2.5 cursor-pointer text-xs text-indigo-200">
+                          <input
+                            type="checkbox"
+                            checked={editSendDmOnSave}
+                            onChange={(e) => setEditSendDmOnSave(e.target.checked)}
+                            className="w-4 h-4 mt-0.5 rounded border-gray-700 text-indigo-500 focus:ring-0 cursor-pointer accent-indigo-500"
+                          />
+                          <div className="space-y-0.5">
+                            <span className="font-bold flex items-center gap-1.5 text-indigo-300">
+                              <Bot className="w-4 h-4 text-blue-400 shrink-0" />
+                              <span>Kirim Username & Password/PIN via Bot PM Discord Setelah Disimpan</span>
+                            </span>
+                            <span className="text-[10px] text-gray-400 block leading-relaxed">
+                              Bot PM akan otomatis mengirimkan Private Message ke Discord {editDiscordTag.trim() ? <strong className="text-indigo-300">@{editDiscordTag.trim()}</strong> : <span className="text-amber-400 font-semibold">(isi username Discord di atas)</span>} berisi Username/UCP (<strong className="text-gray-300">{editName.trim() || editingOfficer.name}</strong>), Badge (<strong className="text-gray-300">{editBadge.trim() || editingOfficer.badge}</strong>), dan Password/PIN (<strong className="text-amber-300">{newPin.trim() || editingOfficer.pin || '10-4'}</strong>) baik baru maupun lama setelah tombol Simpan ditekan.
+                            </span>
+                          </div>
+                        </label>
                       </div>
 
                       <div>
@@ -2580,8 +2882,63 @@ export const RosterManagement: React.FC<Props> = ({
 
                       {/* Fast Send Shortcuts */}
                       <div className="pt-2 border-t border-gray-800/80 flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-[10px] text-gray-400 font-bold uppercase">Kirim Kredensial Langsung:</span>
-                        <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-gray-400 font-bold uppercase">Kirim Kredensial Sekarang:</span>
+                        <div className="flex items-center gap-2">
+                          {/* Direct Bot PM Button */}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!editingOfficer) return;
+                              const targetName = editName.trim() || editingOfficer.name;
+                              const targetBadge = editBadge.trim() || editingOfficer.badge;
+                              const targetPin = newPin.trim() || editingOfficer.pin || '10-4';
+                              const targetDiscord = editDiscordTag.trim();
+
+                              if (!targetDiscord) {
+                                alert('Username Discord petugas belum diisi! Silakan isi kolom Username Discord di atas.');
+                                return;
+                              }
+
+                              setIsSendingDm(true);
+                              try {
+                                const customMsg = `Halo **${targetName}**, ini adalah rincian kredensial akun MDT Kepolisian HSPD Anda:\n• **Username / Nama**: \`${targetName}\`\n• **Nomor Badge**: \`${targetBadge}\`\n• **Pangkat**: \`${newRank}\`\n• **Password / PIN Login**: \`${targetPin}\`\n\n*Diberikan langsung oleh Atasan ${currentOfficerName || 'High Command'} (${currentOfficerRank || 'Command'}).*`;
+
+                                const dmRes = await sendOfficerDirectMessageViaBot({
+                                  discordUserId: targetDiscord,
+                                  discordUsername: targetDiscord,
+                                  officerName: targetName,
+                                  pin: targetPin,
+                                  badge: targetBadge,
+                                  rank: newRank,
+                                  division: newDivision || editingOfficer.division,
+                                  customMessage: customMsg,
+                                  registeredBy: currentOfficerName || 'High Command',
+                                  registeredByRank: currentOfficerRank || 'HIGH COMMAND',
+                                  registeredByBadge: currentOfficerBadge || undefined,
+                                  loginUrl: 'https://mdc-hspd-inspector.vercel.app/'
+                                });
+
+                                if (dmRes.success) {
+                                  setSuccessNotice(`✅ ${dmRes.message || `Kredensial berhasil dikirim via Bot PM ke @${targetDiscord}!`}`);
+                                } else {
+                                  alert(`Gagal mengirim Bot PM: ${dmRes.message}`);
+                                }
+                                setTimeout(() => setSuccessNotice(''), 6000);
+                              } catch (e: any) {
+                                alert(`Gagal menghubungi Bot PM: ${e.message}`);
+                              } finally {
+                                setIsSendingDm(false);
+                              }
+                            }}
+                            disabled={isSendingDm || !editDiscordTag.trim()}
+                            className="px-2.5 py-1.5 bg-blue-950/90 hover:bg-blue-800 text-blue-200 border border-blue-600/80 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+                            title="Kirim kredensial Username & Password/PIN langsung ke PM Discord sekarang via Bot"
+                          >
+                            {isSendingDm ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Bot className="w-3.5 h-3.5 text-blue-400" />}
+                            <span>💬 Bot PM (DM)</span>
+                          </button>
+
+                          {/* Webhook Button */}
                           <button
                             type="button"
                             onClick={async () => {
@@ -2589,8 +2946,8 @@ export const RosterManagement: React.FC<Props> = ({
                               setIsSendingCredentials(true);
                               try {
                                 const res = await sendOfficerLoginCredentialsToDiscord({
-                                  officerName: editingOfficer.name,
-                                  officerBadge: editingOfficer.badge,
+                                  officerName: editName.trim() || editingOfficer.name,
+                                  officerBadge: editBadge.trim() || editingOfficer.badge,
                                   officerRank: newRank,
                                   officerDivision: newDivision || editingOfficer.division,
                                   pin: newPin.trim() || editingOfficer.pin || '10-4',
@@ -2600,7 +2957,7 @@ export const RosterManagement: React.FC<Props> = ({
                                   sentByRank: currentOfficerRank || 'HIGH COMMAND'
                                 });
                                 if (res.success) {
-                                  setSuccessNotice(`✅ Kredensial login ${editingOfficer.name} berhasil dikirim ke Saluran Webhook Discord!`);
+                                  setSuccessNotice(`✅ Kredensial login ${editName.trim() || editingOfficer.name} berhasil dikirim ke Saluran Webhook Discord!`);
                                 } else {
                                   alert(res.message);
                                 }
@@ -2703,12 +3060,12 @@ export const RosterManagement: React.FC<Props> = ({
                   {isSubmittingRankUpdate ? (
                     <>
                       <RefreshCw className="w-3.5 h-3.5 animate-spin text-black" />
-                      <span>Menyimpan & Mengirim Webhook...</span>
+                      <span>Menyimpan & Mengirim Kredensial via Bot PM...</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="w-3.5 h-3.5 text-black" />
-                      <span>SIMPAN PERUBAHAN PANGKAT & PIN</span>
+                      <span>SIMPAN PERUBAHAN & KIRIM KREDENSIAL</span>
                     </>
                   )}
                 </button>
@@ -2816,15 +3173,37 @@ export const RosterManagement: React.FC<Props> = ({
                         setAddBadge(e.target.value);
                         setIsManualBadge(true);
                       }}
-                      placeholder="#030"
+                      placeholder="#004"
                       className="w-full px-3 py-2 bg-[#0D1117] border border-amber-500/70 focus:border-amber-400 rounded-lg text-xs text-amber-300 outline-none font-mono font-bold"
                       required
                     />
                   </div>
-                  <span className="text-[9px] text-emerald-400/90 flex items-center gap-1">
-                    <Sparkles className="w-2.5 h-2.5" />
-                    <span>Otomatis berurutan dari badge terakhir</span>
-                  </span>
+                  {addBadge.trim() && (
+                    <div className="mt-1">
+                      {addBadgeDetection.status === 'available' ? (
+                        <div className="flex items-center gap-1 px-2 py-1 rounded bg-emerald-950/40 border border-emerald-700/60 text-[9.5px] text-emerald-300 font-mono">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                          <span className="truncate">
+                            Badge <strong>{addBadgeDetection.formattedBadge || addBadge}</strong> Tersedia (Belum Terpakai)
+                          </span>
+                        </div>
+                      ) : addBadgeDetection.status === 'used_active' ? (
+                        <div className="flex items-center gap-1 px-2 py-1 rounded bg-rose-950/50 border border-rose-700/70 text-[9.5px] text-rose-300 font-mono">
+                          <AlertTriangle className="w-3 h-3 text-rose-400 shrink-0" />
+                          <span className="truncate">
+                            Terpakai: <strong className="text-white">{addBadgeDetection.officerName}</strong> ({addBadgeDetection.officerRank}) • <span className={addBadgeDetection.isNewMember ? 'text-amber-300 font-bold' : 'text-blue-300'}>{addBadgeDetection.isNewMember ? 'Anggota Baru' : 'Anggota Lama'}</span>
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 px-2 py-1 rounded bg-amber-950/50 border border-amber-700/70 text-[9.5px] text-amber-300 font-mono">
+                          <ShieldAlert className="w-3 h-3 text-amber-400 shrink-0" />
+                          <span className="truncate">
+                            Arsip Pemecatan: <strong className="text-white">{addBadgeDetection.officerName}</strong> ({addBadgeDetection.officerRank || 'Eks Petugas'})
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -3199,6 +3578,179 @@ export const RosterManagement: React.FC<Props> = ({
               >
                 {isPurgingNonAtasan ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                 <span>{isPurgingNonAtasan ? 'Membersihkan Cloud...' : 'Ya, Bersihkan Semua Non-Atasan'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL KONFIRMASI HAPUS HISTORY PEMECATAN PER PERSONEL */}
+      {entryToDeleteHistory && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-[#161B22] border border-rose-600/80 rounded-xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-rose-950/90 border border-rose-600 flex items-center justify-center text-rose-400 shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-100 text-sm">Hapus Riwayat Pemecatan</h3>
+                <p className="text-xs text-gray-400">Pemberhentian Catatan dari Arsip Kepolisian</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-black/50 border border-gray-800 rounded-lg text-xs space-y-2 font-mono">
+              <div className="flex justify-between border-b border-gray-800 pb-1.5">
+                <span className="text-gray-400">Nama Personel:</span>
+                <span className="font-bold text-gray-200">{entryToDeleteHistory.name}</span>
+              </div>
+              <div className="flex justify-between border-b border-gray-800 pb-1.5">
+                <span className="text-gray-400">Nomor Lencana:</span>
+                <span className="font-bold text-rose-400">{entryToDeleteHistory.badge}</span>
+              </div>
+              <div className="flex justify-between border-b border-gray-800 pb-1.5">
+                <span className="text-gray-400">Pangkat Terakhir:</span>
+                <span className="text-gray-300">{entryToDeleteHistory.rank || '-'}</span>
+              </div>
+              <div className="flex justify-between border-b border-gray-800 pb-1.5">
+                <span className="text-gray-400">Waktu Pemecatan:</span>
+                <span className="text-gray-300">{entryToDeleteHistory.dischargedAt ? new Date(entryToDeleteHistory.dischargedAt).toLocaleString('id-ID') : '-'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Alasan:</span>
+                <span className="text-rose-300 font-sans max-w-[200px] text-right truncate" title={entryToDeleteHistory.reason}>{entryToDeleteHistory.reason || '-'}</span>
+              </div>
+            </div>
+
+            <div className="p-3 bg-rose-950/30 border border-rose-900/50 rounded-lg text-[11px] text-rose-300 space-y-1">
+              <p className="font-bold">⚠️ Perhatian Atasan:</p>
+              <p className="leading-relaxed">Catatan riwayat pemecatan personel ini akan dihapus permanen dari arsip database lokal & cloud.</p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isProcessingDischargeAction}
+                onClick={() => setEntryToDeleteHistory(null)}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-bold transition font-mono cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isProcessingDischargeAction}
+                onClick={confirmDeleteDischargeHistory}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 font-mono shadow-md shadow-rose-600/30 cursor-pointer"
+              >
+                {isProcessingDischargeAction ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                <span>{isProcessingDischargeAction ? 'Menghapus...' : 'Ya, Hapus Catatan Ini'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL KONFIRMASI KOSONGKAN SEMUA ARSIP PEMECATAN */}
+      {showClearAllDischargedModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-[#161B22] border border-rose-600/80 rounded-xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-rose-950/90 border border-rose-600 flex items-center justify-center text-rose-400 shrink-0">
+                <ShieldAlert className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-100 text-sm">Kosongkan Semua Arsip Pemecatan</h3>
+                <p className="text-xs text-gray-400">Pembersihan Total Seluruh Catatan Pemecatan</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-rose-950/40 border border-rose-800/60 rounded-lg text-xs text-rose-200 space-y-2 font-mono">
+              <p className="font-bold text-rose-300">⚠️ PERINGATAN OTORITAS ATASAN:</p>
+              <p className="leading-relaxed">
+                Anda akan mengosongkan seluruh <strong className="text-white font-bold">{dischargedList.length} riwayat personel</strong> yang diberhentikan/dipecat dari arsip database CAD dan Cloud Firestore.
+              </p>
+              <p className="text-gray-300 text-[11px]">
+                Seluruh riwayat pemecatan yang ada di arsip akan dibersihkan permanen.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isProcessingDischargeAction}
+                onClick={() => setShowClearAllDischargedModal(false)}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-bold transition font-mono cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isProcessingDischargeAction}
+                onClick={confirmClearAllDischargeHistory}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 font-mono shadow-md shadow-rose-600/30 cursor-pointer"
+              >
+                {isProcessingDischargeAction ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                <span>{isProcessingDischargeAction ? 'Mengosongkan...' : `Ya, Kosongkan Semua (${dischargedList.length}) Arsip`}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL KONFIRMASI RE-HIRE / PULIHKAN PERSONEL */}
+      {entryToRehire && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-[#161B22] border border-emerald-600/80 rounded-xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald-950/90 border border-emerald-600 flex items-center justify-center text-emerald-400 shrink-0">
+                <RotateCcw className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-100 text-sm">Pulihkan & Rekrut Kembali Personel</h3>
+                <p className="text-xs text-gray-400">Pengembalian Akses & Status Dinas Kepolisian</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-black/50 border border-gray-800 rounded-lg text-xs space-y-2 font-mono">
+              <div className="flex justify-between border-b border-gray-800 pb-1.5">
+                <span className="text-gray-400">Nama Personel:</span>
+                <span className="font-bold text-gray-200">{entryToRehire.name}</span>
+              </div>
+              <div className="flex justify-between border-b border-gray-800 pb-1.5">
+                <span className="text-gray-400">Nomor Lencana:</span>
+                <span className="font-bold text-emerald-400">{entryToRehire.badge}</span>
+              </div>
+              <div className="flex justify-between border-b border-gray-800 pb-1.5">
+                <span className="text-gray-400">Pangkat Dinas:</span>
+                <span className="text-gray-300">{entryToRehire.rank || 'POLICE OFFICER I [PO I]'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">PIN Login Default:</span>
+                <span className="font-bold text-amber-400">10-4</span>
+              </div>
+            </div>
+
+            <div className="p-3 bg-emerald-950/30 border border-emerald-900/50 rounded-lg text-[11px] text-emerald-300 space-y-1">
+              <p className="font-bold">ℹ️ Informasi Pemulihan:</p>
+              <p className="leading-relaxed">Personel ini akan dihapus dari arsip pemecatan dan dimasukkan kembali ke roster dinas aktif dengan PIN default 10-4.</p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isProcessingDischargeAction}
+                onClick={() => setEntryToRehire(null)}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-bold transition font-mono cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={isProcessingDischargeAction}
+                onClick={confirmRehireOfficer}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1.5 font-mono shadow-md shadow-emerald-600/30 cursor-pointer"
+              >
+                {isProcessingDischargeAction ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                <span>{isProcessingDischargeAction ? 'Memulihkan...' : 'Ya, Pulihkan Personel'}</span>
               </button>
             </div>
           </div>

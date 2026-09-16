@@ -29,6 +29,9 @@ function normalizeName(name: string): string {
  * Get all discharged officer records from local storage.
  */
 export function getDischargedOfficers(): DischargedOfficerEntry[] {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    return [];
+  }
   try {
     const raw = localStorage.getItem(DISCHARGED_STORAGE_KEY) || localStorage.getItem(DISCHARGED_STORAGE_BACKUP_KEY);
     if (raw) {
@@ -141,3 +144,43 @@ export function restoreDischargedOfficer(identifier: string): DischargedOfficerE
   saveDischargedOfficers(updated, true);
   return updated;
 }
+
+/**
+ * Delete a specific discharged officer record from history/archive.
+ */
+export function deleteDischargedOfficerHistory(target: string | DischargedOfficerEntry): DischargedOfficerEntry[] {
+  const current = getDischargedOfficers();
+  let targetId = '';
+  let targetBadge = '';
+  let targetName = '';
+
+  if (typeof target === 'object' && target !== null) {
+    targetId = (target.id || '').trim().toLowerCase();
+    targetBadge = normalizeBadge(target.badge || '');
+    targetName = normalizeName(target.name || '');
+  } else {
+    const str = typeof target === 'string' ? target : '';
+    targetId = str.trim().toLowerCase();
+    targetBadge = normalizeBadge(str);
+    targetName = normalizeName(str);
+  }
+
+  const updated = current.filter(item => {
+    if (targetId && item.id && item.id.toLowerCase() === targetId) return false;
+    if (targetBadge && normalizeBadge(item.badge) === targetBadge) return false;
+    if (targetName && normalizeName(item.name) === targetName) return false;
+    return true;
+  });
+
+  saveDischargedOfficers(updated, true);
+  return updated;
+}
+
+/**
+ * Clear all discharged officer history records from the archive.
+ */
+export function clearAllDischargedOfficersHistory(): DischargedOfficerEntry[] {
+  saveDischargedOfficers([], true);
+  return [];
+}
+

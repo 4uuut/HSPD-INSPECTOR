@@ -234,3 +234,65 @@ export function formatDutyDuration(isDuty: boolean, dutyStartTime: number, now: 
   };
 }
 
+/**
+ * Migrates active duty session and registry entries when an officer's badge or callsign is updated.
+ * Prevents duty timers from being lost or orphaned under old badge numbers.
+ */
+export function migrateOfficerDutyBadge(oldBadge: string, newBadge: string, officerName?: string): void {
+  if (!oldBadge || !newBadge || oldBadge.toLowerCase().trim() === newBadge.toLowerCase().trim()) return;
+
+  try {
+    const oldKey = normalizeOfficerIdentifier(oldBadge);
+    const newKey = normalizeOfficerIdentifier(newBadge);
+    const registry = getAllOfficersDutyRegistry();
+
+    // If duty registry had state under oldKey
+    if (registry[oldKey]) {
+      const state = registry[oldKey];
+      const updatedState = {
+        ...state,
+        officerBadge: newBadge,
+        officerName: officerName || state.officerName,
+        updatedAt: Date.now()
+      };
+      registry[newKey] = updatedState;
+      delete registry[oldKey];
+
+      if (officerName) {
+        const nameKey = normalizeOfficerIdentifier(officerName);
+        registry[nameKey] = updatedState;
+      }
+
+      localStorage.setItem(REGISTRY_STORAGE_KEY, JSON.stringify(registry));
+      pushToFirestore('SYSTEM_CONFIGS', { id: 'duty_registry', registry }, 'duty_registry').catch(() => {});
+    }
+
+    // Move individual localStorage key
+    const oldStorageKey = getOfficerDutyStorageKey(oldBadge);
+    const newStorageKey = getOfficerDutyStorageKey(newBadge);
+    const oldRaw = localStorage.getItem(oldStorageKey);
+    if (oldRaw) {
+      try {
+        const parsed = JSON.parse(oldRaw);
+        parsed.officerBadge = newBadge;
+        if (officerName) parsed.officerName = officerName;
+        parsed.updatedAt = Date.now();
+        localStorage.setItem(newStorageKey, JSON.stringify(parsed));
+        localStorage.removeItem(oldStorageKey);
+      } catch {}
+    }
+
+    // Dispatch event so UI instantly syncs
+    window.dispatchEvent(new CustomEvent('hspd-officer-duty-changed', {
+      detail: {
+        badgeOrName: newBadge,
+        key: newKey,
+        state: registry[newKey] || { isDuty: false, dutyStartTime: 0, dutyStatus: '8-1-0' }
+      }
+    }));
+  } catch (e) {
+    console.error('Failed to migrate officer duty badge:', e);
+  }
+}
+
+

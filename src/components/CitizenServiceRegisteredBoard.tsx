@@ -23,7 +23,9 @@ import {
   PlusCircle,
   RefreshCw,
   Stamp,
-  Eye
+  Eye,
+  Info,
+  FileCheck
 } from 'lucide-react';
 import { OfficialDocument, OfficerProfile, isRank2OrAbove } from '../types';
 import { OfficialSeal } from './OfficialSeals';
@@ -40,7 +42,7 @@ interface Props {
 }
 
 export const CitizenServiceRegisteredBoard: React.FC<Props> = ({
-  documents,
+  documents = [],
   currentOfficer,
   onOpenSignatoryModal,
   onOpenPrintPreview,
@@ -49,13 +51,14 @@ export const CitizenServiceRegisteredBoard: React.FC<Props> = ({
   onSwitchToCreateForm,
   onRefreshData
 }) => {
+  const safeDocs = Array.isArray(documents) ? documents : [];
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | 'SKCK' | 'IZIN_USAHA' | 'IZIN_SENJATA' | 'SURAT_KETERANGAN' | 'IZIN_KERAMAIAN'>('ALL');
   const [signatureStatusFilter, setSignatureStatusFilter] = useState<'ALL' | 'NEED_OFFICER' | 'NEED_HIGH_OFFICIAL' | 'FULLY_SIGNED' | 'REJECTED'>('ALL');
 
   // Filtered Documents
   const filteredDocs = useMemo(() => {
-    return documents.filter((doc) => {
+    return safeDocs.filter((doc) => {
       // Category filter
       if (categoryFilter !== 'ALL' && doc.category !== categoryFilter) {
         return false;
@@ -87,16 +90,16 @@ export const CitizenServiceRegisteredBoard: React.FC<Props> = ({
 
       return true;
     });
-  }, [documents, categoryFilter, signatureStatusFilter, searchQuery]);
+  }, [safeDocs, categoryFilter, signatureStatusFilter, searchQuery]);
 
   // Statistics calculation
   const stats = useMemo(() => {
-    let total = documents.length;
+    let total = safeDocs.length;
     let needOfficer = 0;
     let needHighOfficial = 0;
     let fullyApproved = 0;
 
-    documents.forEach((d) => {
+    safeDocs.forEach((d) => {
       const offSigned = d.officerSignatureStatus === 'SIGNED' || Boolean(d.officerSignatureName);
       const highSigned = d.highOfficialSignatureStatus === 'SIGNED' || Boolean(d.highOfficialSignatureName);
 
@@ -106,7 +109,7 @@ export const CitizenServiceRegisteredBoard: React.FC<Props> = ({
     });
 
     return { total, needOfficer, needHighOfficial, fullyApproved };
-  }, [documents]);
+  }, [safeDocs]);
 
   const canEditSignatures = isRank2OrAbove(currentOfficer?.rank);
 
@@ -114,28 +117,43 @@ export const CitizenServiceRegisteredBoard: React.FC<Props> = ({
     <div className="space-y-6 animate-fadeIn">
       
       {/* HEADER HERO NOTICE BANNER */}
-      <div className="bg-gradient-to-r from-blue-950/80 via-[#121722] to-amber-950/60 border border-blue-800/40 rounded-2xl p-5 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className={`bg-gradient-to-r ${
+        currentOfficer 
+          ? 'from-blue-950/80 via-[#121722] to-amber-950/60 border-blue-800/40' 
+          : 'from-slate-900 via-[#111724] to-emerald-950/60 border-emerald-800/40'
+      } border rounded-2xl p-5 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4`}>
         <div className="flex items-start gap-3.5">
-          <div className="p-3 bg-blue-600/20 border border-blue-500/40 rounded-xl text-blue-400 shrink-0">
-            <Shield className="w-7 h-7" />
+          <div className={`p-3 ${
+            currentOfficer 
+              ? 'bg-blue-600/20 border-blue-500/40 text-blue-400' 
+              : 'bg-emerald-600/20 border-emerald-500/40 text-emerald-400'
+          } border rounded-xl shrink-0`}>
+            {currentOfficer ? <Shield className="w-7 h-7" /> : <FileCheck className="w-7 h-7" />}
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
-                PORTAL VERIFIKASI & PENGESAHAN DOKUMEN WARGA (HSPD & PEMERINTAHAN)
+                {currentOfficer 
+                  ? 'PORTAL VERIFIKASI & PENGESAHAN DOKUMEN WARGA (HSPD & PEMERINTAHAN)' 
+                  : 'LACAK STATUS PERMOHONAN & CETAK DOKUMEN RESMI WARGA'}
               </h2>
-              <span className="text-[10px] font-mono bg-blue-900/70 text-blue-300 border border-blue-700/60 px-2 py-0.5 rounded font-bold">
-                DATA TERDAFTAR RESMI
+              <span className={`text-[10px] font-mono ${
+                currentOfficer 
+                  ? 'bg-blue-900/70 text-blue-300 border-blue-700/60' 
+                  : 'bg-emerald-900/70 text-emerald-300 border-emerald-700/60'
+              } border px-2 py-0.5 rounded font-bold`}>
+                {currentOfficer ? 'PANEL OPERASIONAL PETUGAS' : 'LAYANAN MANDIRI PUBLIK'}
               </span>
             </div>
             <p className="text-xs text-gray-300 mt-1 max-w-3xl leading-relaxed">
-              Panel khusus personel kepolisian dan aparatur pemerintahan untuk memeriksa surat permohonan warga yang telah didaftarkan, 
-              mengunggah pengesahan tanda tangan petugas (Rank 2 s/d Atasan), dan mengotorisasi stempel pimpinan resmi.
+              {currentOfficer 
+                ? 'Panel khusus personel kepolisian dan aparatur pemerintahan untuk memeriksa surat permohonan warga yang telah didaftarkan, mengunggah pengesahan tanda tangan petugas (Rank 2 s/d Atasan), dan mengotorisasi stempel pimpinan resmi.'
+                : 'Layanan mandiri warga sipil untuk mengecek status verifikasi dan pengesahan berkas (SKCK, Izin Usaha, Lisensi Senjata WCL, Kehilangan STLK, atau Izin Acara). Masukkan Nama, NIK, atau Nomor Surat di kolom pencarian untuk mencetak/mengunduh dokumen Anda.'}
             </p>
           </div>
         </div>
 
-        {onSwitchToCreateForm && (
+        {Boolean(currentOfficer) && onSwitchToCreateForm && (
           <button
             type="button"
             onClick={onSwitchToCreateForm}
@@ -148,43 +166,87 @@ export const CitizenServiceRegisteredBoard: React.FC<Props> = ({
       </div>
 
       {/* QUICK STATS CARDS */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-[#121622] border border-gray-800 rounded-xl p-3.5 sm:p-4 shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-gray-400">Total Berkas Terdaftar</span>
-            <FileText className="w-4 h-4 text-blue-400" />
+      {currentOfficer ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="bg-[#121622] border border-gray-800 rounded-xl p-3.5 sm:p-4 shadow">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-gray-400">Total Berkas Terdaftar</span>
+              <FileText className="w-4 h-4 text-blue-400" />
+            </div>
+            <div className="text-2xl font-bold font-mono text-white mt-1.5">{stats.total}</div>
+            <span className="text-[10px] text-gray-500 font-mono">Seluruh permohonan masuk</span>
           </div>
-          <div className="text-2xl font-bold font-mono text-white mt-1.5">{stats.total}</div>
-          <span className="text-[10px] text-gray-500 font-mono">Seluruh permohonan masuk</span>
-        </div>
 
-        <div className="bg-[#121622] border border-blue-900/50 rounded-xl p-3.5 sm:p-4 shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-blue-300">Menunggu TTD Petugas (Rank 2+)</span>
-            <UserCheck className="w-4 h-4 text-blue-400" />
+          <div className="bg-[#121622] border border-blue-900/50 rounded-xl p-3.5 sm:p-4 shadow">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-blue-300">Menunggu TTD Petugas (Rank 2+)</span>
+              <UserCheck className="w-4 h-4 text-blue-400" />
+            </div>
+            <div className="text-2xl font-bold font-mono text-blue-400 mt-1.5">{stats.needOfficer}</div>
+            <span className="text-[10px] text-blue-400/80 font-mono">Perlu tanda tangan pelaksana</span>
           </div>
-          <div className="text-2xl font-bold font-mono text-blue-400 mt-1.5">{stats.needOfficer}</div>
-          <span className="text-[10px] text-blue-400/80 font-mono">Perlu tanda tangan pelaksana</span>
-        </div>
 
-        <div className="bg-[#121622] border border-amber-900/50 rounded-xl p-3.5 sm:p-4 shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-amber-300">Menunggu Pengesahan Petinggi</span>
-            <Crown className="w-4 h-4 text-amber-400" />
+          <div className="bg-[#121622] border border-amber-900/50 rounded-xl p-3.5 sm:p-4 shadow">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-amber-300">Menunggu Pengesahan Petinggi</span>
+              <Crown className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="text-2xl font-bold font-mono text-amber-400 mt-1.5">{stats.needHighOfficial}</div>
+            <span className="text-[10px] text-amber-400/80 font-mono">Perlu otorisasi pimpinan</span>
           </div>
-          <div className="text-2xl font-bold font-mono text-amber-400 mt-1.5">{stats.needHighOfficial}</div>
-          <span className="text-[10px] text-amber-400/80 font-mono">Perlu otorisasi pimpinan</span>
-        </div>
 
-        <div className="bg-[#121622] border border-emerald-900/50 rounded-xl p-3.5 sm:p-4 shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-emerald-300">Disahkan Lengkap & Sah</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <div className="bg-[#121622] border border-emerald-900/50 rounded-xl p-3.5 sm:p-4 shadow">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-emerald-300">Disahkan Lengkap & Sah</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="text-2xl font-bold font-mono text-emerald-400 mt-1.5">{stats.fullyApproved}</div>
+            <span className="text-[10px] text-emerald-400/80 font-mono">Siap cetak berkekuatan hukum</span>
           </div>
-          <div className="text-2xl font-bold font-mono text-emerald-400 mt-1.5">{stats.fullyApproved}</div>
-          <span className="text-[10px] text-emerald-400/80 font-mono">Siap cetak berkekuatan hukum</span>
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <div className="bg-[#121622] border border-gray-800 rounded-xl p-3.5 sm:p-4 shadow">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-gray-400">Total Berkas Terdata</span>
+              <FileText className="w-4 h-4 text-blue-400" />
+            </div>
+            <div className="text-2xl font-bold font-mono text-white mt-1.5">{stats.total}</div>
+            <span className="text-[10px] text-gray-500 font-mono">Arsip resmi tersimpan</span>
+          </div>
+
+          <div className="bg-[#121622] border border-emerald-900/50 rounded-xl p-3.5 sm:p-4 shadow">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-emerald-300">Surat Sah & Siap Cetak</span>
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="text-2xl font-bold font-mono text-emerald-400 mt-1.5">{stats.fullyApproved}</div>
+            <span className="text-[10px] text-emerald-400/80 font-mono">Dapat langsung Anda unduh/cetak</span>
+          </div>
+
+          <div className="bg-[#121622] border border-amber-900/50 rounded-xl p-3.5 sm:p-4 shadow">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-amber-300">Dalam Proses Pengesahan</span>
+              <Clock className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="text-2xl font-bold font-mono text-amber-400 mt-1.5">{stats.needOfficer + stats.needHighOfficial}</div>
+            <span className="text-[10px] text-amber-400/80 font-mono">Menunggu verifikasi kepolisian/instansi</span>
+          </div>
+        </div>
+      )}
+
+      {/* CITIZEN HELPFUL GUIDANCE BANNER */}
+      {!currentOfficer && (
+        <div className="bg-gradient-to-r from-blue-950/60 via-[#101726] to-blue-950/60 border border-blue-800/60 rounded-xl p-3.5 flex items-start gap-3 shadow">
+          <Info className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+          <div className="text-xs text-blue-200 leading-relaxed">
+            <p className="font-semibold text-blue-100">Petunjuk Pencarian Surat Warga:</p>
+            <p className="text-blue-300/90 mt-0.5">
+              Gunakan kolom pencarian di bawah untuk mencari dengan <strong>Nama Lengkap Anda</strong>, <strong>NIK (CID)</strong>, atau <strong>Nomor Registrasi Surat</strong>. Jika surat Anda sudah berstatus <span className="text-emerald-300 font-mono font-bold">SAH & DISAHKAN LENGKAP</span>, klik tombol <span className="text-emerald-300 font-bold">Cetak / Unduh</span> untuk menyimpan atau mencetak dokumen dinas Anda.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* FILTER & SEARCH TOOLBAR */}
       <div className="bg-[#111622] border border-gray-800 rounded-xl p-4 shadow space-y-3">
@@ -622,24 +684,30 @@ export const CitizenServiceRegisteredBoard: React.FC<Props> = ({
 
                     {/* ACTION BUTTONS */}
                     <div className="pt-2 border-t border-gray-800 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onOpenSignatoryModal(doc)}
-                        className="flex-1 py-1.5 px-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition shadow"
-                        title="Tanda tangan manual nama petugas (Rank 2 s/d Atasan) dan petinggi pengesah"
-                      >
-                        <PenTool className="w-3.5 h-3.5" />
-                        <span>{currentOfficer ? 'Kelola TTD (Rank 2+)' : 'Penandatangan Dokumen'}</span>
-                      </button>
+                      {Boolean(currentOfficer) && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenSignatoryModal(doc)}
+                          className="flex-1 py-1.5 px-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition shadow"
+                          title="Tanda tangan manual nama petugas (Rank 2 s/d Atasan) dan petinggi pengesah"
+                        >
+                          <PenTool className="w-3.5 h-3.5" />
+                          <span>Kelola TTD (Rank 2+)</span>
+                        </button>
+                      )}
 
                       <button
                         type="button"
                         onClick={() => onOpenPrintPreview(doc)}
-                        className="py-1.5 px-2.5 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition"
+                        className={`${
+                          currentOfficer
+                            ? 'py-1.5 px-2.5 bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700'
+                            : 'flex-1 py-2 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold shadow-md shadow-emerald-950/40 ring-1 ring-emerald-400/40'
+                        } rounded-lg text-xs flex items-center justify-center gap-1.5 transition`}
                         title="Lihat fisik surat dinas & cetak"
                       >
-                        <Printer className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Cetak</span>
+                        <Printer className="w-3.5 h-3.5 text-amber-300" />
+                        <span>{currentOfficer ? 'Cetak' : '🖨️ Cetak / Unduh Dokumen Resmi'}</span>
                       </button>
 
                       {Boolean(currentOfficer) && (

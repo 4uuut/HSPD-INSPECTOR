@@ -4,8 +4,8 @@ import {
   sendPinResetAutoGrantedWebhookToDiscord, 
   sendPinResetRequestToDiscord 
 } from './discordWebhook';
-import { getAllOfficersDutyRegistry } from './officerDutyStorage';
-import { pushAllToFirestore } from '../services/firebaseRealtimeSync';
+import { getAllOfficersDutyRegistry, migrateOfficerDutyBadge } from './officerDutyStorage';
+import { pushAllToFirestore, pushToFirestore, deleteFromFirestore } from '../services/firebaseRealtimeSync';
 import { HSPD_OFFICIAL_ROSTER, mergeWithOfficialRoster } from '../data/hspdOfficialRoster';
 
 const STORAGE_KEY = 'HSPD_PIN_RESET_REQUESTS_V1';
@@ -135,6 +135,9 @@ export function isOfficerMatch(officer: OfficerAccount, searchIdentifier: string
 }
 
 export function getRosterFromStorage(): OfficerAccount[] {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    return [...HSPD_OFFICIAL_ROSTER];
+  }
   try {
     for (const key of ROSTER_STORAGE_KEYS) {
       const raw = localStorage.getItem(key);
@@ -173,7 +176,8 @@ export function saveRosterToStorage(updatedRoster: OfficerAccount[]): OfficerAcc
 export function updateOfficerPinInRoster(
   badgeOrName: string,
   newPin: string,
-  officerName?: string
+  officerName?: string,
+  officerId?: string
 ): { success: boolean; updatedRoster: OfficerAccount[] } {
   const trimmedPin = newPin.trim();
   if (!trimmedPin) return { success: false, updatedRoster: [] };
@@ -182,12 +186,14 @@ export function updateOfficerPinInRoster(
   let updated = false;
 
   const targetIdentifier = {
+    id: officerId,
     badge: badgeOrName,
     name: officerName || badgeOrName
   };
 
   const updatedRoster = currentRoster.map(officer => {
     if (
+      (officerId && officer.id && officer.id.toLowerCase().trim() === officerId.toLowerCase().trim()) ||
       isSameOfficerAccount(officer, targetIdentifier) ||
       isOfficerMatch(officer, badgeOrName) || 
       (officerName && isOfficerMatch(officer, officerName))
@@ -195,6 +201,8 @@ export function updateOfficerPinInRoster(
       updated = true;
       return {
         ...officer,
+        name: officerName || officer.name,
+        badge: badgeOrName || officer.badge,
         pin: trimmedPin,
         _updatedAt: Date.now()
       };
@@ -209,6 +217,91 @@ export function updateOfficerPinInRoster(
 
   return { success: false, updatedRoster: currentRoster };
 }
+
+/**
+ * Updates an officer account across all storage keys, cloud, and duty registry.
+ * Accurately finds the existing officer even if badge, name, or rank changed,
+ * preventing duplicate accounts or stale old records.
+ */
+export function updateOfficerAccountInRoster(
+  updated: OfficerAccount,
+  originalOfficer?: OfficerAccount
+): { success: boolean; updatedRoster: OfficerAccount[] } {
+  const currentRoster = getRosterFromStorage();
+  let found = false;
+
+  const cleanUpdatedName = (updated.name || '').trim();
+  const cleanUpdatedBadge = (updated.badge || '').trim();
+
+  const nextRoster = currentRoster.map(officer => {
+    const matchById = Boolean(
+      (officer.id && updated.id && officer.id.toLowerCase().trim() === updated.id.toLowerCase().trim()) ||
+      (originalOfficer?.id && officer.id && officer.id.toLowerCase().trim() === originalOfficer.id.toLowerCase().trim())
+    );
+    const matchByOriginalBadge = Boolean(
+      originalOfficer?.badge && (officer.badge || '').toLowerCase().trim() === (originalOfficer.badge || '').toLowerCase().trim()
+    );
+    const matchByOriginalName = Boolean(
+      originalOfficer?.name && (officer.name || '').toLowerCase().trim() === (originalOfficer.name || '').toLowerCase().trim()
+    );
+    const matchByAccount = isSameOfficerAccount(officer, originalOfficer || updated);
+
+    if (matchById || matchByOriginalBadge || matchByOriginalName || matchByAccount) {
+      found = true;
+      return {
+        ...officer,
+        ...updated,
+        id: officer.id || updated.id,
+        name: cleanUpdatedName || officer.name,
+        badge: cleanUpdatedBadge || officer.badge,
+        rank: updated.rank || officer.rank,
+        division: updated.division || officer.division,
+        pin: (updated.pin ? updated.pin.trim() : officer.pin) || '10-4',
+        phone: updated.phone !== undefined ? updated.phone : officer.phone,
+        discordTag: updated.discordTag !== undefined ? updated.discordTag : officer.discordTag,
+        promotedBy: updated.promotedBy || officer.promotedBy,
+        warnings: updated.warnings || officer.warnings || [],
+        _updatedAt: Date.now()
+      };
+    }
+    return officer;
+  });
+
+  const finalRoster = found
+    ? nextRoster
+    : [
+        { ...updated, name: cleanUpdatedName, badge: cleanUpdatedBadge, _updatedAt: Date.now() },
+        ...nextRoster.filter(a => {
+          if (originalOfficer?.badge && (a.badge || '').toLowerCase().trim() === (originalOfficer.badge || '').toLowerCase().trim()) return false;
+          if (originalOfficer?.name && (a.name || '').toLowerCase().trim() === (originalOfficer.name || '').toLowerCase().trim()) return false;
+          return true;
+        })
+      ];
+
+  const saved = saveRosterToStorage(finalRoster);
+
+  // If badge changed, migrate active duty state
+  if (originalOfficer && originalOfficer.badge && cleanUpdatedBadge && originalOfficer.badge.toLowerCase().trim() !== cleanUpdatedBadge.toLowerCase().trim()) {
+    migrateOfficerDutyBadge(originalOfficer.badge, cleanUpdatedBadge, cleanUpdatedName);
+
+    // Purge any stale Firestore document with the old badge or old ID
+    const cleanOldBadge = (originalOfficer.badge || '').replace(/[^a-zA-Z0-9_-]/g, '');
+    const oldDocId1 = `officer_${cleanOldBadge}`;
+    const oldDocId2 = originalOfficer.id;
+    if (oldDocId1 && oldDocId1 !== updated.id) {
+      deleteFromFirestore('ROSTER', oldDocId1).catch(() => {});
+    }
+    if (oldDocId2 && oldDocId2 !== updated.id) {
+      deleteFromFirestore('ROSTER', oldDocId2).catch(() => {});
+    }
+  }
+
+  // Push updated officer to Firestore
+  pushToFirestore('ROSTER', updated, updated.id).catch(() => {});
+
+  return { success: true, updatedRoster: saved };
+}
+
 
 export interface PinResetAutoGrantConfig {
   autoGrantWhenSuperiorOffline: boolean; // default: true

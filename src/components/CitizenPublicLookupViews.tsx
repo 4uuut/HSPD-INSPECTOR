@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, ShieldAlert, AlertTriangle, CheckCircle2, Car, 
   FileText, DollarSign, Calendar, MapPin, User, Shield, 
@@ -6,6 +6,7 @@ import {
   Camera, ChevronRight, RefreshCw, BadgeAlert, AlertOctagon
 } from 'lucide-react';
 import { BoloAlert, TrafficCitationRecord, ImpoundRecord, OfficerProfile } from '../types';
+import { ErrorBoundary } from './ErrorBoundary';
 
 interface Props {
   viewMode?: 'wanted' | 'citations' | 'impounds';
@@ -22,6 +23,18 @@ interface Props {
   onSelectSubTab?: (mode: 'wanted' | 'citations' | 'impounds') => void;
 }
 
+// Defensive string helper
+const safeStr = (val: any, fallback = ''): string => {
+  if (val === undefined || val === null) return fallback;
+  return String(val);
+};
+
+// Defensive number helper
+const safeNum = (val: any, fallback = 0): number => {
+  const n = Number(val);
+  return isNaN(n) ? fallback : n;
+};
+
 export const CitizenPublicLookupViews: React.FC<Props> = ({
   viewMode,
   activeSubTab,
@@ -36,12 +49,23 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
   onSwitchView,
   onSelectSubTab
 }) => {
-  const currentMode = activeSubTab || viewMode || 'wanted';
-  const effectiveBoloAlerts = boloAlerts || boloList || [];
-  const effectiveCitations = trafficCitations || citations || [];
-  const effectiveImpounds = impoundRecords || impounds || [];
+  // Local active subtab state with sync from prop
+  const [internalMode, setInternalMode] = useState<'wanted' | 'citations' | 'impounds'>(
+    activeSubTab || viewMode || 'wanted'
+  );
+
+  useEffect(() => {
+    if (activeSubTab) setInternalMode(activeSubTab);
+    else if (viewMode) setInternalMode(viewMode);
+  }, [activeSubTab, viewMode]);
+
+  const currentMode = activeSubTab || internalMode;
+  const effectiveBoloAlerts = (boloAlerts || boloList || []).filter(Boolean);
+  const effectiveCitations = (trafficCitations || citations || []).filter(Boolean);
+  const effectiveImpounds = (impoundRecords || impounds || []).filter(Boolean);
 
   const handleSwitchView = (mode: 'wanted' | 'citations' | 'impounds') => {
+    setInternalMode(mode);
     if (onSelectSubTab) onSelectSubTab(mode);
     if (onSwitchView) onSwitchView(mode);
   };
@@ -57,7 +81,8 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
 
   // Helper to check if an impound is related to illegal weapon
   const isWeaponRelatedImpound = (rec: ImpoundRecord) => {
-    const text = `${rec.reason} ${rec.notes || ''} ${rec.violations || ''}`.toLowerCase();
+    if (!rec) return false;
+    const text = `${safeStr(rec.reason)} ${safeStr(rec.notes)} ${safeStr(rec.violations)}`.toLowerCase();
     return (
       text.includes('senjata') ||
       text.includes('weapon') ||
@@ -74,7 +99,8 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
 
   // Helper to check if an impound is related to robbery / bekas merampok
   const isRobberyRelatedImpound = (rec: ImpoundRecord) => {
-    const text = `${rec.reason} ${rec.notes || ''} ${rec.violations || ''}`.toLowerCase();
+    if (!rec) return false;
+    const text = `${safeStr(rec.reason)} ${safeStr(rec.notes)} ${safeStr(rec.violations)}`.toLowerCase();
     return (
       text.includes('rampok') ||
       text.includes('merampok') ||
@@ -97,8 +123,9 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
     if (!wantedQuery.trim()) return [];
     const q = wantedQuery.toLowerCase().trim();
     return effectiveBoloAlerts.filter(b => {
-      const matchTitle = b.title.toLowerCase().includes(q);
-      const matchDesc = b.description.toLowerCase().includes(q);
+      if (!b) return false;
+      const matchTitle = safeStr(b.title).toLowerCase().includes(q);
+      const matchDesc = safeStr(b.description).toLowerCase().includes(q);
       return matchTitle || matchDesc;
     });
   }, [wantedQuery, effectiveBoloAlerts]);
@@ -107,7 +134,7 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
 
   // Active DPO list (all person-type or robbery active BOLOs)
   const allActiveDpoList = useMemo(() => {
-    return effectiveBoloAlerts.filter(b => b.active);
+    return effectiveBoloAlerts.filter(b => Boolean(b && b.active));
   }, [effectiveBoloAlerts]);
 
   // -------------------------------------------------------------
@@ -117,25 +144,26 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
     if (!citationQuery.trim()) return [];
     const q = citationQuery.toLowerCase().trim();
     return effectiveCitations.filter(c => {
-      const matchName = c.violatorName.toLowerCase().includes(q);
-      const matchPlate = c.plateNumber.toLowerCase().includes(q);
+      if (!c) return false;
+      const matchName = safeStr(c.violatorName).toLowerCase().includes(q);
+      const matchPlate = safeStr(c.plateNumber).toLowerCase().includes(q);
       return matchName || matchPlate;
     });
   }, [citationQuery, effectiveCitations]);
 
   const totalCitationFine = useMemo(() => {
-    return citationResults.reduce((acc, c) => acc + (typeof c.totalFine === 'number' ? c.totalFine : 0), 0);
+    return citationResults.reduce((acc, c) => acc + safeNum(c?.totalFine, 0), 0);
   }, [citationResults]);
 
   const unpaidCitationsCount = useMemo(() => {
-    return citationResults.filter(c => c.status === 'UNPAID').length;
+    return citationResults.filter(c => Boolean(c && c.status === 'UNPAID')).length;
   }, [citationResults]);
 
   // -------------------------------------------------------------
   // 3. IMPOUND CALCULATION
   // -------------------------------------------------------------
   const filteredImpounds = useMemo(() => {
-    let list = effectiveImpounds;
+    let list = effectiveImpounds.filter(Boolean);
 
     if (impoundFilter === 'WEAPON') {
       list = list.filter(isWeaponRelatedImpound);
@@ -146,10 +174,11 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
     if (impoundQuery.trim()) {
       const q = impoundQuery.toLowerCase().trim();
       list = list.filter(r => 
-        r.plateNumber.toLowerCase().includes(q) ||
-        r.vehicleModel.toLowerCase().includes(q) ||
-        r.ownerName.toLowerCase().includes(q) ||
-        r.reason.toLowerCase().includes(q)
+        safeStr(r?.plateNumber).toLowerCase().includes(q) ||
+        safeStr(r?.vehicleModel).toLowerCase().includes(q) ||
+        safeStr(r?.ownerName).toLowerCase().includes(q) ||
+        safeStr(r?.reason).toLowerCase().includes(q) ||
+        safeStr(r?.locationFound).toLowerCase().includes(q)
       );
     }
 
@@ -160,7 +189,8 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
   const robberyImpoundsCount = useMemo(() => effectiveImpounds.filter(isRobberyRelatedImpound).length, [effectiveImpounds]);
 
   return (
-    <div className="space-y-6">
+    <ErrorBoundary fallbackTitle="Kendala Memuat Direktori Warga" fallbackMessage="Terjadi kendala saat memproses daftar data warga. Silakan coba buka kembali.">
+      <div className="space-y-6">
       {/* TOP VIEW SWITCHER QUICK TABS */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-[#111622] border border-gray-800 p-2.5 rounded-xl shadow-lg">
         <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
@@ -809,7 +839,7 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
                     <span>Semua Kendaraan Sitaan</span>
                   </div>
                   <span className="text-[10px] font-mono bg-black/40 px-2 py-0.5 rounded">
-                    {impoundRecords.length}
+                    {effectiveImpounds.length}
                   </span>
                 </button>
 
@@ -891,13 +921,26 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
 
             {filteredImpounds.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {filteredImpounds.map((rec) => {
+                {filteredImpounds.map((rec, index) => {
+                  if (!rec) return null;
                   const hasWeapon = isWeaponRelatedImpound(rec);
                   const hasRobbery = isRobberyRelatedImpound(rec);
+                  const fee = safeNum(rec.impoundFee, 0);
+                  const days = safeNum(rec.impoundDays, 7);
+                  const plate = safeStr(rec.plateNumber, 'TANPA PLAT');
+                  const model = safeStr(rec.vehicleModel, 'Kendaraan');
+                  const color = safeStr(rec.color, 'Standar');
+                  const owner = safeStr(rec.ownerName, 'Tidak Diketahui / Anonim');
+                  const reason = safeStr(rec.reason, 'Penyitaan resmi kepolisian');
+                  const status = safeStr(rec.status, 'IMPOUNDED');
+                  const officerName = safeStr(rec.officerName, 'Petugas HSPD');
+                  const officerBadge = safeStr(rec.officerBadge, '-');
+                  const location = safeStr(rec.locationFound, '');
+                  const evidence = safeStr(rec.evidenceImage || rec.evidenceUrl, '');
 
                   return (
                     <div
-                      key={rec.id}
+                      key={rec.id || `impound-item-${index}`}
                       className={`p-5 rounded-xl border shadow-xl space-y-3.5 transition-all ${
                         hasWeapon
                           ? 'bg-gradient-to-b from-[#180E10] to-[#0E0F16] border-red-700/80 hover:border-red-500'
@@ -912,12 +955,12 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
                           <div className="flex flex-wrap items-center gap-2">
                             {/* LICENSE PLATE STYLING */}
                             <span className="font-mono text-xs font-extrabold text-black bg-yellow-400 px-2.5 py-1 rounded shadow tracking-widest border border-yellow-500">
-                              {rec.plateNumber}
+                              {plate}
                             </span>
                             <span className="text-xs font-bold text-white font-mono">
-                              {rec.vehicleModel}
+                              {model}
                             </span>
-                            <span className="text-[11px] text-gray-400">({rec.color})</span>
+                            <span className="text-[11px] text-gray-400">({color})</span>
                           </div>
 
                           {/* SPECIAL REASON TAGS */}
@@ -939,11 +982,11 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
 
                         <div className="text-right shrink-0">
                           <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                            rec.status === 'IMPOUNDED'
+                            status === 'IMPOUNDED'
                               ? 'bg-red-950 text-red-300 border border-red-700 animate-pulse'
                               : 'bg-emerald-950 text-emerald-300 border border-emerald-700'
                           }`}>
-                            {rec.status === 'IMPOUNDED' ? 'DI SITA (IMPOUNDED)' : rec.status}
+                            {status === 'IMPOUNDED' ? 'DI SITA (IMPOUNDED)' : status}
                           </span>
                         </div>
                       </div>
@@ -951,8 +994,8 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
                       {/* OWNER & REASON */}
                       <div className="space-y-2 text-xs">
                         <div className="flex items-center justify-between text-[11px] text-gray-300">
-                          <span>Pemilik Terdaftar: <strong className="text-white font-semibold">{rec.ownerName}</strong></span>
-                          <span className="text-gray-400 font-mono">Masa Sita: {rec.impoundDays} Hari</span>
+                          <span>Pemilik Terdaftar: <strong className="text-white font-semibold">{owner}</strong></span>
+                          <span className="text-gray-400 font-mono">Masa Sita: {days} Hari</span>
                         </div>
 
                         {/* REASON BOX */}
@@ -961,7 +1004,7 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
                             ALASAN RESMI PENYITAAN PETUGAS:
                           </span>
                           <p className="text-gray-200 leading-relaxed font-medium">
-                            {rec.reason}
+                            {reason}
                           </p>
                         </div>
                       </div>
@@ -971,27 +1014,27 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
                         <div>
                           <span className="text-gray-400 block text-[10px]">BIAYA TEBUS / DENDA SITA:</span>
                           <span className="text-sm font-bold text-amber-400">
-                            ${rec.impoundFee.toLocaleString('id-ID')}
+                            ${fee.toLocaleString('id-ID')}
                           </span>
                         </div>
                         <div className="text-right">
                           <span className="text-gray-400 block text-[10px]">PETUGAS PENYITA:</span>
                           <span className="text-blue-300 font-semibold truncate block">
-                            {rec.officerName} [{rec.officerBadge}]
+                            {officerName} [{officerBadge}]
                           </span>
                         </div>
                       </div>
 
                       {/* LOCATION FOUND */}
-                      {rec.locationFound && (
+                      {location && (
                         <div className="text-[10px] font-mono text-gray-400 flex items-center gap-1">
                           <MapPin className="w-3 h-3 text-red-400" />
-                          <span>TKP Penyitaan: {rec.locationFound}</span>
+                          <span>TKP Penyitaan: {location}</span>
                         </div>
                       )}
 
                       {/* EVIDENCE PHOTOS IF AVAILABLE */}
-                      {rec.evidenceImage && (
+                      {evidence && (
                         <div className="pt-2 border-t border-gray-800 flex items-center justify-between">
                           <span className="text-[10px] text-gray-400 font-mono flex items-center gap-1">
                             <Camera className="w-3 h-3 text-blue-400" />
@@ -1000,9 +1043,9 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
                           <button
                             type="button"
                             onClick={() => onOpenLightbox && onOpenLightbox({
-                              url: rec.evidenceImage!,
-                              title: `Bukti Sitaan - ${rec.vehicleModel} [${rec.plateNumber}]`,
-                              subtitle: rec.reason
+                              url: evidence,
+                              title: `Bukti Sitaan - ${model} [${plate}]`,
+                              subtitle: reason
                             })}
                             className="px-2 py-1 bg-gray-800 hover:bg-gray-700 text-white rounded text-[11px] flex items-center gap-1 transition"
                           >
@@ -1025,5 +1068,6 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
         </div>
       )}
     </div>
+    </ErrorBoundary>
   );
 };

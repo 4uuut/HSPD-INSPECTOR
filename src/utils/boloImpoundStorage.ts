@@ -173,10 +173,29 @@ export function saveBoloAlerts(bolos: BoloAlert[]) {
 
 export function getSavedImpounds(): ImpoundRecord[] {
   try {
-    const raw = localStorage.getItem(IMPOUND_STORAGE_KEY);
-    if (raw !== null) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const raw = localStorage.getItem(IMPOUND_STORAGE_KEY);
+      if (raw !== null) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter(Boolean).map(item => ({
+            ...item,
+            id: item.id || `IMP-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+            plateNumber: item.plateNumber || 'TANPA PLAT',
+            vehicleModel: item.vehicleModel || 'Kendaraan',
+            color: item.color || 'Hitam',
+            ownerName: item.ownerName || 'Tidak Diketahui / Anonim',
+            reason: item.reason || item.violations || 'Penyitaan Pelanggaran Lalu Lintas',
+            impoundDays: typeof item.impoundDays === 'number' ? item.impoundDays : (Number(item.impoundDays) || 7),
+            impoundFee: typeof item.impoundFee === 'number' ? item.impoundFee : (Number(item.impoundFee) || 25000),
+            officerName: item.officerName || 'Petugas HSPD',
+            officerBadge: item.officerBadge || '-',
+            status: item.status || 'IMPOUNDED',
+            locationFound: item.locationFound || '',
+            timestamp: item.timestamp || Date.now()
+          }));
+        }
+      }
     }
   } catch (e) {
     console.error('Failed reading Impound records', e);

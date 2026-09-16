@@ -31,6 +31,7 @@ import {
 import { CitizenServiceSignatoryModal } from './CitizenServiceSignatoryModal';
 import { CitizenServiceRegisteredBoard } from './CitizenServiceRegisteredBoard';
 import { CitizenPublicLookupViews } from './CitizenPublicLookupViews';
+import { ErrorBoundary } from './ErrorBoundary';
 import { isRank2OrAbove } from '../types';
 import { getSavedCitizens } from '../utils/citizenDmvStorage';
 import { getSavedBoloAlerts, getSavedImpounds } from '../utils/boloImpoundStorage';
@@ -943,9 +944,9 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
             }`}
           >
             <FileCheck className="w-4 h-4 text-blue-400" />
-            <span>📋 Data Surat Terdaftar & TTD (HSPD / Gov)</span>
+            <span>{currentOfficer ? '📋 Data Surat Terdaftar & TTD (HSPD / Gov)' : '📄 Lacak & Unduh Surat Saya'}</span>
             <span className="text-[10px] font-mono bg-blue-950 text-blue-300 px-1.5 py-0.2 rounded border border-blue-700">
-              {officialDocs.length}
+              {(officialDocs || []).length}
             </span>
           </button>
 
@@ -1001,7 +1002,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
             <ShieldAlert className="w-4 h-4 text-red-400" />
             <span>🚨 Cek Status Buronan (DPO)</span>
             <span className="text-[10px] font-mono bg-red-950 text-red-300 px-1.5 py-0.2 rounded border border-red-800">
-              {boloList.filter(b => b.status === 'ACTIVE').length}
+              {(boloList || []).filter(b => b.active).length}
             </span>
           </button>
 
@@ -1018,7 +1019,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
             <FileText className="w-4 h-4 text-amber-400" />
             <span>🚦 Cek Tilang Warga</span>
             <span className="text-[10px] font-mono bg-amber-950 text-amber-300 px-1.5 py-0.2 rounded border border-amber-800">
-              {citations.length}
+              {(citations || []).length}
             </span>
           </button>
 
@@ -1035,7 +1036,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
             <Car className="w-4 h-4 text-blue-400" />
             <span>🚗 Kendaraan Impound (Senjata/Rampok)</span>
             <span className="text-[10px] font-mono bg-blue-950 text-blue-300 px-1.5 py-0.2 rounded border border-blue-800">
-              {impounds.length}
+              {(impounds || []).length}
             </span>
           </button>
 
@@ -2384,14 +2385,24 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
         {/* TAB 5, 6, 7: CITIZEN LOOKUP (BURONAN/DPO, TILANG, KENDARAAN IMPOUND) */}
         {/* ========================================================================= */}
         {(activeTab === 'wanted' || activeTab === 'citations' || activeTab === 'impounds') && (
-          <CitizenPublicLookupViews
-            activeSubTab={activeTab}
-            onSelectSubTab={(tab) => setActiveTab(tab)}
-            boloList={boloList}
-            citations={citations}
-            impounds={impounds}
-            currentOfficer={currentOfficer}
-          />
+          <ErrorBoundary
+            fallbackTitle="Kendala Memuat Layanan Publik"
+            fallbackMessage="Terjadi kendala saat memuat data layanan warga. Silakan coba kembali."
+            onReset={() => loadDatabases()}
+          >
+            <CitizenPublicLookupViews
+              activeSubTab={activeTab}
+              onSelectSubTab={(tab) => setActiveTab(tab)}
+              boloAlerts={boloList || []}
+              boloList={boloList || []}
+              trafficCitations={citations || []}
+              citations={citations || []}
+              impoundRecords={impounds || []}
+              impounds={impounds || []}
+              currentOfficer={currentOfficer}
+              onOpenLightbox={(item) => setLightboxItem(item)}
+            />
+          </ErrorBoundary>
         )}
 
       </main>
@@ -2827,7 +2838,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
       )}
 
       {/* SIGNATORY & STATUS MANAGEMENT MODAL (FOR RANK 2 S/D ATASAN) */}
-      {selectedSignatoryDoc && (
+      {Boolean(currentOfficer) && selectedSignatoryDoc && (
         <CitizenServiceSignatoryModal
           document={selectedSignatoryDoc}
           currentOfficer={currentOfficer}

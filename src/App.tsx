@@ -32,11 +32,11 @@ import { ExportAttendanceModal } from './components/ExportAttendanceModal';
 import { SettingsView } from './components/SettingsView';
 import { CitizenPublicServicePortal } from './components/CitizenPublicServicePortal';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
-import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch, isSameOfficerAccount, saveRosterToStorage, updateOfficerPinInRoster } from './utils/pinResetStorage';
+import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch, isSameOfficerAccount, saveRosterToStorage, updateOfficerPinInRoster, updateOfficerAccountInRoster } from './utils/pinResetStorage';
 import { getSavedDetectiveCases, saveDetectiveCases } from './utils/detectiveCaseStorage';
 import { getSavedBoloAlerts, saveBoloAlerts, getSavedImpounds, saveImpounds } from './utils/boloImpoundStorage';
 import { getSavedTrafficCitations, saveTrafficCitations } from './utils/trafficCitationStorage';
-import { getOfficerDutyState, saveOfficerDutyState, formatDutyDuration } from './utils/officerDutyStorage';
+import { getOfficerDutyState, saveOfficerDutyState, formatDutyDuration, migrateOfficerDutyBadge } from './utils/officerDutyStorage';
 import { getDiscordWebhookConfig, getSavedDiscordBotConfig, startDiscordBotGateway, buildApiUrl } from './utils/discordWebhook';
 import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from './utils/brandingStorage';
 import { checkDirectRankClearance, hasActiveUnlockedSession } from './utils/otpClearanceStorage';
@@ -629,45 +629,34 @@ export default function App() {
     return updated;
   };
 
-  const handleUpdateOfficer = (updated: OfficerAccount) => {
-    setRoster(prev => {
-      let isFound = false;
-      const nextRoster = prev.map(a => {
-        if (isSameOfficerAccount(a, updated)) {
-          isFound = true;
-          return {
-            ...a,
-            ...updated,
-            pin: updated.pin ? updated.pin.trim() : a.pin,
-            _updatedAt: Date.now()
-          };
-        }
-        return a;
-      });
-
-      const finalRoster = isFound ? nextRoster : [updated, ...nextRoster];
-      saveRosterToStorage(finalRoster);
-      return finalRoster;
-    });
-
-    if (updated.pin && updated.pin.trim()) {
-      updateOfficerPinInRoster(updated.badge, updated.pin.trim(), updated.name);
-    }
+  const handleUpdateOfficer = (updated: OfficerAccount, originalOfficer?: OfficerAccount) => {
+    // 1. Run canonical update across storage, cloud, and duty
+    const result = updateOfficerAccountInRoster(updated, originalOfficer);
     
-    // If updated officer is the currently logged in officer, sync state
-    if (currentOfficer && isSameOfficerAccount(updated, currentOfficer as any)) {
-      const synced: OfficerProfile = {
-        ...currentOfficer,
-        name: updated.name || currentOfficer.name,
-        badge: updated.badge || currentOfficer.badge,
-        rank: updated.rank,
-        division: updated.division
-      };
-      setCurrentOfficer(synced);
-      try {
-        localStorage.setItem(OFFICER_STORAGE_KEY, JSON.stringify(synced));
-      } catch (e) {
-        console.error(e);
+    // 2. Update React state immediately
+    setRoster(result.updatedRoster);
+
+    // 3. If updated officer is the currently logged in officer, sync active profile session
+    if (currentOfficer) {
+      const isCurrent = 
+        (originalOfficer && isSameOfficerAccount(currentOfficer as any, originalOfficer)) ||
+        isSameOfficerAccount(currentOfficer as any, updated) ||
+        (currentOfficer.name && updated.name && currentOfficer.name.toLowerCase().trim() === updated.name.toLowerCase().trim());
+      
+      if (isCurrent) {
+        const synced: OfficerProfile = {
+          ...currentOfficer,
+          name: updated.name || currentOfficer.name,
+          badge: updated.badge || currentOfficer.badge,
+          rank: updated.rank,
+          division: updated.division
+        };
+        setCurrentOfficer(synced);
+        try {
+          localStorage.setItem(OFFICER_STORAGE_KEY, JSON.stringify(synced));
+        } catch (e) {
+          console.error(e);
+        }
       }
     }
   };
