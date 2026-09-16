@@ -3,7 +3,7 @@ import {
   Search, ShieldAlert, AlertTriangle, CheckCircle2, Car, 
   FileText, DollarSign, Calendar, MapPin, User, Shield, 
   Clock, Check, X, Eye, ZoomIn, Lock, HelpCircle, Flame,
-  Camera, ChevronRight, RefreshCw, BadgeAlert, AlertOctagon
+  Camera, ChevronRight, RefreshCw, BadgeAlert, AlertOctagon, Scale
 } from 'lucide-react';
 import { BoloAlert, TrafficCitationRecord, ImpoundRecord, OfficerProfile } from '../types';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -21,6 +21,7 @@ interface Props {
   onOpenLightbox?: (item: { url: string; title: string; subtitle?: string }) => void;
   onSwitchView?: (mode: 'wanted' | 'citations' | 'impounds') => void;
   onSelectSubTab?: (mode: 'wanted' | 'citations' | 'impounds') => void;
+  onNavigateToPasal?: () => void;
 }
 
 // Defensive string helper
@@ -47,7 +48,8 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
   currentOfficer,
   onOpenLightbox,
   onSwitchView,
-  onSelectSubTab
+  onSelectSubTab,
+  onNavigateToPasal
 }) => {
   // Local active subtab state with sync from prop
   const [internalMode, setInternalMode] = useState<'wanted' | 'citations' | 'impounds'>(
@@ -692,11 +694,22 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
                         </div>
 
                         {/* VIOLATIONS & NOTES */}
-                        <div className="bg-[#090C11] p-3 rounded-lg border border-gray-800 space-y-1 text-xs">
-                          <div>
+                        <div className="bg-[#090C11] p-3 rounded-lg border border-gray-800 space-y-1.5 text-xs">
+                          <div className="flex items-center justify-between gap-2">
                             <span className="text-[10px] font-mono text-amber-400 font-semibold block">PASAL PELANGGARAN:</span>
-                            <p className="text-gray-200 font-medium">{cit.violations}</p>
+                            {onNavigateToPasal && (
+                              <button
+                                type="button"
+                                onClick={onNavigateToPasal}
+                                className="text-[11px] font-mono text-cyan-400 hover:text-cyan-300 font-semibold flex items-center gap-1 hover:underline"
+                                title="Lihat daftar pasal & kalkulator denda resmi"
+                              >
+                                <Scale className="w-3.5 h-3.5 text-cyan-400" />
+                                <span>Cek Detail di KUHP Warga</span>
+                              </button>
+                            )}
                           </div>
+                          <p className="text-gray-200 font-medium">{cit.violations}</p>
                           {cit.notes && (
                             <div className="pt-1 text-gray-400 text-[11px]">
                               <span className="font-semibold text-gray-300">Catatan Petugas: </span>

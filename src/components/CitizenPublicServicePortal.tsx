@@ -6,7 +6,8 @@ import {
   Sparkles, RefreshCw, X, ShieldAlert, Award, ChevronRight, Eye,
   ExternalLink, FileCheck, HelpCircle, BadgeCheck, Zap, DollarSign,
   Car, Lock, Coffee, Wrench, GlassWater, ShoppingBag, Truck, Crosshair,
-  Camera, Upload, Image as ImageIcon, ZoomIn, Trash2, Maximize2, PenTool
+  Camera, Upload, Image as ImageIcon, ZoomIn, Trash2, Maximize2, PenTool,
+  Scale
 } from 'lucide-react';
 import { 
   OfficialDocument, 
@@ -31,18 +32,20 @@ import {
 import { CitizenServiceSignatoryModal } from './CitizenServiceSignatoryModal';
 import { CitizenServiceRegisteredBoard } from './CitizenServiceRegisteredBoard';
 import { CitizenPublicLookupViews } from './CitizenPublicLookupViews';
+import { CitizenPasalTransparencyView } from './CitizenPasalTransparencyView';
 import { ErrorBoundary } from './ErrorBoundary';
 import { isRank2OrAbove } from '../types';
 import { getSavedCitizens } from '../utils/citizenDmvStorage';
 import { getSavedBoloAlerts, getSavedImpounds } from '../utils/boloImpoundStorage';
 import { getSavedTrafficCitations } from '../utils/trafficCitationStorage';
+import { getSavedPasalList } from '../data/pasalData';
 import { exportElementAsImage } from '../utils/exportDocumentAsImage';
 import { processAndCompressImage } from '../utils/imageCompressor';
 import { OfficialSeal } from './OfficialSeals';
 import { HSPD_LOGO_URL } from '../assets/logo';
 import { getCustomBranding } from '../utils/brandingStorage';
 
-export type PortalTabType = 'registered' | 'skck' | 'business' | 'other' | 'wanted' | 'citations' | 'impounds' | 'verify';
+export type PortalTabType = 'registered' | 'skck' | 'business' | 'other' | 'wanted' | 'citations' | 'impounds' | 'pasal' | 'verify';
 
 interface Props {
   currentOfficer?: OfficerProfile | null;
@@ -68,6 +71,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
   const [impounds, setImpounds] = useState<ImpoundRecord[]>([]);
   const [govPermits, setGovPermits] = useState<GovernmentPermit[]>([]);
   const [officialDocs, setOfficialDocs] = useState<OfficialDocument[]>([]);
+  const [pasalCount, setPasalCount] = useState<number>(() => getSavedPasalList().length);
 
   // Feedback States
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -88,6 +92,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
     setImpounds(getSavedImpounds());
     setGovPermits(getGovernmentPermits());
     setOfficialDocs(getSavedOfficialDocuments());
+    setPasalCount(getSavedPasalList().length);
   };
 
   useEffect(() => {
@@ -101,6 +106,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
     window.addEventListener('hspd-impound-updated', handleSync);
     window.addEventListener('hspd-bolo-updated', handleSync);
     window.addEventListener('hspd-traffic-citations-updated', handleSync);
+    window.addEventListener('hspd-pasal-updated', handleSync);
 
     return () => {
       window.removeEventListener('hspd-records-updated', handleSync);
@@ -110,6 +116,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
       window.removeEventListener('hspd-impound-updated', handleSync);
       window.removeEventListener('hspd-bolo-updated', handleSync);
       window.removeEventListener('hspd-traffic-citations-updated', handleSync);
+      window.removeEventListener('hspd-pasal-updated', handleSync);
     };
   }, []);
 
@@ -187,17 +194,19 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
 
     // Check BOLO
     const isWanted = boloList.some(b => {
-      if (b.status !== 'ACTIVE') return false;
-      const bName = b.targetName.toLowerCase();
-      const bId = (b.targetId || '').toLowerCase();
-      return (qName && bName.includes(qName)) || (qNik && bId.includes(qNik));
+      const isActive = b.active ?? ((b as any).status === 'ACTIVE');
+      if (!isActive) return false;
+      const bTitle = (b.title || (b as any).targetName || '').toLowerCase();
+      const bDesc = (b.description || '').toLowerCase();
+      const bId = ((b as any).targetId || '').toLowerCase();
+      return (qName && (bTitle.includes(qName) || bDesc.includes(qName))) || (qNik && (bId.includes(qNik) || bDesc.includes(qNik)));
     });
 
     // Check Citations
     const matchedCitations = citations.filter(c => {
-      const vName = c.violatorName.toLowerCase();
-      const vId = (c.violatorId || '').toLowerCase();
-      return (qName && vName.includes(qName)) || (qNik && vId.includes(qNik));
+      const vName = (c.violatorName || '').toLowerCase();
+      const vId = ((c as any).violatorId || '').toLowerCase();
+      return (qName && vName.includes(qName)) || (qNik && vId && vId.includes(qNik));
     });
 
     return {
@@ -1040,6 +1049,24 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
             </span>
           </button>
 
+          {/* TAB 8: PASAL KUHP & KALKULATOR DENDA WARGA */}
+          <button
+            type="button"
+            id="tab-btn-citizen-pasal"
+            onClick={() => setActiveTab('pasal')}
+            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition ${
+              activeTab === 'pasal'
+                ? 'bg-cyan-600 text-white font-bold shadow-lg shadow-cyan-950/50 ring-1 ring-cyan-400'
+                : 'text-cyan-300 hover:text-white hover:bg-cyan-950/50 border border-cyan-900/50'
+            }`}
+          >
+            <Scale className="w-4 h-4 text-cyan-400" />
+            <span>⚖️ KUHP & Hitung Denda Warga</span>
+            <span className="text-[10px] font-mono bg-cyan-950 text-cyan-300 px-1.5 py-0.2 rounded border border-cyan-800">
+              {pasalCount}
+            </span>
+          </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('verify')}
@@ -1062,10 +1089,20 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
             <div className="flex items-center gap-2 text-gray-300">
               <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
               <span className="font-semibold text-white">Layanan Pengecekan Cepat Warga:</span>
-              <span className="text-gray-400 hidden md:inline">Cari status hukum, denda tilang, atau mobil disita polisi</span>
+              <span className="text-gray-400 hidden md:inline">Cari status hukum, denda tilang, mobil disita, atau hitung denda pasal</span>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                id="quick-shortcut-pasal-calc"
+                onClick={() => setActiveTab('pasal')}
+                className="px-3 py-1.5 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-700/70 text-cyan-200 rounded-lg font-semibold flex items-center gap-1.5 transition shadow"
+              >
+                <Scale className="w-3.5 h-3.5 text-cyan-400" />
+                <span>⚖️ Cek Pasal & Hitung Total Denda</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setActiveTab('wanted')}
@@ -2393,6 +2430,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
             <CitizenPublicLookupViews
               activeSubTab={activeTab}
               onSelectSubTab={(tab) => setActiveTab(tab)}
+              onNavigateToPasal={() => setActiveTab('pasal')}
               boloAlerts={boloList || []}
               boloList={boloList || []}
               trafficCitations={citations || []}
@@ -2401,6 +2439,21 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
               impounds={impounds || []}
               currentOfficer={currentOfficer}
               onOpenLightbox={(item) => setLightboxItem(item)}
+            />
+          </ErrorBoundary>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 8: TRANSPARANSI PASAL KUHP & KALKULATOR DENDA WARGA                   */}
+        {/* ========================================================================= */}
+        {activeTab === 'pasal' && (
+          <ErrorBoundary
+            fallbackTitle="Kendala Memuat Kalkulator Pasal Warga"
+            fallbackMessage="Terjadi kendala saat memuat data pasal & kalkulator denda publik. Silakan coba kembali."
+            onReset={() => loadDatabases()}
+          >
+            <CitizenPasalTransparencyView
+              onBackToServices={() => setActiveTab(currentOfficer ? 'registered' : 'skck')}
             />
           </ErrorBoundary>
         )}
@@ -2480,18 +2533,18 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
                 {/* HEADER KOP SURAT */}
                 <div className="border-b-2 border-black pb-3 mb-4 text-center relative z-10 flex items-center justify-between">
                   <img
-                    src={previewDoc.category === 'PERIZINAN_USAHA' ? HSPD_LOGO_URL : (branding.logoUrl || HSPD_LOGO_URL)}
+                    src={previewDoc.category === 'IZIN_USAHA' ? HSPD_LOGO_URL : (branding.logoUrl || HSPD_LOGO_URL)}
                     alt="Logo"
                     className="w-16 h-16 object-contain"
                   />
                   <div className="flex-1 px-4">
                     <h2 className="text-sm sm:text-base font-black tracking-wider uppercase font-sans">
-                      {previewDoc.category === 'PERIZINAN_USAHA' 
+                      {previewDoc.category === 'IZIN_USAHA' 
                         ? 'PEMERINTAH NEGARA HIGHSTATE' 
                         : 'KEPOLISIAN NEGARA HIGHSTATE (HIGHSTATE POLICE DEPT)'}
                     </h2>
                     <h3 className="text-xs font-bold uppercase tracking-wide text-gray-700 font-sans">
-                      {previewDoc.category === 'PERIZINAN_USAHA' 
+                      {previewDoc.category === 'IZIN_USAHA' 
                         ? 'SEKRETARIAT NEGARA & KEMENTERIAN PERINDUSTRIAN DAN PERDAGANGAN' 
                         : 'MARKAS BESAR KEPOLISIAN - MISSION ROW HEADQUARTERS'}
                     </h3>
@@ -2735,7 +2788,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
                       {previewDoc.officerSignatureRank || previewDoc.issuerSignatureSubtitle || previewDoc.issuerRank || 'POLICE OFFICER II [PO II]'} [{previewDoc.officerSignatureBadge || previewDoc.issuerBadge || '#215'}]
                     </p>
                     <span className="text-[7.5px] text-blue-800 font-mono mt-0.5 font-semibold bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200">
-                      {previewDoc.officerSignatureStatus === 'PENDING' ? '⏳ Menunggu TTD Petugas' : '✓ Tanda Tangan Petugas Sah'}
+                      {(previewDoc.officerSignatureStatus as string) === 'PENDING' || previewDoc.officerSignatureStatus === 'UNSIGNED' ? '⏳ Menunggu TTD Petugas' : '✓ Tanda Tangan Petugas Sah'}
                     </span>
                   </div>
 
@@ -2743,7 +2796,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
                   <div className="relative flex flex-col items-center pt-2 sm:pt-0">
                     {/* STAMP OVERLAY */}
                     <div className="absolute -top-7 -right-1 sm:right-0 opacity-85 pointer-events-none">
-                      <OfficialSeal type={previewDoc.highOfficialSeal || previewDoc.primarySeal || 'HSPD_OFFICIAL'} size={100} />
+                      <OfficialSeal type={((previewDoc as any).highOfficialSeal || previewDoc.primarySeal || 'HSPD_OFFICIAL')} size={100} />
                     </div>
 
                     <p className="text-[9.5px] text-amber-950 font-semibold mb-8 leading-tight">
@@ -2756,7 +2809,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
                       {previewDoc.highOfficialSignatureRank || previewDoc.acknowledgedByRank || (previewDoc.category === 'IZIN_USAHA' ? 'PRESIDENT [RANK 6]' : 'CHIEF OF POLICE [COP]')}
                     </p>
                     <span className="text-[7.5px] text-amber-800 font-mono mt-0.5 font-semibold bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
-                      {previewDoc.highOfficialSignatureStatus === 'PENDING' ? '⏳ Menunggu Pengesahan Petinggi' : '✓ Otoritas Petinggi Sah'}
+                      {(previewDoc.highOfficialSignatureStatus as string) === 'PENDING' || previewDoc.highOfficialSignatureStatus === 'UNSIGNED' ? '⏳ Menunggu Pengesahan Petinggi' : '✓ Otoritas Petinggi Sah'}
                     </span>
                   </div>
                 </div>
