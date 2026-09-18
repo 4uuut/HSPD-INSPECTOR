@@ -131,6 +131,12 @@ export function isOfficerMatch(officer: OfficerAccount, searchIdentifier: string
     return true;
   }
 
+  // 6. Handle phonetic / transposed spelling of Leoarnd <-> Leonard
+  const normalizeLeo = (str: string) => str.replace(/leoarnd/g, 'leonard').replace(/leoanrd/g, 'leonard');
+  if (normalizeLeo(normName) === normalizeLeo(normSearch)) {
+    return true;
+  }
+
   return false;
 }
 

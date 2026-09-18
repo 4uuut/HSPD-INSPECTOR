@@ -24,12 +24,14 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   roster: OfficerAccount[];
+  departmentName?: string;
 }
 
 export const ExportAttendanceModal: React.FC<Props> = ({
   isOpen,
   onClose,
-  roster
+  roster,
+  departmentName
 }) => {
   const [rangeType, setRangeType] = useState<ExportDateRangeType>('current_week');
   const [customStartDate, setCustomStartDate] = useState<string>(() => {

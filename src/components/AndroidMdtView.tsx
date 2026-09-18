@@ -37,6 +37,7 @@ interface Props {
   onOpenPinAuditModal: () => void;
   onOpenExportAttendanceModal?: () => void;
   onOpenRecruitmentPortalModal?: () => void;
+  onOpenReleaseModal?: () => void;
   onLogout: () => void;
   viewMode: 'android' | 'desktop';
   onToggleViewMode: () => void;
@@ -64,6 +65,7 @@ export const AndroidMdtView: React.FC<Props> = ({
   onOpenPinAuditModal,
   onOpenExportAttendanceModal,
   onOpenRecruitmentPortalModal,
+  onOpenReleaseModal,
   onLogout,
   viewMode,
   onToggleViewMode,
@@ -532,6 +534,18 @@ export const AndroidMdtView: React.FC<Props> = ({
           >
             <Sparkles className="w-3 h-3 text-amber-400" />
             <span>Portal Rekrutmen</span>
+          </button>
+        )}
+
+        {/* Discord Bot & Rilis Pengumuman Quick Pill */}
+        {onOpenReleaseModal && (
+          <button
+            type="button"
+            onClick={onOpenReleaseModal}
+            className="px-2.5 py-1 rounded-full bg-blue-950/80 border border-blue-600 text-blue-300 text-[10px] font-bold whitespace-nowrap flex items-center gap-1 shrink-0 shadow-sm"
+          >
+            <Megaphone className="w-3 h-3 text-blue-400" />
+            <span>📢 Rilis & Bot CMD</span>
           </button>
         )}
 

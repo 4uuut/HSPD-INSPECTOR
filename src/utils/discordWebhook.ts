@@ -91,6 +91,13 @@ export const DOCUMENT_BOT_NAME_KEY = 'hspd_document_bot_name';
 export const DOCUMENT_BOT_AVATAR_KEY = 'hspd_document_bot_avatar';
 export const DOCUMENT_AUTO_SEND_KEY = 'hspd_document_auto_send';
 
+// Dedicated Changelog & System Release Announcement Webhook Keys
+export const CHANGELOG_WEBHOOK_STORAGE_KEY = 'hspd_changelog_webhook_url';
+export const CHANGELOG_BOT_NAME_KEY = 'hspd_changelog_bot_name';
+export const CHANGELOG_BOT_AVATAR_KEY = 'hspd_changelog_bot_avatar';
+export const CHANGELOG_AUTO_SEND_KEY = 'hspd_changelog_auto_send';
+export const CHANGELOG_MENTION_ROLE_KEY = 'hspd_changelog_mention_role';
+
 // Dedicated Government Executive Webhook Keys
 export const GOV_ROSTER_WEBHOOK_STORAGE_KEY = 'gov_roster_webhook_url';
 export const GOV_ROSTER_BOT_NAME_KEY = 'gov_roster_bot_name';

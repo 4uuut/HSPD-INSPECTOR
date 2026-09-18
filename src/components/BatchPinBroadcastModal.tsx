@@ -66,8 +66,13 @@ export const BatchPinBroadcastModal: React.FC<Props> = ({
   // Check bot status on open
   useEffect(() => {
     if (isOpen) {
-      const status = getDiscordBotGatewayStatus();
-      setBotStatus(status);
+      getDiscordBotGatewayStatus().then(status => {
+        setBotStatus({
+          isConnected: status.isOnline,
+          isOnline: status.isOnline,
+          botTag: status.botUser ? `${status.botUser.username}#${status.botUser.discriminator}` : undefined
+        });
+      }).catch(() => {});
       setCustomMessage(getSavedSuperiorDmMessage());
       setIsExecuting(false);
       setIsCompleted(false);
@@ -125,8 +130,12 @@ export const BatchPinBroadcastModal: React.FC<Props> = ({
     setIsActivatingBot(true);
     try {
       await startDiscordBotGateway();
-      const st = getDiscordBotGatewayStatus();
-      setBotStatus(st);
+      const st = await getDiscordBotGatewayStatus();
+      setBotStatus({
+        isConnected: st.isOnline,
+        isOnline: st.isOnline,
+        botTag: st.botUser ? `${st.botUser.username}#${st.botUser.discriminator}` : undefined
+      });
     } catch {}
     setIsActivatingBot(false);
   };

@@ -16,6 +16,39 @@ export const HSPD_OFFICIAL_ROSTER: OfficerAccount[] = [
     registeredAt: Date.now() - 86400000 * 90,
     promotedBy: 'SK Pengangkatan Markas Besar Kepolisian High State'
   },
+  {
+    id: 'roster-leoarnd-xianlao-001',
+    name: 'Leoarnd Xianlao',
+    badge: '#001',
+    rank: 'CHIEF OF POLICE [COP]',
+    division: 'Executive Office / High Command',
+    pin: '846201',
+    phone: '555-0001',
+    registeredAt: Date.now() - 86400000 * 90,
+    promotedBy: 'SK Pengangkatan Markas Besar Kepolisian High State'
+  },
+  {
+    id: 'roster-leonard-xianlao-001',
+    name: 'Leonard Xianlao',
+    badge: '#001',
+    rank: 'CHIEF OF POLICE [COP]',
+    division: 'Executive Office / High Command',
+    pin: '846201',
+    phone: '555-0001',
+    registeredAt: Date.now() - 86400000 * 90,
+    promotedBy: 'SK Pengangkatan Markas Besar Kepolisian High State'
+  },
+  {
+    id: 'roster-leoarnd-neave-001',
+    name: 'Leoarnd Neave',
+    badge: '#001',
+    rank: 'CHIEF OF POLICE [COP]',
+    division: 'Executive Office / High Command',
+    pin: '846201',
+    phone: '555-0001',
+    registeredAt: Date.now() - 86400000 * 90,
+    promotedBy: 'SK Pengangkatan Markas Besar Kepolisian High State'
+  },
 
   // ==========================================
   // [EXECUTIVE STAFF // RANK 5]
@@ -176,6 +209,13 @@ export function mergeWithOfficialRoster(
       if (cleanName && cleanName.includes('neave') && existingName.includes('neave')) {
         return key;
       }
+      if (
+        cleanName &&
+        (cleanName.includes('leoarnd') || cleanName.includes('leonard') || cleanName.includes('leoanrd')) &&
+        (existingName.includes('leoarnd') || existingName.includes('leonard') || existingName.includes('leoanrd'))
+      ) {
+        return key;
+      }
 
       // 3. BADGE MATCH:
       // If badge numbers match exactly, and names do not conflict with two completely different names
@@ -219,14 +259,16 @@ export function mergeWithOfficialRoster(
       } else {
         // Exclude old hardcoded mock names that were purged
         const normName = (item.name || '').toLowerCase().trim();
-        const isOldMock = [
+        // Xianlao and Neave are active command officers and must never be treated as old mock
+        const isXianlaoOrNeave = normName.includes('xianlao') || normName.includes('neave') || normName.includes('leoarnd') || normName.includes('leonard');
+        const isOldMock = !isXianlaoOrNeave && [
           'alvert canizares', 'bian alexander', 'boris layasa', 'briella bimantara',
           'carlos gallarado', 'cecep alexsander', 'corvin gravermourn', 'dadang darmawan',
           'dendi pablo', 'edes fernandes', 'eiser romanov', 'eliel gravermourn',
-          'gerry roach', 'gondrong carregado', 'gorgon xianlao', 'jack kingston',
+          'gerry roach', 'gondrong carregado', 'jack kingston',
           'jalisco michoacana', 'jeesyln claurissa', 'jems giantenk', 'jimmy hops',
           'jon oliver', 'keii claude', 'kenzo velows', 'kyle satorue', 'kyloo askara',
-          'leoanrd neave', 'lexa arvella', 'luix ziyen', 'luna haller', 'marchel leonerd',
+          'lexa arvella', 'luix ziyen', 'luna haller', 'marchel leonerd',
           'michaell anderson', 'moeses clausius', 'moji junior', 'morale lammar',
           'omar bradley', 'oscar hernandez', 'peter schmaicel', 'rafa gharui',
           'rafferty linnix', 'ramsey beningthon', 'rejjie kei', 'rize izumi',

@@ -169,6 +169,75 @@ export const WebhookSettingsModal: React.FC<Props> = ({
     }
   }, [isOpen, activeTab]);
 
+  // Discord Bot Slash Commands & Simulation State
+  const [guildIdInput, setGuildIdInput] = useState('');
+  const [isRegisteringCommands, setIsRegisteringCommands] = useState(false);
+  const [registerCommandsResult, setRegisterCommandsResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [simCommand, setSimCommand] = useState<string>('pasal');
+  const [simQuery, setSimQuery] = useState('A01');
+  const [simDiskon, setSimDiskon] = useState<number>(0);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simResult, setSimResult] = useState<any | null>(null);
+  const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
+
+  const handleRegisterSlashCommands = async () => {
+    setIsRegisteringCommands(true);
+    setRegisterCommandsResult(null);
+    try {
+      const res = await fetch('/api/discord/register-commands', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ guildId: guildIdInput.trim() || undefined })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setRegisterCommandsResult({ success: true, message: data.message });
+      } else {
+        setRegisterCommandsResult({ success: false, message: data.message || 'Gagal mendaftarkan commands' });
+      }
+    } catch (err: any) {
+      setRegisterCommandsResult({ success: false, message: err.message || 'Koneksi ke server gagal' });
+    } finally {
+      setIsRegisteringCommands(false);
+    }
+  };
+
+  const handleSimulateCommand = async () => {
+    setIsSimulating(true);
+    try {
+      let options: any[] = [];
+      if (simCommand === 'pasal' || simCommand === 'kuhp') {
+        options = [{ name: 'query', value: simQuery }];
+      } else if (simCommand === 'hitung' || simCommand === 'denda') {
+        options = [{ name: 'pasal', value: simQuery }, { name: 'diskon', value: simDiskon }];
+      } else if (simCommand === 'bolo') {
+        options = [{ name: 'query', value: simQuery }];
+      } else if (simCommand === 'lookup') {
+        options = [{ name: 'nama', value: simQuery }];
+      } else if (simCommand === 'roster') {
+        options = [{ name: 'petugas', value: simQuery }];
+      } else if (simCommand === 'duty') {
+        options = [{ name: 'status', value: simQuery || '10-8' }, { name: 'callsign', value: 'ADAM-01' }];
+      } else if (simCommand === 'sop') {
+        options = [{ name: 'kode', value: simQuery }];
+      }
+
+      const res = await fetch('/api/discord/simulate-command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: simCommand, options })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSimResult(data.result);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
   const handleToggleBotGateway = async () => {
     const token = botConfig.botToken.trim();
     if (!token) {
@@ -3056,6 +3125,442 @@ Bukti : Ada`}
                     <span>{botTestResult.message}</span>
                   </div>
                 )}
+              </div>
+
+              {/* DISCORD SLASH COMMANDS & PREFIX ! INTEGRATION SECTION */}
+              <div className="p-4 bg-gradient-to-b from-[#111827] to-[#0B0F19] border border-amber-500/40 rounded-xl space-y-4 shadow-xl">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800/80 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-400">
+                      <Zap className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-sm text-gray-100 flex items-center gap-2">
+                        <span>FITUR BOT DISCORD: KALKULATOR KUHP & PERINTAH SISTEM</span>
+                        <span className="px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-mono font-bold rounded-full">
+                          Support Prefix ! &amp; Slash /
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-gray-400">
+                        Bot dapat digunakan langsung di server Discord menggunakan awalan tanda seru (<strong>!</strong>) maupun garis miring (<strong>/</strong>).
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Register Slash Commands Button */}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleRegisterSlashCommands}
+                      disabled={isRegisteringCommands || !botConfig.botToken.trim()}
+                      className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow-lg shadow-amber-900/30 disabled:opacity-40"
+                    >
+                      {isRegisteringCommands ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Mendaftarkan...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Sinkronkan Slash Command (/)</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Optional Guild ID helper */}
+                <div className="flex flex-col sm:flex-row items-center gap-2 p-2.5 bg-gray-900/60 rounded-lg border border-gray-800 text-[11px]">
+                  <div className="text-gray-400 font-mono text-[10px] shrink-0">Server/Guild ID (Opsional untuk sinkronisasi instan):</div>
+                  <input
+                    type="text"
+                    value={guildIdInput}
+                    onChange={(e) => setGuildIdInput(e.target.value)}
+                    placeholder="Kosongkan untuk pendaftaran Global atau isi Guild ID server"
+                    className="flex-1 w-full px-2.5 py-1 bg-[#161B22] border border-gray-700 rounded text-xs text-gray-200 font-mono outline-none"
+                  />
+                  <span className="text-[10px] text-gray-500">
+                    *Guild ID membuat slash command muncul detik itu juga tanpa jeda cache Discord.
+                  </span>
+                </div>
+
+                {registerCommandsResult && (
+                  <div className={`p-2.5 rounded border text-xs flex items-center gap-2 ${
+                    registerCommandsResult.success 
+                      ? 'bg-emerald-950/80 border-emerald-600 text-emerald-200' 
+                      : 'bg-rose-950/80 border-rose-600 text-rose-200'
+                  }`}>
+                    {registerCommandsResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    )}
+                    <span>{registerCommandsResult.message}</span>
+                  </div>
+                )}
+
+                {/* Commands Catalog Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {/* Category 1: Hukum & Kalkulator */}
+                  <div className="bg-[#161B22]/90 border border-gray-800 p-3 rounded-lg space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-amber-300 border-b border-gray-800 pb-1.5">
+                      <Hammer className="w-3.5 h-3.5" />
+                      <span>1. KALKULATOR KUHP &amp; DENDA</span>
+                    </div>
+                    <div className="space-y-2 text-[11px]">
+                      <div className="p-2 bg-black/40 rounded border border-gray-800/80">
+                        <div className="font-mono font-bold text-sky-300 flex items-center justify-between">
+                          <span>!pasal [kode / kata kunci]</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('!pasal A01');
+                              setCopiedCmd('!pasal');
+                              setTimeout(() => setCopiedCmd(null), 2000);
+                            }}
+                            className="text-[10px] text-gray-400 hover:text-white"
+                          >
+                            {copiedCmd === '!pasal' ? '✓ Disalin' : 'Copy'}
+                          </button>
+                        </div>
+                        <div className="text-[10.5px] text-gray-400 mt-0.5">
+                          Cari pasal KUHP, rincian pasal, denda ($), bulan penjara, masa impound kendaraan, &amp; status sita barang bukti.
+                        </div>
+                        <div className="text-[9.5px] font-mono text-emerald-400 mt-1">
+                          Contoh: <code>!pasal A01</code> atau <code>/pasal narkoba</code>
+                        </div>
+                      </div>
+
+                      <div className="p-2 bg-black/40 rounded border border-gray-800/80">
+                        <div className="font-mono font-bold text-sky-300 flex items-center justify-between">
+                          <span>!hitung [daftar pasal] [diskon]</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('!hitung A01, A05, B08 10');
+                              setCopiedCmd('!hitung');
+                              setTimeout(() => setCopiedCmd(null), 2000);
+                            }}
+                            className="text-[10px] text-gray-400 hover:text-white"
+                          >
+                            {copiedCmd === '!hitung' ? '✓ Disalin' : 'Copy'}
+                          </button>
+                        </div>
+                        <div className="text-[10.5px] text-gray-400 mt-0.5">
+                          Kalkulator akumulasi denda gabungan beberapa pasal dengan potongan denda otomatis.
+                        </div>
+                        <div className="text-[9.5px] font-mono text-emerald-400 mt-1">
+                          Contoh: <code>!hitung A01, B08 15%</code>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Category 2: Operasional Kepolisian */}
+                  <div className="bg-[#161B22]/90 border border-gray-800 p-3 rounded-lg space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-sky-300 border-b border-gray-800 pb-1.5">
+                      <Shield className="w-3.5 h-3.5" />
+                      <span>2. OPERASIONAL &amp; DATA WARGA</span>
+                    </div>
+                    <div className="space-y-2 text-[11px]">
+                      <div className="p-2 bg-black/40 rounded border border-gray-800/80">
+                        <div className="font-mono font-bold text-sky-300 flex items-center justify-between">
+                          <span>!bolo [query]</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('!bolo');
+                              setCopiedCmd('!bolo');
+                              setTimeout(() => setCopiedCmd(null), 2000);
+                            }}
+                            className="text-[10px] text-gray-400 hover:text-white"
+                          >
+                            {copiedCmd === '!bolo' ? '✓ Disalin' : 'Copy'}
+                          </button>
+                        </div>
+                        <div className="text-[10.5px] text-gray-400 mt-0.5">
+                          Cek daftar buronan aktif (BOLO / APB) kendaraan dicuri atau suspect DPO.
+                        </div>
+                      </div>
+
+                      <div className="p-2 bg-black/40 rounded border border-gray-800/80">
+                        <div className="font-mono font-bold text-sky-300 flex items-center justify-between">
+                          <span>!lookup [nama warga]</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('!lookup Nexia');
+                              setCopiedCmd('!lookup');
+                              setTimeout(() => setCopiedCmd(null), 2000);
+                            }}
+                            className="text-[10px] text-gray-400 hover:text-white"
+                          >
+                            {copiedCmd === '!lookup' ? '✓ Disalin' : 'Copy'}
+                          </button>
+                        </div>
+                        <div className="text-[10.5px] text-gray-400 mt-0.5">
+                          Periksa rekam jejak kriminalitas, status DPO, catatan tilang, dan lisensi warga di MDT.
+                        </div>
+                      </div>
+
+                      <div className="p-2 bg-black/40 rounded border border-gray-800/80">
+                        <div className="font-mono font-bold text-sky-300 flex items-center justify-between">
+                          <span>!duty [status] [callsign]</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('!duty 10-8 ADAM-01');
+                              setCopiedCmd('!duty');
+                              setTimeout(() => setCopiedCmd(null), 2000);
+                            }}
+                            className="text-[10px] text-gray-400 hover:text-white"
+                          >
+                            {copiedCmd === '!duty' ? '✓ Disalin' : 'Copy'}
+                          </button>
+                        </div>
+                        <div className="text-[10.5px] text-gray-400 mt-0.5">
+                          Ganti status dinas langsung dari Discord (10-8 On Duty, 10-7 Off Duty, 10-6 Busy, Code 6).
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Category 3: Roster & Dokumen */}
+                  <div className="bg-[#161B22]/90 border border-gray-800 p-3 rounded-lg space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-bold text-purple-300 border-b border-gray-800 pb-1.5">
+                      <Radio className="w-3.5 h-3.5" />
+                      <span>3. RADIO, SOP &amp; PENGUMUMAN</span>
+                    </div>
+                    <div className="space-y-2 text-[11px]">
+                      <div className="p-2 bg-black/40 rounded border border-gray-800/80">
+                        <div className="font-mono font-bold text-purple-300 flex items-center justify-between">
+                          <span>!sop [kode radio]</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('!sop 10-4');
+                              setCopiedCmd('!sop');
+                              setTimeout(() => setCopiedCmd(null), 2000);
+                            }}
+                            className="text-[10px] text-gray-400 hover:text-white"
+                          >
+                            {copiedCmd === '!sop' ? '✓ Disalin' : 'Copy'}
+                          </button>
+                        </div>
+                        <div className="text-[10.5px] text-gray-400 mt-0.5">
+                          Kamus 10-Codes kepolisian (10-4, 10-20, 10-33 darurat, code-0).
+                        </div>
+                      </div>
+
+                      <div className="p-2 bg-black/40 rounded border border-gray-800/80">
+                        <div className="font-mono font-bold text-purple-300 flex items-center justify-between">
+                          <span>!roster [nama/badge]</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('!roster');
+                              setCopiedCmd('!roster');
+                              setTimeout(() => setCopiedCmd(null), 2000);
+                            }}
+                            className="text-[10px] text-gray-400 hover:text-white"
+                          >
+                            {copiedCmd === '!roster' ? '✓ Disalin' : 'Copy'}
+                          </button>
+                        </div>
+                        <div className="text-[10.5px] text-gray-400 mt-0.5">
+                          Daftar personel yang sedang On Duty (10-8) di lapangan beserta callsign.
+                        </div>
+                      </div>
+
+                      <div className="p-2 bg-black/40 rounded border border-gray-800/80">
+                        <div className="font-mono font-bold text-purple-300 flex items-center justify-between">
+                          <span>!hspd update [fitur/pesan]</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText('!hspd update fitur Penambahan kalkulator pasal');
+                              setCopiedCmd('!hspd');
+                              setTimeout(() => setCopiedCmd(null), 2000);
+                            }}
+                            className="text-[10px] text-gray-400 hover:text-white"
+                          >
+                            {copiedCmd === '!hspd' ? '✓ Disalin' : 'Copy'}
+                          </button>
+                        </div>
+                        <div className="text-[10.5px] text-gray-400 mt-0.5">
+                          Kirim pengumuman pembaruan sistem langsung dari Discord (khusus Atasan).
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* LIVE SIMULATOR & EMBED PREVIEW */}
+                <div className="mt-4 p-3.5 bg-[#0D1117] border border-sky-900/50 rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
+                      <Activity className="w-3.5 h-3.5" />
+                      <span>SIMULASI RESPON BOT DISCORD LANGSUNG:</span>
+                    </div>
+                    <span className="text-[10px] text-gray-400">
+                      Uji tampilan pesan &amp; embed tanpa harus membuka Discord
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1">Pilih Command:</label>
+                      <select
+                        value={simCommand}
+                        onChange={(e) => {
+                          setSimCommand(e.target.value);
+                          if (e.target.value === 'pasal') setSimQuery('A01');
+                          else if (e.target.value === 'hitung') setSimQuery('A01, A05, B08');
+                          else if (e.target.value === 'bolo') setSimQuery('');
+                          else if (e.target.value === 'lookup') setSimQuery('Nexia');
+                          else if (e.target.value === 'duty') setSimQuery('10-8');
+                          else if (e.target.value === 'sop') setSimQuery('10-4');
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 rounded text-xs text-gray-200 outline-none"
+                      >
+                        <option value="pasal">⚖️ /pasal (Cari Pasal)</option>
+                        <option value="hitung">🧮 /hitung (Kalkulator Denda)</option>
+                        <option value="bolo">🚨 /bolo (Daftar APB)</option>
+                        <option value="lookup">🔍 /lookup (Cek Warga)</option>
+                        <option value="roster">👮 /roster (Daftar Petugas)</option>
+                        <option value="duty">🟢 /duty (Update Dinas)</option>
+                        <option value="waran">📜 /waran (Arrest Warrants)</option>
+                        <option value="sop">📻 /sop (10-Codes Radio)</option>
+                        <option value="mdt">💻 /mdt (Link Web MDC)</option>
+                      </select>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1">
+                        Argumen / Parameter (Query):
+                      </label>
+                      <input
+                        type="text"
+                        value={simQuery}
+                        onChange={(e) => setSimQuery(e.target.value)}
+                        placeholder="Masukkan kode pasal, nama warga, atau parameter..."
+                        className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 rounded text-xs text-gray-200 font-mono outline-none"
+                      />
+                    </div>
+
+                    {simCommand === 'hitung' ? (
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 mb-1">Diskon (%):</label>
+                        <input
+                          type="number"
+                          value={simDiskon}
+                          onChange={(e) => setSimDiskon(Number(e.target.value) || 0)}
+                          placeholder="0 - 100"
+                          className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 rounded text-xs text-gray-200 font-mono outline-none"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          onClick={handleSimulateCommand}
+                          disabled={isSimulating}
+                          className="w-full py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded transition flex items-center justify-center gap-1.5 disabled:opacity-40"
+                        >
+                          {isSimulating ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Memproses...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Zap className="w-3.5 h-3.5" />
+                              <span>JALANKAN SIMULASI</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {simCommand === 'hitung' && (
+                    <div className="flex justify-end pt-1">
+                      <button
+                        type="button"
+                        onClick={handleSimulateCommand}
+                        disabled={isSimulating}
+                        className="px-6 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded transition flex items-center justify-center gap-1.5 disabled:opacity-40"
+                      >
+                        {isSimulating ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Memproses...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Zap className="w-3.5 h-3.5" />
+                            <span>JALANKAN SIMULASI</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Simulated Discord Embed View */}
+                  {simResult && simResult.embed && (
+                    <div className="mt-3 p-3 bg-[#1e1f22] rounded-lg border border-gray-800 text-xs text-gray-200 space-y-2.5 font-sans animate-in fade-in">
+                      <div className="flex items-center gap-2 border-b border-gray-800 pb-2">
+                        <div className="w-6 h-6 rounded-full bg-sky-600 flex items-center justify-center text-[10px] font-bold text-white">
+                          BOT
+                        </div>
+                        <span className="font-bold text-gray-100">MDT HSPD Official</span>
+                        <span className="text-[10px] bg-sky-500/20 text-sky-300 px-1.5 py-0.2 rounded font-mono">APP</span>
+                      </div>
+
+                      {/* Embed box with colored accent left border */}
+                      <div
+                        className="bg-[#2B2D31] rounded p-3 border-l-4 space-y-2 text-xs"
+                        style={{
+                          borderLeftColor: simResult.embed.color 
+                            ? `#${simResult.embed.color.toString(16).padStart(6, '0')}` 
+                            : '#38BDF8'
+                        }}
+                      >
+                        {simResult.embed.author && (
+                          <div className="flex items-center gap-1.5 text-[11px] font-bold text-gray-300">
+                            {simResult.embed.author.icon_url && (
+                              <img src={simResult.embed.author.icon_url} alt="" className="w-4 h-4 rounded-full" />
+                            )}
+                            <span>{simResult.embed.author.name}</span>
+                          </div>
+                        )}
+
+                        <div className="font-bold text-sm text-gray-100">{simResult.embed.title}</div>
+                        <div className="text-[11.5px] text-gray-300 whitespace-pre-line leading-relaxed">
+                          {simResult.embed.description}
+                        </div>
+
+                        {Array.isArray(simResult.embed.fields) && simResult.embed.fields.length > 0 && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-gray-700/60">
+                            {simResult.embed.fields.map((f: any, idx: number) => (
+                              <div key={idx} className={f.inline ? 'col-span-1' : 'col-span-full'}>
+                                <div className="text-[10.5px] font-bold text-gray-400">{f.name}</div>
+                                <div className="text-[11px] text-gray-200 whitespace-pre-line mt-0.5">{f.value}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {simResult.embed.footer && (
+                          <div className="text-[9.5px] text-gray-400 pt-2 border-t border-gray-700/40 flex items-center gap-1">
+                            <span>{simResult.embed.footer.text}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

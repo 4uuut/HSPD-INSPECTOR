@@ -11,10 +11,11 @@ import {
   User, BadgeCheck, MapPin, Camera, Package, Link2, Image as ImageIcon, 
   ChevronDown, ChevronUp, Radio, Settings2, Globe, RefreshCw, X, SlidersHorizontal,
   Edit3, RotateCcw, PlusCircle, Save,
-  Lock, Unlock, KeyRound, Crown, ShieldAlert
+  Lock, Unlock, KeyRound, Crown, ShieldAlert, Eye, Users, Scale, Calculator
 } from 'lucide-react';
 import { validateAuthorityPin } from '../utils/authorityPin';
 import { EvidenceUploader } from './EvidenceUploader';
+import { CitizenPasalTransparencyView } from './CitizenPasalTransparencyView';
 import { 
   getSavedWebhookConfig, saveWebhookConfig, sendArrestRecordToDiscord, 
   testDiscordWebhook, WebhookConfig 
@@ -30,6 +31,9 @@ const OFFICER_BADGE_KEY = 'hspd_saved_officer_badge';
 const OFFICER_PARTNER_KEY = 'hspd_saved_officer_partner';
 
 export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer }) => {
+  // Mode Selector: 'officer' (Police MDT Form) vs 'citizen' (Citizen Transparency View & Fine Calculator)
+  const [calcViewMode, setCalcViewMode] = useState<'officer' | 'citizen'>('officer');
+
   // Custom Pasal List State & Persistence
   const [pasalList, setPasalList] = useState<PasalItem[]>(() => getSavedPasalList());
   const [pasalNotice, setPasalNotice] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
@@ -564,11 +568,77 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
   const chatSummary = `Kesalahan Mas/Mam dikenakan Pasal: ${pasalString} | Denda: $${finalDenda.toLocaleString()} | Penjara: ${totalPenjara} Bln${totalImpound > 0 ? ` | Impound: ${totalImpound} Hari` : ''}`;
 
   return (
-    <div id="pasal-calculator-root" className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-      {/* LEFT COLUMN: Pasal Browser & Categories */}
-      <div id="pasal-browser-column" className="lg:col-span-6 flex flex-col space-y-3">
-        {/* Top Control Bar: Total Pasal Count + Add & Reset Action Buttons */}
-        <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
+    <div id="pasal-calculator-root" className="space-y-4">
+      {/* ========================================================================= */}
+      {/* MODE SWITCHER: PETUGAS (MDT) VS WARGA SIPIL (CITIZEN PENAL VIEW) */}
+      {/* ========================================================================= */}
+      <div className="bg-[#161B22] border border-gray-800 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-blue-600/15 text-blue-400 rounded-lg border border-blue-500/30 shrink-0">
+            <Scale className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs font-bold text-gray-100 uppercase tracking-wider font-mono">
+                SISTEM KALKULATOR PASAL & PENINDAKAN PIDANA
+              </h2>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-blue-950/80 text-blue-300 border border-blue-800">
+                {pasalList.length} Pasal Terdaftar
+              </span>
+            </div>
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              {calcViewMode === 'officer' 
+                ? 'Mode Penindakan Petugas: Akses KUHP, Tambah/Hapus Pasal (Khusus Atasan), Hitung Denda, dan Ekspor Kasus ke Discord.'
+                : 'Mode Transparansi Warga: Cek Pasal KUHP, Simulasi Denda & Hukuman Penjara, serta Hak Konstitusi Hukum Warga.'}
+            </p>
+          </div>
+        </div>
+
+        {/* Mode Toggle Buttons */}
+        <div className="flex items-center bg-[#0D0F14] p-1 rounded-lg border border-gray-800 shrink-0">
+          <button
+            type="button"
+            id="btn-mode-officer"
+            onClick={() => setCalcViewMode('officer')}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold font-mono flex items-center gap-1.5 transition ${
+              calcViewMode === 'officer'
+                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60'
+            }`}
+          >
+            <Shield className="w-3.5 h-3.5" />
+            <span>Mode Petugas (MDT)</span>
+          </button>
+          <button
+            type="button"
+            id="btn-mode-citizen"
+            onClick={() => setCalcViewMode('citizen')}
+            className={`px-3 py-1.5 rounded-md text-xs font-bold font-mono flex items-center gap-1.5 transition ${
+              calcViewMode === 'citizen'
+                ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/20'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Mode Warga (Citizen View)</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* VIEW CONDITIONAL: CITIZEN VIEW VS OFFICER PENAL CALCULATOR */}
+      {/* ========================================================================= */}
+      {calcViewMode === 'citizen' ? (
+        <CitizenPasalTransparencyView
+          initialSelectedCodes={selectedCodes}
+          onBackToServices={() => setCalcViewMode('officer')}
+        />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          {/* LEFT COLUMN: Pasal Browser & Categories */}
+          <div id="pasal-browser-column" className="lg:col-span-6 flex flex-col space-y-3">
+            {/* Top Control Bar: Total Pasal Count + Add & Reset Action Buttons */}
+            <div className="flex items-center justify-between gap-2 px-1 pt-0.5">
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-[11px] font-mono text-gray-300 font-bold uppercase tracking-wider flex items-center gap-1.5 truncate">
               <FileText className="w-3.5 h-3.5 text-blue-400 shrink-0" />
@@ -1243,6 +1313,8 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
           </div>
         </div>
       </div>
+    </div>
+  )}
 
       {/* DISCORD WEBHOOK SETTINGS MODAL */}
       {showWebhookModal && (

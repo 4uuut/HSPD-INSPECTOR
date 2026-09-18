@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { discordGatewayManager } from './discordBotService.ts';
+import { discordGatewayManager, DISCORD_SLASH_COMMANDS } from './discordBotService.ts';
 import { discordRosterService } from './discordRosterService.ts';
 
 export const apiRouter = Router();
@@ -333,12 +333,14 @@ apiRouter.post('/discord/verify-login', async (req, res) => {
     const cleanDigits = cleanId.replace(/[^0-9]/g, '');
 
     const officers = await discordRosterService.getAllOfficers();
+    const normalizeLeo = (str: string) => str.replace(/leoarnd/g, 'leonard').replace(/leoanrd/g, 'leonard');
     const officer = officers.find(o => {
       const oName = (o.name || '').toLowerCase().trim();
       const oBadge = (o.badge || '').toLowerCase().trim();
       const oBadgeDigits = oBadge.replace(/[^0-9]/g, '');
 
       if (oName === cleanId || oName.replace(/\s+/g, '') === cleanId.replace(/\s+/g, '')) return true;
+      if (normalizeLeo(oName) === normalizeLeo(cleanId)) return true;
       if (oBadge === cleanId) return true;
       if (cleanDigits && oBadgeDigits && cleanDigits === oBadgeDigits) return true;
       return false;
@@ -761,3 +763,282 @@ apiRouter.post('/discord/send-registration-panel', async (req, res) => {
     message: 'Fitur pendaftaran akun mandiri melalui Discord panel telah dinonaktifkan. Pembuatan akun dinas kini sepenuhnya dilakukan oleh Jajaran Atasan (High Command) melalui menu Roster Anggota.'
   });
 });
+
+// GET Discord Bot Server Configuration & Status
+apiRouter.get('/discord/bot-config', (req, res) => {
+  try {
+    const config = discordGatewayManager.getServerConfig();
+    const status = discordGatewayManager.getStatus();
+    return res.json({
+      success: true,
+      config,
+      status
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Gagal memuat konfigurasi bot'
+    });
+  }
+});
+
+// POST Discord Bot Server Configuration
+apiRouter.post('/discord/bot-config', (req, res) => {
+  try {
+    const updates = req.body || {};
+    const updated = discordGatewayManager.updateServerConfig(updates);
+    return res.json({
+      success: true,
+      message: 'Pengaturan Discord Bot berhasil diperbarui!',
+      config: updated
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: err.message || 'Gagal menyimpan pengaturan bot'
+    });
+  }
+});
+
+// POST Discord Send Changelog / Announcement (Fitur Baru, Peningkatan, Bugfix)
+apiRouter.post('/discord/send-changelog', async (req, res) => {
+  try {
+    const {
+      version,
+      title,
+      newFeatures,
+      improvements,
+      bugFixes,
+      extraNotes,
+      mentionRole,
+      channelId,
+      webhookUrl,
+      authorName,
+      authorBadge,
+      authorRank
+    } = req.body || {};
+
+    const cleanFeatures: string[] = Array.isArray(newFeatures) 
+      ? newFeatures.filter((f: any) => typeof f === 'string' && f.trim().length > 0)
+      : [];
+    const cleanImprovements: string[] = Array.isArray(improvements) 
+      ? improvements.filter((f: any) => typeof f === 'string' && f.trim().length > 0)
+      : [];
+    const cleanBugFixes: string[] = Array.isArray(bugFixes) 
+      ? bugFixes.filter((f: any) => typeof f === 'string' && f.trim().length > 0)
+      : [];
+
+    if (cleanFeatures.length === 0 && cleanImprovements.length === 0 && cleanBugFixes.length === 0 && !extraNotes) {
+      return res.status(400).json({
+        success: false,
+        message: 'Harap isi minimal satu poin perubahan (Fitur Baru, Peningkatan, atau Perbaikan Bug)!'
+      });
+    }
+
+    // Try via Bot Gateway Channel Message first if bot has token
+    let botResult: { success: boolean; message: string; channelId?: string } | null = null;
+    const botStatus = discordGatewayManager.getStatus();
+
+    if (botStatus.hasToken) {
+      botResult = await discordGatewayManager.sendChangelogBroadcast({
+        version: version || 'v3.2.0',
+        title: title || 'Pembaruan Sistem MDT HSPD',
+        newFeatures: cleanFeatures,
+        improvements: cleanImprovements,
+        bugFixes: cleanBugFixes,
+        extraNotes,
+        mentionRole,
+        channelId,
+        authorName,
+        authorBadge,
+        authorRank
+      });
+    }
+
+    // If bot broadcast succeeded, return success
+    if (botResult && botResult.success) {
+      return res.json({
+        success: true,
+        message: botResult.message,
+        channelId: botResult.channelId,
+        method: 'discord_bot'
+      });
+    }
+
+    // Fallback to Webhook if provided or if bot channel wasn't configured
+    if (webhookUrl && typeof webhookUrl === 'string' && webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('id-ID', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
+
+      if (cleanFeatures.length > 0) {
+        fields.push({
+          name: '🚀 Fitur Baru (New Features)',
+          value: cleanFeatures.map(f => `• ${f.trim()}`).join('\n'),
+          inline: false
+        });
+      }
+
+      if (cleanImprovements.length > 0) {
+        fields.push({
+          name: '⚡ Peningkatan Sistem (Improvements)',
+          value: cleanImprovements.map(f => `• ${f.trim()}`).join('\n'),
+          inline: false
+        });
+      }
+
+      if (cleanBugFixes.length > 0) {
+        fields.push({
+          name: '🛠️ Perbaikan Bug (Bug Fixes)',
+          value: cleanBugFixes.map(f => `• ${f.trim()}`).join('\n'),
+          inline: false
+        });
+      }
+
+      if (extraNotes && extraNotes.trim()) {
+        fields.push({
+          name: '📝 Catatan Rilis & Panduan',
+          value: extraNotes.trim(),
+          inline: false
+        });
+      }
+
+      const pingContent = (mentionRole && mentionRole !== 'none' && mentionRole !== 'off') ? `${mentionRole} ` : '';
+
+      const hookRes = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: pingContent ? `${pingContent}**[ PENGUMUMAN PEMBARUAN SISTEM MDT HSPD ]**` : undefined,
+          embeds: [
+            {
+              author: {
+                name: 'High State Police Department • Official System Release',
+                icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+              },
+              title: `📢 ${title || 'Pembaruan Sistem MDT HSPD'} • [${version || 'v3.2.0'}]`,
+              description: `Catatan rilis pembaruan perangkat lunak, penyempurnaan operasional, dan perbaikan kestabilan Terminal Mobile Data Computer (MDC) HSPD.\n\n📅 **Waktu Rilis:** \`${dateStr}\`\n👤 **Dipublikasikan Oleh:** \`${authorName || 'High Command'}\` ${authorBadge ? `(\`${authorBadge}\`)` : ''}`,
+              color: 0x00A8FF,
+              fields,
+              footer: {
+                text: `HSPD MDC System • ${version || 'v3.2.0'} • High State Government`,
+                icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+              },
+              timestamp: now.toISOString()
+            }
+          ]
+        })
+      });
+
+      if (hookRes.ok) {
+        return res.json({
+          success: true,
+          message: 'Pembaruan berhasil dikirim melalui Webhook Discord!',
+          method: 'webhook'
+        });
+      }
+    }
+
+    // If both failed or bot failed
+    const errMsg = botResult ? botResult.message : 'Bot Discord belum dikonfigurasi atau channel pembaruan belum ditentukan. Silakan atur channel di tab Bot Discord atau gunakan command `!hspd setchannel update #channel`.';
+    return res.status(400).json({
+      success: false,
+      message: errMsg
+    });
+
+  } catch (err: any) {
+    console.error('Send Changelog Error:', err);
+    return res.status(500).json({
+      success: false,
+      message: `Terjadi kendala saat mempublikasikan pembaruan: ${err.message || err}`
+    });
+  }
+});
+
+// POST /api/discord/trigger-auto-changelog - Otomatis periksa & siarkan changelog jika ada pembaruan fitur baru
+apiRouter.post('/discord/trigger-auto-changelog', async (req, res) => {
+  try {
+    const { force, payload } = req.body || {};
+    const result = await discordGatewayManager.checkAndAutoBroadcastChangelog(Boolean(force), payload);
+    return res.json({
+      success: result.triggered,
+      message: result.message,
+      channelId: result.channelId
+    });
+  } catch (err: any) {
+    console.error('Trigger Auto Changelog Error:', err);
+    return res.status(500).json({
+      success: false,
+      message: `Gagal memicu siaran otomatis changelog: ${err.message || err}`
+    });
+  }
+});
+
+// GET /api/discord/commands - List all registered slash & prefix commands
+apiRouter.get('/discord/commands', (req, res) => {
+  return res.json({
+    success: true,
+    commands: DISCORD_SLASH_COMMANDS,
+    count: DISCORD_SLASH_COMMANDS.length,
+    prefixSupported: ['/', '!'],
+    botInfo: discordGatewayManager.getStatus()
+  });
+});
+
+// POST /api/discord/register-commands - Trigger registration of slash commands
+apiRouter.post('/discord/register-commands', async (req, res) => {
+  try {
+    const { guildId } = req.body || {};
+    const status = discordGatewayManager.getStatus();
+    if (!status.hasToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token bot Discord belum dikonfigurasi.'
+      });
+    }
+
+    await discordGatewayManager.registerSlashCommands(guildId);
+    return res.json({
+      success: true,
+      message: guildId 
+        ? `Slash command berhasil didaftarkan secara instan ke server Discord (${guildId})!`
+        : `Slash command berhasil didaftarkan secara global ke Discord API!`,
+      commandsCount: DISCORD_SLASH_COMMANDS.length
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: `Gagal mendaftarkan slash command: ${err.message || err}`
+    });
+  }
+});
+
+// POST /api/discord/simulate-command - Live preview a command response in the web UI
+apiRouter.post('/discord/simulate-command', async (req, res) => {
+  try {
+    const { command, options } = req.body || {};
+    if (!command) {
+      return res.status(400).json({ success: false, message: 'Harap tentukan nama perintah (command).' });
+    }
+
+    const result = await discordGatewayManager.simulateSlashCommand(command, Array.isArray(options) ? options : []);
+    return res.json({
+      success: true,
+      result
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      message: `Gagal simulasi perintah: ${err.message || err}`
+    });
+  }
+});
+

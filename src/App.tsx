@@ -31,6 +31,7 @@ import { AndroidMdtView } from './components/AndroidMdtView';
 import { ExportAttendanceModal } from './components/ExportAttendanceModal';
 import { SettingsView } from './components/SettingsView';
 import { CitizenPublicServicePortal } from './components/CitizenPublicServicePortal';
+import { DiscordReleaseAnnouncementModal } from './components/DiscordReleaseAnnouncementModal';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
 import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch, isSameOfficerAccount, saveRosterToStorage, updateOfficerPinInRoster, updateOfficerAccountInRoster } from './utils/pinResetStorage';
 import { getSavedDetectiveCases, saveDetectiveCases } from './utils/detectiveCaseStorage';
@@ -170,6 +171,7 @@ export default function App() {
   const [isBrandingModalOpen, setIsBrandingModalOpen] = useState(false);
   const [isRecruitmentPortalModalOpen, setIsRecruitmentPortalModalOpen] = useState(false);
   const [isExportAttendanceModalOpen, setIsExportAttendanceModalOpen] = useState(false);
+  const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
 
   // Dedicated Android / Mobile View Mode State & Auto-detection
   const [isAndroidMode, setIsAndroidMode] = useState<boolean>(() => {
@@ -487,7 +489,7 @@ export default function App() {
         ...currentOfficer,
         isDuty: newDutyState,
         dutyStartTime: newDutyStartTime,
-        dutyStatus: statusCode || (newDutyState ? '10-8' : '10-7')
+        dutyStatus: (statusCode || (newDutyState ? '10-8' : '10-7')) as any
       };
       setCurrentOfficer(updatedOfficer);
       try {
@@ -503,7 +505,7 @@ export default function App() {
             ...a,
             isDuty: newDutyState,
             dutyStartTime: newDutyStartTime,
-            dutyStatus: statusCode || (newDutyState ? '10-8' : '10-7')
+            dutyStatus: (statusCode || (newDutyState ? '10-8' : '10-7')) as any
           };
         }
         return a;
@@ -860,6 +862,7 @@ export default function App() {
           onOpenPinAuditModal={() => setIsPinResetAuditModalOpen(true)}
           onOpenExportAttendanceModal={() => setIsExportAttendanceModalOpen(true)}
           onOpenRecruitmentPortalModal={() => setIsRecruitmentPortalModalOpen(true)}
+          onOpenReleaseModal={() => setIsReleaseModalOpen(true)}
           onLogout={handleLogout}
           viewMode={isAndroidMode ? 'android' : 'desktop'}
           onToggleViewMode={handleToggleViewMode}
@@ -955,6 +958,19 @@ export default function App() {
                 <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
                 <span className="hidden md:inline">📱 MODE ANDROID</span>
                 <span className="md:hidden">ANDROID</span>
+              </button>
+
+              {/* DISCORD BOT ANNOUNCEMENT & SERVER CMD SETTINGS BUTTON */}
+              <button
+                id="btn-open-release-modal"
+                type="button"
+                onClick={() => setIsReleaseModalOpen(true)}
+                className="px-2.5 py-1.5 bg-gradient-to-r from-blue-950/80 to-indigo-950/80 hover:from-blue-900 hover:to-indigo-900 text-blue-300 border border-blue-500/70 hover:border-blue-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-blue-950/40"
+                title="Kirim Pembaruan (Fitur Baru, Peningkatan, Bugfix) ke Discord & Panduan Perintah Bot CMD"
+              >
+                <Megaphone className="w-3.5 h-3.5 text-blue-400" />
+                <span className="hidden md:inline">📢 BOT & RILIS</span>
+                <span className="md:hidden">RILIS</span>
               </button>
 
               {/* REALTIME FIREBASE CLOUD DATABASE STATUS BADGE */}
@@ -1368,7 +1384,7 @@ export default function App() {
         {activeNav === 'roster' && isHighRank && (
           <RosterManagement
             roster={roster}
-            currentOfficerRank={currentOfficer.rank}
+            currentOfficerRank={currentOfficer.rank as any}
             currentOfficerName={currentOfficer.name}
             currentOfficerBadge={currentOfficer.badge}
             onUpdateOfficer={handleUpdateOfficer}
@@ -1398,7 +1414,7 @@ export default function App() {
             roster={roster}
             branding={branding}
             authorityPinConfig={authorityPinConfig}
-            pinTimeRemaining={pinTimeRemaining}
+            pinTimeRemaining={pinTimeRemaining as any}
             pendingPinCount={pendingPinCount}
             onOpenBrandingModal={() => setIsBrandingModalOpen(true)}
             onOpenOtpModal={() => {
@@ -1501,6 +1517,17 @@ export default function App() {
         onClose={() => setIsExportAttendanceModalOpen(false)}
         roster={roster}
         departmentName={branding.departmentName}
+      />
+
+      {/* Discord Release Announcement & Server CMD Settings Modal */}
+      <DiscordReleaseAnnouncementModal
+        isOpen={isReleaseModalOpen}
+        onClose={() => setIsReleaseModalOpen(false)}
+        currentUser={currentOfficer ? {
+          name: currentOfficer.name,
+          badge: currentOfficer.badge,
+          rank: currentOfficer.rank
+        } : undefined}
       />
 
       {/* High Density Footer Status Line */}

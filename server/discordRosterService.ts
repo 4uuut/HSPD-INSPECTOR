@@ -63,6 +63,130 @@ export interface OfficerRecord {
 const LOCAL_ROSTER_BACKUP_PATH = path.join(process.cwd(), '.discord_registered_officers.json');
 const LOCAL_DISCORD_USERS_MAP_PATH = path.join(process.cwd(), '.discord_registered_users.json');
 
+const OFFICIAL_ROSTER_BASELINE: OfficerRecord[] = [
+  {
+    id: 'roster-jackie-xianlao-001',
+    name: 'Jackie Xianlao',
+    badge: '#001',
+    rank: 'CHIEF OF POLICE [COP]',
+    division: 'Executive Office / High Command',
+    pin: '846201',
+    phone: '555-0001',
+    registeredAt: 1735000000000,
+    promotedBy: 'SK Pengangkatan Markas Besar Kepolisian High State'
+  },
+  {
+    id: 'roster-leoarnd-xianlao-001',
+    name: 'Leoarnd Xianlao',
+    badge: '#001',
+    rank: 'CHIEF OF POLICE [COP]',
+    division: 'Executive Office / High Command',
+    pin: '846201',
+    phone: '555-0001',
+    registeredAt: 1735000000000,
+    promotedBy: 'SK Pengangkatan Markas Besar Kepolisian High State'
+  },
+  {
+    id: 'roster-leonard-xianlao-001',
+    name: 'Leonard Xianlao',
+    badge: '#001',
+    rank: 'CHIEF OF POLICE [COP]',
+    division: 'Executive Office / High Command',
+    pin: '846201',
+    phone: '555-0001',
+    registeredAt: 1735000000000,
+    promotedBy: 'SK Pengangkatan Markas Besar Kepolisian High State'
+  },
+  {
+    id: 'roster-leoarnd-neave-001',
+    name: 'Leoarnd Neave',
+    badge: '#001',
+    rank: 'CHIEF OF POLICE [COP]',
+    division: 'Executive Office / High Command',
+    pin: '846201',
+    phone: '555-0001',
+    registeredAt: 1735000000000,
+    promotedBy: 'SK Pengangkatan Markas Besar Kepolisian High State'
+  },
+  {
+    id: 'roster-damz-askara-002',
+    name: 'Damz Askara',
+    badge: '#002',
+    rank: 'DEPUTY CHIEF [D/C]',
+    division: 'High Command Staff / Executive Office',
+    pin: '201982',
+    phone: '555-0002',
+    registeredAt: 1735000000000,
+    promotedBy: 'SK Kepolisian HighState / Chief of Police'
+  },
+  {
+    id: 'roster-wilona-costelo-003',
+    name: 'Wilona Costelo',
+    badge: '#003',
+    rank: 'DEPUTY CHIEF [D/C]',
+    division: 'High Command Staff / Executive Office',
+    pin: '203841',
+    phone: '555-0003',
+    registeredAt: 1735000000000,
+    promotedBy: 'SK Kepolisian HighState / Chief of Police'
+  },
+  {
+    id: 'roster-matteo-stratton-401',
+    name: 'Matteo Stratton',
+    badge: '#401',
+    rank: 'CAPTAIN [CPT]',
+    division: 'Field Command Bureau',
+    pin: '40101',
+    phone: '555-0401',
+    registeredAt: 1735000000000,
+    promotedBy: 'High Command Executive Staff'
+  },
+  {
+    id: 'roster-drego-tadashima-402',
+    name: 'Drego Tadashima',
+    badge: '#402',
+    rank: 'CAPTAIN [CPT]',
+    division: 'Field Command Bureau',
+    pin: '40202',
+    phone: '555-0402',
+    registeredAt: 1735000000000,
+    promotedBy: 'High Command Executive Staff'
+  },
+  {
+    id: 'roster-ezio-silliwangi-403',
+    name: 'Ezio Silliwangi',
+    badge: '#403',
+    rank: 'CAPTAIN [CPT]',
+    division: 'Field Command Bureau',
+    pin: '40303',
+    phone: '555-0403',
+    registeredAt: 1735000000000,
+    promotedBy: 'High Command Executive Staff'
+  },
+  {
+    id: 'roster-deren-askara-411',
+    name: 'Deren Askara',
+    badge: '#411',
+    rank: 'LIEUTENANT II [LT II]',
+    division: 'Field Training & Operations',
+    pin: '41101',
+    phone: '555-0411',
+    registeredAt: 1735000000000,
+    promotedBy: 'High Command Executive Staff'
+  },
+  {
+    id: 'roster-grakiel-romanov-421',
+    name: 'Grakiel Romanov',
+    badge: '#421',
+    rank: 'LIEUTENANT I [LT I]',
+    division: 'Patrol Operations Bureau',
+    pin: '42101',
+    phone: '555-0421',
+    registeredAt: 1735000000000,
+    promotedBy: 'High Command Executive Staff'
+  }
+];
+
 class DiscordRosterService {
   private db: any = null;
   private isInitialized = false;
@@ -182,11 +306,20 @@ class DiscordRosterService {
 
     this.initDb();
     const map = new Map<string, OfficerRecord>();
+    const getOfficerKey = (o: { id?: string; name?: string; badge?: string }) => {
+      const normName = (o.name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+      return normName || (o.badge || '').toLowerCase().trim() || o.id || 'unknown';
+    };
 
-    // 2. Load local disk backup first (offline fallback)
+    // 0. Seed baseline official officers (HSPD Command & Executive Staff)
+    OFFICIAL_ROSTER_BASELINE.forEach(o => {
+      if (o) map.set(getOfficerKey(o), o);
+    });
+
+    // 1. Load local disk backup (offline fallback / modifications)
     const local = this.getLocalBackups();
     local.forEach(o => {
-      if (o && o.badge) map.set(o.badge, o);
+      if (o) map.set(getOfficerKey(o), o);
     });
 
     // 3. If Firestore is in quota cooldown or unavailable, return local backup directly
@@ -202,8 +335,9 @@ class DiscordRosterService {
       const snap = await getDocs(colRef);
       snap.forEach(d => {
         const data = d.data() as OfficerRecord;
-        if (data && data.name && data.badge) {
-          map.set(data.badge, { ...data, id: data.id || d.id });
+        if (data && data.name) {
+          const rec = { ...data, id: data.id || d.id };
+          map.set(getOfficerKey(rec), rec);
         }
       });
       // Reading succeeded, clear any quota cooldown
@@ -243,6 +377,11 @@ class DiscordRosterService {
       const offDiscordUser = (off.discordUsername || '').replace('@', '').toLowerCase().trim();
 
       if (cleanQueryName && (offName === cleanQueryName || offName.replace(/\s+/g, '') === cleanQueryName.replace(/\s+/g, ''))) {
+        return off;
+      }
+      // Handle phonetic / transposed spelling of Leoarnd <-> Leonard
+      const normalizeLeo = (str: string) => str.replace(/leoarnd/g, 'leonard').replace(/leoanrd/g, 'leonard');
+      if (cleanQueryName && normalizeLeo(offName) === normalizeLeo(cleanQueryName)) {
         return off;
       }
       if (cleanBadge && offBadge === cleanBadge) {
