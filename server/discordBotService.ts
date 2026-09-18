@@ -320,8 +320,32 @@ export const DISCORD_SLASH_COMMANDS = [
   },
   {
     name: 'mdt',
-    description: 'Tautan langsung membuka Terminal Web Mobile Data Computer',
-    options: []
+    description: 'Tautkan akun Discord ke akun login petugas MDT atau periksa status akun',
+    options: [
+      {
+        name: 'aksi',
+        description: 'Pilih aksi: tautkan akun, periksa status akun tertaut, atau putuskan tautan',
+        type: 3,
+        required: false,
+        choices: [
+          { name: '🔗 Tautkan Akun Petugas', value: 'tautkan' },
+          { name: '🔍 Cek Status Akun Tertaut', value: 'status' },
+          { name: '🔓 Putuskan Tautan Akun', value: 'putus' }
+        ]
+      },
+      {
+        name: 'petugas',
+        description: 'Nama Petugas (IC) atau Nomor Badge Anda (Contoh: Jackie Xianlao atau 001)',
+        type: 3,
+        required: false
+      },
+      {
+        name: 'pin',
+        description: 'PIN login akun MDT Anda (6 digit)',
+        type: 3,
+        required: false
+      }
+    ]
   },
   {
     name: 'update',
@@ -1225,6 +1249,73 @@ class DiscordGatewayManager {
             });
           }
 
+          // [ BUTTON: BUKA MODAL TAUTKAN AKUN MDT ]
+          if (customId === 'mdt_btn_open_link_modal') {
+            return await sendCallback({
+              type: 9, // APPLICATION_MODAL
+              data: {
+                custom_id: 'mdt_modal_link_account',
+                title: 'Tautkan Akun Petugas MDT HSPD',
+                components: [
+                  {
+                    type: 1,
+                    components: [
+                      {
+                        type: 4,
+                        custom_id: 'link_identifier',
+                        label: 'Nama Petugas (IC) atau Nomor Badge',
+                        style: 1, // Short
+                        placeholder: 'Contoh: Jackie Xianlao atau 001',
+                        min_length: 2,
+                        max_length: 50,
+                        required: true
+                      }
+                    ]
+                  },
+                  {
+                    type: 1,
+                    components: [
+                      {
+                        type: 4,
+                        custom_id: 'link_pin',
+                        label: 'PIN Login Akun MDT Petugas',
+                        style: 1, // Short
+                        placeholder: 'Masukkan 6 digit PIN login akun MDT Anda',
+                        min_length: 4,
+                        max_length: 20,
+                        required: true
+                      }
+                    ]
+                  }
+                ]
+              }
+            });
+          }
+
+          // [ BUTTON: PUTUSKAN TAUTAN AKUN MDT ]
+          if (customId === 'mdt_btn_unlink_account') {
+            const unlinkRes = await discordRosterService.unlinkOfficerFromDiscordUser(discordUser.id);
+            return await sendCallback({
+              type: 4,
+              data: {
+                flags: 64, // Ephemeral
+                embeds: [
+                  {
+                    author: {
+                      name: 'Mobile Data Computer • Sistem Penautan Akun',
+                      icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                    },
+                    title: unlinkRes.success ? '🔓 Tautan Akun Berhasil Diputus' : '⚠️ Tidak Ada Akun Tertaut',
+                    description: unlinkRes.message,
+                    color: unlinkRes.success ? 0xF59E0B : 0xEF4444,
+                    footer: { text: 'High State Police Department • MDT Binding System' },
+                    timestamp: new Date().toISOString()
+                  }
+                ]
+              }
+            });
+          }
+
           // [ BUTTON: RESEND CODE / CEK STATUS ]
           if (customId === 'mdt_btn_resend_code') {
             const matchedOfficer = await discordRosterService.findOfficer({
@@ -1424,6 +1515,81 @@ class DiscordGatewayManager {
               data: {
                 flags: 64,
                 content: `⛔ **Pendaftaran Akun Mandiri Ditutup:**\nPembuatan akun dinas MDT saat ini sepenuhnya dilakukan oleh Jajaran Atasan (High Command) melalui menu Roster Anggota. Detail kredensial login akan otomatis dikirimkan ke PM Discord Anda oleh Bot setelah dibuatkan oleh atasan.`
+              }
+            });
+          }
+
+          // [ MODAL SUBMISSION: TAUTKAN AKUN PETUGAS MDT ]
+          if (customId === 'mdt_modal_link_account') {
+            let identifier = '';
+            let pin = '';
+
+            if (Array.isArray(data.data?.components)) {
+              for (const row of data.data.components) {
+                if (Array.isArray(row.components)) {
+                  for (const comp of row.components) {
+                    if (comp.custom_id === 'link_identifier') identifier = comp.value?.trim() || '';
+                    if (comp.custom_id === 'link_pin') pin = comp.value?.trim() || '';
+                  }
+                }
+              }
+            }
+
+            if (!identifier || !pin) {
+              return await sendCallback({
+                type: 4,
+                data: {
+                  flags: 64, // Ephemeral
+                  content: '❌ **Gagal:** Nama Petugas / Nomor Badge dan PIN wajib diisi!'
+                }
+              });
+            }
+
+            const linkRes = await discordRosterService.linkOfficerToDiscordUser({
+              identifier,
+              pin,
+              discordUser
+            });
+
+            if (!linkRes.success || !linkRes.officer) {
+              return await sendCallback({
+                type: 4,
+                data: {
+                  flags: 64,
+                  embeds: [
+                    {
+                      author: {
+                        name: 'Mobile Data Computer • Sistem Penautan Akun',
+                        icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                      },
+                      title: '❌ Gagal Menautkan Akun Petugas',
+                      description: `${linkRes.message}\n\n💡 *Tips:* Pastikan nama karakter IC atau nomor badge dan PIN akun Anda sesuai dengan data di Roster MDT kepolisian.`,
+                      color: 0xEF4444,
+                      timestamp: new Date().toISOString()
+                    }
+                  ]
+                }
+              });
+            }
+
+            const off = linkRes.officer;
+            return await sendCallback({
+              type: 4,
+              data: {
+                flags: 64,
+                embeds: [
+                  {
+                    author: {
+                      name: 'Mobile Data Computer • Sistem Penautan Akun',
+                      icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                    },
+                    title: '✅ AKUN MDT BERHASIL DITAUTKAN!',
+                    description: `Selamat <@${discordUser.id}>, akun Discord Anda **resmi terhubung** dengan akun login petugas kepolisian:\n\n👤 **Nama Petugas (IC):** \`${off.name}\`\n🎖️ **Nomor Lencana:** \`#${off.badge}\`\n⭐ **Pangkat Dinas:** \`${off.rank}\`\n🏢 **Divisi Penugasan:** \`${off.division || 'Patrol Division'}\`\n\nSekarang Anda dapat menggunakan perintah \`/duty\`, \`/roster\`, serta login dan monitoring dinas langsung dari Discord!`,
+                    color: 0x10B981,
+                    footer: { text: 'High State Police Department • Akun Personel Terverifikasi' },
+                    timestamp: new Date().toISOString()
+                  }
+                ]
               }
             });
           }
@@ -2452,27 +2618,45 @@ class DiscordGatewayManager {
         }
 
         // -------------------------------------------------------------
-        // CMD: MDT (Tautan Akses Web MDT)
+        // CMD: MDT / LINK / TAUTKAN (Penautan & Status Akun Login MDT)
         // -------------------------------------------------------------
-        if (command === 'mdt') {
-          const embed = this.generateMdtEmbed();
+        if (command === 'mdt' || command === 'link' || command === 'tautkan') {
+          const subCmd = (args[0] || '').toLowerCase();
+          let aksi = 'status';
+          let petugas = '';
+          let pin = '';
+
+          if (subCmd === 'link' || subCmd === 'taut' || subCmd === 'tautkan') {
+            aksi = 'tautkan';
+            petugas = args[1] || '';
+            pin = args[2] || '';
+          } else if (subCmd === 'putus' || subCmd === 'unlink' || subCmd === 'lepas') {
+            aksi = 'putus';
+          } else if (args.length >= 2) {
+            aksi = 'tautkan';
+            petugas = args[0];
+            pin = args[1];
+          }
+
+          const userCtx: DiscordUserContext = {
+            id: author.id,
+            username: author.username,
+            discriminator: author.discriminator || '0',
+            avatarUrl: author.avatar
+              ? `https://cdn.discordapp.com/avatars/${author.id}/${author.avatar}.png`
+              : undefined
+          };
+
+          const mdtResponse = await this.generateMdtLinkResponse(userCtx, {
+            aksi,
+            petugas,
+            pin
+          });
+
           await this.sendChannelMessage(currentChannelId, {
             message_reference: { message_id: data.id },
-            embeds: [embed],
-            components: [
-              {
-                type: 1,
-                components: [
-                  {
-                    type: 2,
-                    style: 5,
-                    label: 'Buka Terminal MDT Sekarang',
-                    url: 'https://mdc-hspd-inspector.vercel.app/',
-                    emoji: { name: '🚔' }
-                  }
-                ]
-              }
-            ]
+            embeds: mdtResponse.embeds,
+            components: mdtResponse.components
           });
           return;
         }
@@ -2514,7 +2698,7 @@ class DiscordGatewayManager {
             '`/duty <status> [callsign]` • Perbarui status dinas kepolisian (10-8 On Duty / 10-7 Off Duty)',
             '`/roster [petugas]` • Lihat status personel aktif, pangkat, badge, & telepon',
             '`/sop [kode]` • Buku saku 10-Codes radio polisi & sandi taktis darurat',
-            '`/mdt` • Tautan langsung membuka Terminal Web Mobile Data Computer'
+            '`/mdt` • Tautkan akun Discord ke akun login petugas MDT & periksa status akun'
           ].join('\n'),
           inline: false
         },
@@ -3132,6 +3316,249 @@ class DiscordGatewayManager {
     };
   }
 
+  /**
+   * Menghasilkan respon embed dan komponen interaktif untuk penautan akun MDT (/mdt & !mdt)
+   */
+  public async generateMdtLinkResponse(
+    discordUser: DiscordUserContext,
+    params?: { aksi?: string; petugas?: string; pin?: string }
+  ): Promise<{ embeds: any[]; components?: any[] }> {
+    const aksi = (params?.aksi || '').toLowerCase().trim();
+    const identifier = (params?.petugas || '').trim();
+    const pin = (params?.pin || '').trim();
+
+    // 1. Aksi PUTUS TAUTAN
+    if (aksi === 'putus' || aksi === 'unlink' || aksi === 'lepas') {
+      const unlinkRes = await discordRosterService.unlinkOfficerFromDiscordUser(discordUser.id);
+      return {
+        embeds: [
+          {
+            author: {
+              name: 'Mobile Data Computer • Sistem Penautan Akun HSPD',
+              icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+            },
+            title: unlinkRes.success ? '🔓 Tautan Akun Berhasil Diputus' : '⚠️ Tidak Ada Akun Tertaut',
+            description: unlinkRes.message,
+            color: unlinkRes.success ? 0xF59E0B : 0xEF4444,
+            footer: { text: 'High State Police Department • MDT Account Binding' },
+            timestamp: new Date().toISOString()
+          }
+        ],
+        components: [
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                custom_id: 'mdt_btn_open_link_modal',
+                label: 'Tautkan Akun Petugas Baru',
+                style: 1,
+                emoji: { name: '🔗' }
+              }
+            ]
+          }
+        ]
+      };
+    }
+
+    // 2. Aksi TAUTKAN AKUN dengan kredensial yang diberikan
+    if (identifier && pin) {
+      const linkRes = await discordRosterService.linkOfficerToDiscordUser({
+        identifier,
+        pin,
+        discordUser
+      });
+
+      if (linkRes.success && linkRes.officer) {
+        const off = linkRes.officer;
+        return {
+          embeds: [
+            {
+              author: {
+                name: 'Mobile Data Computer • Sistem Penautan Akun HSPD',
+                icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+              },
+              title: '✅ AKUN MDT BERHASIL DITAUTKAN!',
+              description: `Selamat <@${discordUser.id}>, akun Discord Anda **resmi terhubung** dengan akun login petugas kepolisian di database MDT HSPD.\n\nSekarang Anda dapat menggunakan perintah \`/duty\`, \`/roster\`, serta menerima laporan investigasi & dispatch kepolisian secara langsung.`,
+              color: 0x10B981,
+              fields: [
+                { name: '👤 Nama Petugas (IC)', value: `**${off.name}**`, inline: true },
+                { name: '🎖️ Nomor Lencana', value: `\`#${off.badge}\``, inline: true },
+                { name: '⭐ Pangkat Dinas', value: `\`${off.rank}\``, inline: true },
+                { name: '🏢 Divisi Penugasan', value: `\`${off.division || 'Patrol Division'}\``, inline: true },
+                { name: '📡 Status Dinas', value: `\`${off.isDuty ? (off.dutyStatus || '10-8 (On Duty)') : '10-7 (Off Duty)'}\``, inline: true },
+                { name: '🔐 Status Tautan', value: `\`✅ TERVERIFIKASI & AKTIF\``, inline: true }
+              ],
+              footer: { text: 'High State Police Department • Akun Resmi Terverifikasi' },
+              timestamp: new Date().toISOString()
+            }
+          ],
+          components: [
+            {
+              type: 1,
+              components: [
+                {
+                  type: 2,
+                  custom_id: 'mdt_btn_open_link_modal',
+                  label: 'Ganti Akun Tautan',
+                  style: 2,
+                  emoji: { name: '🔄' }
+                },
+                {
+                  type: 2,
+                  custom_id: 'mdt_btn_unlink_account',
+                  label: 'Putuskan Tautan',
+                  style: 4,
+                  emoji: { name: '🔓' }
+                }
+              ]
+            }
+          ]
+        };
+      } else {
+        return {
+          embeds: [
+            {
+              author: {
+                name: 'Mobile Data Computer • Sistem Penautan Akun HSPD',
+                icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+              },
+              title: '❌ GAGAL MENAUTKAN AKUN PETUGAS',
+              description: linkRes.message,
+              color: 0xEF4444,
+              fields: [
+                {
+                  name: '💡 Petunjuk Verifikasi',
+                  value: '• Pastikan Nama Karakter IC atau Nomor Lencana sesuai dengan data Roster Dinas.\n• Pastikan 6-digit PIN login MDT sudah benar.\n• Jika belum terdaftar di Roster atau lupa PIN, hubungi atasan divisi kepolisian.',
+                  inline: false
+                }
+              ],
+              footer: { text: 'High State Police Department • Keamanan Kredensial MDT' },
+              timestamp: new Date().toISOString()
+            }
+          ],
+          components: [
+            {
+              type: 1,
+              components: [
+                {
+                  type: 2,
+                  custom_id: 'mdt_btn_open_link_modal',
+                  label: 'Coba Tautkan Lagi',
+                  style: 1,
+                  emoji: { name: '🔗' }
+                }
+              ]
+            }
+          ]
+        };
+      }
+    }
+
+    // 3. DEFAULT: Cek Status Tautan Akun Saat Ini
+    const matched = await discordRosterService.findOfficer({
+      discordId: discordUser.id,
+      discordUsername: discordUser.username
+    });
+
+    if (matched) {
+      return {
+        embeds: [
+          {
+            author: {
+              name: 'Mobile Data Computer • Status Akun Personel HSPD',
+              icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+            },
+            title: '🚔 STATUS AKUN MDT TERTAUT',
+            description: `Halo <@${discordUser.id}>, akun Discord Anda **telah tertaut secara resmi** ke akun dinas kepolisian berikut:`,
+            color: 0x00A8FF,
+            fields: [
+              { name: '👤 Nama Petugas (IC)', value: `**${matched.name}**`, inline: true },
+              { name: '🎖️ Nomor Lencana', value: `\`#${matched.badge}\``, inline: true },
+              { name: '⭐ Pangkat Dinas', value: `\`${matched.rank}\``, inline: true },
+              { name: '🏢 Divisi Penugasan', value: `\`${matched.division || 'Patrol Division'}\``, inline: true },
+              { name: '📡 Status Dinas', value: `\`${matched.isDuty ? (matched.dutyStatus || '10-8 (On Duty)') : '10-7 (Off Duty)'}\``, inline: true },
+              { name: '🔐 Status Tautan', value: `\`✅ TERVERIFIKASI & AKTIF\``, inline: true }
+            ],
+            footer: { text: 'Gunakan tombol di bawah jika ingin mengganti atau memutuskan tautan akun' },
+            timestamp: new Date().toISOString()
+          }
+        ],
+        components: [
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                custom_id: 'mdt_btn_open_link_modal',
+                label: 'Ganti Akun Tautan',
+                style: 2,
+                emoji: { name: '🔄' }
+              },
+              {
+                type: 2,
+                custom_id: 'mdt_btn_unlink_account',
+                label: 'Putuskan Tautan',
+                style: 4,
+                emoji: { name: '🔓' }
+              },
+              {
+                type: 2,
+                custom_id: 'mdt_btn_resend_code',
+                label: 'Kirim Kredensial ke DM',
+                style: 1,
+                emoji: { name: '📬' }
+              }
+            ]
+          }
+        ]
+      };
+    }
+
+    // Belum tertaut
+    return {
+      embeds: [
+        {
+          author: {
+            name: 'Mobile Data Computer • Penautan Akun Kepolisian HSPD',
+            icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+          },
+          title: '🔗 TAUTKAN AKUN DISCORD KE AKUN LOGIN MDT',
+          description: `Halo <@${discordUser.id}>, akun Discord Anda saat ini **belum ditautkan** ke akun petugas MDT Kepolisian High State.\n\nDengan menautkan akun, Anda dapat:\n• Menggunakan perintah dinas \`/duty\` & \`/roster\` langsung di Discord\n• Menerima notifikasi dispatch darurat & laporan kasus di DM\n• Login otomatis & reset PIN akun secara mandiri`,
+          color: 0x3B82F6,
+          fields: [
+            {
+              name: '📋 Cara Menautkan Akun',
+              value: '1. **Klik tombol [ 🔗 Tautkan Akun Petugas ]** di bawah ini untuk mengisi formulir pop-up langsung di Discord.\n2. Atau gunakan perintah teks:\n   • Slash Command: `/mdt aksi:tautkan petugas:<nama/badge> pin:<pin>`\n   • Chat Awalan !: `!mdt link <badge> <pin>`',
+              inline: false
+            },
+            {
+              name: '⚠️ Catatan Penting',
+              value: 'Pastikan Anda telah terdaftar di database Roster Kepolisian oleh atasan dan mengetahui 6-digit PIN login akun Anda.',
+              inline: false
+            }
+          ],
+          footer: { text: 'High State Police Department • Sistem Penautan Akun Resmi' },
+          timestamp: new Date().toISOString()
+        }
+      ],
+      components: [
+        {
+          type: 1,
+          components: [
+            {
+              type: 2,
+              custom_id: 'mdt_btn_open_link_modal',
+              label: 'Tautkan Akun Petugas',
+              style: 1,
+              emoji: { name: '🔗' }
+            }
+          ]
+        }
+      ]
+    };
+  }
+
   public generateMdtEmbed() {
     return {
       author: { name: 'Mobile Data Computer • High State Police Dept', icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png' },
@@ -3187,7 +3614,13 @@ class DiscordGatewayManager {
       const k = options.find((o: any) => o.name === 'kode')?.value || options[0]?.value || '';
       embed = this.generateSopEmbed(String(k));
     } else if (name === 'mdt') {
-      embed = this.generateMdtEmbed();
+      const aksi = options.find((o: any) => o.name === 'aksi')?.value || '';
+      const petugas = options.find((o: any) => o.name === 'petugas')?.value || '';
+      const pin = options.find((o: any) => o.name === 'pin')?.value || '';
+      const mockUser: DiscordUserContext = { id: '123456789', username: 'Officer_Sim' };
+      const mdtRes = await this.generateMdtLinkResponse(mockUser, { aksi, petugas, pin });
+      embed = mdtRes.embeds[0];
+      components = mdtRes.components;
     } else if (name === 'status' || name === 'info') {
       embed = this.generateStatusEmbed();
     } else if (name === 'config' || name === 'settings') {
@@ -3708,27 +4141,18 @@ class DiscordGatewayManager {
         });
       }
 
-      // 17. MDT LINK (/mdt)
+      // 17. MDT LINK & ACCOUNT BINDING (/mdt)
       if (effectiveCmd === 'mdt') {
-        const embed = this.generateMdtEmbed();
+        const aksi = (effectiveOptions.find((o: any) => o.name === 'aksi')?.value || '').trim();
+        const petugas = (effectiveOptions.find((o: any) => o.name === 'petugas')?.value || '').trim();
+        const pin = (effectiveOptions.find((o: any) => o.name === 'pin')?.value || '').trim();
+
+        const response = await this.generateMdtLinkResponse(discordUser, { aksi, petugas, pin });
         return await sendCallback({
           type: 4,
           data: {
-            embeds: [embed],
-            components: [
-              {
-                type: 1,
-                components: [
-                  {
-                    type: 2,
-                    style: 5,
-                    label: 'Buka Terminal MDT Sekarang',
-                    url: 'https://mdc-hspd-inspector.vercel.app/',
-                    emoji: { name: '🚔' }
-                  }
-                ]
-              }
-            ]
+            embeds: response.embeds,
+            components: response.components
           }
         });
       }

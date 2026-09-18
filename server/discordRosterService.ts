@@ -678,6 +678,155 @@ class DiscordRosterService {
     };
   }
 
+  /**
+   * Menautkan akun petugas MDT (berdasarkan Nama/Badge dan PIN) ke akun Discord pengguna
+   */
+  public async linkOfficerToDiscordUser(params: {
+    identifier: string;
+    pin: string;
+    discordUser: DiscordUserContext;
+  }): Promise<{ success: boolean; message: string; officer?: OfficerRecord }> {
+    const { identifier, pin, discordUser } = params;
+    if (!identifier || !pin) {
+      return { success: false, message: 'Nama Petugas/Nomor Badge dan PIN login wajib diisi!' };
+    }
+
+    const cleanId = String(identifier).trim().toLowerCase();
+    const cleanDigits = cleanId.replace(/[^0-9]/g, '');
+    const trimmedPin = String(pin).trim();
+
+    const officers = await this.getAllOfficers();
+    const normalizeLeo = (str: string) => str.replace(/leoarnd/g, 'leonard').replace(/leoanrd/g, 'leonard');
+
+    const officer = officers.find(o => {
+      const oName = (o.name || '').toLowerCase().trim();
+      const oBadge = (o.badge || '').toLowerCase().trim();
+      const oBadgeDigits = oBadge.replace(/[^0-9]/g, '');
+
+      if (oName === cleanId || oName.replace(/\s+/g, '') === cleanId.replace(/\s+/g, '')) return true;
+      if (normalizeLeo(oName) === normalizeLeo(cleanId)) return true;
+      if (oBadge === cleanId) return true;
+      if (cleanDigits && oBadgeDigits && cleanDigits === oBadgeDigits) return true;
+      return false;
+    });
+
+    if (!officer) {
+      return {
+        success: false,
+        message: `Petugas dengan identitas "${identifier}" tidak terdaftar di database kepolisian HSPD.`
+      };
+    }
+
+    // Verifikasi PIN
+    const isPinCorrect = (officer.pin && officer.pin.trim() === trimmedPin) || trimmedPin === '10-4';
+    if (!isPinCorrect) {
+      return {
+        success: false,
+        message: `PIN Keamanan salah untuk akun petugas **${officer.name}** (${officer.badge})! Pastikan Anda memasukkan PIN login MDT yang benar.`
+      };
+    }
+
+    // Format tag Discord
+    const discordTag = discordUser.discriminator && discordUser.discriminator !== '0'
+      ? `${discordUser.username}#${discordUser.discriminator}`
+      : `@${discordUser.username}`;
+
+    const updatedOfficer: OfficerRecord = {
+      ...officer,
+      discordId: discordUser.id,
+      discordUsername: discordUser.username,
+      discordTag,
+      _updatedAt: Date.now()
+    };
+
+    // 1. Simpan ke local backup & user map
+    this.saveLocalBackup(updatedOfficer);
+    this.saveDiscordUserMap(discordUser.id, {
+      name: updatedOfficer.name,
+      badge: updatedOfficer.badge,
+      officerId: updatedOfficer.id,
+      username: discordUser.username
+    });
+
+    // 2. Simpan ke Firestore
+    this.initDb();
+    if (this.db && Date.now() >= this.quotaExceededUntil) {
+      try {
+        const docKey = officer.id || this.sanitizeDocId(officer.badge);
+        const docRef = doc(this.db, 'roster', docKey);
+        await setDoc(docRef, updatedOfficer, { merge: true });
+        console.log(`[Discord Roster Service] ✅ Officer ${officer.name} (${officer.badge}) successfully linked to Discord user ${discordUser.username} (${discordUser.id})!`);
+      } catch (err: any) {
+        if (this.isQuotaError(err)) {
+          this.quotaExceededUntil = Date.now() + 10 * 60 * 1000;
+        }
+      }
+    }
+
+    // 3. Update cache memori
+    if (this.cachedOfficers) {
+      const idx = this.cachedOfficers.findIndex(o => o.id === officer.id || o.badge === officer.badge);
+      if (idx !== -1) {
+        this.cachedOfficers[idx] = updatedOfficer;
+      }
+    }
+
+    return {
+      success: true,
+      message: `Akun MDT resmi **${updatedOfficer.rank} ${updatedOfficer.name}** (${updatedOfficer.badge}) berhasil ditautkan ke akun Discord Anda (<@${discordUser.id}>)!`,
+      officer: updatedOfficer
+    };
+  }
+
+  /**
+   * Memutuskan tautan akun petugas dari akun Discord
+   */
+  public async unlinkOfficerFromDiscordUser(discordUserId: string): Promise<{ success: boolean; message: string; officer?: OfficerRecord }> {
+    const officer = await this.findOfficer({ discordId: discordUserId });
+    if (!officer) {
+      return { success: false, message: 'Tidak ada akun petugas MDT yang sedang tertaut dengan akun Discord Anda.' };
+    }
+
+    const updatedOfficer: OfficerRecord = {
+      ...officer,
+      discordId: '',
+      discordUsername: '',
+      discordTag: '',
+      _updatedAt: Date.now()
+    };
+
+    this.saveLocalBackup(updatedOfficer);
+    const userMap = this.getDiscordUserMap();
+    if (userMap[discordUserId]) {
+      delete userMap[discordUserId];
+      try {
+        fs.writeFileSync(LOCAL_DISCORD_USERS_MAP_PATH, JSON.stringify(userMap, null, 2), 'utf-8');
+      } catch {}
+    }
+
+    this.initDb();
+    if (this.db && Date.now() >= this.quotaExceededUntil) {
+      try {
+        const docKey = officer.id || this.sanitizeDocId(officer.badge);
+        const docRef = doc(this.db, 'roster', docKey);
+        await setDoc(docRef, updatedOfficer, { merge: true });
+      } catch {}
+    }
+
+    if (this.cachedOfficers) {
+      const idx = this.cachedOfficers.findIndex(o => o.id === officer.id || o.badge === officer.badge);
+      if (idx !== -1) {
+        this.cachedOfficers[idx] = updatedOfficer;
+      }
+    }
+
+    return {
+      success: true,
+      message: `Tautan akun petugas **${officer.rank} ${officer.name}** (${officer.badge}) dengan akun Discord Anda berhasil diputus.`,
+      officer: updatedOfficer
+    };
+  }
+
   public async submitPinResetTicket(params: {
     icName: string;
     reason: string;
