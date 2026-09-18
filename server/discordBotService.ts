@@ -1158,11 +1158,15 @@ class DiscordGatewayManager {
         // Helper: send interaction callback response to Discord
         const sendCallback = async (payload: any) => {
           try {
-            await fetch(`https://discord.com/api/v10/interactions/${interactionId}/${interactionToken}/callback`, {
+            const res = await fetch(`https://discord.com/api/v10/interactions/${interactionId}/${interactionToken}/callback`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(payload)
             });
+            if (!res.ok) {
+              const text = await res.text().catch(() => '');
+              console.error(`[Discord Gateway] Interaction callback HTTP ${res.status}:`, text);
+            }
           } catch (e: any) {
             console.warn('[Discord Gateway] Failed to send interaction callback:', e?.message || e);
           }
@@ -1809,12 +1813,12 @@ class DiscordGatewayManager {
           const withoutSymbol = commandText.slice(1).trim();
           const firstWord = (withoutSymbol.split(/\s+/)[0] || '').toLowerCase();
 
-          // 1. Namespace prefix: !hspd, /hspd, !mdt, /mdt, !bot, /bot
-          if (firstWord === 'hspd' || firstWord === 'mdt' || firstWord === 'bot') {
+          // 1. Namespace prefix: !hspd, /hspd, !bot, /bot
+          if (firstWord === 'hspd' || firstWord === 'bot') {
             isPrefixed = true;
             body = withoutSymbol.slice(firstWord.length).trim();
           } 
-          // 2. Direct command with ! or /: e.g. !update, /update, !fitur, /fitur, !config, /config
+          // 2. Direct command with ! or /: e.g. !mdt, /mdt, !update, /update, !fitur, /fitur, !config, /config
           else if (DIRECT_COMMANDS.has(firstWord)) {
             isPrefixed = true;
             body = withoutSymbol;
@@ -1830,7 +1834,7 @@ class DiscordGatewayManager {
         } else if (isDM) {
           isPrefixed = true;
           const firstWord = (commandText.split(/\s+/)[0] || '').toLowerCase();
-          if (firstWord === 'hspd' || firstWord === 'mdt' || firstWord === 'bot') {
+          if (firstWord === 'hspd' || firstWord === 'bot') {
             body = commandText.slice(firstWord.length).trim();
           } else {
             body = commandText;
@@ -3770,25 +3774,29 @@ class DiscordGatewayManager {
       const options = data.data?.options || [];
       const currentChannelId = data.channel_id;
 
-      // Determine permissions
+      // Determine permissions lazily so general commands respond in milliseconds
       const perms = BigInt(data.member?.permissions || '0');
       const isAdmin = (perms & BigInt(0x8)) !== BigInt(0) || // ADMINISTRATOR
                       (perms & BigInt(0x20)) !== BigInt(0) || // MANAGE_GUILD
                       (perms & BigInt(0x10)) !== BigInt(0); // MANAGE_CHANNELS
 
       let isOfficerAtasan = false;
-      let matchedOfficer: any = null;
-      try {
-        matchedOfficer = await discordRosterService.findOfficer({ discordId: discordUser.id, discordUsername: discordUser.username });
-        if (matchedOfficer) {
-          const r = (matchedOfficer.rank || '').toUpperCase();
-          if (r.includes('CHIEF') || r.includes('COMMANDER') || r.includes('CAPTAIN') || r.includes('LIEUTENANT') || r.includes('SERGEANT') || r.includes('ATASAN')) {
-            isOfficerAtasan = true;
+      let checkedOfficer = false;
+      const getCanConfigure = async () => {
+        if (isAdmin) return true;
+        if (checkedOfficer) return isOfficerAtasan;
+        checkedOfficer = true;
+        try {
+          const matched = await discordRosterService.findOfficer({ discordId: discordUser.id, discordUsername: discordUser.username });
+          if (matched) {
+            const r = (matched.rank || '').toUpperCase();
+            if (r.includes('CHIEF') || r.includes('COMMANDER') || r.includes('CAPTAIN') || r.includes('LIEUTENANT') || r.includes('SERGEANT') || r.includes('ATASAN')) {
+              isOfficerAtasan = true;
+            }
           }
-        }
-      } catch {}
-
-      const canConfigure = isAdmin || isOfficerAtasan;
+        } catch {}
+        return isOfficerAtasan;
+      };
 
       // Subcommand inside /hspd (e.g. /hspd help, /hspd update, etc.)
       const subCmd = options[0]?.type === 1 ? options[0].name.toLowerCase() : null;
@@ -3872,7 +3880,7 @@ class DiscordGatewayManager {
 
       // 6. SETCHANNEL (/hspd setchannel)
       if (effectiveCmd === 'setchannel') {
-        if (!canConfigure) {
+        if (!(await getCanConfigure())) {
           return await sendCallback({
             type: 4,
             data: {
@@ -3930,7 +3938,7 @@ class DiscordGatewayManager {
 
       // 7. SETPING (/hspd setping)
       if (effectiveCmd === 'setping') {
-        if (!canConfigure) {
+        if (!(await getCanConfigure())) {
           return await sendCallback({
             type: 4,
             data: {
@@ -3968,7 +3976,7 @@ class DiscordGatewayManager {
 
       // 8. UPDATE (/update or /hspd update)
       if (effectiveCmd === 'update' || effectiveCmd === 'fitur' || effectiveCmd === 'peningkatan' || effectiveCmd === 'bugfix') {
-        if (!canConfigure) {
+        if (!(await getCanConfigure())) {
           return await sendCallback({
             type: 4,
             data: {
@@ -4143,9 +4151,9 @@ class DiscordGatewayManager {
 
       // 17. MDT LINK & ACCOUNT BINDING (/mdt)
       if (effectiveCmd === 'mdt') {
-        const aksi = (effectiveOptions.find((o: any) => o.name === 'aksi')?.value || '').trim();
-        const petugas = (effectiveOptions.find((o: any) => o.name === 'petugas')?.value || '').trim();
-        const pin = (effectiveOptions.find((o: any) => o.name === 'pin')?.value || '').trim();
+        const aksi = String(effectiveOptions.find((o: any) => o.name === 'aksi')?.value || '').trim();
+        const petugas = String(effectiveOptions.find((o: any) => o.name === 'petugas')?.value || '').trim();
+        const pin = String(effectiveOptions.find((o: any) => o.name === 'pin')?.value || '').trim();
 
         const response = await this.generateMdtLinkResponse(discordUser, { aksi, petugas, pin });
         return await sendCallback({
@@ -4166,6 +4174,15 @@ class DiscordGatewayManager {
       });
     } catch (err: any) {
       console.error('[Discord Gateway] Error in handleSlashCommandInteraction:', err);
+      try {
+        await sendCallback({
+          type: 4,
+          data: {
+            flags: 64, // Ephemeral
+            content: '⚠️ Terjadi kendala saat memproses perintah slash. Silakan coba kembali.'
+          }
+        });
+      } catch {}
     }
   }
 

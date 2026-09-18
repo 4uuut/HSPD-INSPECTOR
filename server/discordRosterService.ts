@@ -204,10 +204,14 @@ class DiscordRosterService {
     const msg = String(err?.message || err || '').toLowerCase();
     const code = String(err?.code || '').toLowerCase();
     return (
-      msg.includes('quota exceeded') ||
+      msg.includes('quota') ||
       msg.includes('resource-exhausted') ||
+      msg.includes('resource_exhausted') ||
+      msg.includes('exhausted') ||
       code.includes('resource-exhausted') ||
-      code.includes('quota')
+      code.includes('resource_exhausted') ||
+      code.includes('quota') ||
+      code === '8'
     );
   }
 
@@ -332,7 +336,11 @@ class DiscordRosterService {
 
     try {
       const colRef = collection(this.db, 'roster');
-      const snap = await getDocs(colRef);
+      const fetchPromise = getDocs(colRef);
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Firestore read timeout: 800ms limit exceeded for Discord latency')), 800);
+      });
+      const snap = await Promise.race([fetchPromise, timeoutPromise]);
       snap.forEach(d => {
         const data = d.data() as OfficerRecord;
         if (data && data.name) {
@@ -343,11 +351,11 @@ class DiscordRosterService {
       // Reading succeeded, clear any quota cooldown
       this.quotaExceededUntil = 0;
     } catch (err: any) {
+      this.quotaExceededUntil = Date.now() + 30 * 60 * 1000; // 30 minute cooldown
       if (this.isQuotaError(err)) {
-        this.quotaExceededUntil = Date.now() + 10 * 60 * 1000; // 10 minute cooldown
-        console.info('[Discord Roster Service] ℹ️ Firestore quota limit reached. Falling back safely to local database & cache (10m cooldown).');
+        console.info('[Discord Roster Service] ℹ️ Firestore quota limit reached. Falling back safely to local database & cache (30m cooldown).');
       } else {
-        console.warn('[Discord Roster Service] Failed to read officers from Firestore:', err?.message || err);
+        console.warn('[Discord Roster Service] Firestore read timed out or failed, using local database:', err?.message || err);
       }
     }
 
