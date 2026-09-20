@@ -59,28 +59,24 @@ export interface SystemUpdatePayload {
 
 // Data pembaruan sistem terbaru untuk disiarkan otomatis oleh bot ke Discord
 export const LATEST_SYSTEM_UPDATE: SystemUpdatePayload = {
-  version: 'v3.3.0',
-  title: 'Pembaruan Sistem MDT HSPD - Otomatisasi Siaran Bot & Fitur Baru',
+  version: 'v3.4.0',
+  title: 'Pembaruan Sistem MDT HSPD - Perbaikan Duplikasi Roster, Daur Ulang Badge, & Arsip Pemecatan',
   newFeatures: [
-    'Otomatisasi Publikasi Pembaruan (Changelog): Bot otomatis menyiarkan pesan pembaruan fitur baru ke Discord tanpa perlu kirim manual',
-    'Dukungan Penuh Perintah Bot Discord dengan Simbol Awalan (!) & Garis Miring (/)',
-    '!pasal & /pasal: Pencarian pasal KUHP, rincian denda finansial, masa kurungan, & status penyitaan barang bukti',
-    '!hitung & /hitung: Kalkulator akumulasi vonis denda dan potongan/diskon denda otomatis',
-    '!bolo & /bolo: Pemantauan buronan aktif (APB) dan kendaraan DPO kepolisian',
-    '!lookup & /lookup: Pemeriksaan rekam jejak kriminal, lisensi, dan arsip tilang warga di database MDT',
-    '!duty & !roster: Pembaruan status dinas (10-8, 10-7, 10-6, Code 6) dan pemantauan personel bertugas',
-    '!sop: Akses buku saku 10-Codes radio darurat & sandi taktis kepolisian',
-    'Pembersihan tombol tautan eksternal pada seluruh pesan pembaruan Discord untuk tampilan lebih rapi'
+    'Daur Ulang & Reallokasi Nomor Badge Eks-Petugas: Nomor badge dari personel yang telah diberhentikan/dipecat kini dapat digunakan kembali oleh petugas lain atau pendaftar baru tanpa terblokir sistem',
+    'Pembersihan Data Roster Cloud Firestore: Sinkronisasi database cloud kini otomatis membersihkan dokumen usang dan dokumen duplikat dari riwayat terdahulu',
+    'Pengiriman Kredensial Otomatis via Bot PM & Webhook: Setelah data diperbarui oleh Atasan, kredensial login (UCP & PIN Baru) langsung terkirim secara aman ke inbox Discord personel',
+    'Dukungan Penuh Perintah Bot Discord dengan Simbol Awalan (!) & Garis Miring (/) untuk !pasal, !hitung, !bolo, !lookup, !duty, !roster, !sop'
   ],
   improvements: [
-    'Optimalisasi latensi respons Discord Gateway untuk seluruh perintah kepolisian',
-    'Penyelarasan registrasi Slash Commands global dan server Discord'
+    'Optimalisasi Algoritma Pencocokan Identitas Akun: Mencegah timbulnya entri akun ganda ketika Atasan mengubah nama IC, nomor badge, atau pangkat sekaligus',
+    'Peningkatan Keamanan Data Kredensial: Verifikasi sinkronisasi satu pintu antara database lokal, backend server, dan Cloud Firestore'
   ],
   bugFixes: [
-    'Perbaikan sinkronisasi pengumuman pembaruan sistem dan penentuan channel',
-    'Peningkatan kestabilan koneksi bot gateway 24/7'
+    'Perbaikan Bug Duplikasi Akun saat Edit Data & Simpan Perubahan: Tombol "Simpan Perubahan" kini memperbarui akun yang ada secara presisi tanpa menduplikasi data di roster anggota maupun cloud',
+    'Perbaikan Bug Arsip Pemecatan (Arsip Pecat): Menghapus riwayat pemecatan kini menghapus data secara permanen (hard delete) dari Cloud Firestore dan memori lokal tanpa memulihkan kembali (resurrect) data eks-petugas ke daftar roster aktif',
+    'Pembersihan Dokumen Stale Firestore: Penghapusan dokumen lama secara otomatis saat nomor badge atau nama petugas diperbarui'
   ],
-  extraNotes: 'Seluruh sistem pengumuman kini terintegrasi secara otomatis saat pembaruan diterapkan. Personel dapat langsung menggunakan perintah ! atau / di Discord.',
+  extraNotes: 'Pembaruan v3.4.0 telah aktif. Seluruh Atasan dan personel dapat mengelola roster anggota dan arsip pemecatan dengan stabil dan akurat.',
   mentionRole: '@everyone',
   authorName: 'HSPD High Command',
   authorRank: 'Chief of Police',

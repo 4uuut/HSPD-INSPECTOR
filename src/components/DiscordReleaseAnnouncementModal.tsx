@@ -28,39 +28,134 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
   const [activeTab, setActiveTab] = useState<'broadcast' | 'commands' | 'settings'>('broadcast');
 
   // Form State
-  const [version, setVersion] = useState('v3.3.0');
-  const [title, setTitle] = useState('Pembaruan Sistem MDT HSPD - Rekap Dinas & Peningkatan Bot');
-  const [headerText, setHeaderText] = useState('[ PENGUMUMAN PEMBARUAN SISTEM MDT HSPD ]');
+  const [version, setVersion] = useState('v3.4.0');
+  const [title, setTitle] = useState('Hotfix MDT HSPD - Pemulihan Akun Jackie Xianlao, Reset PIN Instan, PM Bot & UI HP/PC');
+  const [headerText, setHeaderText] = useState('[ PEMBERITAHUAN RESMI PEMBARUAN & PERBAIKAN SISTEM MDT HSPD ]');
   const [customDescription, setCustomDescription] = useState(
-    'Catatan rilis pembaruan perangkat lunak, penyempurnaan operasional kepolisian, serta perbaikan kestabilan dan performa Terminal Mobile Data Computer (MDC) HSPD.'
+    'Pembaruan sistem darurat: Akun pimpinan Jackie Xianlao telah dipulihkan secara penuh, sistem Lupa PIN langsung aktif seketika tanpa delay, bot Discord otomatis mengirim PM berisikan akun & PIN baru, dan tombol-tombol yang sebelumnya tidak muncul pada mode HP (Android) maupun PC kini telah dinormalkan.'
   );
-  const [embedColorHex, setEmbedColorHex] = useState('#00A8FF');
+  const [embedColorHex, setEmbedColorHex] = useState('#F59E0B');
 
   const [newFeatures, setNewFeatures] = useState<string[]>([
-    'Tombol Rekap Data Dinas Mingguan di Manajemen Anggota (Duty, Tilang, Sita Kendaraan, Kasus, & Eviden)',
-    'Ekspor Ringkasan Operasional Mingguan berformat Excel (.xlsx) dan Dokumen Cetak Resmi',
-    'Dukungan Penuh Perintah Bot Discord dengan Simbol Awalan (!) & Garis Miring (/)',
-    '!pasal & /pasal: Pencarian pasal KUHP, rincian denda finansial, masa kurungan, & status sita barang bukti',
-    '!hitung & /hitung: Kalkulator akumulasi vonis denda dan potongan/diskon otomatis',
-    '!bolo & /bolo: Pemantauan buronan aktif (APB) dan kendaraan DPO kepolisian',
-    '!lookup & /lookup: Pemeriksaan rekam jejak kriminal, lisensi, dan arsip tilang warga di database MDT',
-    '!duty & !roster: Pembaruan status dinas (10-8, 10-7, 10-6, Code 6) dan pemantauan personel bertugas'
+    'Pemulihan & Proteksi Akun Chief of Police Jackie Xianlao (#001) dengan imunitas status pemecatan',
+    'Aktivasi PIN Baru Seketika (Zero Delay): PIN yang baru di-reset langsung aktif detik itu juga untuk login ke MDT',
+    'Otomatisasi Bot PM Discord: Bot kini langsung mengirimkan Pesan Pribadi (PM / DM) berisi Akun Login, Badge, dan PIN Baru ke akun Discord petugas',
+    'Perbaikan Tampilan Mode HP (Android) & PC: Tombol CAD 911, menu drawer Semua Aplikasi, dan navigasi Pengaturan kini muncul sempurna'
   ]);
   const [improvements, setImprovements] = useState<string[]>([
-    'Perhitungan dinas otomatis menghitung sesi aktif berjalan tanpa menunggu logout',
-    'Otomatisasi pengumuman changelog bot dengan kata-kata dinamis menyesuaikan pembaruan terbaru',
-    'Optimalisasi latensi Discord Gateway 24/7 dan penataan pesan embed kepolisian'
+    'Verifikasi otentikasi berlapis: sinkronisasi real-time multi-storage lokal, riwayat tiket, dan database cloud',
+    'Akses Halaman Pengaturan (Settings) kini terbuka dan dapat diakses oleh seluruh tingkatan perwira patroli hingga komando',
+    'Pemberitahuan embed Discord dengan format pesan dinamis yang dapat diacak agar tidak monoton dan tidak duplikat dengan log server'
   ]);
   const [bugFixes, setBugFixes] = useState<string[]>([
-    'Perbaikan sinkronisasi channel broadcast pembaruan bot Discord',
-    'Perbaikan input issues (inp isu) dan kestabilan kalkulator denda vonis pidana'
+    'Perbaikan error tombol CAD 911 di ponsel yang sebelumnya tidak menampilkan halaman apapun',
+    'Perbaikan nomor lencana tertimpa atau terhapus saat pembaruan PIN login petugas',
+    'Penyelesaian runtime error database pada layanan roster dan otentikasi server'
   ]);
-  const [extraNotes, setExtraNotes] = useState('Seluruh jajaran personel kepolisian diwajibkan memeriksa rekapan dinas mingguan dan mencoba fitur perintah bot terbaru di Discord server HSPD.');
+  const [extraNotes, setExtraNotes] = useState('Bagi personel atau pimpinan yang sebelumnya terkendala login, silakan langsung login dengan PIN baru atau gunakan fitur Lupa PIN untuk menerima PM otomatis dari Bot.');
   const [mentionRole, setMentionRole] = useState('@everyone');
+  const [variationIndex, setVariationIndex] = useState(0);
+
+  // Randomize & vary wording so message is never identical to previous announcements
+  const shuffleAndVaryWording = () => {
+    const nextIdx = (variationIndex + 1) % 3;
+    setVariationIndex(nextIdx);
+
+    if (nextIdx === 0) {
+      setVersion('v3.4.0');
+      setTitle('Instruksi Resmi Komando: Pemulihan Akun, Reset PIN Mandiri & Sinkronisasi Bot');
+      setHeaderText('[ DIREKTIF RESMI KOMANDO TINGGI MDT KEPOLISIAN ]');
+      setCustomDescription('Diumumkan kepada seluruh jajaran personel High State Police Department bahwa sistem otentikasi, alur pembaruan PIN login, dan integrasi pengiriman kredensial via PM bot Discord telah diperbarui dan berjalan normal.');
+      setEmbedColorHex('#3B82F6');
+      setNewFeatures([
+        'Akun Pimpinan Jackie Xianlao (#001) telah dipulihkan secara penuh dengan status imunitas komando',
+        'Pengaktifan PIN Baru Seketika: Anggota yang selesai di-reset PIN dapat langsung login detik itu juga tanpa jeda',
+        'Layanan Bot PM Otomatis: Notifikasi privat Discord berisikan Nama UCP, Badge, dan PIN Baru langsung dikirim ke DM anggota',
+        'Normalisasi Tombol Antarmuka: Tombol CAD 911, menu drawer, dan preferensi pengaturan kini tampil sempurna di Android dan Desktop'
+      ]);
+      setImprovements([
+        'Multi-layer fallback security: Akun pimpinan dan anggota diproteksi dari kehilangan akses mendadak',
+        'Penyegaran template pesan bot changelog agar unik, komunikatif, dan tidak monoton',
+        'Akselerasi respon database server saat jam sibuk patroli'
+      ]);
+      setBugFixes([
+        'Perbaikan blank screen pada tombol CAD 911 dan drawer aplikasi mobile',
+        'Perbaikan duplikasi badge saat pembaruan PIN di database internal'
+      ]);
+      setExtraNotes('Seluruh personel yang bertugas harap memeriksa kembali status akun masing-masing.');
+    } else if (nextIdx === 1) {
+      setVersion('v3.4.0-Patch1');
+      setTitle('Pemberitahuan Patch Sistem: Zero-Delay PIN Reset, Bot DM Delivery & Mobile Fix');
+      setHeaderText('[ PATCH KEAMANAN & OPERASIONAL INFRASTRUKTUR MDT ]');
+      setCustomDescription('Laporan implementasi perbaikan infrastruktur teknis Terminal MDT mencakup pemulihan akun penting, sinkronisasi kredensial instan, webhook PM bot, serta stabilitas antarmuka pengguna di berbagai resolusi layar.');
+      setEmbedColorHex('#10B981');
+      setNewFeatures([
+        'Instant Credentials Push: Bot Discord langsung mengirimkan DM berisi Nama Karakter, Badge & PIN baru saat pengajuan disetujui',
+        'Active PIN Auto-Grant: PIN baru otomatis diterapkan ke database lokal dan server secara simultan',
+        'Restorasi Akun Jackie Xianlao: Perlindungan integritas data Chief of Police dari status non-aktif',
+        'UI Mobile Responsive Fix: Perbaikan navigasi tombol CAD 911 dan drawer Semua Aplikasi di HP/PC'
+      ]);
+      setImprovements([
+        'Penyempurnaan algoritma pencocokan akun (Account Matcher) dengan toleransi panggilan nama dan badge',
+        'Optimalisasi memori peramban dan penanganan timeout Firestore',
+        'Fitur variasi otomatis pengumuman Discord changelog'
+      ]);
+      setBugFixes([
+        'Mengatasi kendala halaman kosong saat menekan tombol CAD 911 di Android MDT',
+        'Memperbaiki inkonsistensi penulisan badge pada saat penggantian kata sandi'
+      ]);
+      setExtraNotes('Hubungi Supervisor atau Atasan jika Anda memerlukan bantuan sinkronisasi akun dinas.');
+    } else {
+      setVersion('v3.4.0-Live');
+      setTitle('Pemberitahuan Lapangan: Fitur Lupa PIN Otomatis & Pembaruan Tampilan MDT');
+      setHeaderText('[ PENGUMUMAN SEGERA UNTUK SELURUH PERSONEL KEPOLISIAN ]');
+      setCustomDescription('Informasi penting terkait perbaikan fitur Lupa PIN, pengiriman kredensial via PM Bot Discord, serta perbaikan tombol-tombol yang sebelumnya tidak muncul di HP maupun PC.');
+      setEmbedColorHex('#F59E0B');
+      setNewFeatures([
+        'Sekarang Lupa PIN langsung aktif! Setelah disahkan atasan atau sistem, Anda bisa langsung login tanpa hambatan',
+        'Bot Discord akan langsung kirim PM (Direct Message) berisi detail akun dan PIN baru Anda',
+        'Akun Jackie Xianlao telah dipulihkan dan dapat login kembali secara normal',
+        'Semua tombol di HP dan PC (termasuk CAD 911 dan Setting) sekarang sudah berfungsi dan muncul normal'
+      ]);
+      setImprovements([
+        'Kemudahan akses menu pengaturan untuk semua tingkatan rank',
+        'Pesan pengumuman bot kini bervariasi dan dapat diacak agar tidak membosankan di Discord',
+        'Koneksi bot Discord lebih stabil dan responsif'
+      ]);
+      setBugFixes([
+        'Masalah layar kosong saat klik CAD 911 di ponsel telah teratasi sepenuhnya',
+        'Bug nomor lencana berubah saat reset PIN telah diperbaiki'
+      ]);
+      setExtraNotes('Silakan login ke MDT sekarang dan manfaatkan fitur-fitur yang telah diperbarui!');
+    }
+  };
 
   // Preset Template loader so messages are tailored and never the same
-  const applyPresetTemplate = (type: 'weekly_recap_bot' | 'bugfix_security' | 'penal_calculator' | 'patrol_update') => {
-    if (type === 'weekly_recap_bot') {
+  const applyPresetTemplate = (type: 'pin_reset_and_ui_hotfix' | 'weekly_recap_bot' | 'bugfix_security' | 'penal_calculator' | 'patrol_update') => {
+    if (type === 'pin_reset_and_ui_hotfix') {
+      setVersion('v3.4.0');
+      setTitle('Hotfix MDT HSPD - Pemulihan Akun Jackie Xianlao, Reset PIN Instan, PM Bot & UI HP/PC');
+      setHeaderText('[ PEMBERITAHUAN RESMI PEMBARUAN & PERBAIKAN SISTEM MDT HSPD ]');
+      setCustomDescription('Pembaruan sistem darurat: Akun pimpinan Jackie Xianlao telah dipulihkan secara penuh, sistem Lupa PIN langsung aktif seketika tanpa delay, bot Discord otomatis mengirim PM berisikan akun & PIN baru, dan tombol-tombol yang sebelumnya tidak muncul pada mode HP (Android) maupun PC kini telah dinormalkan.');
+      setEmbedColorHex('#F59E0B');
+      setNewFeatures([
+        'Pemulihan & Proteksi Akun Chief of Police Jackie Xianlao (#001) dengan imunitas status pemecatan',
+        'Aktivasi PIN Baru Seketika (Zero Delay): PIN yang baru di-reset langsung aktif detik itu juga untuk login ke MDT',
+        'Otomatisasi Bot PM Discord: Bot kini langsung mengirimkan Pesan Pribadi (PM / DM) berisi Akun Login, Badge, dan PIN Baru ke akun Discord petugas',
+        'Perbaikan Tampilan Mode HP (Android) & PC: Tombol CAD 911, menu drawer Semua Aplikasi, dan navigasi Pengaturan kini muncul sempurna'
+      ]);
+      setImprovements([
+        'Verifikasi otentikasi berlapis: sinkronisasi real-time multi-storage lokal, riwayat tiket, dan database cloud',
+        'Akses Halaman Pengaturan (Settings) kini terbuka dan dapat diakses oleh seluruh tingkatan perwira patroli hingga komando',
+        'Pemberitahuan embed Discord dengan format pesan dinamis yang dapat diacak agar tidak monoton dan tidak duplikat dengan log server'
+      ]);
+      setBugFixes([
+        'Perbaikan error tombol CAD 911 di ponsel yang sebelumnya tidak menampilkan halaman apapun',
+        'Perbaikan nomor lencana tertimpa atau terhapus saat pembaruan PIN login petugas',
+        'Penyelesaian runtime error database pada layanan roster dan otentikasi server'
+      ]);
+      setExtraNotes('Bagi personel atau pimpinan yang sebelumnya terkendala login, silakan langsung login dengan PIN baru atau gunakan fitur Lupa PIN untuk menerima PM otomatis dari Bot.');
+    } else if (type === 'weekly_recap_bot') {
       setVersion('v3.3.0');
       setTitle('Pembaruan Sistem MDT HSPD - Rekap Dinas & Integrasi Bot');
       setHeaderText('[ PENGUMUMAN PEMBARUAN SISTEM MDT HSPD ]');
@@ -373,6 +468,22 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
                   <span className="text-[11px] text-slate-400">Klik untuk memuat format rilis baru</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => applyPresetTemplate('pin_reset_and_ui_hotfix')}
+                    className="px-3 py-1.5 rounded-lg bg-amber-950/80 hover:bg-amber-900 text-amber-200 border border-amber-500/80 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm cursor-pointer ring-1 ring-amber-500/30"
+                  >
+                    <span>🔥 Hotfix Akun, PIN & UI HP/PC</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={shuffleAndVaryWording}
+                    className="px-3 py-1.5 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 text-cyan-200 border border-cyan-500/80 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm cursor-pointer ring-1 ring-cyan-500/30"
+                    title="Acak kata-kata agar pesan unik dan tidak duplikat dengan log di Discord"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>🎲 Variasikan / Acak Kata-kata (Anti-Duplikat)</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => applyPresetTemplate('weekly_recap_bot')}

@@ -2806,6 +2806,7 @@ export async function sendOfficerDirectMessageViaBot(params: {
 
 // Alias for backwards compatibility
 export const sendDiscordBotDirectMessage = sendOfficerDirectMessageViaBot;
+export const sendDirectMessageViaBot = sendOfficerDirectMessageViaBot;
 
 /**
  * Send official Bot Direct Message (PM) notifying officer that their PIN has been changed

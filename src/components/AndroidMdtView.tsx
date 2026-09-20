@@ -283,17 +283,17 @@ export const AndroidMdtView: React.FC<Props> = ({
         color: 'from-amber-600 to-yellow-700',
         badge: 'COMMAND',
         badgeColor: 'bg-amber-950 text-amber-300 border-amber-600'
-      },
-      { 
-        id: 'settings', 
-        title: 'Setting & Otoritas Komando', 
-        desc: 'Branding, Webhook, OTP, PIN & Export Absen',
-        icon: Settings, 
-        color: 'from-amber-700 to-yellow-900',
-        badge: 'SETTING',
-        badgeColor: 'bg-amber-950 text-amber-300 border-amber-600'
       }
-    ] : [])
+    ] : []),
+    { 
+      id: 'settings', 
+      title: isHighRank ? 'Setting & Otoritas Komando' : 'Pengaturan & Preferensi', 
+      desc: isHighRank ? 'Branding, Webhook, OTP, PIN & Export Absen' : 'Tema, Tampilan, Kredensial & Audio',
+      icon: Settings, 
+      color: 'from-amber-700 to-yellow-900',
+      badge: isHighRank ? 'COMMAND' : 'SISTEM',
+      badgeColor: 'bg-amber-950 text-amber-300 border-amber-600'
+    }
   ];
 
   const handleSelectApp = (id: string) => {

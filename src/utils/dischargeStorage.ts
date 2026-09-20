@@ -1,5 +1,5 @@
 import { OfficerAccount } from '../types';
-import { pushToFirestore } from '../services/firebaseRealtimeSync';
+import { pushToFirestore, deleteFromFirestore } from '../services/firebaseRealtimeSync';
 
 export interface DischargedOfficerEntry {
   id: string;
@@ -14,8 +14,16 @@ export interface DischargedOfficerEntry {
   dischargedByRank?: string;
 }
 
+export interface PurgedOfficerRecord {
+  id?: string;
+  badge?: string;
+  name?: string;
+  purgedAt: number;
+}
+
 export const DISCHARGED_STORAGE_KEY = 'hspd_discharged_officers_v1';
 export const DISCHARGED_STORAGE_BACKUP_KEY = 'hspd_discharged_officers_backup';
+export const PURGED_OFFICERS_STORAGE_KEY = 'hspd_permanently_purged_officers_v1';
 
 function normalizeBadge(badge: string): string {
   return (badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
@@ -23,6 +31,104 @@ function normalizeBadge(badge: string): string {
 
 function normalizeName(name: string): string {
   return (name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * Get all permanently purged officer records (officers whose records were erased permanently).
+ * These officers must NEVER be seeded or brought back to the active roster.
+ */
+export function getPermanentlyPurgedOfficers(): PurgedOfficerRecord[] {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    return [];
+  }
+  try {
+    const raw = localStorage.getItem(PURGED_OFFICERS_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return [];
+}
+
+/**
+ * Mark an officer as permanently purged from the police department.
+ */
+export function addPermanentlyPurgedOfficer(officer: { id?: string; badge?: string; name?: string }): void {
+  if (!officer) return;
+  const targetId = (officer.id || '').trim();
+  const targetName = (officer.name || '').trim();
+  const targetBadge = (officer.badge || '').trim();
+  if (!targetId && !targetName && !targetBadge) return;
+
+  // Protect Chief of Police Jackie Xianlao
+  if (normalizeName(targetName).includes('jackie')) return;
+
+  try {
+    const list = getPermanentlyPurgedOfficers();
+    const cleanName = normalizeName(targetName);
+    const cleanId = targetId.toLowerCase();
+
+    const exists = list.some(item => {
+      if (cleanId && item.id && item.id.toLowerCase() === cleanId) return true;
+      if (cleanName && item.name && normalizeName(item.name) === cleanName) return true;
+      return false;
+    });
+
+    if (!exists) {
+      const updated = [
+        ...list,
+        {
+          id: targetId || undefined,
+          name: targetName || undefined,
+          badge: targetBadge || undefined,
+          purgedAt: Date.now()
+        }
+      ];
+      localStorage.setItem(PURGED_OFFICERS_STORAGE_KEY, JSON.stringify(updated));
+      pushToFirestore('SYSTEM_CONFIGS', {
+        id: 'purged_officers',
+        key: 'purged_officers',
+        data: { list: updated },
+        updatedAt: Date.now()
+      }).catch(() => {});
+    }
+  } catch {}
+}
+
+/**
+ * Check if an officer was permanently purged.
+ * Matches strictly by permanent ID or IC Name.
+ * NEVER matches solely by badge so that the badge can be freely reassigned to another person.
+ */
+export function isOfficerPermanentlyPurged(
+  officer: { id?: string; badge?: string; name?: string },
+  purgedList?: PurgedOfficerRecord[]
+): boolean {
+  if (!officer) return false;
+  const targetId = (officer.id || '').toLowerCase().trim();
+  const targetName = normalizeName(officer.name || '');
+
+  if (targetName.includes('jackie xianlao') || targetName === 'jackie' || targetId.includes('jackie-xianlao')) {
+    return false;
+  }
+
+  const list = purgedList || getPermanentlyPurgedOfficers();
+  if (!list || list.length === 0) return false;
+
+  for (const item of list) {
+    if (targetId && item.id && item.id.toLowerCase().trim() === targetId) {
+      return true;
+    }
+    const itemName = normalizeName(item.name || '');
+    if (targetName && itemName) {
+      if (targetName === itemName) return true;
+      if (targetName.replace(/\s+/g, '') === itemName.replace(/\s+/g, '')) return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -84,6 +190,7 @@ export function saveDischargedOfficers(list: DischargedOfficerEntry[], syncToClo
 /**
  * Checks if a given officer has been officially discharged/pecat.
  * Matches by officer ID, badge number (normalizing digits), or officer full name.
+ * If names differ, does NOT match by badge alone to allow badge reuse!
  */
 export function isOfficerDischarged(
   officer: { id?: string; badge?: string; name?: string },
@@ -122,6 +229,7 @@ export function isOfficerDischarged(
 
     // 3. Badge digit match (e.g. '#002' equals '002' or '2')
     // CRITICAL: Only match badge if names are NOT conflicting!
+    // If a new or existing officer with a different name uses this badge, they are NOT discharged!
     const hasConflictingNames = Boolean(
       entryName && targetName &&
       entryName !== targetName &&
@@ -179,6 +287,9 @@ export function restoreDischargedOfficer(identifier: string): DischargedOfficerE
 
 /**
  * Delete a specific discharged officer record from history/archive.
+ * CRITICAL FIX: When deleting history, the officer is PERMANENTLY purged.
+ * Their record is NOT moved back to active roster; they are added to permanently purged
+ * so that official roster baseline seeds NEVER re-add them.
  */
 export function deleteDischargedOfficerHistory(target: string | DischargedOfficerEntry): DischargedOfficerEntry[] {
   const current = getDischargedOfficers();
@@ -186,10 +297,13 @@ export function deleteDischargedOfficerHistory(target: string | DischargedOffice
   let targetBadge = '';
   let targetName = '';
 
+  let matchedEntry: DischargedOfficerEntry | undefined;
+
   if (typeof target === 'object' && target !== null) {
     targetId = (target.id || '').trim().toLowerCase();
     targetBadge = normalizeBadge(target.badge || '');
     targetName = normalizeName(target.name || '');
+    matchedEntry = target;
   } else {
     const str = typeof target === 'string' ? target : '';
     targetId = str.trim().toLowerCase();
@@ -198,20 +312,78 @@ export function deleteDischargedOfficerHistory(target: string | DischargedOffice
   }
 
   const updated = current.filter(item => {
-    if (targetId && item.id && item.id.toLowerCase() === targetId) return false;
-    if (targetBadge && normalizeBadge(item.badge) === targetBadge) return false;
-    if (targetName && normalizeName(item.name) === targetName) return false;
+    const isIdMatch = Boolean(targetId && item.id && item.id.toLowerCase() === targetId);
+    const isBadgeMatch = Boolean(targetBadge && normalizeBadge(item.badge) === targetBadge);
+    const isNameMatch = Boolean(targetName && normalizeName(item.name) === targetName);
+
+    if (isIdMatch || (isBadgeMatch && isNameMatch) || (isNameMatch && !targetBadge)) {
+      if (!matchedEntry) matchedEntry = item;
+      return false;
+    }
     return true;
   });
 
+  // Save updated discharged list
   saveDischargedOfficers(updated, true);
+
+  // Permanently purge so baseline seeds never recreate this officer
+  const purgePayload = {
+    id: matchedEntry?.id || targetId || undefined,
+    badge: matchedEntry?.badge || targetBadge || undefined,
+    name: matchedEntry?.name || targetName || undefined
+  };
+  addPermanentlyPurgedOfficer(purgePayload);
+
+  // Delete from Cloud Firestore ROSTER collection
+  if (purgePayload.id) {
+    deleteFromFirestore('ROSTER', purgePayload.id).catch(() => {});
+  }
+  if (purgePayload.badge) {
+    const cleanB = normalizeBadge(purgePayload.badge);
+    deleteFromFirestore('ROSTER', `officer_${cleanB}`).catch(() => {});
+    deleteFromFirestore('ROSTER', cleanB).catch(() => {});
+  }
+
+  // Remove from all local roster storage keys
+  const ROSTER_KEYS = ['hspd_roster_database_v5', 'hspd_roster_database_v4', 'hspd_roster_database_v3', 'hspd_roster_database_v2', 'hspd_roster_accounts_v1'];
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    ROSTER_KEYS.forEach(key => {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            const filteredRoster = parsed.filter((o: any) => {
+              if (purgePayload.id && o.id && o.id.toLowerCase() === purgePayload.id.toLowerCase()) return false;
+              if (purgePayload.name && o.name && normalizeName(o.name) === normalizeName(purgePayload.name)) return false;
+              return true;
+            });
+            localStorage.setItem(key, JSON.stringify(filteredRoster));
+          }
+        }
+      } catch {}
+    });
+    window.dispatchEvent(new Event('hspd-roster-updated'));
+  }
+
   return updated;
 }
 
 /**
- * Clear all discharged officer history records from the archive.
+ * Clear all discharged officer history records from the archive permanently.
+ * All currently discharged officers are moved to permanently purged so they never reappear in roster.
  */
 export function clearAllDischargedOfficersHistory(): DischargedOfficerEntry[] {
+  const current = getDischargedOfficers();
+  current.forEach(item => {
+    addPermanentlyPurgedOfficer(item);
+    if (item.id) deleteFromFirestore('ROSTER', item.id).catch(() => {});
+    if (item.badge) {
+      const cleanB = normalizeBadge(item.badge);
+      deleteFromFirestore('ROSTER', `officer_${cleanB}`).catch(() => {});
+    }
+  });
+
   saveDischargedOfficers([], true);
   return [];
 }

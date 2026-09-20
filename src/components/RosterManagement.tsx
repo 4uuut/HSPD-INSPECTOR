@@ -1065,6 +1065,7 @@ export const RosterManagement: React.FC<Props> = ({
 
     const updated: OfficerAccount = {
       ...editingOfficer,
+      id: editingOfficer.id,
       name: trimmedName,
       badge: finalBadge,
       rank: newRank,
@@ -1075,10 +1076,6 @@ export const RosterManagement: React.FC<Props> = ({
       promotedBy: promotedByText,
       _updatedAt: Date.now()
     };
-
-    // Update officer account in roster storage, Firestore and migrate active duty
-    updateOfficerAccountInRoster(updated, editingOfficer);
-    onUpdateOfficer(updated, editingOfficer);
 
     let dmResultNotice = '';
 

@@ -12,7 +12,7 @@ import {
   rejectPinResetRequest, 
   playPoliceChime 
 } from '../utils/pinResetStorage';
-import { sendPinResetResolvedWebhookToDiscord } from '../utils/discordWebhook';
+import { sendPinResetResolvedWebhookToDiscord, sendDirectMessageViaBot } from '../utils/discordWebhook';
 
 interface Props {
   currentOfficer: OfficerProfile | null;
@@ -117,6 +117,25 @@ export const PinResetRealtimeNotifier: React.FC<Props> = ({
         resolvedByRank: currentOfficer.rank,
         notes: `Disetujui langsung melalui Notifikasi Realtime Atasan.`
       });
+
+      // 4. Send PM Bot to officer's Discord with credentials & new PIN
+      const targetDiscord = req.discordTag || req.officerName;
+      if (targetDiscord) {
+        sendDirectMessageViaBot({
+          discordUsername: targetDiscord,
+          officerName: req.officerName,
+          badge: req.officerBadge,
+          rank: req.officerRank,
+          pin: assignedPin,
+          messageType: 'credentials',
+          embedTitle: '🔐 Kredensial & PIN Baru Akun MDT Kepolisian HSPD',
+          embedDescription: `Halo **${req.officerName}**! Permintaan reset PIN login Anda telah disetujui oleh Atasan (**${currentOfficer.rank} ${currentOfficer.name}**).\n\nPIN baru Anda telah **langsung aktif seketika** dan dapat digunakan untuk login ke Terminal MDT.`,
+          customNote: `PIN Baru: ${assignedPin} (Langsung Aktif). Harap simpan kredensial ini dan jaga kerahasiaannya.`,
+          registeredBy: currentOfficer.name,
+          registeredByRank: currentOfficer.rank,
+          registeredByBadge: currentOfficer.badge
+        }).catch(dmErr => console.warn('Bot DM error on quick accept notifier:', dmErr));
+      }
 
       setDismissedIds(prev => new Set(prev).add(req.id));
       setActiveAlert(null);

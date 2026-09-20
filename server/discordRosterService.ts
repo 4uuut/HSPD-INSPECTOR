@@ -687,6 +687,90 @@ class DiscordRosterService {
   }
 
   /**
+   * Memperbarui seluruh data akun petugas (nama, badge, pangkat, divisi, pin) secara atomik
+   * dan membersihkan entri lama agar tidak terduplikasi.
+   */
+  public async updateOfficer(params: {
+    originalBadge?: string;
+    originalName?: string;
+    originalId?: string;
+    officer: OfficerRecord;
+  }): Promise<{ success: boolean; message: string; officer?: OfficerRecord }> {
+    const { originalBadge, originalName, originalId, officer } = params;
+    if (!officer || !officer.name || !officer.badge) {
+      return { success: false, message: 'Data petugas tidak lengkap.' };
+    }
+
+    const cleanOrigBadge = (originalBadge || '').trim();
+    const cleanOrigName = (originalName || '').trim().toLowerCase();
+
+    // 1. Bersihkan backup lokal dari entri lama dan masukkan data terbaru
+    try {
+      let list: OfficerRecord[] = [];
+      if (fs.existsSync(LOCAL_ROSTER_BACKUP_PATH)) {
+        list = JSON.parse(fs.readFileSync(LOCAL_ROSTER_BACKUP_PATH, 'utf-8'));
+      }
+
+      // Filter out any entries matching the old ID, old badge, old name, or new badge/name
+      list = list.filter(o => {
+        if (originalId && o.id && o.id.toLowerCase() === originalId.toLowerCase()) return false;
+        if (officer.id && o.id && o.id.toLowerCase() === officer.id.toLowerCase()) return false;
+        if (cleanOrigBadge && o.badge && o.badge.toLowerCase() === cleanOrigBadge.toLowerCase()) return false;
+        if (cleanOrigName && o.name && o.name.toLowerCase() === cleanOrigName) return false;
+        if (o.badge && o.badge.toLowerCase() === officer.badge.toLowerCase()) return false;
+        if (o.name && o.name.toLowerCase() === officer.name.toLowerCase()) return false;
+        return true;
+      });
+
+      list.unshift(officer);
+      fs.writeFileSync(LOCAL_ROSTER_BACKUP_PATH, JSON.stringify(list, null, 2), 'utf-8');
+
+      // Update in-memory cache
+      this.cachedOfficers = list;
+      this.lastCacheFetchTime = Date.now();
+    } catch (e) {
+      console.warn('[Discord Roster Service] Error updating local roster backup:', e);
+    }
+
+    // 2. Sinkronkan ke Firestore: hapus dokumen lama jika ID atau badge berubah
+    this.initDb();
+    if (this.db && Date.now() >= this.quotaExceededUntil) {
+      try {
+        const staleDocs: string[] = [];
+        if (originalId && originalId !== officer.id) staleDocs.push(originalId);
+        if (cleanOrigBadge && cleanOrigBadge.toLowerCase() !== officer.badge.toLowerCase()) {
+          const rawB = cleanOrigBadge.replace(/[^a-zA-Z0-9_-]/g, '');
+          if (rawB) {
+            staleDocs.push(`officer_${rawB}`);
+            staleDocs.push(rawB);
+          }
+        }
+        for (const sDoc of staleDocs) {
+          try {
+            const staleRef = doc(this.db, 'roster', sDoc);
+            await deleteDoc(staleRef);
+          } catch {}
+        }
+
+        // Simpan dokumen baru
+        const docKey = officer.id || this.sanitizeDocId(officer.badge);
+        const docRef = doc(this.db, 'roster', docKey);
+        await setDoc(docRef, officer, { merge: true });
+      } catch (err: any) {
+        if (this.isQuotaError(err)) {
+          this.quotaExceededUntil = Date.now() + 10 * 60 * 1000;
+        }
+      }
+    }
+
+    return {
+      success: true,
+      message: `Data petugas ${officer.name} (${officer.badge}) berhasil diperbarui tanpa duplikasi!`,
+      officer
+    };
+  }
+
+  /**
    * Menautkan akun petugas MDT (berdasarkan Nama/Badge dan PIN) ke akun Discord pengguna
    */
   public async linkOfficerToDiscordUser(params: {
@@ -875,6 +959,24 @@ class DiscordRosterService {
       message: `Permohonan Lupa Password untuk ${cleanName} berhasil dikirim ke Komando Tinggi MDT.`,
       ticketId
     };
+  }
+
+  public async getResolvedPinResetRequests(): Promise<any[]> {
+    if (!this.db || Date.now() < this.quotaExceededUntil) return [];
+    try {
+      const colRef = collection(this.db, 'pin_reset_requests');
+      const snap = await getDocs(colRef);
+      const list: any[] = [];
+      snap.forEach(d => {
+        list.push({ id: d.id, ...d.data() });
+      });
+      return list;
+    } catch (err: any) {
+      if (this.isQuotaError(err)) {
+        this.quotaExceededUntil = Date.now() + 10 * 60 * 1000;
+      }
+      return [];
+    }
   }
 
   public async sendDirectMessageToUser(

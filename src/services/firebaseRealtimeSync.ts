@@ -13,7 +13,7 @@ import {
 import { db } from '../firebase';
 import { mergeWithOfficialRoster, HSPD_OFFICIAL_ROSTER } from '../data/hspdOfficialRoster';
 import { isAtasanRank } from '../types';
-import { isOfficerDischarged, getDischargedOfficers } from '../utils/dischargeStorage';
+import { isOfficerDischarged, getDischargedOfficers, isOfficerPermanentlyPurged, getPermanentlyPurgedOfficers } from '../utils/dischargeStorage';
 import { buildApiUrl, safeFetchJson } from '../utils/discordWebhook';
 
 export interface FirebaseSyncStatus {
@@ -503,6 +503,34 @@ export async function deleteFromFirestore(
   }
 }
 
+/**
+ * Completely purges all documents in the Firestore ROSTER collection.
+ * This frees up all badge numbers and removes any duplicate/stale officer records in the cloud.
+ */
+export async function clearCloudRosterCollection(): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    const colRef = collection(db, 'roster');
+    const snap = await getDocs(colRef);
+    if (snap.empty) {
+      return { success: true, count: 0 };
+    }
+
+    const batch = writeBatch(db);
+    let count = 0;
+    snap.forEach(d => {
+      batch.delete(d.ref);
+      count++;
+    });
+
+    await batch.commit();
+    console.log(`[FirebaseSync] 🧹 Successfully purged ${count} officer documents from Cloud Firestore ROSTER collection.`);
+    return { success: true, count };
+  } catch (err: any) {
+    console.error('[FirebaseSync] Failed to clear cloud roster collection:', err);
+    return { success: false, count: 0, error: err?.message || String(err) };
+  }
+}
+
 // Pull latest records directly from Firestore collection
 export async function pullLatestFromFirestore<T = any>(collectionKey: CollectionKey): Promise<T[] | null> {
   const config = SYNC_COLLECTIONS[collectionKey];
@@ -909,24 +937,46 @@ export function initRealtimeFirebaseSync() {
 
         const items: any[] = [];
         const dischargedList = key === 'ROSTER' ? getDischargedOfficers() : [];
+        const purgedList = key === 'ROSTER' ? getPermanentlyPurgedOfficers() : [];
         const staleDischargedDocIds: string[] = [];
         const staleDuplicateDocIds: string[] = [];
         const seenOfficersByName = new Map<string, { docId: string; updatedAt: number; index: number }>();
+        const seenOfficersById = new Map<string, { docId: string; updatedAt: number; index: number }>();
 
         snapshot.forEach((d) => {
           const data = d.data();
           if (key === 'ROSTER') {
             const officerObj: any = { ...data, id: data.id || d.id };
-            // If officer was discharged, do NOT include them and immediately purge from Firestore
-            if (isOfficerDischarged(officerObj, dischargedList)) {
+            // If officer was discharged or permanently purged, do NOT include them and immediately purge from Firestore
+            if (isOfficerDischarged(officerObj, dischargedList) || isOfficerPermanentlyPurged(officerObj, purgedList)) {
               staleDischargedDocIds.push(d.id);
               return;
+            }
+
+            const currentUpdated = officerObj._updatedAt || officerObj.registeredAt || 0;
+            const officerId = (officerObj.id || '').toLowerCase().trim();
+
+            // Detect duplicate by officer ID
+            if (officerId) {
+              if (seenOfficersById.has(officerId)) {
+                const prev = seenOfficersById.get(officerId)!;
+                if (currentUpdated >= prev.updatedAt) {
+                  staleDuplicateDocIds.push(prev.docId);
+                  items[prev.index] = data;
+                  seenOfficersById.set(officerId, { docId: d.id, updatedAt: currentUpdated, index: prev.index });
+                  return;
+                } else {
+                  staleDuplicateDocIds.push(d.id);
+                  return;
+                }
+              } else {
+                seenOfficersById.set(officerId, { docId: d.id, updatedAt: currentUpdated, index: items.length });
+              }
             }
 
             // Detect and auto-clean duplicate documents in Firestore for the same officer name
             const normName = (officerObj.name || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
             if (normName) {
-              const currentUpdated = officerObj._updatedAt || officerObj.registeredAt || 0;
               if (seenOfficersByName.has(normName)) {
                 const prev = seenOfficersByName.get(normName)!;
                 if (currentUpdated >= prev.updatedAt) {

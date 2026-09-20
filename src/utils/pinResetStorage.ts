@@ -2,7 +2,9 @@ import { PinResetRequest, PinResetStatus, OfficerProfile, OfficerAccount, isSupe
 import { 
   sendPinResetResolvedWebhookToDiscord, 
   sendPinResetAutoGrantedWebhookToDiscord, 
-  sendPinResetRequestToDiscord 
+  sendPinResetRequestToDiscord,
+  sendDirectMessageViaBot,
+  buildApiUrl
 } from './discordWebhook';
 import { getAllOfficersDutyRegistry, migrateOfficerDutyBadge } from './officerDutyStorage';
 import { pushAllToFirestore, pushToFirestore, deleteFromFirestore } from '../services/firebaseRealtimeSync';
@@ -137,6 +139,14 @@ export function isOfficerMatch(officer: OfficerAccount, searchIdentifier: string
     return true;
   }
 
+  // 7. Explicit Jackie Xianlao matching (Chief of Police #001)
+  if (
+    (rawId === 'jackie' || rawId === 'jackie xianlao' || rawId.includes('jackie')) &&
+    (rawName.includes('jackie') || (officer.id && officer.id.toLowerCase().includes('jackie')))
+  ) {
+    return true;
+  }
+
   return false;
 }
 
@@ -177,7 +187,7 @@ export function saveRosterToStorage(updatedRoster: OfficerAccount[]): OfficerAcc
 
 /**
  * Centrally updates an officer's PIN in the roster, persists to all localStorage keys,
- * broadcasts the update event, and pushes the updated roster to Cloud Firestore.
+ * broadcasts the update event, and pushes the updated roster to Cloud Firestore and Server API.
  */
 export function updateOfficerPinInRoster(
   badgeOrName: string,
@@ -197,6 +207,8 @@ export function updateOfficerPinInRoster(
     name: officerName || badgeOrName
   };
 
+  const isBadgeString = (str?: string) => Boolean(str && (str.startsWith('#') || /^\d+$/.test(str.replace(/[^0-9]/g, ''))));
+
   const updatedRoster = currentRoster.map(officer => {
     if (
       (officerId && officer.id && officer.id.toLowerCase().trim() === officerId.toLowerCase().trim()) ||
@@ -205,16 +217,48 @@ export function updateOfficerPinInRoster(
       (officerName && isOfficerMatch(officer, officerName))
     ) {
       updated = true;
+      const safeBadge = isBadgeString(badgeOrName) ? badgeOrName : officer.badge;
+      const safeName = (officerName && !isBadgeString(officerName)) ? officerName : officer.name;
       return {
         ...officer,
-        name: officerName || officer.name,
-        badge: badgeOrName || officer.badge,
+        name: safeName,
+        badge: safeBadge,
         pin: trimmedPin,
         _updatedAt: Date.now()
       };
     }
     return officer;
   });
+
+  // If officer was not present in current dynamic storage, check HSPD_OFFICIAL_ROSTER baseline (e.g. Jackie Xianlao)
+  if (!updated) {
+    const candidate = HSPD_OFFICIAL_ROSTER.find(o => 
+      isOfficerMatch(o, badgeOrName) || 
+      (officerName && isOfficerMatch(o, officerName)) ||
+      (officerId && o.id === officerId)
+    );
+    if (candidate) {
+      updatedRoster.push({
+        ...candidate,
+        pin: trimmedPin,
+        _updatedAt: Date.now()
+      });
+      updated = true;
+    }
+  }
+
+  // Asynchronously sync to server backend so server memory and Firestore have the new PIN immediately
+  try {
+    fetch(buildApiUrl('/api/discord/update-officer-pin'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        badge: isBadgeString(badgeOrName) ? badgeOrName : undefined,
+        name: officerName || (!isBadgeString(badgeOrName) ? badgeOrName : undefined),
+        newPin: trimmedPin
+      })
+    }).catch(() => {});
+  } catch {}
 
   if (updated) {
     const saved = saveRosterToStorage(updatedRoster);
@@ -234,76 +278,140 @@ export function updateOfficerAccountInRoster(
   originalOfficer?: OfficerAccount
 ): { success: boolean; updatedRoster: OfficerAccount[] } {
   const currentRoster = getRosterFromStorage();
-  let found = false;
 
   const cleanUpdatedName = (updated.name || '').trim();
   const cleanUpdatedBadge = (updated.badge || '').trim();
+  const cleanOriginalName = (originalOfficer?.name || '').trim();
+  const cleanOriginalBadge = (originalOfficer?.badge || '').trim();
 
-  const nextRoster = currentRoster.map(officer => {
-    const matchById = Boolean(
-      (officer.id && updated.id && officer.id.toLowerCase().trim() === updated.id.toLowerCase().trim()) ||
-      (originalOfficer?.id && officer.id && officer.id.toLowerCase().trim() === originalOfficer.id.toLowerCase().trim())
-    );
-    const matchByOriginalBadge = Boolean(
-      originalOfficer?.badge && (officer.badge || '').toLowerCase().trim() === (originalOfficer.badge || '').toLowerCase().trim()
-    );
-    const matchByOriginalName = Boolean(
-      originalOfficer?.name && (officer.name || '').toLowerCase().trim() === (originalOfficer.name || '').toLowerCase().trim()
-    );
-    const matchByAccount = isSameOfficerAccount(officer, originalOfficer || updated);
+  // Deterministic stable ID: preserve original ID or construct clean identifier
+  const primaryId = (originalOfficer?.id || updated.id || '').trim() || 
+    (cleanUpdatedBadge ? `officer_${cleanUpdatedBadge.replace(/[^a-zA-Z0-9_-]/g, '')}` : `officer_${Date.now()}`);
 
-    if (matchById || matchByOriginalBadge || matchByOriginalName || matchByAccount) {
-      found = true;
-      return {
-        ...officer,
-        ...updated,
-        id: officer.id || updated.id,
-        name: cleanUpdatedName || officer.name,
-        badge: cleanUpdatedBadge || officer.badge,
-        rank: updated.rank || officer.rank,
-        division: updated.division || officer.division,
-        pin: (updated.pin ? updated.pin.trim() : officer.pin) || '10-4',
-        phone: updated.phone !== undefined ? updated.phone : officer.phone,
-        discordTag: updated.discordTag !== undefined ? updated.discordTag : officer.discordTag,
-        promotedBy: updated.promotedBy || officer.promotedBy,
-        warnings: updated.warnings || officer.warnings || [],
-        _updatedAt: Date.now()
-      };
+  const finalOfficer: OfficerAccount = {
+    ...originalOfficer,
+    ...updated,
+    id: primaryId,
+    name: cleanUpdatedName || originalOfficer?.name || '',
+    badge: cleanUpdatedBadge || originalOfficer?.badge || '',
+    rank: updated.rank || originalOfficer?.rank || 'CADET [CDT]',
+    division: updated.division || originalOfficer?.division || 'Patrol Division',
+    pin: (updated.pin ? updated.pin.trim() : originalOfficer?.pin) || '10-4',
+    phone: updated.phone !== undefined ? updated.phone : originalOfficer?.phone,
+    discordTag: updated.discordTag !== undefined ? updated.discordTag : originalOfficer?.discordTag,
+    promotedBy: updated.promotedBy || originalOfficer?.promotedBy,
+    warnings: updated.warnings || originalOfficer?.warnings || [],
+    _updatedAt: Date.now()
+  };
+
+  const isTargetMatch = (officer: OfficerAccount): boolean => {
+    if (!officer) return false;
+    const offId = (officer.id || '').toLowerCase().trim();
+    const offName = (officer.name || '').toLowerCase().trim();
+    const offBadge = (officer.badge || '').toLowerCase().trim();
+    const offBadgeDigits = offBadge.replace(/[^a-z0-9]/g, '');
+
+    // 1. Direct ID matches
+    if (primaryId && offId === primaryId.toLowerCase().trim()) return true;
+    if (originalOfficer?.id && offId === originalOfficer.id.toLowerCase().trim()) return true;
+    if (updated.id && offId === updated.id.toLowerCase().trim()) return true;
+
+    // 2. Original Name matches
+    if (cleanOriginalName && offName === cleanOriginalName.toLowerCase().trim()) return true;
+
+    // 3. Updated Name matches
+    if (cleanUpdatedName && offName === cleanUpdatedName.toLowerCase().trim()) return true;
+
+    // 4. Normalized Name match (e.g. whitespace or case differences)
+    const normOff = offName.replace(/[^a-z0-9]/g, '');
+    const normOrg = cleanOriginalName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normUpd = cleanUpdatedName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (normOff && normOff.length >= 4) {
+      if (normOrg && normOff === normOrg) return true;
+      if (normUpd && normOff === normUpd) return true;
     }
-    return officer;
-  });
 
-  const finalRoster = found
-    ? nextRoster
-    : [
-        { ...updated, name: cleanUpdatedName, badge: cleanUpdatedBadge, _updatedAt: Date.now() },
-        ...nextRoster.filter(a => {
-          if (originalOfficer?.badge && (a.badge || '').toLowerCase().trim() === (originalOfficer.badge || '').toLowerCase().trim()) return false;
-          if (originalOfficer?.name && (a.name || '').toLowerCase().trim() === (originalOfficer.name || '').toLowerCase().trim()) return false;
+    // 5. Original Badge matches (provided name does not conflict with a totally distinct officer)
+    if (cleanOriginalBadge) {
+      const orgDigits = cleanOriginalBadge.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (offBadge === cleanOriginalBadge.toLowerCase().trim() || (orgDigits && offBadgeDigits === orgDigits)) {
+        // If officer name is empty or matches original/updated name, consider it the same
+        if (!offName || offName === cleanOriginalName.toLowerCase() || offName === cleanUpdatedName.toLowerCase() || !cleanOriginalName) {
           return true;
-        })
-      ];
-
-  const saved = saveRosterToStorage(finalRoster);
-
-  // If badge changed, migrate active duty state
-  if (originalOfficer && originalOfficer.badge && cleanUpdatedBadge && originalOfficer.badge.toLowerCase().trim() !== cleanUpdatedBadge.toLowerCase().trim()) {
-    migrateOfficerDutyBadge(originalOfficer.badge, cleanUpdatedBadge, cleanUpdatedName);
-
-    // Purge any stale Firestore document with the old badge or old ID
-    const cleanOldBadge = (originalOfficer.badge || '').replace(/[^a-zA-Z0-9_-]/g, '');
-    const oldDocId1 = `officer_${cleanOldBadge}`;
-    const oldDocId2 = originalOfficer.id;
-    if (oldDocId1 && oldDocId1 !== updated.id) {
-      deleteFromFirestore('ROSTER', oldDocId1).catch(() => {});
+        }
+      }
     }
-    if (oldDocId2 && oldDocId2 !== updated.id) {
-      deleteFromFirestore('ROSTER', oldDocId2).catch(() => {});
+
+    return false;
+  };
+
+  // Find index of existing officer
+  const matchIndex = currentRoster.findIndex(o => isTargetMatch(o));
+
+  let nextRoster: OfficerAccount[];
+  if (matchIndex >= 0) {
+    // Replace in place
+    nextRoster = currentRoster.map((o, idx) => (idx === matchIndex ? finalOfficer : o));
+    // DEDUPLICATE: Strip out any other duplicate records that also matched the target criteria
+    nextRoster = nextRoster.filter((o, idx) => {
+      if (idx === matchIndex) return true;
+      return !isTargetMatch(o);
+    });
+  } else {
+    // Strip any stale records matching target criteria before prepending
+    const filtered = currentRoster.filter(o => !isTargetMatch(o));
+    nextRoster = [finalOfficer, ...filtered];
+  }
+
+  const saved = saveRosterToStorage(nextRoster);
+
+  // Firestore Document Cleanup: purge all possible stale document IDs of the old officer
+  const staleDocIdsToDelete = new Set<string>();
+
+  if (originalOfficer?.id && originalOfficer.id !== finalOfficer.id) {
+    staleDocIdsToDelete.add(originalOfficer.id);
+  }
+
+  if (cleanOriginalBadge && cleanOriginalBadge.toLowerCase().trim() !== cleanUpdatedBadge.toLowerCase().trim()) {
+    const rawOldBadge = cleanOriginalBadge.replace(/[^a-zA-Z0-9_-]/g, '');
+    if (rawOldBadge) {
+      staleDocIdsToDelete.add(`officer_${rawOldBadge}`);
+      staleDocIdsToDelete.add(rawOldBadge);
+    }
+    // Migrate duty status
+    migrateOfficerDutyBadge(cleanOriginalBadge, cleanUpdatedBadge, cleanUpdatedName);
+  }
+
+  if (cleanOriginalName && cleanOriginalName.toLowerCase().trim() !== cleanUpdatedName.toLowerCase().trim()) {
+    const rawOldName = cleanOriginalName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    if (rawOldName) {
+      staleDocIdsToDelete.add(`officer_${rawOldName}`);
+      staleDocIdsToDelete.add(cleanOriginalName);
     }
   }
 
+  staleDocIdsToDelete.forEach(docId => {
+    if (docId && docId !== finalOfficer.id) {
+      deleteFromFirestore('ROSTER', docId).catch(() => {});
+    }
+  });
+
   // Push updated officer to Firestore
-  pushToFirestore('ROSTER', updated, updated.id).catch(() => {});
+  pushToFirestore('ROSTER', finalOfficer, finalOfficer.id).catch(() => {});
+
+  // Sync to server backend so server memory and disk stay in sync
+  try {
+    fetch(buildApiUrl('/api/discord/update-officer'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        originalBadge: cleanOriginalBadge,
+        originalName: cleanOriginalName,
+        originalId: originalOfficer?.id,
+        officer: finalOfficer
+      })
+    }).catch(() => {});
+  } catch {}
 
   return { success: true, updatedRoster: saved };
 }
@@ -813,6 +921,25 @@ export function autoGrantPinResetRequest(
 
   current[idx] = updatedReq;
   savePinResetRequests(current);
+
+  // 2. Dispatch Direct Message (PM Bot) to Discord User containing new PIN & account details
+  const targetDiscord = target.discordTag || target.officerName;
+  if (targetDiscord) {
+    sendDirectMessageViaBot({
+      discordUsername: targetDiscord,
+      officerName: target.officerName,
+      badge: target.officerBadge,
+      rank: target.officerRank,
+      pin: trimmedPin,
+      messageType: 'credentials',
+      embedTitle: '🔐 Kredensial & PIN Baru Akun MDT Kepolisian HSPD',
+      embedDescription: `Halo **${target.officerName}**! Permintaan reset PIN login Anda telah berhasil diproses secara otomatis oleh sistem (Atasan Offline).\n\nPIN baru Anda telah **langsung aktif seketika** dan dapat digunakan untuk login ke Terminal MDT.`,
+      customNote: `PIN Baru: ${trimmedPin} (Langsung Aktif). Harap simpan kredensial ini dan jaga kerahasiaannya.`,
+      registeredBy: 'SYSTEM AUTOMATION [AI/AUTO-DISPATCH]',
+      registeredByRank: 'SISTEM OTOMATIS (HIGH COMMAND OFFLINE)',
+      registeredByBadge: '#SYS-AUTO'
+    }).catch(dmErr => console.warn('Auto-grant bot PM error:', dmErr));
+  }
 
   return {
     success: true,

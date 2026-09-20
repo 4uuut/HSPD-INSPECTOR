@@ -1,5 +1,11 @@
 import { OfficerAccount, isAtasanRank } from '../types';
-import { getDischargedOfficers, isOfficerDischarged, DischargedOfficerEntry } from '../utils/dischargeStorage';
+import {
+  getDischargedOfficers,
+  isOfficerDischarged,
+  getPermanentlyPurgedOfficers,
+  isOfficerPermanentlyPurged,
+  DischargedOfficerEntry
+} from '../utils/dischargeStorage';
 
 export const HSPD_OFFICIAL_ROSTER: OfficerAccount[] = [
   // ==========================================
@@ -145,8 +151,9 @@ export function mergeWithOfficialRoster(
   incoming: OfficerAccount[] = [],
   dischargedOverride?: DischargedOfficerEntry[]
 ): OfficerAccount[] {
-  // Read list of discharged/pecat officers so they are never resurrected
+  // Read list of discharged/pecat officers and permanently purged officers so they are NEVER resurrected
   const dischargedList = dischargedOverride || getDischargedOfficers();
+  const purgedList = getPermanentlyPurgedOfficers();
 
   // Canonical registry map: canonicalKey -> OfficerAccount
   const officersMap = new Map<string, OfficerAccount>();
@@ -161,10 +168,10 @@ export function mergeWithOfficialRoster(
     return `item_${Math.random()}`;
   };
 
-  // 1. Seed with official officers ONLY IF THEY ARE NOT DISCHARGED
+  // 1. Seed with official officers ONLY IF THEY ARE NOT DISCHARGED OR PERMANENTLY PURGED
   HSPD_OFFICIAL_ROSTER.forEach(official => {
-    if (isOfficerDischarged(official, dischargedList)) {
-      return; // Do NOT seed discharged officer
+    if (isOfficerDischarged(official, dischargedList) || isOfficerPermanentlyPurged(official, purgedList)) {
+      return; // Do NOT seed discharged or purged officer
     }
     const key = getCanonicalKey(official);
     officersMap.set(key, { ...official });
@@ -229,10 +236,10 @@ export function mergeWithOfficialRoster(
     return null;
   };
 
-  // 3. Overlay incoming records (filtering out any discharged officer)
+  // 3. Overlay incoming records (filtering out any discharged or permanently purged officer)
   if (Array.isArray(incoming)) {
     incoming.forEach(item => {
-      if (!item || isOfficerDischarged(item, dischargedList)) return;
+      if (!item || isOfficerDischarged(item, dischargedList) || isOfficerPermanentlyPurged(item, purgedList)) return;
       const existingKey = findExistingKey(item);
 
       if (existingKey && officersMap.has(existingKey)) {

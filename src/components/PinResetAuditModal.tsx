@@ -22,7 +22,8 @@ import {
 import { 
   sendPinResetResolvedWebhookToDiscord, 
   sendPinResetRequestToDiscord,
-  sendGovPinResetResolvedWebhookToDiscord
+  sendGovPinResetResolvedWebhookToDiscord,
+  sendDirectMessageViaBot
 } from '../utils/discordWebhook';
 import { 
   getGovPinResetRequests, 
@@ -265,6 +266,25 @@ export const PinResetAuditModal: React.FC<Props> = ({
           resolvedByRank: currentOfficer.rank,
           notes: `Disetujui langsung via Quick 1-Click Accept di Dashboard Atasan.`
         });
+
+        // 4. Send PM Bot to officer's Discord with credentials & new PIN
+        const targetDiscord = req.discordTag || req.officerName;
+        if (targetDiscord) {
+          sendDirectMessageViaBot({
+            discordUsername: targetDiscord,
+            officerName: req.officerName,
+            badge: req.officerBadge,
+            rank: req.officerRank,
+            pin: assignedPin,
+            messageType: 'credentials',
+            embedTitle: '🔐 Kredensial & PIN Baru Akun MDT Kepolisian HSPD',
+            embedDescription: `Halo **${req.officerName}**! Permintaan reset PIN login Anda telah disetujui oleh Atasan (**${currentOfficer.rank} ${currentOfficer.name}**).\n\nPIN baru Anda telah **langsung aktif seketika** dan dapat digunakan untuk login ke Terminal MDT.`,
+            customNote: `PIN Baru: ${assignedPin} (Langsung Aktif). Harap simpan kredensial ini dan jaga kerahasiaannya.`,
+            registeredBy: currentOfficer.name,
+            registeredByRank: currentOfficer.rank,
+            registeredByBadge: currentOfficer.badge
+          }).catch(dmErr => console.warn('Bot DM error on quick accept:', dmErr));
+        }
       }
 
       refreshRequests();
@@ -380,6 +400,25 @@ export const PinResetAuditModal: React.FC<Props> = ({
             resolvedByRank: currentOfficer.rank,
             notes: supervisorNotes,
           });
+        }
+
+        // Send PM Bot to officer's Discord with credentials & new PIN
+        const targetDiscord = resolvingRequest.discordTag || resolvingRequest.officerName;
+        if (targetDiscord) {
+          sendDirectMessageViaBot({
+            discordUsername: targetDiscord,
+            officerName: resolvingRequest.officerName,
+            badge: resolvingRequest.officerBadge,
+            rank: resolvingRequest.officerRank,
+            pin: trimmedPin,
+            messageType: 'credentials',
+            embedTitle: '🔐 Kredensial & PIN Baru Akun MDT Kepolisian HSPD',
+            embedDescription: `Halo **${resolvingRequest.officerName}**! Permintaan reset PIN login Anda telah disetujui oleh Atasan (**${currentOfficer.rank} ${currentOfficer.name}**).\n\nPIN baru Anda telah **langsung aktif seketika** dan dapat digunakan untuk login ke Terminal MDT.`,
+            customNote: `PIN Baru: ${trimmedPin} (Langsung Aktif). Harap simpan kredensial ini dan jaga kerahasiaannya.`,
+            registeredBy: currentOfficer.name,
+            registeredByRank: currentOfficer.rank,
+            registeredByBadge: currentOfficer.badge
+          }).catch(dmErr => console.warn('Bot DM error on manual resolve:', dmErr));
         }
       }
 

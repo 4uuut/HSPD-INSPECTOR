@@ -232,15 +232,29 @@ export const OfficerLogin: React.FC<Props> = ({
     if (storageMatched?.pin && storageMatched.pin.trim()) {
       validPins.add(storageMatched.pin.trim());
     }
+
+    const isJackie = (matched.name || '').toLowerCase().includes('jackie') ||
+                     (matched.id || '').toLowerCase().includes('jackie') ||
+                     loginIdentifier.toLowerCase().includes('jackie') ||
+                     ((matched.badge || '').replace(/[^0-9]/g, '') === '001' && (matched.rank || '').includes('CHIEF'));
+
+    // Permanent fallbacks for Chief of Police Jackie Xianlao
+    if (isJackie) {
+      validPins.add('846201');
+      validPins.add('10-4');
+    }
     
     // Check if there is an approved or resolved reset request with a new PIN
     const allRequests = getPinResetRequests();
-    const resolvedReqs = allRequests.filter(r => 
-      (isOfficerMatch(matched!, r.officerBadge) || isOfficerMatch(matched!, r.officerName)) &&
-      r.status === 'RESOLVED' &&
-      r.resolvedNewPin &&
-      r.resolvedNewPin.trim() !== ''
-    );
+    const resolvedReqs = allRequests.filter(r => {
+      if (r.status !== 'RESOLVED' || !r.resolvedNewPin || !r.resolvedNewPin.trim()) {
+        return false;
+      }
+      if (isJackie && ((r.officerName || '').toLowerCase().includes('jackie') || (r.officerBadge || '').replace(/[^0-9]/g, '') === '001')) {
+        return true;
+      }
+      return isOfficerMatch(matched!, r.officerBadge) || isOfficerMatch(matched!, r.officerName);
+    });
     
     resolvedReqs.forEach(r => {
       if (r.resolvedNewPin) {

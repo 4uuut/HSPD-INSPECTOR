@@ -242,7 +242,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const [activeNav, setActiveNav] = useState<'calc' | 'dmv' | 'divisions' | 'forensics' | 'documents' | 'detective' | 'traffic' | 'vault' | 'destruction' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster' | 'settings' | 'gov_roster' | 'gov_suite' | 'gov_settings' | 'citizen_portal'>('calc');
+  const [activeNav, setActiveNav] = useState<'calc' | 'dmv' | 'divisions' | 'forensics' | 'documents' | 'detective' | 'traffic' | 'vault' | 'destruction' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster' | 'settings' | 'gov_roster' | 'gov_suite' | 'gov_settings' | 'citizen_portal' | 'dispatch'>('calc');
   const [govRosterCount, setGovRosterCount] = useState<number>(() => getGovernmentRoster().length);
 
   // Subscribe to government roster updates
@@ -1372,7 +1372,7 @@ export default function App() {
         )}
         {activeNav === 'megaphone' && <MegaphoneStudio />}
         {activeNav === 'rp' && <RoleplayActions />}
-        {activeNav === 'sop' && <SopLibrary />}
+        {(activeNav === 'sop' || activeNav === 'dispatch') && <SopLibrary />}
         {activeNav === 'history' && (
           isGovernment ? (
             <ArrestHistory
@@ -1400,34 +1400,53 @@ export default function App() {
             </ModuleClearanceGuard>
           )
         )}
-        {activeNav === 'roster' && isHighRank && (
-          <RosterManagement
-            roster={roster}
-            currentOfficerRank={currentOfficer.rank as any}
-            currentOfficerName={currentOfficer.name}
-            currentOfficerBadge={currentOfficer.badge}
-            onUpdateOfficer={handleUpdateOfficer}
-            onRegisterOfficer={handleRegisterOfficer}
-            onDeleteOfficer={handleDeleteOfficer}
-            onPurgeNonAtasanOfficers={handlePurgeNonAtasanOfficers}
-            onOpenPinResetAudit={() => setIsPinResetAuditModalOpen(true)}
-            onOpenWebhookModal={(tab) => {
-              setWebhookModalInitialTab((tab as any) || 'roster');
-              setIsWebhookModalOpen(true);
-            }}
-            onNavigateToSettings={(sectionId) => {
-              setActiveNav('settings');
-              if (sectionId) {
-                setTimeout(() => {
-                  const el = document.getElementById(sectionId);
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }, 150);
-              }
-            }}
-            pendingPinResetCount={pendingPinCount}
-          />
+        {activeNav === 'roster' && (
+          isHighRank ? (
+            <RosterManagement
+              roster={roster}
+              currentOfficerRank={currentOfficer.rank as any}
+              currentOfficerName={currentOfficer.name}
+              currentOfficerBadge={currentOfficer.badge}
+              onUpdateOfficer={handleUpdateOfficer}
+              onRegisterOfficer={handleRegisterOfficer}
+              onDeleteOfficer={handleDeleteOfficer}
+              onPurgeNonAtasanOfficers={handlePurgeNonAtasanOfficers}
+              onOpenPinResetAudit={() => setIsPinResetAuditModalOpen(true)}
+              onOpenWebhookModal={(tab) => {
+                setWebhookModalInitialTab((tab as any) || 'roster');
+                setIsWebhookModalOpen(true);
+              }}
+              onNavigateToSettings={(sectionId) => {
+                setActiveNav('settings');
+                if (sectionId) {
+                  setTimeout(() => {
+                    const el = document.getElementById(sectionId);
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }, 150);
+                }
+              }}
+              pendingPinResetCount={pendingPinCount}
+            />
+          ) : (
+            <div className="bg-[#0f172a] border border-amber-500/30 rounded-2xl p-8 text-center max-w-xl mx-auto mt-12 shadow-2xl">
+              <div className="w-16 h-16 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Users className="w-8 h-8 text-amber-400" />
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Akses Terbatas: Roster Kepolisian</h2>
+              <p className="text-gray-400 text-sm mb-6 leading-relaxed">
+                Halaman pengelolaan dan manajemen seluruh anggota kepolisian hanya dapat diakses oleh jajaran <strong>High Command</strong> (Captain ke atas).
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveNav('calc')}
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-blue-900/30"
+              >
+                Kembali ke Kalkulator Kasus
+              </button>
+            </div>
+          )
         )}
-        {activeNav === 'settings' && isHighRank && (
+        {activeNav === 'settings' && (
           <SettingsView
             currentOfficer={currentOfficer}
             roster={roster}

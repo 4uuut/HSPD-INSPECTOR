@@ -1,7 +1,7 @@
 import { OfficerAccount } from '../types';
 import { getRosterFromStorage } from './pinResetStorage';
 import { HSPD_OFFICIAL_ROSTER } from '../data/hspdOfficialRoster';
-import { getDischargedOfficers } from './dischargeStorage';
+import { getDischargedOfficers, isOfficerDischarged, isOfficerPermanentlyPurged, getPermanentlyPurgedOfficers } from './dischargeStorage';
 
 export interface BadgeDetectionResult {
   badge: string;
@@ -9,7 +9,7 @@ export interface BadgeDetectionResult {
   formattedBadge: string;
   numericValue: number | null;
   isAvailable: boolean;
-  status: 'available' | 'used_active' | 'used_discharged';
+  status: 'available' | 'used_active' | 'used_discharged' | 'available_discharged_reusable';
   officerName?: string;
   officerRank?: string;
   badgeSource?: 'official_roster' | 'new_member' | 'discharged';
@@ -161,14 +161,14 @@ export function detectBadgeStatus(
           cleanDigits,
           formattedBadge,
           numericValue,
-          isAvailable: false,
-          status: 'used_discharged',
+          isAvailable: true, // FREED AND REUSABLE!
+          status: 'available_discharged_reusable',
           officerName: discharged.name,
           officerRank: discharged.rank,
           badgeSource: 'discharged',
           isNewMember: false,
           isOfficial: false,
-          message: `⚠️ Tercatat di Arsip Pemecatan: ${discharged.name} (${discharged.rank || 'Eks Petugas'})`
+          message: `✅ Badge ${formattedBadge} tersedia untuk dialokasikan kembali (sebelumnya digunakan oleh eks-petugas ${discharged.name} yang telah diberhentikan).`
         };
       }
     }
@@ -203,14 +203,20 @@ export function getNextAvailableBadge(
   rank: string = 'CADET [CDT]',
   previousBadge?: string
 ): string {
-  // 1. Gather all existing badges across all sources: passed roster, storage, official, and discharged
+  // 1. Gather all existing badges across active sources: passed roster, storage, official (excluding discharged and purged)
   const allOfficers: OfficerAccount[] = [];
   const seenKeys = new Set<string>();
+
+  const dischargedList = getDischargedOfficers();
+  const purgedList = getPermanentlyPurgedOfficers();
 
   const ingest = (list: OfficerAccount[]) => {
     if (!Array.isArray(list)) return;
     list.forEach(o => {
       if (!o) return;
+      if (isOfficerDischarged(o, dischargedList) || isOfficerPermanentlyPurged(o, purgedList)) {
+        return; // Exclude discharged and purged so their badges can be recycled
+      }
       const k = (o.id || o.badge || o.name || '').toLowerCase().trim();
       if (k && !seenKeys.has(k)) {
         seenKeys.add(k);
@@ -239,22 +245,6 @@ export function getNextAvailableBadge(
     }
     usedBadgeStrings.add(o.badge.toLowerCase().trim());
   });
-
-  // Also include discharged officers so badges aren't immediately recycled without supervisor intent
-  try {
-    const discharged = getDischargedOfficers();
-    discharged.forEach(d => {
-      if (!d.badge) return;
-      const norm = normalizeBadgeFormat(d.badge);
-      if (norm.numericValue !== null) {
-        usedNumbers.add(norm.numericValue);
-      }
-      if (norm.formattedBadge) {
-        usedBadgeStrings.add(norm.formattedBadge.toLowerCase());
-      }
-      usedBadgeStrings.add(d.badge.toLowerCase().trim());
-    });
-  } catch {}
 
   const formatBadge = (num: number, minDigits: number = 3, prefix: string = '#'): string => {
     const padded = String(num).padStart(Math.max(minDigits, 3), '0');
