@@ -414,7 +414,7 @@ export const CitizenServiceRegisteredBoard: React.FC<Props> = ({
             const isSkck = doc.category === 'SKCK';
             const isBiz = doc.category === 'IZIN_USAHA';
             const isWcl = doc.category === 'IZIN_SENJATA';
-            const isStlk = doc.category === 'SURAT_KETERANGAN';
+            const isStlk = (doc.category as string) === 'SURAT_KEHILANGAN' || (doc.category as string) === 'SURAT_KETERANGAN';
             const isEvt = doc.category === 'IZIN_KERAMAIAN';
 
             const officerSigned = doc.officerSignatureStatus === 'SIGNED' || Boolean(doc.officerSignatureName);

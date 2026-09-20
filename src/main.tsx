@@ -36,7 +36,10 @@ if (typeof window !== 'undefined') {
       lower.includes('free daily write units') ||
       lower.includes('maximum backoff delay') ||
       lower.includes('could not reach cloud firestore backend') ||
-      lower.includes('operate in offline mode')
+      lower.includes('operate in offline mode') ||
+      lower.includes('grpcconnection') ||
+      lower.includes('write stream') ||
+      lower.includes('@firebase/firestore')
     );
   };
 

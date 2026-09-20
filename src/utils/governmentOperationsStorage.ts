@@ -3,15 +3,17 @@ import { pushToFirestore } from '../services/firebaseRealtimeSync';
 export type SecurityLevel = 1 | 2 | 3 | 4;
 
 export interface StateSecurityStatus {
-  level: SecurityLevel;
+  level: SecurityLevel | any;
   levelTitle: string; // 'LEVEL 1: KONDISI NORMAL' | 'LEVEL 2: WASPADA' | 'LEVEL 3: SIAGA & JAM MALAM' | 'LEVEL 4: DARURAT MILITER'
   curfewActive: boolean;
   curfewHours: string; // e.g. '22:00 - 05:00 WIB'
   curfewZones: string; // e.g. 'Seluruh Kota Los Santos & Jalur Tol Utama'
   notes: string;
+  details?: string;
   updatedBy: string;
   updatedByRank: string;
   updatedAt: number;
+  lastUpdated?: string;
 }
 
 export type PermitCategory = 

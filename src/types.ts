@@ -24,6 +24,7 @@ export interface ArrestRecord {
   location?: string;
   evidenceUrl?: string;       // Primary / First evidence image
   evidenceUrls?: string[];    // Up to 10 evidence photos
+  evidenceList?: string[];
   confiscatedItems?: string;
   chronology?: string;
   pasalCodes: string[];
@@ -594,7 +595,9 @@ export interface CaseSuspect {
   parentId?: string;        // ID of direct superior / atasan in the family tree
   status: SuspectStatus;
   mugshotUrl?: string;
+  photoUrl?: string;
   phone?: string;
+  description?: string;
   bountyReward?: number;
   charges?: string[];
   notes?: string;
@@ -659,6 +662,7 @@ export interface ImpoundRecord {
   officerName: string;
   officerBadge: string;
   status: 'IMPOUNDED' | 'RELEASED' | 'AUCTION';
+  releasedAt?: number;
   locationFound: string;
   timestamp: number;
   // Fields for official citation & evidence (supports 2 photos from gallery)
@@ -814,6 +818,7 @@ export interface VehicleDestructionDetails {
   plateNumber: string;
   color: string;
   vin?: string;
+  vinNumber?: string;
   previousOwner?: string;
   chassisCondition?: string;
 }
@@ -829,6 +834,7 @@ export interface WeaponDestructionDetails {
 
 export interface NarcoticsDestructionDetails {
   substance: string;
+  substanceType?: string;
   weightGrams: number;
   packaging: string;
   burningMethod?: string;

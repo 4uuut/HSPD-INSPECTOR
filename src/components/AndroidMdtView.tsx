@@ -313,9 +313,9 @@ export const AndroidMdtView: React.FC<Props> = ({
 
         <div className="flex items-center gap-2.5">
           {/* Cloud Database Sync Status */}
-          <div className="flex items-center gap-1 text-[10px]" title="Firestore Cloud Real-time">
-            <Cloud className={`w-3 h-3 ${firebaseSync.connected ? 'text-cyan-400' : 'text-gray-500'}`} />
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <div className="flex items-center gap-1 text-[10px]" title={firebaseSync.quotaExhausted ? 'Penyimpanan Lokal Aktif (Batas kuota tercapai)' : 'Firestore Cloud Real-time'}>
+            <Cloud className={`w-3 h-3 ${firebaseSync.quotaExhausted ? 'text-amber-400' : firebaseSync.connected ? 'text-cyan-400' : 'text-gray-500'}`} />
+            <span className={`w-1.5 h-1.5 rounded-full ${firebaseSync.quotaExhausted ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'}`} />
           </div>
 
           <div className="flex items-center gap-1 text-[10px] text-green-400">

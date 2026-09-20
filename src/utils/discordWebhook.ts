@@ -2804,6 +2804,44 @@ export async function sendOfficerDirectMessageViaBot(params: {
   }
 }
 
+// Alias for backwards compatibility
+export const sendDiscordBotDirectMessage = sendOfficerDirectMessageViaBot;
+
+/**
+ * Send official Bot Direct Message (PM) notifying officer that their PIN has been changed
+ * and includes their new login credentials directly in their Discord inbox!
+ */
+export async function sendPinResetNotificationDm(params: {
+  discordTarget?: string;
+  officerName: string;
+  badge?: string;
+  rank?: string;
+  newPin: string;
+  customMessage?: string;
+}): Promise<{ success: boolean; message: string }> {
+  const botConfig = getSavedDiscordBotConfig();
+  const target = (params.discordTarget || '').trim();
+  const webUrl = typeof window !== 'undefined' ? window.location.origin : 'https://mdc-hspd-inspector.vercel.app/';
+
+  return sendOfficerDirectMessageViaBot({
+    userId: target,
+    username: target,
+    discordTag: target,
+    officerName: params.officerName,
+    badge: params.badge,
+    rank: params.rank,
+    pin: params.newPin,
+    embedTitle: '🔐 Kredensial Akun & Pembaruan PIN MDT HSPD',
+    embedDescription: `Halo **${params.officerName}**, permohonan reset PIN akun dinas MDT Anda telah disetujui. PIN baru Anda sekarang **langsung aktif dan dapat digunakan** untuk bertugas di terminal MDT:`,
+    customNote: 'PENTING: Simpan kredensial ini dan jaga kerahasiaannya. PIN ini langsung dapat Anda gunakan untuk bertugas di Terminal MDT Kepolisian HSPD.',
+    embedColor: '#10B981',
+    footerText: 'HSPD Security & Access Control • HighState Roleplay',
+    customMessage: params.customMessage || 'PIN Anda telah berhasil diperbarui dan disinkronkan ke seluruh sistem terminal kepolisian.',
+    loginUrl: webUrl,
+    messageType: 'credentials'
+  });
+}
+
 /**
  * Search/Lookup Discord User profile by Username or ID
  */

@@ -319,6 +319,12 @@ export function mergeWithOfficialRoster(
     }
   }
 
+  // Guarantee Jackie Xianlao is always preserved as Chief of Police [COP]
+  if (!nameRegistry.has('jackiexianlao')) {
+    const jackieOfficial = HSPD_OFFICIAL_ROSTER[0];
+    nameRegistry.set('jackiexianlao', { ...jackieOfficial });
+  }
+
   const uniqueOfficers = Array.from(nameRegistry.values());
   
   // Keep official ordering at top, followed by any custom officers

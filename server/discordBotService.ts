@@ -52,6 +52,9 @@ export interface SystemUpdatePayload {
   authorName?: string;
   authorBadge?: string;
   authorRank?: string;
+  headerText?: string;
+  customDescription?: string;
+  embedColor?: number;
 }
 
 // Data pembaruan sistem terbaru untuk disiarkan otomatis oleh bot ke Discord
@@ -511,6 +514,9 @@ class DiscordGatewayManager {
     authorBadge?: string;
     authorRank?: string;
     authorAvatarUrl?: string;
+    headerText?: string;
+    customDescription?: string;
+    embedColor?: number;
   }): Promise<{ success: boolean; message: string; channelId?: string }> {
     const targetChannelId = options.channelId || this.serverConfig.changelogChannelId;
     if (!targetChannelId) {
@@ -572,14 +578,19 @@ class DiscordGatewayManager {
       minute: '2-digit'
     });
 
+    const defaultDesc = `Catatan rilis pembaruan perangkat lunak, penyempurnaan operasional, dan perbaikan kestabilan Terminal Mobile Data Computer (MDC) HSPD.\n\n📅 **Waktu Rilis:** \`${dateStr}\`\n👤 **Dipublikasikan Oleh:** \`${options.authorName || 'High Command'}\` ${options.authorBadge ? `(\`${options.authorBadge}\`)` : ''}`;
+    const finalDesc = options.customDescription?.trim()
+      ? `${options.customDescription.trim()}\n\n📅 **Waktu Rilis:** \`${dateStr}\`\n👤 **Dipublikasikan Oleh:** \`${options.authorName || 'High Command'}\` ${options.authorBadge ? `(\`${options.authorBadge}\`)` : ''}`
+      : defaultDesc;
+
     const embed = {
       author: {
         name: 'High State Police Department • Official System Release',
         icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
       },
       title: `📢 ${title} • [${ver}]`,
-      description: `Catatan rilis pembaruan perangkat lunak, penyempurnaan operasional, dan perbaikan kestabilan Terminal Mobile Data Computer (MDC) HSPD.\n\n📅 **Waktu Rilis:** \`${dateStr}\`\n👤 **Dipublikasikan Oleh:** \`${options.authorName || 'High Command'}\` ${options.authorBadge ? `(\`${options.authorBadge}\`)` : ''}`,
-      color: 0x00A8FF, // Police Cyan/Blue
+      description: finalDesc,
+      color: typeof options.embedColor === 'number' ? options.embedColor : 0x00A8FF, // Police Cyan/Blue
       fields,
       footer: {
         text: `HSPD MDC System • ${ver} • High State Government`,
@@ -588,8 +599,9 @@ class DiscordGatewayManager {
       timestamp: now.toISOString()
     };
 
+    const headerTag = options.headerText?.trim() || '[ PENGUMUMAN PEMBARUAN SISTEM MDT HSPD ]';
     const payload = {
-      content: pingContent ? `${pingContent}**[ PENGUMUMAN PEMBARUAN SISTEM MDT HSPD ]**` : undefined,
+      content: pingContent ? `${pingContent}**${headerTag}**` : `**${headerTag}**`,
       embeds: [embed]
     };
 
@@ -3782,12 +3794,14 @@ class DiscordGatewayManager {
 
       let isOfficerAtasan = false;
       let checkedOfficer = false;
+      let cachedMatchedOfficer: any = null;
       const getCanConfigure = async () => {
         if (isAdmin) return true;
         if (checkedOfficer) return isOfficerAtasan;
         checkedOfficer = true;
         try {
           const matched = await discordRosterService.findOfficer({ discordId: discordUser.id, discordUsername: discordUser.username });
+          cachedMatchedOfficer = matched;
           if (matched) {
             const r = (matched.rank || '').toUpperCase();
             if (r.includes('CHIEF') || r.includes('COMMANDER') || r.includes('CAPTAIN') || r.includes('LIEUTENANT') || r.includes('SERGEANT') || r.includes('ATASAN')) {
@@ -4008,8 +4022,8 @@ class DiscordGatewayManager {
           type: kat as any,
           content: msg.trim(),
           channelId: targetChannelId,
-          authorName: matchedOfficer?.name || discordUser.username,
-          authorBadge: matchedOfficer?.badge,
+          authorName: cachedMatchedOfficer?.name || discordUser.username,
+          authorBadge: cachedMatchedOfficer?.badge,
           authorId: discordUser.id
         });
 

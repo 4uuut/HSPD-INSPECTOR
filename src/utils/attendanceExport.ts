@@ -2,8 +2,156 @@ import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { OfficerAccount } from '../types';
 import { getAllOfficersDutyRegistry, getOfficerDutyState, formatDutyDuration } from './officerDutyStorage';
+import { getSavedTrafficCitations } from './trafficCitationStorage';
+import { getSavedImpounds } from './boloImpoundStorage';
+import { getSavedDetectiveCases } from './detectiveCaseStorage';
+import { getSavedVaultAuditLogs } from './vaultAndDestructionStorage';
 import { HSPD_LOGO_URL } from '../assets/logo';
 import { pushToFirestore } from '../services/firebaseRealtimeSync';
+
+export interface WeeklyOperationsSummary {
+  periodLabel: string;
+  totalDutyOfficers: number;
+  totalDutyHours: number;
+  totalDutyMinutes: number;
+  totalCitationsCount: number;
+  totalCitationsFine: number;
+  totalImpoundsCount: number;
+  totalImpoundsFee: number;
+  totalCasesCount: number;
+  totalEvidenceCount: number;
+  officerBreakdown: Array<{
+    badge: string;
+    name: string;
+    rank: string;
+    division: string;
+    dutyHoursFormatted: string;
+    dutyMinutes: number;
+    dutyShifts: number;
+    citationsCount: number;
+    citationsFine: number;
+    impoundsCount: number;
+    casesCount: number;
+    evidenceCount: number;
+  }>;
+}
+
+export function getWeeklyOperationsSummary(
+  roster: OfficerAccount[],
+  sessions: DutySession[],
+  startMs: number,
+  endMs: number,
+  label: string
+): WeeklyOperationsSummary {
+  const citations = getSavedTrafficCitations().filter(c => {
+    const t = c.timestamp || 0;
+    return t >= startMs && t <= endMs;
+  });
+
+  const impounds = getSavedImpounds().filter(imp => {
+    const t = imp.timestamp || 0;
+    return t >= startMs && t <= endMs;
+  });
+
+  const cases = getSavedDetectiveCases().filter(cs => {
+    const t = cs.createdAt || 0;
+    return t >= startMs && t <= endMs;
+  });
+
+  // Calculate evidence counts across detective cases and vault
+  let directEvidenceCount = 0;
+  cases.forEach(cs => {
+    if (Array.isArray(cs.evidences)) {
+      directEvidenceCount += cs.evidences.length;
+    }
+  });
+
+  const vaultAudits = getSavedVaultAuditLogs().filter(v => {
+    const t = v.timestamp || 0;
+    return t >= startMs && t <= endMs;
+  });
+  vaultAudits.forEach(v => {
+    if (Array.isArray(v.evidencePhotos)) {
+      directEvidenceCount += v.evidencePhotos.length;
+    }
+  });
+
+  const summaries = generateAttendanceSummaries(roster, sessions, startMs, endMs);
+  let totalDutyMinutes = 0;
+  summaries.forEach(s => {
+    totalDutyMinutes += s.totalDutyMinutes || 0;
+  });
+
+  const officerBreakdown = summaries.map(s => {
+    const normBadge = (s.badge || '').toLowerCase().replace(/#/g, '').trim();
+    const normName = (s.name || '').toLowerCase().trim();
+
+    const officerCitations = citations.filter(c => {
+      const cBadge = (c.officerBadge || '').toLowerCase().replace(/#/g, '').trim();
+      const cName = (c.officerName || '').toLowerCase().trim();
+      return (normBadge && cBadge === normBadge) || (normName && cName.includes(normName));
+    });
+
+    const officerImpounds = impounds.filter(i => {
+      const iBadge = (i.officerBadge || '').toLowerCase().replace(/#/g, '').trim();
+      const iName = (i.officerName || '').toLowerCase().trim();
+      return (normBadge && iBadge === normBadge) || (normName && iName.includes(normName));
+    });
+
+    const officerCases = cases.filter(cs => {
+      const lBadge = (cs.leadDetectiveBadge || '').toLowerCase().replace(/#/g, '').trim();
+      const lName = (cs.leadDetective || '').toLowerCase().trim();
+      const isAssisting = Array.isArray(cs.assistingDetectives) && cs.assistingDetectives.some(a => 
+        (normBadge && a.toLowerCase().includes(normBadge)) || (normName && a.toLowerCase().includes(normName))
+      );
+      return (normBadge && lBadge === normBadge) || (normName && lName.includes(normName)) || isAssisting;
+    });
+
+    let officerEvCount = 0;
+    officerCases.forEach(cs => {
+      if (Array.isArray(cs.evidences)) {
+        officerEvCount += cs.evidences.filter(ev => {
+          const col = (ev.collectedBy || '').toLowerCase();
+          return (normBadge && col.includes(normBadge)) || (normName && col.includes(normName));
+        }).length;
+      }
+    });
+
+    const totalCitationsFine = officerCitations.reduce((acc, c) => acc + (Number(c.totalFine) || 0), 0);
+
+    return {
+      badge: s.badge,
+      name: s.name,
+      rank: s.rank,
+      division: s.division,
+      dutyHoursFormatted: s.totalDutyFormatted,
+      dutyMinutes: s.totalDutyMinutes,
+      dutyShifts: s.totalShifts,
+      citationsCount: officerCitations.length,
+      citationsFine: totalCitationsFine,
+      impoundsCount: officerImpounds.length,
+      casesCount: officerCases.length,
+      evidenceCount: officerEvCount
+    };
+  });
+
+  const totalCitationsFine = citations.reduce((acc, c) => acc + (Number(c.totalFine) || 0), 0);
+  const totalImpoundsFee = impounds.reduce((acc, i) => acc + (Number(i.impoundFee) || 0), 0);
+
+  return {
+    periodLabel: label,
+    totalDutyOfficers: summaries.filter(s => s.totalDutyMinutes > 0).length,
+    totalDutyHours: Math.floor(totalDutyMinutes / 60),
+    totalDutyMinutes,
+    totalCitationsCount: citations.length,
+    totalCitationsFine,
+    totalImpoundsCount: impounds.length,
+    totalImpoundsFee,
+    totalCasesCount: cases.length,
+    totalEvidenceCount: directEvidenceCount,
+    officerBreakdown
+  };
+}
 
 export interface DutySession {
   id: string;
@@ -702,3 +850,214 @@ export function exportAttendanceToHTML(
   triggerFileDownload(blob, filename);
   return filename;
 }
+
+/**
+ * EXPORT REKAP DATA DINAS MINGGUAN (DUTY, TILANG, IMPOUND, KASUS, EVIDEN)
+ * Menghasilkan Spreadsheet Excel dengan lembar ringkasan mingguan lengkap beserta breakdown per personel.
+ */
+export function exportWeeklyOperationsToExcel(
+  summary: WeeklyOperationsSummary,
+  filterDivision: string = 'ALL'
+): string {
+  const wb = XLSX.utils.book_new();
+
+  // 1. SHEET RINGKASAN MINGGUAN
+  const overviewRows = [
+    { 'INDIKATOR OPERASIONAL MINGGUAN': 'Periode Laporan', 'JUMLAH / STATISTIK': summary.periodLabel },
+    { 'INDIKATOR OPERASIONAL MINGGUAN': 'Filter Divisi', 'JUMLAH / STATISTIK': filterDivision === 'ALL' ? 'Semua Divisi Kepolisian' : filterDivision },
+    { 'INDIKATOR OPERASIONAL MINGGUAN': 'Personel Aktif Berdinas', 'JUMLAH / STATISTIK': `${summary.totalDutyOfficers} Petugas` },
+    { 'INDIKATOR OPERASIONAL MINGGUAN': 'Akumulasi Jam Dinas', 'JUMLAH / STATISTIK': `${summary.totalDutyHours} Jam ${summary.totalDutyMinutes % 60} Menit` },
+    { 'INDIKATOR OPERASIONAL MINGGUAN': 'Total Upload / Terbitan Surat Tilang (Citations)', 'JUMLAH / STATISTIK': `${summary.totalCitationsCount} Berkas (Total Denda: $${summary.totalCitationsFine.toLocaleString()})` },
+    { 'INDIKATOR OPERASIONAL MINGGUAN': 'Total Upload / Penyitaan Kendaraan (Impounds)', 'JUMLAH / STATISTIK': `${summary.totalImpoundsCount} Unit (Total Biaya Sita: $${summary.totalImpoundsFee.toLocaleString()})` },
+    { 'INDIKATOR OPERASIONAL MINGGUAN': 'Total Upload Berkas Kasus Investigasi (Detective Cases)', 'JUMLAH / STATISTIK': `${summary.totalCasesCount} Kasus` },
+    { 'INDIKATOR OPERASIONAL MINGGUAN': 'Total Upload Barang Bukti / Eviden (Evidence Items)', 'JUMLAH / STATISTIK': `${summary.totalEvidenceCount} Barang Bukti Terdaftar` },
+    { 'INDIKATOR OPERASIONAL MINGGUAN': 'Waktu Cetak Dokumen', 'JUMLAH / STATISTIK': new Date().toLocaleString('id-ID') }
+  ];
+
+  const wsOverview = XLSX.utils.json_to_sheet(overviewRows);
+  wsOverview['!cols'] = [{ wch: 55 }, { wch: 45 }];
+  XLSX.utils.book_append_sheet(wb, wsOverview, 'Ringkasan Jumlah Mingguan');
+
+  // 2. SHEET REKAP PER PERSONEL
+  const filteredBreakdown = filterDivision === 'ALL'
+    ? summary.officerBreakdown
+    : summary.officerBreakdown.filter(o => o.division.toLowerCase() === filterDivision.toLowerCase());
+
+  const officerRows = filteredBreakdown.map((o, idx) => ({
+    'No': idx + 1,
+    'Badge': o.badge,
+    'Nama Petugas': o.name,
+    'Pangkat': o.rank,
+    'Divisi': o.division,
+    'Jam Dinas': o.dutyHoursFormatted,
+    'Jumlah Shift': o.dutyShifts,
+    'Upload Tilang (Citations)': o.citationsCount,
+    'Total Denda Tilang ($)': o.citationsFine,
+    'Upload Impound (Sita Kendaraan)': o.impoundsCount,
+    'Upload Berkas Kasus': o.casesCount,
+    'Upload Eviden (Barang Bukti)': o.evidenceCount
+  }));
+
+  const wsOfficers = XLSX.utils.json_to_sheet(officerRows);
+  wsOfficers['!cols'] = [
+    { wch: 5 },
+    { wch: 10 },
+    { wch: 25 },
+    { wch: 22 },
+    { wch: 18 },
+    { wch: 15 },
+    { wch: 14 },
+    { wch: 24 },
+    { wch: 22 },
+    { wch: 28 },
+    { wch: 20 },
+    { wch: 25 }
+  ];
+  XLSX.utils.book_append_sheet(wb, wsOfficers, 'Rekap per Personel');
+
+  const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const cleanDate = new Date().toISOString().split('T')[0];
+  const filename = `REKAP_MINGGUAN_HSPD_DUTY_TILANG_IMPOUND_KASUS_${cleanDate}.xlsx`;
+  triggerFileDownload(blob, filename);
+  return filename;
+}
+
+/**
+ * EXPORT REKAP DATA DINAS MINGGUAN KE FORMAT DOKUMEN CETAK / RESMI KEPOLISIAN (.HTML / PDF)
+ */
+export function exportWeeklyOperationsToDocument(
+  summary: WeeklyOperationsSummary,
+  filterDivision: string = 'ALL'
+): string {
+  const filteredBreakdown = filterDivision === 'ALL'
+    ? summary.officerBreakdown
+    : summary.officerBreakdown.filter(o => o.division.toLowerCase() === filterDivision.toLowerCase());
+
+  const htmlContent = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Laporan Rekapitulasi Operasional Mingguan HSPD - ${summary.periodLabel}</title>
+  <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 24px; background: #f8fafc; color: #0f172a; }
+    .container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 32px; border-radius: 10px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 18px; margin-bottom: 20px; }
+    .header-logo { display: flex; align-items: center; gap: 16px; }
+    .logo-img { width: 68px; height: 68px; border-radius: 50%; object-fit: contain; }
+    .title h1 { margin: 0; font-size: 22px; text-transform: uppercase; color: #0f172a; letter-spacing: 0.5px; }
+    .title p { margin: 4px 0 0; font-size: 13px; color: #475569; font-weight: 600; }
+    .meta-box { background: #f1f5f9; padding: 12px 18px; border-radius: 8px; font-size: 12px; border: 1px solid #cbd5e1; text-align: right; }
+    .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+    .summary-card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; text-align: center; }
+    .summary-card .val { font-size: 22px; font-weight: bold; color: #0369a1; }
+    .summary-card .lbl { font-size: 11px; color: #64748b; text-transform: uppercase; margin-top: 4px; font-weight: 700; }
+    .summary-card .sub { font-size: 10px; color: #059669; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 14px; }
+    th { background: #0f172a; color: #fff; text-align: left; padding: 9px 8px; font-weight: 600; text-transform: uppercase; font-size: 10px; }
+    td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
+    tr:nth-child(even) { background: #f8fafc; }
+    .badge-tag { background: #0f172a; color: #f8fafc; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-family: monospace; }
+    .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 11px; color: #64748b; }
+    @media print {
+      body { padding: 0; background: #fff; }
+      .container { border: none; box-shadow: none; padding: 0; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-logo">
+        <img src="${HSPD_LOGO_URL}" alt="HSPD Crest" class="logo-img">
+        <div class="title">
+          <h1>High State Police Department</h1>
+          <p>Laporan Rekapitulasi Mingguan: Duty, Tilang, Impound, Kasus & Eviden</p>
+        </div>
+      </div>
+      <div class="meta-box">
+        <div><strong>Periode:</strong> ${summary.periodLabel}</div>
+        <div><strong>Divisi:</strong> ${filterDivision === 'ALL' ? 'Semua Divisi Kepolisian' : filterDivision}</div>
+        <div><strong>Tanggal Cetak:</strong> ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+      </div>
+    </div>
+
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="val">${summary.totalDutyHours}j ${summary.totalDutyMinutes % 60}m</div>
+        <div class="lbl">Total Jam Dinas</div>
+        <div class="sub">${summary.totalDutyOfficers} Personel Aktif</div>
+      </div>
+      <div class="summary-card">
+        <div class="val">${summary.totalCitationsCount}</div>
+        <div class="lbl">Upload Surat Tilang</div>
+        <div class="sub">$${summary.totalCitationsFine.toLocaleString()} Total Denda</div>
+      </div>
+      <div class="summary-card">
+        <div class="val">${summary.totalImpoundsCount}</div>
+        <div class="lbl">Upload Sita Kendaraan</div>
+        <div class="sub">$${summary.totalImpoundsFee.toLocaleString()} Total Biaya</div>
+      </div>
+      <div class="summary-card">
+        <div class="val">${summary.totalCasesCount} / ${summary.totalEvidenceCount}</div>
+        <div class="lbl">Kasus & Eviden</div>
+        <div class="sub">Total Barang Bukti Terdata</div>
+      </div>
+    </div>
+
+    <h3>Rincian Rekapitulasi per Personel Kepolisian</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>No</th>
+          <th>Badge</th>
+          <th>Nama Petugas</th>
+          <th>Pangkat</th>
+          <th>Divisi</th>
+          <th>Jam Dinas</th>
+          <th>Tilang</th>
+          <th>Impound</th>
+          <th>Kasus</th>
+          <th>Eviden</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filteredBreakdown.map((o, idx) => `
+          <tr>
+            <td>${idx + 1}</td>
+            <td><span class="badge-tag">${o.badge}</span></td>
+            <td><strong>${o.name}</strong></td>
+            <td>${o.rank}</td>
+            <td>${o.division}</td>
+            <td><strong>${o.dutyHoursFormatted}</strong> (${o.dutyShifts}x)</td>
+            <td><strong>${o.citationsCount}</strong> ($${o.citationsFine.toLocaleString()})</td>
+            <td><strong>${o.impoundsCount}</strong></td>
+            <td><strong>${o.casesCount}</strong></td>
+            <td><strong>${o.evidenceCount}</strong></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+
+    <div class="footer">
+      <div>MDT Integrated Command • High State Police Department</div>
+      <div>Dokumen Resmi Arsip Jajaran High Command</div>
+    </div>
+  </div>
+
+  <div class="no-print" style="text-align: center; margin-top: 20px;">
+    <button onclick="window.print()" style="background: #0369a1; color: white; border: none; padding: 10px 24px; border-radius: 6px; font-weight: bold; cursor: pointer;">
+      🖨️ Cetak / Simpan PDF Dokumen Rekap
+    </button>
+  </div>
+</body>
+</html>`;
+
+  const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
+  const cleanDate = new Date().toISOString().split('T')[0];
+  const filename = `DOKUMEN_REKAP_MINGGUAN_HSPD_${cleanDate}.html`;
+  triggerFileDownload(blob, filename);
+  return filename;
+}
+

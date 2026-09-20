@@ -344,11 +344,14 @@ export default function App() {
       localStorage.setItem('hspd_roster_database_v3', JSON.stringify(roster));
       localStorage.setItem('hspd_roster_database_v2', JSON.stringify(roster));
       
+      if (isRosterFirstMount.current) {
+        isRosterFirstMount.current = false;
+        return;
+      }
       if (roster && roster.length > 0) {
         const timeout = setTimeout(() => {
           syncCollectionWithFirestore('ROSTER', roster).catch(() => {});
-        }, isRosterFirstMount.current ? 1200 : 500);
-        isRosterFirstMount.current = false;
+        }, 1000);
         return () => clearTimeout(timeout);
       }
     } catch (e) {
@@ -975,13 +978,29 @@ export default function App() {
 
               {/* REALTIME FIREBASE CLOUD DATABASE STATUS BADGE */}
               <div 
-                className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-[#0A0D12] border border-cyan-500/40 rounded-lg text-[10px] font-mono text-cyan-300 shadow-sm"
-                title="Database Firestore Cloud Terkoneksi Real-time: Setiap input data baru otomatis tersinkronisasi"
+                className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-[#0A0D12] border rounded-lg text-[10px] font-mono shadow-sm ${
+                  firebaseSync.quotaExhausted
+                    ? 'border-amber-500/50 text-amber-300'
+                    : firebaseSync.connected
+                      ? 'border-cyan-500/40 text-cyan-300'
+                      : 'border-gray-700 text-gray-400'
+                }`}
+                title={
+                  firebaseSync.quotaExhausted
+                    ? 'Mode Offline Aman: Kuota Firestore harian tercapai. Data tersimpan penuh secara lokal (LocalStorage).'
+                    : firebaseSync.connected
+                      ? 'Database Firestore Cloud Terkoneksi Real-time: Setiap input data baru otomatis tersinkronisasi'
+                      : 'Mode Offline: Menggunakan penyimpanan lokal'
+                }
               >
-                <Cloud className={`w-3.5 h-3.5 ${firebaseSync.connected ? 'text-cyan-400' : 'text-gray-500'}`} />
-                <span className="font-bold">DATABASE CLOUD</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                <span className="text-[9px] text-emerald-400 font-bold">AUTO-SYNC</span>
+                <Cloud className={`w-3.5 h-3.5 ${
+                  firebaseSync.quotaExhausted ? 'text-amber-400' : firebaseSync.connected ? 'text-cyan-400' : 'text-gray-500'
+                }`} />
+                <span className="font-bold">{firebaseSync.quotaExhausted ? 'PENYIMPANAN LOKAL' : 'DATABASE CLOUD'}</span>
+                <span className={`w-1.5 h-1.5 rounded-full ${firebaseSync.quotaExhausted ? 'bg-amber-400' : 'bg-emerald-400 animate-ping'}`} />
+                <span className={`text-[9px] font-bold ${firebaseSync.quotaExhausted ? 'text-amber-400' : 'text-emerald-400'}`}>
+                  {firebaseSync.quotaExhausted ? 'LOCAL AKTIF' : 'AUTO-SYNC'}
+                </span>
               </div>
 
               {/* ON/OFF DUTY DISPATCH TOGGLE BUTTON (Police only; Executive badge for government) */}

@@ -2,10 +2,16 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   initializeFirestore,
   getFirestore, 
+  setLogLevel,
   Firestore
 } from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
 import firebaseConfig from '../firebase-applet-config.json';
+
+// Silence verbose internal Firestore gRPC/WebChannel error logs
+try {
+  setLogLevel('silent');
+} catch {}
 
 // Initialize Firebase App singleton
 export const firebaseApp = !getApps().length

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  OfficerAccount, OfficerRankLevel, OfficerWarning, DischargeRecord, PromotionRecord, ALL_RANKS, HIGH_COMMAND_RANKS, isOfficerHighRank, isAtasanRank 
+  OfficerAccount, OfficerRankLevel, GovernmentRankLevel, OfficerWarning, DischargeRecord, PromotionRecord, ALL_RANKS, HIGH_COMMAND_RANKS, isOfficerHighRank, isAtasanRank 
 } from '../types';
 import { 
   Shield, User, Award, ArrowUpRight, ArrowDownRight, Edit3, 
@@ -12,6 +12,7 @@ import {
   Maximize2, Minimize2
 } from 'lucide-react';
 import { ExportAttendanceModal } from './ExportAttendanceModal';
+import { WeeklyOperationsReportModal } from './WeeklyOperationsReportModal';
 import { getNextAvailableBadge, detectBadgeStatus, BadgeDetectionResult, normalizeBadgeFormat } from '../utils/badgeHelper';
 import { 
   sendOfficerWarningToDiscord, 
@@ -343,7 +344,7 @@ export const RosterManagement: React.FC<Props> = ({
   const [editNameError, setEditNameError] = useState('');
   const [editBadge, setEditBadge] = useState('');
   const [editBadgeError, setEditBadgeError] = useState('');
-  const [newRank, setNewRank] = useState<OfficerRankLevel>('POLICE OFFICER II [PO II]');
+  const [newRank, setNewRank] = useState<OfficerRankLevel | GovernmentRankLevel | string>('POLICE OFFICER II [PO II]');
   const [newDivision, setNewDivision] = useState('');
   const [newPin, setNewPin] = useState('');
   const [editDiscordTag, setEditDiscordTag] = useState('');
@@ -364,6 +365,7 @@ export const RosterManagement: React.FC<Props> = ({
   const [isPullingRealtime, setIsPullingRealtime] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isExportAttendanceModalOpen, setIsExportAttendanceModalOpen] = useState(false);
+  const [isWeeklyOperationsModalOpen, setIsWeeklyOperationsModalOpen] = useState(false);
   // Discharged Officer History Management In-App Dialogs (Safe from iframe window.confirm blocking)
   const [entryToDeleteHistory, setEntryToDeleteHistory] = useState<DischargedOfficerEntry | null>(null);
   const [showClearAllDischargedModal, setShowClearAllDischargedModal] = useState(false);
@@ -1402,6 +1404,18 @@ export const RosterManagement: React.FC<Props> = ({
             >
               <UserPlus className="w-4 h-4" />
               <span>+ TAMBAH ANGGOTA BARU</span>
+            </button>
+
+            {/* REKAP OPERASIONAL MINGGUAN (DUTY, TILANG, IMPOUND, KASUS, EVIDEN) */}
+            <button
+              id="btn-open-weekly-operations-report"
+              type="button"
+              onClick={() => setIsWeeklyOperationsModalOpen(true)}
+              className="px-3 py-2 bg-gradient-to-r from-cyan-950/90 via-blue-950/90 to-indigo-950/90 hover:from-cyan-900 hover:to-indigo-900 border border-cyan-500/80 hover:border-cyan-400 text-cyan-200 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-md shadow-cyan-950/40"
+              title="Rekap data operasional seminggu: jam duty, upload surat tilang, sita kendaraan (impound), upload berkas kasus, dan barang bukti eviden (Excel / Dokumen Cetak)"
+            >
+              <Activity className="w-4 h-4 text-cyan-400" />
+              <span>📊 REKAP DATA DINAS MINGGUAN</span>
             </button>
 
             {/* EXPORT ABSEN MINGGUAN (EXCEL / ZIP / CSV / PDF) */}
@@ -3761,6 +3775,13 @@ export const RosterManagement: React.FC<Props> = ({
       <ExportAttendanceModal
         isOpen={isExportAttendanceModalOpen}
         onClose={() => setIsExportAttendanceModalOpen(false)}
+        roster={roster}
+      />
+
+      {/* WEEKLY OPERATIONS REPORT MODAL (DUTY, CITATIONS, IMPOUND, CASES, EVIDENCE) */}
+      <WeeklyOperationsReportModal
+        isOpen={isWeeklyOperationsModalOpen}
+        onClose={() => setIsWeeklyOperationsModalOpen(false)}
         roster={roster}
       />
 

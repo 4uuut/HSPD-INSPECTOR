@@ -374,7 +374,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
   // Send to Discord Webhook
   const handleSendToDiscord = async () => {
-    const isGov = currentOfficer && isGovernmentOfficer(currentOfficer.rank);
+    const isGov = currentOfficer && isGovernmentOfficer(currentOfficer);
     const govDocConfig = getSavedGovDocumentWebhookConfig();
     const docConfig = getSavedDocumentWebhookConfig();
     const targetWebhookUrl = (isGov && govDocConfig.webhookUrl) ? govDocConfig.webhookUrl : (docConfig.webhookUrl || 

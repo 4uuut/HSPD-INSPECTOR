@@ -462,7 +462,7 @@ export const BoloAndTrafficHub: React.FC<Props> = ({
 
     const cfg = getSavedBoloWebhookConfig();
     if (cfg.webhookUrl && cfg.autoSendOnSave !== false) {
-      sendBoloAlertToDiscord(newBolo, currentOfficer).then(res => {
+      sendBoloAlertToDiscord(newBolo, 'PUBLISHED', currentOfficer).then(res => {
         setDiscordNotice(res);
         setTimeout(() => setDiscordNotice(null), 4000);
       }).catch(() => {});
@@ -476,7 +476,7 @@ export const BoloAndTrafficHub: React.FC<Props> = ({
   const handleManualSendBolo = async (bolo: BoloAlert) => {
     setIsSendingDiscord(true);
     try {
-      const res = await sendBoloAlertToDiscord(bolo, currentOfficer);
+      const res = await sendBoloAlertToDiscord(bolo, 'PUBLISHED', currentOfficer);
       setDiscordNotice(res);
       setTimeout(() => setDiscordNotice(null), 4000);
     } catch (err: any) {

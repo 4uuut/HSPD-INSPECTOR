@@ -37,7 +37,19 @@ export function getDischargedOfficers(): DischargedOfficerEntry[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed;
+        // Auto-heal / restore Jackie Xianlao if previously accidentally added
+        const cleaned = parsed.filter(item => {
+          const n = normalizeName(item.name || '');
+          const id = (item.id || '').toLowerCase().trim();
+          if (n.includes('jackie') || id.includes('jackie')) {
+            return false;
+          }
+          return true;
+        });
+        if (cleaned.length !== parsed.length) {
+          saveDischargedOfficers(cleaned, true);
+        }
+        return cleaned;
       }
     }
   } catch (err) {
@@ -78,12 +90,22 @@ export function isOfficerDischarged(
   list?: DischargedOfficerEntry[]
 ): boolean {
   if (!officer) return false;
-  const dischargedList = list || getDischargedOfficers();
-  if (!dischargedList || dischargedList.length === 0) return false;
 
   const targetId = (officer.id || '').toLowerCase().trim();
   const targetBadge = normalizeBadge(officer.badge || '');
   const targetName = normalizeName(officer.name || '');
+
+  // CRITICAL IMMUNITY: Chief of Police Jackie Xianlao is active High Command and must NEVER be marked as discharged
+  if (
+    targetName.includes('jackie xianlao') ||
+    targetName === 'jackie' ||
+    targetId.includes('jackie-xianlao')
+  ) {
+    return false;
+  }
+
+  const dischargedList = list || getDischargedOfficers();
+  if (!dischargedList || dischargedList.length === 0) return false;
 
   for (const entry of dischargedList) {
     // 1. Direct ID match
@@ -91,22 +113,32 @@ export function isOfficerDischarged(
       return true;
     }
 
-    // 2. Badge digit match (e.g. '#002' equals '002' or '2')
-    const entryBadge = normalizeBadge(entry.badge);
-    if (targetBadge && entryBadge) {
-      if (targetBadge === entryBadge) return true;
-      const numTarget = parseInt(targetBadge, 10);
-      const numEntry = parseInt(entryBadge, 10);
-      if (!isNaN(numTarget) && !isNaN(numEntry) && numTarget === numEntry) {
-        return true;
-      }
-    }
-
-    // 3. Name match (case-insensitive & trimmed)
+    // 2. Name match (case-insensitive & trimmed)
     const entryName = normalizeName(entry.name);
     if (targetName && entryName) {
       if (targetName === entryName) return true;
       if (targetName.replace(/\s+/g, '') === entryName.replace(/\s+/g, '')) return true;
+    }
+
+    // 3. Badge digit match (e.g. '#002' equals '002' or '2')
+    // CRITICAL: Only match badge if names are NOT conflicting!
+    const hasConflictingNames = Boolean(
+      entryName && targetName &&
+      entryName !== targetName &&
+      !entryName.includes(targetName) &&
+      !targetName.includes(entryName)
+    );
+
+    if (!hasConflictingNames) {
+      const entryBadge = normalizeBadge(entry.badge);
+      if (targetBadge && entryBadge) {
+        if (targetBadge === entryBadge) return true;
+        const numTarget = parseInt(targetBadge, 10);
+        const numEntry = parseInt(entryBadge, 10);
+        if (!isNaN(numTarget) && !isNaN(numEntry) && numTarget === numEntry) {
+          return true;
+        }
+      }
     }
   }
 

@@ -76,7 +76,7 @@ export const CitizenServiceSignatoryModal: React.FC<Props> = ({
   );
 
   // Document Status & Verification Notes
-  const [docStatus, setDocStatus] = useState<'APPROVED' | 'PENDING' | 'REJECTED'>(
+  const [docStatus, setDocStatus] = useState<'APPROVED' | 'PENDING' | 'REJECTED' | 'REVOKED'>(
     document.documentStatus || 'APPROVED'
   );
   const [notes, setNotes] = useState<string>(

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Megaphone, Plus, Trash2, Send, CheckCircle2, AlertTriangle, 
   Sparkles, Wrench, Zap, Terminal, Copy, Check, Hash, RefreshCw, 
-  Settings, Bot, ExternalLink, ShieldCheck, MessageSquare, Radio
+  Settings, Bot, ExternalLink, ShieldCheck, MessageSquare, Radio,
+  Palette, Edit3, BookmarkCheck, FileSpreadsheet, RotateCcw
 } from 'lucide-react';
 import { 
   CHANGELOG_WEBHOOK_STORAGE_KEY, 
@@ -27,22 +28,119 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
   const [activeTab, setActiveTab] = useState<'broadcast' | 'commands' | 'settings'>('broadcast');
 
   // Form State
-  const [version, setVersion] = useState('v3.2.0');
-  const [title, setTitle] = useState('Pembaruan Sistem MDT HSPD');
+  const [version, setVersion] = useState('v3.3.0');
+  const [title, setTitle] = useState('Pembaruan Sistem MDT HSPD - Rekap Dinas & Peningkatan Bot');
+  const [headerText, setHeaderText] = useState('[ PENGUMUMAN PEMBARUAN SISTEM MDT HSPD ]');
+  const [customDescription, setCustomDescription] = useState(
+    'Catatan rilis pembaruan perangkat lunak, penyempurnaan operasional kepolisian, serta perbaikan kestabilan dan performa Terminal Mobile Data Computer (MDC) HSPD.'
+  );
+  const [embedColorHex, setEmbedColorHex] = useState('#00A8FF');
+
   const [newFeatures, setNewFeatures] = useState<string[]>([
-    'Tombol Tambah, Edit, dan Hapus Pasal Regulasi Hukum khusus Jajaran Atasan (High Command)',
-    'Portal Akses Kalkulator Denda & Warga Sipil (Citizen Penal View)'
+    'Tombol Rekap Data Dinas Mingguan di Manajemen Anggota (Duty, Tilang, Sita Kendaraan, Kasus, & Eviden)',
+    'Ekspor Ringkasan Operasional Mingguan berformat Excel (.xlsx) dan Dokumen Cetak Resmi',
+    'Dukungan Penuh Perintah Bot Discord dengan Simbol Awalan (!) & Garis Miring (/)',
+    '!pasal & /pasal: Pencarian pasal KUHP, rincian denda finansial, masa kurungan, & status sita barang bukti',
+    '!hitung & /hitung: Kalkulator akumulasi vonis denda dan potongan/diskon otomatis',
+    '!bolo & /bolo: Pemantauan buronan aktif (APB) dan kendaraan DPO kepolisian',
+    '!lookup & /lookup: Pemeriksaan rekam jejak kriminal, lisensi, dan arsip tilang warga di database MDT',
+    '!duty & !roster: Pembaruan status dinas (10-8, 10-7, 10-6, Code 6) dan pemantauan personel bertugas'
   ]);
   const [improvements, setImprovements] = useState<string[]>([
-    'Integrasi Gateway Bot Discord 24/7 dengan dukungan pesan perintah server (CMD)',
-    'Peningkatan kecepatan query pencarian pasal dan sinkronisasi realtime'
+    'Perhitungan dinas otomatis menghitung sesi aktif berjalan tanpa menunggu logout',
+    'Otomatisasi pengumuman changelog bot dengan kata-kata dinamis menyesuaikan pembaruan terbaru',
+    'Optimalisasi latensi Discord Gateway 24/7 dan penataan pesan embed kepolisian'
   ]);
   const [bugFixes, setBugFixes] = useState<string[]>([
-    'Perbaikan otomatisasi port binding pada deployment Cloud Run',
-    'Perbaikan normalisasi data lencana dan otentikasi login perwira'
+    'Perbaikan sinkronisasi channel broadcast pembaruan bot Discord',
+    'Perbaikan input issues (inp isu) dan kestabilan kalkulator denda vonis pidana'
   ]);
-  const [extraNotes, setExtraNotes] = useState('Harap seluruh personel kepolisian menyegarkan (refresh) halaman MDT untuk memuat pembaharuan sistem terbaru.');
+  const [extraNotes, setExtraNotes] = useState('Seluruh jajaran personel kepolisian diwajibkan memeriksa rekapan dinas mingguan dan mencoba fitur perintah bot terbaru di Discord server HSPD.');
   const [mentionRole, setMentionRole] = useState('@everyone');
+
+  // Preset Template loader so messages are tailored and never the same
+  const applyPresetTemplate = (type: 'weekly_recap_bot' | 'bugfix_security' | 'penal_calculator' | 'patrol_update') => {
+    if (type === 'weekly_recap_bot') {
+      setVersion('v3.3.0');
+      setTitle('Pembaruan Sistem MDT HSPD - Rekap Dinas & Integrasi Bot');
+      setHeaderText('[ PENGUMUMAN PEMBARUAN SISTEM MDT HSPD ]');
+      setCustomDescription('Rilis resmi penambahan fitur Rekap Mingguan Personel Kepolisian serta sinkronisasi bot Discord multifungsi.');
+      setEmbedColorHex('#00A8FF');
+      setNewFeatures([
+        'Tombol Rekap Data Mingguan Operasional di Manajemen Anggota & Disiplin Personel',
+        'Download Rekapitulasi Duty, Tilang, Impound, Kasus, dan Eviden dalam bentuk Excel (.xlsx)',
+        'Cetak Laporan Format Dokumen Resmi Kepolisian & Salin Ringkasan Khusus Discord',
+        'Perintah Discord Bot Baru: !pasal, !hitung, !bolo, !lookup, !duty, dan !sop'
+      ]);
+      setImprovements([
+        'Kalkulasi waktu dinas realtime yang menghitung jam petugas on-duty aktif berjalan',
+        'Pesan pengumuman bot Discord fleksibel dan kata-kata otomatis menyesuaikan rilis terkini',
+        'Percepatan respon query laporan kepolisian hingga 3x lipat'
+      ]);
+      setBugFixes([
+        'Penyelesaian masalah input isu (inp isu) pada modal dan form pendaftaran',
+        'Perbaikan sinkronisasi channel rilis Discord saat siaran otomatis'
+      ]);
+      setExtraNotes('Harap seluruh High Command dan Officer memanfaatkan fitur Rekap Mingguan untuk evaluasi personel kepolisian.');
+    } else if (type === 'bugfix_security') {
+      setVersion('v3.3.1');
+      setTitle('Patch Keamanan & Kestabilan Sistem MDT HSPD');
+      setHeaderText('[ PEMBERITAHUAN PATCH PERBAIKAN SISTEM MDT ]');
+      setCustomDescription('Pembaruan perbaikan kesalahan teknis (bug fixes), stabilitas database, dan pemeliharaan performa.');
+      setEmbedColorHex('#E11D48');
+      setNewFeatures([
+        'Peningkatan logging sistem internal untuk mendeteksi anomali akses ilegal',
+        'Auto-recovery koneksi websocket bot saat jaringan terputus'
+      ]);
+      setImprovements([
+        'Optimalisasi konsumsi memori browser saat memuat data laporan berukuran besar',
+        'Peningkatan akurasi waktu stempel pencatatan log'
+      ]);
+      setBugFixes([
+        'Perbaikan input isu dan validasi karakter khusus pada form pencarian',
+        'Perbaikan kendala kuota Firestore dengan mode cadangan lokal otomatis'
+      ]);
+      setExtraNotes('Sistem telah kembali stabil secara penuh. Tidak diperlukan tindakan tambahan dari personel.');
+    } else if (type === 'penal_calculator') {
+      setVersion('v3.2.5');
+      setTitle('Pembaruan Regulasi KUHP & Kalkulator Denda MDT HSPD');
+      setHeaderText('[ PEMBARUAN REGULASI & FITUR HUKUM MDT HSPD ]');
+      setCustomDescription('Penyesuaian pasal-pasal pidana terbaru dan integrasi kalkulator denda cerdas untuk perwira patroli.');
+      setEmbedColorHex('#10B981');
+      setNewFeatures([
+        'Katalog regulasi hukum interaktif dengan kategori pelanggaran lalu lintas dan pidana',
+        'Kalkulator vonis denda dan masa kurungan dengan fitur potongan/diskon otomatis',
+        'Pencarian pasal kilat melalui Discord bot menggunakan perintah /pasal'
+      ]);
+      setImprovements([
+        'Tampilan rincian sita barang bukti (eviden) lebih informatif',
+        'Penyeragaman format sita kendaraan bagi divisi lalu lintas'
+      ]);
+      setBugFixes([
+        'Perbaikan rumus diskon denda pada vonis berlapis'
+      ]);
+      setExtraNotes('Silakan gunakan kalkulator ini saat memproses pelanggar hukum di lapangan.');
+    } else if (type === 'patrol_update') {
+      setVersion('v3.3.2');
+      setTitle('Pembaruan Modul Patroli & Penugasan Unit Lapangan');
+      setHeaderText('[ PENGUMUMAN UNIT & PATROLI OPERASIONAL MDT ]');
+      setCustomDescription('Pembaruan sistem penugasan patroli, pemantauan status unit 10-8, dan koordinasi radio darurat.');
+      setEmbedColorHex('#8B5CF6');
+      setNewFeatures([
+        'Pemantauan status patroli interaktif dengan kode status kepolisian terkini',
+        'Integrasi tombol cepat Code 6 (Investigasi) dan 10-6 (Sibuk)',
+        'Sinkronisasi roster dinas aktif ke channel Discord per 15 menit'
+      ]);
+      setImprovements([
+        'Desain kartu petugas bertugas lebih ramping dan mudah dibaca saat operasi malam',
+        'Peringatan otomatis jika petugas tidak aktif lebih dari batas waktu yang ditentukan'
+      ]);
+      setBugFixes([
+        'Perbaikan kesalahan penentuan unit kendaraan patroli'
+      ]);
+      setExtraNotes('Seluruh petugas lapangan wajib memperbarui status dinas secara berkala.');
+    }
+  };
 
   // Inputs for adding new item
   const [newFeatureInput, setNewFeatureInput] = useState('');
@@ -131,6 +229,7 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
     setSendErrorMsg(null);
 
     const savedWebhook = localStorage.getItem(CHANGELOG_WEBHOOK_STORAGE_KEY) || '';
+    const colorNum = parseInt(embedColorHex.replace('#', ''), 16) || 0x00A8FF;
 
     try {
       const res = await fetch('/api/discord/send-changelog', {
@@ -139,6 +238,9 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
         body: JSON.stringify({
           version,
           title,
+          headerText,
+          customDescription,
+          embedColor: colorNum,
           newFeatures,
           improvements,
           bugFixes,
@@ -260,25 +362,84 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
           {/* TAB 1: BROADCAST / KIRIM PEMBARUAN */}
           {activeTab === 'broadcast' && (
             <div className="space-y-4">
-              {/* Auto Broadcast Status Alert Banner */}
-              <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-4 flex items-start space-x-3 text-xs">
-                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 flex-shrink-0 mt-0.5">
-                  <Radio className="w-4 h-4 animate-pulse" />
+              
+              {/* Dynamic Preset Switcher Bar */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-cyan-400" />
+                    PILIH FORMAT PEMBARUAN DINAMIS (KATA-KATA OTOMATIS MENYESUAIKAN):
+                  </span>
+                  <span className="text-[11px] text-slate-400">Klik untuk memuat format rilis baru</span>
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="font-bold text-emerald-300 text-sm">Otomatisasi Penyiaran Pembaruan Aktif (Auto-Broadcast)</span>
-                    <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 rounded text-[10px] font-semibold">BOT AUTO-SEND</span>
-                  </div>
-                  <p className="text-slate-300 mt-1 leading-relaxed">
-                    Setiap kali pembaruan sistem atau penambahan fitur baru dirilis, bot Discord secara <strong>otomatis menyiarkan pesan changelog ke channel Discord</strong> tanpa harus dikirim secara manual. Anda juga dapat menggunakan formulir di bawah untuk mempublikasikan catatan rilis kustom sewaktu-waktu.
-                  </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => applyPresetTemplate('weekly_recap_bot')}
+                    className="px-3 py-1.5 rounded-lg bg-blue-900/60 hover:bg-blue-800 text-blue-200 border border-blue-600/70 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                  >
+                    <span>📊 Rekap Mingguan & Bot Baru</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetTemplate('bugfix_security')}
+                    className="px-3 py-1.5 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-200 border border-rose-600/70 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                  >
+                    <span>🛠️ Patch Bug & Keamanan</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetTemplate('penal_calculator')}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900 text-emerald-200 border border-emerald-600/70 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                  >
+                    <span>⚖️ KUHP & Kalkulator Denda</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPresetTemplate('patrol_update')}
+                    className="px-3 py-1.5 rounded-lg bg-purple-950/60 hover:bg-purple-900 text-purple-200 border border-purple-600/70 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+                  >
+                    <span>🚓 Patroli & Unit Lapangan</span>
+                  </button>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               {/* Form Input Section */}
               <div className="lg:col-span-7 space-y-5">
+                
+                {/* Header Text & Description */}
+                <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-3.5 space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-cyan-300 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                      <Edit3 className="w-3.5 h-3.5" /> Kalimat Judul Pembuka Bot (Header Bot)
+                    </label>
+                    <input
+                      type="text"
+                      value={headerText}
+                      onChange={(e) => setHeaderText(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
+                      placeholder="Contoh: [ PENGUMUMAN PEMBARUAN SISTEM MDT HSPD ]"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Kalimat ini ditampilkan di luar embed bersama target mention role (@everyone). Dapat disesuaikan dengan topik rilis terkini.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                      Deskripsi Pengantar Pesan Embed
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={customDescription}
+                      onChange={(e) => setCustomDescription(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+                      placeholder="Tuliskan pesan pembuka rilis yang tidak sama setiap pembaruan..."
+                    />
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
@@ -456,9 +617,9 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
                   </div>
                 </div>
 
-                {/* Catatan Tambahan & Mention */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
+                {/* Catatan Tambahan, Warna, & Mention */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="sm:col-span-2">
                     <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">
                       Catatan Tambahan
                     </label>
@@ -483,9 +644,20 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
                       <option value="@here">@here (Anggota Aktif)</option>
                       <option value="none">Tanpa Mention (Silent)</option>
                     </select>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Atau ketik ID role khusus via command <code className="text-blue-400">!hspd setping</code>.
-                    </p>
+                    <div className="mt-2 flex items-center justify-between bg-slate-950 border border-slate-700 rounded-xl p-2">
+                      <span className="text-[11px] text-slate-300 flex items-center gap-1">
+                        <Palette className="w-3.5 h-3.5 text-cyan-400" /> Warna Embed:
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="color"
+                          value={embedColorHex}
+                          onChange={(e) => setEmbedColorHex(e.target.value)}
+                          className="w-6 h-6 rounded border-0 bg-transparent cursor-pointer"
+                        />
+                        <span className="text-[10px] font-mono text-slate-400">{embedColorHex}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -541,14 +713,17 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
                         </div>
                         {mentionRole !== 'none' && (
                           <div className="text-blue-300 text-xs font-medium mt-0.5">
-                            {mentionRole} <span className="text-slate-300 font-semibold">[ PENGUMUMAN PEMBARUAN SISTEM MDT HSPD ]</span>
+                            {mentionRole} <span className="text-slate-200 font-bold">{headerText}</span>
                           </div>
                         )}
                       </div>
                     </div>
 
                     {/* Discord Embed Box */}
-                    <div className="border-l-4 border-cyan-400 bg-[#2B2D31] rounded-r-lg p-3 space-y-2.5">
+                    <div 
+                      className="rounded-r-lg p-3 space-y-2.5 bg-[#2B2D31]"
+                      style={{ borderLeft: `4px solid ${embedColorHex}` }}
+                    >
                       <div className="flex items-center space-x-2 text-[10px] text-slate-400">
                         <span className="font-semibold text-slate-300">High State Police Department • Official System Release</span>
                       </div>
@@ -558,7 +733,7 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
                       </div>
 
                       <div className="text-slate-300 text-[11px] leading-relaxed">
-                        Catatan rilis pembaruan perangkat lunak dan operasional kepolisian telah resmi dirilis ke server.<br />
+                        {customDescription || 'Catatan rilis pembaruan perangkat lunak, penyempurnaan operasional kepolisian, serta perbaikan kestabilan dan performa Terminal Mobile Data Computer (MDC) HSPD.'}<br />
                         📅 <strong>Waktu Rilis:</strong> Hari ini<br />
                         👤 <strong>Dipublikasikan Oleh:</strong> <code className="bg-black/30 px-1 py-0.5 rounded text-blue-300">{currentUser?.name || 'High Command'}</code>
                       </div>

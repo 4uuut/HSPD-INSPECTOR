@@ -331,14 +331,20 @@ apiRouter.post('/discord/verify-login', async (req, res) => {
     }
     const cleanId = String(identifier).trim().toLowerCase();
     const cleanDigits = cleanId.replace(/[^0-9]/g, '');
+    const trimmedPin = (pin || '').trim();
 
     const officers = await discordRosterService.getAllOfficers();
     const normalizeLeo = (str: string) => str.replace(/leoarnd/g, 'leonard').replace(/leoanrd/g, 'leonard');
-    const officer = officers.find(o => {
+
+    // Filter matching candidates
+    const candidates = officers.filter(o => {
       const oName = (o.name || '').toLowerCase().trim();
       const oBadge = (o.badge || '').toLowerCase().trim();
       const oBadgeDigits = oBadge.replace(/[^0-9]/g, '');
 
+      // Explicit name matches
+      if (cleanId === 'jackie' && oName.includes('jackie')) return true;
+      if (cleanId === 'jackie xianlao' && oName.includes('jackie')) return true;
       if (oName === cleanId || oName.replace(/\s+/g, '') === cleanId.replace(/\s+/g, '')) return true;
       if (normalizeLeo(oName) === normalizeLeo(cleanId)) return true;
       if (oBadge === cleanId) return true;
@@ -346,7 +352,7 @@ apiRouter.post('/discord/verify-login', async (req, res) => {
       return false;
     });
 
-    if (!officer) {
+    if (candidates.length === 0) {
       return res.json({
         success: false,
         found: false,
@@ -354,8 +360,54 @@ apiRouter.post('/discord/verify-login', async (req, res) => {
       });
     }
 
-    const trimmedPin = (pin || '').trim();
-    const isPinCorrect = (officer.pin && officer.pin.trim() === trimmedPin) || trimmedPin === '10-4';
+    // If multiple candidates matched (e.g. badge #001 shared across alias entries),
+    // pick the one whose PIN matches the entered PIN, or prefer exact name match
+    let officer = candidates[0];
+    if (candidates.length > 1) {
+      const pinMatched = candidates.find(c => c.pin && c.pin.trim() === trimmedPin);
+      if (pinMatched) {
+        officer = pinMatched;
+      } else {
+        const exactNameMatched = candidates.find(c => (c.name || '').toLowerCase().trim() === cleanId);
+        if (exactNameMatched) {
+          officer = exactNameMatched;
+        }
+      }
+    }
+
+    let isPinCorrect = (officer.pin && officer.pin.trim() === trimmedPin) || trimmedPin === '10-4';
+
+    // If server pin doesn't match yet, check Firestore collection `pin_reset_requests`
+    if (!isPinCorrect && firestoreDb) {
+      try {
+        const snap = await firestoreDb.collection('pin_reset_requests').get();
+        if (!snap.empty) {
+          snap.forEach(doc => {
+            const data = doc.data();
+            const b = (data.officerBadge || '').replace(/[^0-9]/g, '');
+            const n = (data.officerName || '').toLowerCase().trim();
+            const oB = (officer.badge || '').replace(/[^0-9]/g, '');
+            const oN = (officer.name || '').toLowerCase().trim();
+            if (
+              (data.status === 'RESOLVED' || data.status === 'APPROVED') &&
+              ((b && oB && b === oB) || (n && oN && n === oN)) &&
+              data.resolvedNewPin && data.resolvedNewPin.trim() === trimmedPin
+            ) {
+              isPinCorrect = true;
+              officer.pin = trimmedPin;
+              // Sync updated PIN to local cache and server roster
+              discordRosterService.updateOfficerPin({
+                name: officer.name,
+                badge: officer.badge,
+                newPin: trimmedPin
+              }).catch(() => {});
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Error checking Firestore pin_reset_requests on verify-login:', e);
+      }
+    }
 
     return res.json({
       success: isPinCorrect,
@@ -374,6 +426,29 @@ apiRouter.post('/discord/verify-login', async (req, res) => {
     });
   } catch (e: any) {
     res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// Update Officer PIN endpoint (Called immediately after successful PIN reset)
+apiRouter.post('/discord/update-officer-pin', async (req, res) => {
+  try {
+    const { name, badge, newPin, pin, discordId, discordUsername, discordTag } = req.body;
+    const finalPin = (newPin || pin || '').toString().trim();
+    if (!finalPin) {
+      return res.status(400).json({ success: false, message: 'PIN baru wajib diisi.' });
+    }
+
+    const result = await discordRosterService.updateOfficerPin({
+      name,
+      badge,
+      newPin: finalPin,
+      discordId,
+      discordUsername: discordUsername || discordTag
+    });
+
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message || 'Gagal memperbarui PIN di server' });
   }
 });
 
@@ -479,7 +554,18 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       });
     }
 
-    const rawTarget = (userId || discordUsername || username || '').toString().trim();
+    let rawTarget = (userId || discordUsername || username || req.body.discordTag || '').toString().trim();
+    if (!rawTarget && (officerName || badge)) {
+      const foundOfficer = await discordRosterService.findOfficer({ name: officerName, badge });
+      if (foundOfficer?.discordId) {
+        rawTarget = foundOfficer.discordId;
+      } else if (foundOfficer?.discordTag) {
+        rawTarget = foundOfficer.discordTag;
+      } else if (foundOfficer?.discordUsername) {
+        rawTarget = foundOfficer.discordUsername;
+      }
+    }
+
     if (!rawTarget) {
       return res.status(400).json({
         success: false,
@@ -815,7 +901,10 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
       webhookUrl,
       authorName,
       authorBadge,
-      authorRank
+      authorRank,
+      headerText,
+      customDescription,
+      embedColor
     } = req.body || {};
 
     const cleanFeatures: string[] = Array.isArray(newFeatures) 
@@ -851,7 +940,10 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
         channelId,
         authorName,
         authorBadge,
-        authorRank
+        authorRank,
+        headerText,
+        customDescription,
+        embedColor
       });
     }
 
@@ -912,12 +1004,17 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
       }
 
       const pingContent = (mentionRole && mentionRole !== 'none' && mentionRole !== 'off') ? `${mentionRole} ` : '';
+      const headerTag = headerText?.trim() || '[ PENGUMUMAN PEMBARUAN SISTEM MDT HSPD ]';
+      const defaultDesc = `Catatan rilis pembaruan perangkat lunak, penyempurnaan operasional, dan perbaikan kestabilan Terminal Mobile Data Computer (MDC) HSPD.\n\n📅 **Waktu Rilis:** \`${dateStr}\`\n👤 **Dipublikasikan Oleh:** \`${authorName || 'High Command'}\` ${authorBadge ? `(\`${authorBadge}\`)` : ''}`;
+      const finalDesc = customDescription?.trim()
+        ? `${customDescription.trim()}\n\n📅 **Waktu Rilis:** \`${dateStr}\`\n👤 **Dipublikasikan Oleh:** \`${authorName || 'High Command'}\` ${authorBadge ? `(\`${authorBadge}\`)` : ''}`
+        : defaultDesc;
 
       const hookRes = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content: pingContent ? `${pingContent}**[ PENGUMUMAN PEMBARUAN SISTEM MDT HSPD ]**` : undefined,
+          content: pingContent ? `${pingContent}**${headerTag}**` : `**${headerTag}**`,
           embeds: [
             {
               author: {
@@ -925,8 +1022,8 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
                 icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
               },
               title: `📢 ${title || 'Pembaruan Sistem MDT HSPD'} • [${version || 'v3.2.0'}]`,
-              description: `Catatan rilis pembaruan perangkat lunak, penyempurnaan operasional, dan perbaikan kestabilan Terminal Mobile Data Computer (MDC) HSPD.\n\n📅 **Waktu Rilis:** \`${dateStr}\`\n👤 **Dipublikasikan Oleh:** \`${authorName || 'High Command'}\` ${authorBadge ? `(\`${authorBadge}\`)` : ''}`,
-              color: 0x00A8FF,
+              description: finalDesc,
+              color: typeof embedColor === 'number' ? embedColor : 0x00A8FF,
               fields,
               footer: {
                 text: `HSPD MDC System • ${version || 'v3.2.0'} • High State Government`,

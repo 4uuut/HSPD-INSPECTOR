@@ -27,8 +27,8 @@ export interface FirebaseSyncStatus {
 let quotaExhaustedUntil: number = 0;
 
 function setQuotaExhausted() {
-  // Short transient backoff of 60 seconds (not a 4-hour lock)
-  quotaExhaustedUntil = Date.now() + 60 * 1000;
+  // Transient backoff of 5 minutes to prevent rapid retry loops against Firestore free quota limits
+  quotaExhaustedUntil = Date.now() + 5 * 60 * 1000;
 }
 
 export function isQuotaExhausted(): boolean {

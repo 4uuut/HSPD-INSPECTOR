@@ -631,7 +631,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => {
-                const cur = getPinResetRequests();
+                const cur = loadAllUnifiedRequests();
                 setRequests(cur);
                 pushAllToFirestore('PIN_RESET_REQUESTS', cur).then(() => {
                   setActionSuccessNotice('⚡ Data Tiket Reset PIN Berhasil Disinkronkan dengan Cloud Firestore!');
