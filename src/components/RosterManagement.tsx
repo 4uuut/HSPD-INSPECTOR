@@ -9,7 +9,7 @@ import {
   UserX, Trash2, AlertOctagon, Send, RotateCcw, AlertCircle, FileText, RefreshCw,
   UserPlus, Phone, Sliders, Eye, EyeOff, Radio, Activity, FileSpreadsheet, Download, Archive,
   MessageSquare, Bot, Upload, Image, Palette, Save, Bookmark, Settings, Globe, ExternalLink,
-  Maximize2, Minimize2
+  Maximize2, Minimize2, ArrowUpDown
 } from 'lucide-react';
 import { ExportAttendanceModal } from './ExportAttendanceModal';
 import { WeeklyOperationsReportModal } from './WeeklyOperationsReportModal';
@@ -51,7 +51,7 @@ import {
   pushToFirestore,
   FirebaseSyncStatus 
 } from '../services/firebaseRealtimeSync';
-import { mergeWithOfficialRoster, HSPD_OFFICIAL_ROSTER } from '../data/hspdOfficialRoster';
+import { mergeWithOfficialRoster, HSPD_OFFICIAL_ROSTER, extractBadgeNumeric } from '../data/hspdOfficialRoster';
 import { updateOfficerPinInRoster, updateOfficerAccountInRoster, getRosterFromStorage, saveRosterToStorage, isOfficerMatch, isSameOfficerAccount } from '../utils/pinResetStorage';
 import { 
   getDischargedOfficers, 
@@ -169,6 +169,7 @@ export const RosterManagement: React.FC<Props> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRank, setFilterRank] = useState<'ALL' | 'DUTY' | 'COMMAND' | 'PATROL' | 'WARNED' | 'DISCHARGED'>('ALL');
+  const [rosterSortBy, setRosterSortBy] = useState<'badge_asc' | 'badge_desc' | 'name_asc' | 'rank_desc'>('badge_asc');
   const [editingOfficer, setEditingOfficer] = useState<OfficerAccount | null>(null);
   const [showPurgeNonAtasanModal, setShowPurgeNonAtasanModal] = useState(false);
   const [isPurgingNonAtasan, setIsPurgingNonAtasan] = useState(false);
@@ -775,7 +776,7 @@ export const RosterManagement: React.FC<Props> = ({
 
   const filteredRoster = useMemo(() => {
     const seenNames = new Set<string>();
-    return roster.filter(officer => {
+    const list = roster.filter(officer => {
       // Prevent rendering duplicate rows for the same character name
       const normName = (officer.name || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
       if (normName) {
@@ -802,7 +803,34 @@ export const RosterManagement: React.FC<Props> = ({
       if (filterRank === 'WARNED') return (officer.warnings?.length || 0) > 0;
       return true;
     });
-  }, [roster, searchQuery, filterRank]);
+
+    return list.sort((a, b) => {
+      if (rosterSortBy === 'badge_asc') {
+        const numA = extractBadgeNumeric(a.badge);
+        const numB = extractBadgeNumeric(b.badge);
+        if (numA !== numB) return numA - numB;
+        return (a.badge || '').localeCompare(b.badge || '');
+      }
+      if (rosterSortBy === 'badge_desc') {
+        const numA = extractBadgeNumeric(a.badge);
+        const numB = extractBadgeNumeric(b.badge);
+        if (numA !== numB) return numB - numA;
+        return (b.badge || '').localeCompare(a.badge || '');
+      }
+      if (rosterSortBy === 'name_asc') {
+        return (a.name || '').localeCompare(b.name || '');
+      }
+      if (rosterSortBy === 'rank_desc') {
+        const isHighA = isOfficerHighRank(a.rank) ? 1 : 0;
+        const isHighB = isOfficerHighRank(b.rank) ? 1 : 0;
+        if (isHighA !== isHighB) return isHighB - isHighA;
+        const numA = extractBadgeNumeric(a.badge);
+        const numB = extractBadgeNumeric(b.badge);
+        return numA - numB;
+      }
+      return 0;
+    });
+  }, [roster, searchQuery, filterRank, rosterSortBy]);
 
   const handleStartEdit = (officer: OfficerAccount) => {
     if (!isCurrentOfficerCommand) {
@@ -1556,6 +1584,23 @@ export const RosterManagement: React.FC<Props> = ({
         </div>
 
         <div className="flex items-center gap-1 bg-[#0D1117] p-1 border border-gray-800 rounded-lg text-xs font-mono overflow-x-auto">
+          {/* Badge & Order Sort Selector */}
+          <div className="flex items-center gap-1.5 px-2 py-0.5 border-r border-gray-800 mr-1 shrink-0">
+            <ArrowUpDown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="text-[11px] text-gray-400 hidden lg:inline">Urut:</span>
+            <select
+              value={rosterSortBy}
+              onChange={(e) => setRosterSortBy(e.target.value as any)}
+              className="bg-transparent text-amber-300 font-bold text-[11px] border-none outline-none cursor-pointer pr-1"
+              title="Pilih metode pengurutan data personel di tabel roster"
+            >
+              <option value="badge_asc" className="bg-[#161B22] text-gray-200">Badge (#001 → #999)</option>
+              <option value="badge_desc" className="bg-[#161B22] text-gray-200">Badge (#999 → #001)</option>
+              <option value="name_asc" className="bg-[#161B22] text-gray-200">Nama (A - Z)</option>
+              <option value="rank_desc" className="bg-[#161B22] text-gray-200">Pangkat (Command → Patrol)</option>
+            </select>
+          </div>
+
           <button
             onClick={() => setFilterRank('ALL')}
             className={`px-2.5 py-1 rounded transition whitespace-nowrap ${filterRank === 'ALL' ? 'bg-blue-600 text-white font-bold' : 'text-gray-400 hover:text-gray-200'}`}
@@ -1725,7 +1770,23 @@ export const RosterManagement: React.FC<Props> = ({
           <table className="w-full text-left text-xs font-mono">
             <thead className="bg-[#161B22] border-b border-gray-800 text-gray-400 uppercase text-[10px]">
               <tr>
-                <th className="py-2.5 px-3">Petugas & Lencana</th>
+                <th 
+                  className="py-2.5 px-3 cursor-pointer hover:text-white transition select-none group"
+                  onClick={() => setRosterSortBy(prev => prev === 'badge_asc' ? 'badge_desc' : 'badge_asc')}
+                  title="Klik untuk mengubah urutan nomor badge (Urut Terkecil / Terbesar)"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>Petugas & Lencana</span>
+                    <span className={`inline-flex items-center text-[9px] px-1.5 py-0.2 rounded font-mono ${
+                      rosterSortBy.startsWith('badge') 
+                        ? 'bg-amber-950/80 border border-amber-600/70 text-amber-300' 
+                        : 'bg-gray-800 border border-gray-700 text-gray-400'
+                    }`}>
+                      <ArrowUpDown className="w-2.5 h-2.5 mr-0.5 text-amber-400" />
+                      {rosterSortBy === 'badge_asc' ? '#001 → #999' : rosterSortBy === 'badge_desc' ? '#999 → #001' : 'Badge'}
+                    </span>
+                  </div>
+                </th>
                 <th className="py-2.5 px-3">Status Dinas</th>
                 <th className="py-2.5 px-3">Pangkat / Rank</th>
                 <th className="py-2.5 px-3">Divisi Operasional</th>

@@ -278,7 +278,7 @@ export function mergeWithOfficialRoster(
           'lexa arvella', 'luix ziyen', 'luna haller', 'marchel leonerd',
           'michaell anderson', 'moeses clausius', 'moji junior', 'morale lammar',
           'omar bradley', 'oscar hernandez', 'peter schmaicel', 'rafa gharui',
-          'rafferty linnix', 'ramsey beningthon', 'rejjie kei', 'rize izumi',
+          'rafferty linnix', 'ramsey beningthon', 'rejjie kei',
           'shalom cuirras', 'shiko alexanderz', 'stephen oscar', 'syns askara',
           'theo leviathan', 'thomas olise', 'udin phystachio', 'van tamayuki',
           'viggo bonapattem', 'wesley gravemourn', 'yukai escobar', 'zaydan kusuma', 'zayy choper'
@@ -334,20 +334,28 @@ export function mergeWithOfficialRoster(
 
   const uniqueOfficers = Array.from(nameRegistry.values());
   
-  // Keep official ordering at top, followed by any custom officers
-  const officialBadgeOrder = new Map<string, number>();
-  HSPD_OFFICIAL_ROSTER.forEach((off, idx) => {
-    const cleanDigits = off.badge.replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
-    officialBadgeOrder.set(cleanDigits, idx);
-  });
-
+  // Sort cleanly by numerical badge number (e.g. #001 -> #003 -> #018 -> #401 -> #402 -> #411 -> #421)
   return uniqueOfficers.sort((a, b) => {
-    const digitsA = (a.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
-    const digitsB = (b.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
-    const idxA = officialBadgeOrder.has(digitsA) ? officialBadgeOrder.get(digitsA)! : 9999;
-    const idxB = officialBadgeOrder.has(digitsB) ? officialBadgeOrder.get(digitsB)! : 9999;
-    if (idxA !== idxB) return idxA - idxB;
-    return (b.registeredAt || 0) - (a.registeredAt || 0);
+    const numA = extractBadgeNumeric(a.badge);
+    const numB = extractBadgeNumeric(b.badge);
+    if (numA !== numB) return numA - numB;
+    const strA = (a.badge || '').toLowerCase().trim();
+    const strB = (b.badge || '').toLowerCase().trim();
+    if (strA !== strB) return strA.localeCompare(strB);
+    return (a.name || '').localeCompare(b.name || '');
   });
 }
+
+/**
+ * Extracts the primary numeric value of an officer badge (e.g. "#001" -> 1, "#018" -> 18, "#401" -> 401)
+ * Useful for consistent numerical ascending ordering across all roster tables & views.
+ */
+export function extractBadgeNumeric(badge?: string): number {
+  if (!badge) return 999999;
+  const digits = String(badge).replace(/[^0-9]/g, '');
+  if (!digits) return 999999;
+  const num = parseInt(digits, 10);
+  return isNaN(num) ? 999999 : num;
+}
+
 

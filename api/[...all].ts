@@ -579,6 +579,120 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // -------------------------------------------------------------
+    // UPDATE OFFICER (Atomic update without duplicates)
+    // -------------------------------------------------------------
+    if (cleanPath === '/discord/update-officer') {
+      const body = await parseJsonBody(req);
+      const { originalBadge, originalName, originalId, officer } = body || {};
+
+      if (!officer || !officer.name || !officer.badge) {
+        return res.status(400).json({ success: false, message: 'Data petugas tidak lengkap.' });
+      }
+
+      const backupPath = path.join(process.cwd(), '.discord_registered_officers.json');
+      let localOfficers: any[] = [];
+      try {
+        if (fs.existsSync(backupPath)) {
+          localOfficers = JSON.parse(fs.readFileSync(backupPath, 'utf-8'));
+        }
+      } catch {}
+
+      const targetBadge = (originalBadge || officer.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+      const targetName = (originalName || officer.name || '').toLowerCase().trim();
+      const targetId = (originalId || officer.id || '').trim();
+
+      let existingIndex = -1;
+      for (let i = 0; i < localOfficers.length; i++) {
+        const o = localOfficers[i];
+        const oBadge = (o.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
+        const oName = (o.name || '').toLowerCase().trim();
+        const oId = (o.id || '').trim();
+
+        if (targetId && oId && targetId === oId) {
+          existingIndex = i;
+          break;
+        }
+        if (targetBadge && oBadge && targetBadge === oBadge) {
+          existingIndex = i;
+          break;
+        }
+        if (targetName && oName && targetName === oName) {
+          existingIndex = i;
+          break;
+        }
+      }
+
+      const now = Date.now();
+      const cleanUpdatedOfficer = {
+        ...officer,
+        id: (existingIndex >= 0 && localOfficers[existingIndex].id) || officer.id || `roster-${now}-${Math.random().toString(36).substring(2, 6)}`,
+        _updatedAt: now
+      };
+
+      if (existingIndex >= 0) {
+        localOfficers[existingIndex] = {
+          ...localOfficers[existingIndex],
+          ...cleanUpdatedOfficer
+        };
+      } else {
+        localOfficers.unshift(cleanUpdatedOfficer);
+      }
+
+      try {
+        fs.writeFileSync(backupPath, JSON.stringify(localOfficers, null, 2), 'utf-8');
+      } catch {}
+
+      const db = getServerDb();
+      if (db) {
+        try {
+          const targetDocId = cleanUpdatedOfficer.id;
+          const targetDocRef = doc(db, 'roster', targetDocId);
+          await setDoc(targetDocRef, cleanUpdatedOfficer, { merge: true });
+
+          if (originalId && originalId !== targetDocId) {
+            try {
+              const { deleteDoc: delDoc } = await import('firebase/firestore');
+              await delDoc(doc(db, 'roster', originalId));
+            } catch {}
+          }
+        } catch (e: any) {
+          console.warn('[Vercel update-officer] Firestore write warning:', e?.message || e);
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `Data petugas ${cleanUpdatedOfficer.name} (${cleanUpdatedOfficer.badge}) berhasil diperbarui!`,
+        officer: cleanUpdatedOfficer
+      });
+    }
+
+    // -------------------------------------------------------------
+    // UPDATE OFFICER PIN
+    // -------------------------------------------------------------
+    if (cleanPath === '/discord/update-officer-pin') {
+      const body = await parseJsonBody(req);
+      const { name, badge, newPin, pin, discordId } = body || {};
+      const finalPin = (newPin || pin || '').toString().trim();
+
+      if (!finalPin) {
+        return res.status(400).json({ success: false, message: 'PIN baru wajib diisi.' });
+      }
+
+      const ok = await updateCloudOfficerPin({
+        badge,
+        name,
+        discordId,
+        newPin: finalPin
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: `PIN Petugas ${name || badge || ''} berhasil diperbarui menjadi ${finalPin}.`
+      });
+    }
+
+    // -------------------------------------------------------------
     // DISCORD BOT STATUS
     // -------------------------------------------------------------
     if (cleanPath === '/discord/bot-status') {
@@ -1022,6 +1136,319 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           ? `✅ Pesan khusus dari atasan berhasil dikirimkan ke PM Discord ${resolvedUsernameTag || officerName}!`
           : `✅ Kredensial akun UCP & PIN berhasil dikirim ke PM Discord ${resolvedUsernameTag || officerName}!`
       });
+    }
+
+    // -------------------------------------------------------------
+    // DISCORD BOT SERVER CONFIGURATION
+    // -------------------------------------------------------------
+    if (cleanPath === '/discord/bot-config') {
+      const cfgPath = path.join(process.cwd(), '.discord_server_config.json');
+      let currentCfg: any = {
+        serverId: '1361541785507008622',
+        serverName: 'HIGH STATE POLICE DEPARTMENT',
+        rosterChannelId: '1361541785507008623',
+        changelogChannelId: '1361541785507008624',
+        dutyChannelId: '1361541785507008625',
+        prefix: '!',
+        changelogMentionRole: '@everyone',
+        updatedAt: Date.now()
+      };
+      try {
+        if (fs.existsSync(cfgPath)) {
+          currentCfg = JSON.parse(fs.readFileSync(cfgPath, 'utf-8'));
+        }
+      } catch {}
+
+      if (req.method === 'GET') {
+        const token = getBotToken();
+        let botUser: any = null;
+        let isOnline = false;
+        if (token) {
+          try {
+            const meRes = await fetch('https://discord.com/api/v10/users/@me', {
+              headers: { Authorization: `Bot ${token}` }
+            });
+            if (meRes.ok) {
+              const u = await meRes.json() as any;
+              isOnline = true;
+              botUser = {
+                id: u.id,
+                username: u.username,
+                discriminator: u.discriminator || '0',
+                avatar: u.avatar ? `https://cdn.discordapp.com/avatars/${u.id}/${u.avatar}.png` : 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+              };
+            }
+          } catch {}
+        }
+        return res.status(200).json({
+          success: true,
+          config: currentCfg,
+          status: {
+            isOnline,
+            status: isOnline ? 'online' : 'offline',
+            uptimeSeconds: isOnline ? 86400 : 0,
+            botUser,
+            message: isOnline ? 'Bot Discord Aktif & Terhubung' : 'Bot offline atau token belum diatur.'
+          }
+        });
+      }
+
+      if (req.method === 'POST') {
+        const updates = await parseJsonBody(req);
+        const updated = {
+          ...currentCfg,
+          ...updates,
+          updatedAt: Date.now()
+        };
+        try {
+          fs.writeFileSync(cfgPath, JSON.stringify(updated, null, 2), 'utf-8');
+        } catch {}
+        return res.status(200).json({
+          success: true,
+          message: 'Pengaturan Discord Bot berhasil disimpan!',
+          config: updated
+        });
+      }
+    }
+
+    // -------------------------------------------------------------
+    // DISCORD SEND CHANGELOG / ANNOUNCEMENT
+    // -------------------------------------------------------------
+    if (cleanPath === '/discord/send-changelog') {
+      const body = await parseJsonBody(req);
+      const {
+        version,
+        title,
+        newFeatures,
+        improvements,
+        bugFixes,
+        extraNotes,
+        mentionRole,
+        channelId,
+        webhookUrl,
+        authorName,
+        authorBadge,
+        headerText,
+        customDescription,
+        embedColor,
+        botToken: customToken
+      } = body || {};
+
+      const cleanFeatures: string[] = Array.isArray(newFeatures)
+        ? newFeatures.filter((f: any) => typeof f === 'string' && f.trim().length > 0)
+        : [];
+      const cleanImprovements: string[] = Array.isArray(improvements)
+        ? improvements.filter((f: any) => typeof f === 'string' && f.trim().length > 0)
+        : [];
+      const cleanBugFixes: string[] = Array.isArray(bugFixes)
+        ? bugFixes.filter((f: any) => typeof f === 'string' && f.trim().length > 0)
+        : [];
+
+      if (cleanFeatures.length === 0 && cleanImprovements.length === 0 && cleanBugFixes.length === 0 && !extraNotes) {
+        return res.status(400).json({
+          success: false,
+          message: 'Harap isi minimal satu poin perubahan (Fitur Baru, Peningkatan, atau Perbaikan Bug)!'
+        });
+      }
+
+      const now = new Date();
+      const dateFormatted = now.toLocaleDateString('id-ID', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
+      if (cleanFeatures.length > 0) {
+        fields.push({
+          name: '🚀 Fitur Baru (New Features)',
+          value: cleanFeatures.map(f => `• ${f.trim()}`).join('\n'),
+          inline: false
+        });
+      }
+      if (cleanImprovements.length > 0) {
+        fields.push({
+          name: '⚡ Peningkatan Sistem (Improvements)',
+          value: cleanImprovements.map(f => `• ${f.trim()}`).join('\n'),
+          inline: false
+        });
+      }
+      if (cleanBugFixes.length > 0) {
+        fields.push({
+          name: '🛠️ Perbaikan Bug (Bug Fixes)',
+          value: cleanBugFixes.map(f => `• ${f.trim()}`).join('\n'),
+          inline: false
+        });
+      }
+      if (extraNotes && String(extraNotes).trim()) {
+        fields.push({
+          name: '📝 Catatan Rilis & Panduan',
+          value: String(extraNotes).trim(),
+          inline: false
+        });
+      }
+
+      const effectiveMention = (mentionRole && mentionRole !== 'none' && mentionRole !== 'off')
+        ? `${mentionRole} `
+        : '';
+      const headerTag = headerText?.trim() || '[ PENGUMUMAN PEMBARUAN SISTEM MDT HSPD ]';
+      const finalTitle = `📢 ${title || 'Pembaruan Sistem MDT HSPD'} • [${version || 'v3.4.0'}]`;
+      const defaultDesc = `Catatan rilis pembaruan perangkat lunak, penyempurnaan operasional, dan perbaikan kestabilan Terminal Mobile Data Computer (MDC) HSPD.\n\n📅 **Waktu Rilis:** \`${dateFormatted}\`\n👤 **Dipublikasikan Oleh:** \`${authorName || 'High Command'}\` ${authorBadge ? `(\`${authorBadge}\`)` : ''}`;
+      const finalDesc = customDescription?.trim()
+        ? `${customDescription.trim()}\n\n📅 **Waktu Rilis:** \`${dateFormatted}\`\n👤 **Dipublikasikan Oleh:** \`${authorName || 'High Command'}\` ${authorBadge ? `(\`${authorBadge}\`)` : ''}`
+        : defaultDesc;
+
+      let parsedColor = 0x00A8FF;
+      if (typeof embedColor === 'number') {
+        parsedColor = embedColor;
+      } else if (typeof embedColor === 'string') {
+        const cleanHex = embedColor.replace('#', '').trim();
+        const num = parseInt(cleanHex, 16);
+        if (!isNaN(num)) parsedColor = num;
+      }
+
+      const embedPayload = {
+        author: {
+          name: 'High State Police Department • Official System Release',
+          icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+        },
+        title: finalTitle.substring(0, 256),
+        description: finalDesc.substring(0, 4096),
+        color: parsedColor,
+        fields,
+        footer: {
+          text: `HSPD MDC System • ${version || 'v3.4.0'} • High State Government`,
+          icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+        },
+        timestamp: now.toISOString()
+      };
+
+      const messageContent = effectiveMention ? `${effectiveMention}**${headerTag}**` : `**${headerTag}**`;
+
+      const token = getBotToken(customToken);
+      const targetChannel = channelId;
+
+      if (token && targetChannel) {
+        try {
+          const botSendRes = await fetch(`https://discord.com/api/v10/channels/${targetChannel}/messages`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bot ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              content: messageContent,
+              embeds: [embedPayload]
+            })
+          });
+
+          if (botSendRes.ok) {
+            return res.status(200).json({
+              success: true,
+              message: `Pembaruan [${version || 'v3.4.0'}] berhasil disiarkan ke channel <#${targetChannel}> via Bot!`,
+              channelId: targetChannel,
+              method: 'discord_bot'
+            });
+          }
+        } catch (err: any) {
+          console.warn('[Vercel send-changelog] Bot channel send error, trying webhook fallback:', err?.message);
+        }
+      }
+
+      if (webhookUrl && typeof webhookUrl === 'string' && webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
+        try {
+          const hookRes = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content: messageContent,
+              embeds: [embedPayload]
+            })
+          });
+
+          if (hookRes.ok) {
+            return res.status(200).json({
+              success: true,
+              message: `Pembaruan [${version || 'v3.4.0'}] berhasil dipublikasikan ke Discord melalui Webhook!`,
+              method: 'discord_webhook'
+            });
+          }
+
+          const hookErr = await hookRes.json().catch(() => ({}));
+          return res.status(400).json({
+            success: false,
+            message: `Discord Webhook menolak permintaan: ${hookErr.message || hookRes.statusText}`
+          });
+        } catch (err: any) {
+          return res.status(500).json({
+            success: false,
+            message: `Gagal mengirim ke Webhook Discord: ${err?.message || err}`
+          });
+        }
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: 'Kanal Discord Bot maupun Webhook URL belum diatur. Harap konfigurasi channel bot atau Webhook URL pembaruan di pengaturan.'
+      });
+    }
+
+    // -------------------------------------------------------------
+    // DISCORD GET CHANNELS
+    // -------------------------------------------------------------
+    if (cleanPath === '/discord/channels') {
+      let queryToken = '';
+      try {
+        const parsedUrl = new URL(rawUrl, 'http://localhost');
+        queryToken = parsedUrl.searchParams.get('botToken') || parsedUrl.searchParams.get('token') || '';
+      } catch {}
+
+      const token = getBotToken(queryToken);
+      if (!token) {
+        return res.status(400).json({ success: false, message: 'Bot Token belum dikonfigurasi' });
+      }
+
+      try {
+        const guildsRes = await fetch('https://discord.com/api/v10/users/@me/guilds', {
+          headers: { Authorization: `Bot ${token}` }
+        });
+        if (!guildsRes.ok) {
+          return res.status(400).json({ success: false, message: 'Gagal mengambil daftar server Discord bot' });
+        }
+        const guilds = await guildsRes.json() as any[];
+        if (!guilds || guilds.length === 0) {
+          return res.status(200).json({ success: true, channels: [] });
+        }
+
+        const guildId = guilds[0].id;
+        const chanRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+          headers: { Authorization: `Bot ${token}` }
+        });
+        if (!chanRes.ok) {
+          return res.status(400).json({ success: false, message: 'Gagal mengambil daftar channel server' });
+        }
+        const chans = await chanRes.json() as any[];
+        const textChannels = chans
+          .filter((c: any) => c.type === 0 || c.type === 5)
+          .map((c: any) => ({
+            id: c.id,
+            name: c.name,
+            position: c.position,
+            parentId: c.parent_id
+          }));
+
+        return res.status(200).json({
+          success: true,
+          channels: textChannels,
+          guildId,
+          guildName: guilds[0].name
+        });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, message: err.message || 'Gagal memuat channel' });
+      }
     }
 
     // -------------------------------------------------------------

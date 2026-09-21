@@ -7,7 +7,10 @@ import {
 } from 'lucide-react';
 import { 
   CHANGELOG_WEBHOOK_STORAGE_KEY, 
-  CHANGELOG_MENTION_ROLE_KEY 
+  CHANGELOG_MENTION_ROLE_KEY,
+  DISCORD_BOT_TOKEN_KEY,
+  buildApiUrl,
+  safeFetchJson
 } from '../utils/discordWebhook';
 
 interface DiscordReleaseAnnouncementModalProps {
@@ -268,9 +271,10 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
 
   const loadBotConfig = async () => {
     try {
-      const res = await fetch('/api/discord/bot-config');
-      if (res.ok) {
-        const data = await res.json();
+      const res = await fetch(buildApiUrl('/api/discord/bot-config'));
+      const parsed = await safeFetchJson(res);
+      if (parsed.ok && parsed.data) {
+        const data = parsed.data;
         if (data.config) {
           setBotConfig(data.config);
           if (data.config.changelogMentionRole) {
@@ -289,7 +293,8 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
   const handleSaveConfig = async () => {
     setIsSavingConfig(true);
     try {
-      const res = await fetch('/api/discord/bot-config', {
+      localStorage.setItem(CHANGELOG_MENTION_ROLE_KEY, mentionRole);
+      const res = await fetch(buildApiUrl('/api/discord/bot-config'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -297,15 +302,14 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
           changelogMentionRole: mentionRole
         })
       });
-      if (res.ok) {
-        const data = await res.json();
-        setBotConfig(data.config);
-        localStorage.setItem(CHANGELOG_MENTION_ROLE_KEY, mentionRole);
-        setSendSuccessMsg('✅ Pengaturan Bot Server Discord berhasil disimpan!');
-        setTimeout(() => setSendSuccessMsg(null), 3500);
+      const parsed = await safeFetchJson(res);
+      if (parsed.ok && parsed.data?.config) {
+        setBotConfig(parsed.data.config);
       }
+      setSendSuccessMsg('✅ Pengaturan Bot Server Discord berhasil disimpan!');
+      setTimeout(() => setSendSuccessMsg(null), 3500);
     } catch (err: any) {
-      setSendErrorMsg(`Gagal menyimpan pengaturan: ${err.message}`);
+      setSendErrorMsg(`Gagal menyimpan pengaturan: ${err.message || err}`);
       setTimeout(() => setSendErrorMsg(null), 3500);
     } finally {
       setIsSavingConfig(false);
@@ -325,41 +329,168 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
 
     const savedWebhook = localStorage.getItem(CHANGELOG_WEBHOOK_STORAGE_KEY) || '';
     const colorNum = parseInt(embedColorHex.replace('#', ''), 16) || 0x00A8FF;
+    const botToken = localStorage.getItem(DISCORD_BOT_TOKEN_KEY) || '';
 
+    const payload = {
+      version,
+      title,
+      headerText,
+      customDescription,
+      embedColor: colorNum,
+      newFeatures,
+      improvements,
+      bugFixes,
+      extraNotes,
+      mentionRole,
+      channelId: botConfig.changelogChannelId,
+      webhookUrl: savedWebhook,
+      authorName: currentUser?.name || 'High Command',
+      authorBadge: currentUser?.badge || 'COMMAND',
+      authorRank: currentUser?.rank || 'CHIEF OF POLICE',
+      botToken
+    };
+
+    let sentSuccessfully = false;
+    let successMessage = '';
+
+    // 1. Try sending via Backend API route
     try {
-      const res = await fetch('/api/discord/send-changelog', {
+      const res = await fetch(buildApiUrl('/api/discord/send-changelog'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          version,
-          title,
-          headerText,
-          customDescription,
-          embedColor: colorNum,
-          newFeatures,
-          improvements,
-          bugFixes,
-          extraNotes,
-          mentionRole,
-          channelId: botConfig.changelogChannelId,
-          webhookUrl: savedWebhook,
-          authorName: currentUser?.name || 'High Command',
-          authorBadge: currentUser?.badge || 'COMMAND',
-          authorRank: currentUser?.rank || 'CHIEF OF POLICE'
-        })
+        body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setSendSuccessMsg(data.message || 'Pembaruan berhasil dipublikasikan ke server Discord!');
-      } else {
-        setSendErrorMsg(data.message || 'Gagal mempublikasikan pembaruan ke Discord.');
+      const parsed = await safeFetchJson(res);
+      if (parsed.ok && parsed.data?.success) {
+        sentSuccessfully = true;
+        successMessage = parsed.data.message || 'Pembaruan berhasil dipublikasikan ke server Discord!';
+      } else if (parsed.error && !parsed.error.includes('404')) {
+        // If the server explicitly rejected with a logical error, keep track of it
+        console.warn('Server send-changelog note:', parsed.error);
       }
     } catch (err: any) {
-      setSendErrorMsg(`Kendala jaringan: ${err.message || err}`);
-    } finally {
-      setIsSending(false);
+      console.warn('Backend send-changelog attempt failed, trying fallback:', err?.message || err);
     }
+
+    // 2. Direct Fallback: If backend is 404 or failed on Vercel/Static, send directly to Webhook client-side
+    if (!sentSuccessfully) {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('id-ID', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
+      if (newFeatures.length > 0) {
+        fields.push({
+          name: '🚀 Fitur Baru (New Features)',
+          value: newFeatures.map(f => `• ${f.trim()}`).join('\n'),
+          inline: false
+        });
+      }
+      if (improvements.length > 0) {
+        fields.push({
+          name: '⚡ Peningkatan Sistem (Improvements)',
+          value: improvements.map(f => `• ${f.trim()}`).join('\n'),
+          inline: false
+        });
+      }
+      if (bugFixes.length > 0) {
+        fields.push({
+          name: '🛠️ Perbaikan Bug (Bug Fixes)',
+          value: bugFixes.map(f => `• ${f.trim()}`).join('\n'),
+          inline: false
+        });
+      }
+      if (extraNotes && extraNotes.trim()) {
+        fields.push({
+          name: '📝 Catatan Rilis & Panduan',
+          value: extraNotes.trim(),
+          inline: false
+        });
+      }
+
+      const pingContent = (mentionRole && mentionRole !== 'none' && mentionRole !== 'off') ? `${mentionRole} ` : '';
+      const headerTag = headerText?.trim() || '[ PENGUMUMAN PEMBARUAN SISTEM MDT HSPD ]';
+      const defaultDesc = `Catatan rilis pembaruan perangkat lunak, penyempurnaan operasional, dan perbaikan kestabilan Terminal Mobile Data Computer (MDC) HSPD.\n\n📅 **Waktu Rilis:** \`${dateStr}\`\n👤 **Dipublikasikan Oleh:** \`${currentUser?.name || 'High Command'}\` ${currentUser?.badge ? `(\`${currentUser.badge}\`)` : ''}`;
+      const finalDesc = customDescription?.trim()
+        ? `${customDescription.trim()}\n\n📅 **Waktu Rilis:** \`${dateStr}\`\n👤 **Dipublikasikan Oleh:** \`${currentUser?.name || 'High Command'}\` ${currentUser?.badge ? `(\`${currentUser.badge}\`)` : ''}`
+        : defaultDesc;
+
+      const discordEmbed = {
+        author: {
+          name: 'High State Police Department • Official System Release',
+          icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+        },
+        title: `📢 ${title || 'Pembaruan Sistem MDT HSPD'} • [${version || 'v3.4.0'}]`,
+        description: finalDesc,
+        color: colorNum,
+        fields,
+        footer: {
+          text: `HSPD MDC System • ${version || 'v3.4.0'} • High State Government`,
+          icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+        },
+        timestamp: now.toISOString()
+      };
+
+      // 2a. Fallback via Discord Bot REST API if token and channelId exist
+      if (botToken && botConfig.changelogChannelId) {
+        try {
+          const directBotRes = await fetch(`https://discord.com/api/v10/channels/${botConfig.changelogChannelId}/messages`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bot ${botToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              content: pingContent ? `${pingContent}**${headerTag}**` : `**${headerTag}**`,
+              embeds: [discordEmbed]
+            })
+          });
+          if (directBotRes.ok) {
+            sentSuccessfully = true;
+            successMessage = `Pembaruan [${version}] berhasil dipublikasikan ke channel Discord via Bot!`;
+          }
+        } catch {}
+      }
+
+      // 2b. Fallback via Webhook
+      if (!sentSuccessfully && savedWebhook && savedWebhook.startsWith('https://discord.com/api/webhooks/')) {
+        try {
+          const hookRes = await fetch(savedWebhook, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content: pingContent ? `${pingContent}**${headerTag}**` : `**${headerTag}**`,
+              embeds: [discordEmbed]
+            })
+          });
+          if (hookRes.ok) {
+            sentSuccessfully = true;
+            successMessage = `Pembaruan [${version}] berhasil dipublikasikan ke Discord via Webhook!`;
+          } else {
+            const errBody = await hookRes.json().catch(() => ({}));
+            setSendErrorMsg(`Discord Webhook menolak publikasi: ${errBody.message || hookRes.statusText}`);
+          }
+        } catch (hookErr: any) {
+          setSendErrorMsg(`Gagal mengirim ke Webhook Discord: ${hookErr?.message || hookErr}`);
+        }
+      }
+    }
+
+    if (sentSuccessfully) {
+      setSendSuccessMsg(successMessage || 'Pembaruan berhasil dipublikasikan ke server Discord!');
+      setTimeout(() => setSendSuccessMsg(null), 5000);
+    } else if (!sendErrorMsg) {
+      setSendErrorMsg('Tidak dapat mempublikasikan pengumuman. Pastikan Webhook URL Pembaruan sudah diisi di menu Pengaturan atau Channel Bot telah terhubung.');
+    }
+
+    setIsSending(false);
   };
 
   const handleCopy = (text: string, id: string) => {

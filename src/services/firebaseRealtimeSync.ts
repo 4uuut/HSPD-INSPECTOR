@@ -24,19 +24,38 @@ export interface FirebaseSyncStatus {
   quotaExhausted?: boolean;
 }
 
+const FIRESTORE_QUOTA_STORAGE_KEY = 'hspd_firestore_quota_exhausted_until';
 let quotaExhaustedUntil: number = 0;
 
 function setQuotaExhausted() {
-  // Transient backoff of 5 minutes to prevent rapid retry loops against Firestore free quota limits
-  quotaExhaustedUntil = Date.now() + 5 * 60 * 1000;
+  // Backoff for 30 minutes to prevent rapid retry loops against Firestore free daily quota limits
+  const until = Date.now() + 30 * 60 * 1000;
+  quotaExhaustedUntil = until;
+  try {
+    sessionStorage.setItem(FIRESTORE_QUOTA_STORAGE_KEY, String(until));
+  } catch {}
 }
 
 export function isQuotaExhausted(): boolean {
-  return quotaExhaustedUntil > Date.now();
+  if (quotaExhaustedUntil > Date.now()) return true;
+  try {
+    const saved = sessionStorage.getItem(FIRESTORE_QUOTA_STORAGE_KEY);
+    if (saved) {
+      const parsed = Number(saved);
+      if (!isNaN(parsed) && parsed > Date.now()) {
+        quotaExhaustedUntil = parsed;
+        return true;
+      }
+    }
+  } catch {}
+  return false;
 }
 
 export function resetQuotaExhausted() {
   quotaExhaustedUntil = 0;
+  try {
+    sessionStorage.removeItem(FIRESTORE_QUOTA_STORAGE_KEY);
+  } catch {}
 }
 
 // Global state callback for UI status banner
@@ -264,6 +283,8 @@ async function commitBatchOperations(
   deletes: { colName: string; docId: string }[],
   sets: { colName: string; docId: string; data: any }[]
 ) {
+  if (isQuotaExhausted()) return;
+
   const allOps: Array<{ type: 'delete'; colName: string; docId: string } | { type: 'set'; colName: string; docId: string; data: any }> = [
     ...deletes.map(d => ({ type: 'delete' as const, colName: d.colName, docId: d.docId })),
     ...sets.map(s => ({ type: 'set' as const, colName: s.colName, docId: s.docId, data: sanitizeFirestorePayload(s.data) }))
@@ -271,6 +292,7 @@ async function commitBatchOperations(
 
   const CHUNK_SIZE = 350;
   for (let i = 0; i < allOps.length; i += CHUNK_SIZE) {
+    if (isQuotaExhausted()) return;
     const chunk = allOps.slice(i, i + CHUNK_SIZE);
     const batch = writeBatch(db);
     for (const op of chunk) {
@@ -280,7 +302,21 @@ async function commitBatchOperations(
         batch.set(doc(db, op.colName, op.docId), op.data, { merge: true });
       }
     }
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (err: any) {
+      if (isQuotaError(err)) {
+        setQuotaExhausted();
+        notifyStatus({
+          connected: true,
+          quotaExhausted: true,
+          lastSyncTime: Date.now(),
+          error: 'Penyimpanan lokal aktif (Batas kuota harian cloud tercapai)'
+        });
+        return;
+      }
+      throw err;
+    }
   }
 }
 
@@ -508,6 +544,9 @@ export async function deleteFromFirestore(
  * This frees up all badge numbers and removes any duplicate/stale officer records in the cloud.
  */
 export async function clearCloudRosterCollection(): Promise<{ success: boolean; count: number; error?: string }> {
+  if (isQuotaExhausted()) {
+    return { success: false, count: 0, error: 'Penyimpanan lokal aktif: Batas kuota cloud harian tercapai. Data lokal tetap aman.' };
+  }
   try {
     const colRef = collection(db, 'roster');
     const snap = await getDocs(colRef);
@@ -537,7 +576,6 @@ export async function pullLatestFromFirestore<T = any>(collectionKey: Collection
   if (!config) return null;
 
   try {
-    resetQuotaExhausted();
     const colRef = collection(db, config.name);
     const snap = await getDocs(colRef);
     
