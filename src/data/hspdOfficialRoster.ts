@@ -183,8 +183,8 @@ export function mergeWithOfficialRoster(
     const cleanBadge = (item.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
     const cleanName = (item.name || '').toLowerCase().trim();
 
-    const normalizeName = (n: string) => {
-      return n.toLowerCase()
+    const normalizeName = (n?: string) => {
+      return (n || '').toLowerCase()
         .replace(/\(.*?\)/g, '') // remove parenthesized remarks like (WARN 2), (Special Guest)
         .replace(/[^a-z0-9]/g, '')
         .trim();

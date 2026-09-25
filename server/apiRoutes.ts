@@ -80,7 +80,7 @@ async function resolveDiscordUser(query: string, token: string): Promise<{ succe
         username: numericOnly,
         globalName: null,
         tag: numericOnly,
-        avatarUrl: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+        avatarUrl: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png'
       }
     };
   }
@@ -659,7 +659,7 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
 
     const safeAvatarUrl = (avatarUrl && typeof avatarUrl === 'string' && (avatarUrl.startsWith('http://') || avatarUrl.startsWith('https://')))
       ? avatarUrl.trim()
-      : 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png';
+      : 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png';
 
     const now = new Date();
     const dateFormatted = now.toLocaleDateString('en-US', {
@@ -919,6 +919,7 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
       version,
       title,
       newFeatures,
+      removedOrAdjusted,
       improvements,
       bugFixes,
       extraNotes,
@@ -936,6 +937,9 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
     const cleanFeatures: string[] = Array.isArray(newFeatures) 
       ? newFeatures.filter((f: any) => typeof f === 'string' && f.trim().length > 0)
       : [];
+    const cleanRemoved: string[] = Array.isArray(removedOrAdjusted)
+      ? removedOrAdjusted.filter((f: any) => typeof f === 'string' && f.trim().length > 0)
+      : [];
     const cleanImprovements: string[] = Array.isArray(improvements) 
       ? improvements.filter((f: any) => typeof f === 'string' && f.trim().length > 0)
       : [];
@@ -943,10 +947,10 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
       ? bugFixes.filter((f: any) => typeof f === 'string' && f.trim().length > 0)
       : [];
 
-    if (cleanFeatures.length === 0 && cleanImprovements.length === 0 && cleanBugFixes.length === 0 && !extraNotes) {
+    if (cleanFeatures.length === 0 && cleanRemoved.length === 0 && cleanImprovements.length === 0 && cleanBugFixes.length === 0 && !extraNotes) {
       return res.status(400).json({
         success: false,
-        message: 'Harap isi minimal satu poin perubahan (Fitur Baru, Peningkatan, atau Perbaikan Bug)!'
+        message: 'Harap isi minimal satu poin perubahan (Fitur Baru, Dihapus/Disesuaikan, Peningkatan, atau Perbaikan Bug)!'
       });
     }
 
@@ -959,6 +963,7 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
         version: version || 'v3.2.0',
         title: title || 'Pembaruan Sistem MDT HSPD',
         newFeatures: cleanFeatures,
+        removedOrAdjusted: cleanRemoved,
         improvements: cleanImprovements,
         bugFixes: cleanBugFixes,
         extraNotes,
@@ -999,16 +1004,16 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
 
       if (cleanFeatures.length > 0) {
         fields.push({
-          name: '🚀 Fitur Baru (New Features)',
+          name: '🚀 Fitur Baru (New Features / Ditambah)',
           value: cleanFeatures.map(f => `• ${f.trim()}`).join('\n'),
           inline: false
         });
       }
 
-      if (cleanImprovements.length > 0) {
+      if (cleanRemoved.length > 0) {
         fields.push({
-          name: '⚡ Peningkatan Sistem (Improvements)',
-          value: cleanImprovements.map(f => `• ${f.trim()}`).join('\n'),
+          name: '🗑️ Dihapus / Dikurangi / Disesuaikan (Removed & Adjusted)',
+          value: cleanRemoved.map(f => `• ${f.trim()}`).join('\n'),
           inline: false
         });
       }
@@ -1017,6 +1022,14 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
         fields.push({
           name: '🛠️ Perbaikan Bug (Bug Fixes)',
           value: cleanBugFixes.map(f => `• ${f.trim()}`).join('\n'),
+          inline: false
+        });
+      }
+
+      if (cleanImprovements.length > 0) {
+        fields.push({
+          name: '⚡ Peningkatan Sistem (Improvements)',
+          value: cleanImprovements.map(f => `• ${f.trim()}`).join('\n'),
           inline: false
         });
       }
@@ -1036,24 +1049,27 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
         ? `${customDescription.trim()}\n\n📅 **Waktu Rilis:** \`${dateStr}\`\n👤 **Dipublikasikan Oleh:** \`${authorName || 'High Command'}\` ${authorBadge ? `(\`${authorBadge}\`)` : ''}`
         : defaultDesc;
 
+      const botAvatarUrl = discordGatewayManager.getBotAvatarUrl();
       const hookRes = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          username: 'HSPD Roleplay Assistant',
+          avatar_url: botAvatarUrl,
           content: pingContent ? `${pingContent}**${headerTag}**` : `**${headerTag}**`,
           embeds: [
             {
               author: {
                 name: 'High State Police Department • Official System Release',
-                icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                icon_url: botAvatarUrl
               },
-              title: `📢 ${title || 'Pembaruan Sistem MDT HSPD'} • [${version || 'v3.2.0'}]`,
+              title: `📢 ${title || 'Pembaruan Sistem MDT HSPD'} • [${version || 'v4.2.0'}]`,
               description: finalDesc,
               color: typeof embedColor === 'number' ? embedColor : 0x00A8FF,
               fields,
               footer: {
-                text: `HSPD MDC System • ${version || 'v3.2.0'} • High State Government`,
-                icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+                text: `HSPD MDC System • ${version || 'v4.2.0'} • High State Government`,
+                icon_url: botAvatarUrl
               },
               timestamp: now.toISOString()
             }
@@ -1102,6 +1118,53 @@ apiRouter.post('/discord/trigger-auto-changelog', async (req, res) => {
       success: false,
       message: `Gagal memicu siaran otomatis changelog: ${err.message || err}`
     });
+  }
+});
+
+// POST /api/discord/send-system-ping - Mengirim status kesehatan website & bot ke channel Discord (default: 1550418868814610433)
+apiRouter.post('/discord/send-system-ping', async (req, res) => {
+  try {
+    const { channelId, triggerBy, websiteUrl, webhookUrl } = req.body || {};
+    const result = await discordGatewayManager.sendSystemHealthPing({
+      channelId: channelId || '1550418868814610433',
+      triggerBy,
+      websiteUrl,
+      webhookUrl
+    });
+    return res.json(result);
+  } catch (err: any) {
+    console.error('Send System Ping Error:', err);
+    return res.status(500).json({
+      success: false,
+      message: `Gagal mengirim ping status ke Discord: ${err.message || err}`
+    });
+  }
+});
+
+// GET /api/discord/ping-status - Realtime ping & health data
+apiRouter.get('/discord/ping-status', (req, res) => {
+  try {
+    const status = discordGatewayManager.getStatus();
+    const serverConfig = discordGatewayManager.getServerConfig();
+    return res.json({
+      success: true,
+      website: {
+        status: 'online',
+        uptime: process.uptime(),
+        memoryHeapUsedMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        nodeVersion: process.version,
+        timestamp: Date.now()
+      },
+      bot: {
+        isOnline: status.isOnline,
+        botUser: status.botUser,
+        hasToken: status.hasToken,
+        uptimeSeconds: status.uptimeSeconds,
+        changelogChannelId: serverConfig.changelogChannelId || '1550418868814610433'
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 

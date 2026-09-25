@@ -169,6 +169,27 @@ export const HSPD_COMMANDS_LIST = [
 
 export const PASAL_STORAGE_KEY = 'hspd_custom_pasal_list_v1';
 
+/**
+ * Mengurutkan daftar pasal KUHP & SOP secara rapi berdasarkan Kategori dan Nomor Kode / Badge
+ * Contoh: A01, A02 ... A09, A10, A11 atau format nomor murni 01, 02, 10
+ */
+export function sortPasalByBadgeCode(list: PasalItem[]): PasalItem[] {
+  return [...list].sort((a, b) => {
+    // 1. Kategori (A, B, C, D, E, F, G, H)
+    if (a.cat !== b.cat) return (a.cat || '').localeCompare(b.cat || '');
+    // 2. Parse kode menjadi prefix huruf, nomor urut angka, dan suffix
+    const matchA = (a.code || '').trim().match(/^([A-Za-z]+)?(\d+)?(.*)$/);
+    const matchB = (b.code || '').trim().match(/^([A-Za-z]+)?(\d+)?(.*)$/);
+    const prefixA = (matchA?.[1] || '').toUpperCase();
+    const prefixB = (matchB?.[1] || '').toUpperCase();
+    if (prefixA !== prefixB) return prefixA.localeCompare(prefixB);
+    const numA = matchA?.[2] ? parseInt(matchA[2], 10) : 0;
+    const numB = matchB?.[2] ? parseInt(matchB[2], 10) : 0;
+    if (numA !== numB) return numA - numB;
+    return (a.code || '').localeCompare(b.code || '', undefined, { numeric: true, sensitivity: 'base' });
+  });
+}
+
 export function getSavedPasalList(): PasalItem[] {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
@@ -176,21 +197,23 @@ export function getSavedPasalList(): PasalItem[] {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.filter(item => item && item.code && item.desc);
+          const valid = parsed.filter(item => item && item.code && item.desc);
+          return sortPasalByBadgeCode(valid);
         }
       }
     }
   } catch (e) {
     console.error('Failed reading custom pasal list:', e);
   }
-  return [...PASAL_LIST];
+  return sortPasalByBadgeCode([...PASAL_LIST]);
 }
 
 export function savePasalList(list: PasalItem[]): void {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
-      localStorage.setItem(PASAL_STORAGE_KEY, JSON.stringify(list));
-      window.dispatchEvent(new CustomEvent('hspd-pasal-updated', { detail: list }));
+      const sorted = sortPasalByBadgeCode(list);
+      localStorage.setItem(PASAL_STORAGE_KEY, JSON.stringify(sorted));
+      window.dispatchEvent(new CustomEvent('hspd-pasal-updated', { detail: sorted }));
     }
   } catch (e) {
     console.error('Failed saving custom pasal list:', e);
@@ -201,10 +224,11 @@ export function resetPasalList(): PasalItem[] {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
       localStorage.removeItem(PASAL_STORAGE_KEY);
-      window.dispatchEvent(new CustomEvent('hspd-pasal-updated', { detail: PASAL_LIST }));
+      const sortedDefault = sortPasalByBadgeCode([...PASAL_LIST]);
+      window.dispatchEvent(new CustomEvent('hspd-pasal-updated', { detail: sortedDefault }));
     }
   } catch (e) {
     console.error('Failed resetting pasal list:', e);
   }
-  return [...PASAL_LIST];
+  return sortPasalByBadgeCode([...PASAL_LIST]);
 }

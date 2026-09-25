@@ -350,10 +350,14 @@ export function generateAttendanceSummaries(
     const dutyState = getOfficerDutyState(officer.badge, roster, officer.name);
     
     // Find all sessions for this officer
-    const officerSessions = filteredSessions.filter(s => 
-      s.officerBadge.toLowerCase().replace(/#/g, '') === officer.badge.toLowerCase().replace(/#/g, '') ||
-      s.officerName.toLowerCase() === officer.name.toLowerCase()
-    );
+    const officerBadgeClean = (officer.badge || '').toLowerCase().replace(/#/g, '').trim();
+    const officerNameClean = (officer.name || '').toLowerCase().trim();
+    const officerSessions = filteredSessions.filter(s => {
+      const sBadgeClean = (s.officerBadge || '').toLowerCase().replace(/#/g, '').trim();
+      const sNameClean = (s.officerName || '').toLowerCase().trim();
+      return (sBadgeClean && officerBadgeClean && sBadgeClean === officerBadgeClean) ||
+             (sNameClean && officerNameClean && sNameClean === officerNameClean);
+    });
 
     let completedMinutes = 0;
     const daysSet = new Set<string>();
@@ -881,7 +885,7 @@ export function exportWeeklyOperationsToExcel(
   // 2. SHEET REKAP PER PERSONEL
   const filteredBreakdown = filterDivision === 'ALL'
     ? summary.officerBreakdown
-    : summary.officerBreakdown.filter(o => o.division.toLowerCase() === filterDivision.toLowerCase());
+    : summary.officerBreakdown.filter(o => (o.division || '').toLowerCase() === filterDivision.toLowerCase());
 
   const officerRows = filteredBreakdown.map((o, idx) => ({
     'No': idx + 1,
@@ -932,7 +936,7 @@ export function exportWeeklyOperationsToDocument(
 ): string {
   const filteredBreakdown = filterDivision === 'ALL'
     ? summary.officerBreakdown
-    : summary.officerBreakdown.filter(o => o.division.toLowerCase() === filterDivision.toLowerCase());
+    : summary.officerBreakdown.filter(o => (o.division || '').toLowerCase() === filterDivision.toLowerCase());
 
   const htmlContent = `<!DOCTYPE html>
 <html lang="id">

@@ -116,10 +116,10 @@ export const BatchPinBroadcastModal: React.FC<Props> = ({
     if (filterType === 'missing_id' && hasValid) return false;
 
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchName = o.name.toLowerCase().includes(q);
-      const matchBadge = o.badge.toLowerCase().includes(q);
-      const matchRank = o.rank.toLowerCase().includes(q);
+      const q = searchQuery.toLowerCase().trim();
+      const matchName = Boolean(o.name && o.name.toLowerCase().includes(q));
+      const matchBadge = Boolean(o.badge && o.badge.toLowerCase().includes(q));
+      const matchRank = Boolean(o.rank && o.rank.toLowerCase().includes(q));
       return matchName || matchBadge || matchRank;
     }
     return true;

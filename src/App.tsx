@@ -32,6 +32,8 @@ import { ExportAttendanceModal } from './components/ExportAttendanceModal';
 import { SettingsView } from './components/SettingsView';
 import { CitizenPublicServicePortal } from './components/CitizenPublicServicePortal';
 import { DiscordReleaseAnnouncementModal } from './components/DiscordReleaseAnnouncementModal';
+import { SystemPingModal } from './components/SystemPingModal';
+import { checkAndBroadcastLatestRelease } from './utils/autoChangelogBroadcaster';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
 import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch, isSameOfficerAccount, saveRosterToStorage, updateOfficerPinInRoster, updateOfficerAccountInRoster } from './utils/pinResetStorage';
 import { getSavedDetectiveCases, saveDetectiveCases } from './utils/detectiveCaseStorage';
@@ -52,7 +54,7 @@ import {
   Users, ShieldAlert, KeyRound, Power, Clock, CheckCircle2, Sliders,
   Search, Car, Crosshair, Landmark, Flame, Stamp as StampIcon,
   UserCheck, Microscope, Cloud, Database, Palette, Smartphone, Monitor, Settings,
-  Building2, Crown, Globe
+  Building2, Crown, Globe, Activity, Zap
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from './assets/logo';
 import { 
@@ -172,6 +174,7 @@ export default function App() {
   const [isRecruitmentPortalModalOpen, setIsRecruitmentPortalModalOpen] = useState(false);
   const [isExportAttendanceModalOpen, setIsExportAttendanceModalOpen] = useState(false);
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
+  const [isPingModalOpen, setIsPingModalOpen] = useState(false);
 
   // Dedicated Android / Mobile View Mode State & Auto-detection
   const [isAndroidMode, setIsAndroidMode] = useState<boolean>(() => {
@@ -200,6 +203,16 @@ export default function App() {
 
   useEffect(() => {
     return subscribeToBranding(cfg => setBranding(cfg));
+  }, []);
+
+  // Otomatisasi Siaran Log Pembaruan & Fitur / Bugfix ke Channel Discord yang Tersimpan
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      checkAndBroadcastLatestRelease().catch(err => {
+        console.warn('[Auto-Changelog Broadcast Notice]', err);
+      });
+    }, 2500);
+    return () => clearTimeout(timer);
   }, []);
 
   // Keep superior heartbeat active so other sessions / requests know superior is online
@@ -503,7 +516,12 @@ export default function App() {
 
       // Also update in-memory roster for THIS officer only
       setRoster(prev => prev.map(a => {
-        if (a.badge.toLowerCase() === currentOfficer.badge.toLowerCase() || a.name.toLowerCase() === currentOfficer.name.toLowerCase()) {
+        const aBadge = (a.badge || '').toLowerCase().trim();
+        const curBadge = (currentOfficer.badge || '').toLowerCase().trim();
+        const aName = (a.name || '').toLowerCase().trim();
+        const curName = (currentOfficer.name || '').toLowerCase().trim();
+        const isMatch = (aBadge && curBadge && aBadge === curBadge) || (aName && curName && aName === curName);
+        if (isMatch) {
           return {
             ...a,
             isDuty: newDutyState,
@@ -950,6 +968,20 @@ export default function App() {
 
             {/* Header Right Actions: Duty Toggle Button & Officer Badge */}
             <div className="flex items-center gap-2 text-xs">
+              {/* PING STATUS & HEALTH MONITOR BUTTON (CHANNEL 1550418868814610433) */}
+              <button
+                id="btn-system-ping-monitor"
+                type="button"
+                onClick={() => setIsPingModalOpen(true)}
+                className="px-2.5 py-1.5 bg-[#0D1522] hover:bg-[#142338] text-blue-300 hover:text-blue-200 border border-blue-500/60 hover:border-blue-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-blue-950/40"
+                title="Buka Panel Laporan Ping Status Real-Time Website & Bot Discord (Channel 1550418868814610433)"
+              >
+                <Activity className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                <span className="hidden sm:inline">📡 PING STATUS</span>
+                <span className="sm:hidden">PING</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              </button>
+
               {/* SWITCH TO ANDROID VIEW MODE BUTTON */}
               <button
                 id="btn-switch-to-android-mode"
@@ -961,19 +993,6 @@ export default function App() {
                 <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
                 <span className="hidden md:inline">📱 MODE ANDROID</span>
                 <span className="md:hidden">ANDROID</span>
-              </button>
-
-              {/* DISCORD BOT ANNOUNCEMENT & SERVER CMD SETTINGS BUTTON */}
-              <button
-                id="btn-open-release-modal"
-                type="button"
-                onClick={() => setIsReleaseModalOpen(true)}
-                className="px-2.5 py-1.5 bg-gradient-to-r from-blue-950/80 to-indigo-950/80 hover:from-blue-900 hover:to-indigo-900 text-blue-300 border border-blue-500/70 hover:border-blue-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-blue-950/40"
-                title="Kirim Pembaruan (Fitur Baru, Peningkatan, Bugfix) ke Discord & Panduan Perintah Bot CMD"
-              >
-                <Megaphone className="w-3.5 h-3.5 text-blue-400" />
-                <span className="hidden md:inline">📢 BOT & RILIS</span>
-                <span className="md:hidden">RILIS</span>
               </button>
 
               {/* REALTIME FIREBASE CLOUD DATABASE STATUS BADGE */}
@@ -1566,6 +1585,13 @@ export default function App() {
           badge: currentOfficer.badge,
           rank: currentOfficer.rank
         } : undefined}
+      />
+
+      {/* Realtime Website & Discord Bot System Ping Monitor Modal */}
+      <SystemPingModal
+        isOpen={isPingModalOpen}
+        onClose={() => setIsPingModalOpen(false)}
+        currentOfficer={currentOfficer}
       />
 
       {/* High Density Footer Status Line */}

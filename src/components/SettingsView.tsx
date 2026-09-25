@@ -252,7 +252,7 @@ export const SettingsView: React.FC<Props> = ({
     setBotConfig({
       botToken: botConfig.botToken, // retain token if already typed
       botName: 'Cek Akun | High State',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       defaultNote: 'Jangan beritahu informasi ini kepada orang lain!',
       embedTitle: '✅ Berhasil!',
       embedDescription: 'Berikut adalah detail dari akun MDT Anda:',
@@ -1047,7 +1047,7 @@ export const SettingsView: React.FC<Props> = ({
                 </label>
                 <div className="flex items-center gap-3">
                   <img
-                    src={botConfig.botAvatar || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
+                    src={botConfig.botAvatar || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png'}
                     alt="Bot Avatar"
                     className="w-10 h-10 rounded-full border border-indigo-500/50 p-0.5 bg-black/60 object-contain shrink-0"
                     referrerPolicy="no-referrer"
@@ -1126,7 +1126,7 @@ export const SettingsView: React.FC<Props> = ({
                 <div className="flex items-center gap-3">
                   <div className="relative">
                     <img
-                      src={botConfig.botAvatar || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
+                      src={botConfig.botAvatar || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png'}
                       alt="Bot Avatar"
                       className="w-10 h-10 rounded-full bg-black/60 object-contain"
                       referrerPolicy="no-referrer"
@@ -1194,7 +1194,7 @@ export const SettingsView: React.FC<Props> = ({
                   {/* Embed Footer */}
                   <div className="pt-2 border-t border-gray-700/40 flex items-center gap-1.5 text-[10px] text-[#949BA4]">
                     <img
-                      src={botConfig.botAvatar || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
+                      src={botConfig.botAvatar || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png'}
                       alt=""
                       className="w-3.5 h-3.5 rounded-full object-contain"
                       referrerPolicy="no-referrer"

@@ -64,7 +64,7 @@ export const ArrestHistory: React.FC<Props> = ({
   // Webhook State
   const [webhookUrl, setWebhookUrl] = useState(() => localStorage.getItem(WEBHOOK_STORAGE_KEY) || '');
   const [botName, setBotName] = useState(() => localStorage.getItem(BOT_NAME_KEY) || 'HSPD CAD System');
-  const [botAvatar, setBotAvatar] = useState(() => localStorage.getItem(BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png');
+  const [botAvatar, setBotAvatar] = useState(() => localStorage.getItem(BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png');
   const [showWebhookConfig, setShowWebhookConfig] = useState(false);
 
   // Sending status

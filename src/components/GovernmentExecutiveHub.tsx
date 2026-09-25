@@ -342,7 +342,7 @@ export const GovernmentExecutiveHub: React.FC<GovernmentExecutiveHubProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username: cfg.botName || 'Kantor Kepresidenan HighState',
-          avatar_url: cfg.botAvatar || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+          avatar_url: cfg.botAvatar || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
           embeds: [embed]
         })
       });

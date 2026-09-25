@@ -149,6 +149,10 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
   // Editor Tabs
   const [activeEditorTab, setActiveEditorTab] = useState<'METADATA' | 'PARTIES' | 'CLAUSES' | 'SEALS_SIGS' | 'PAPER_STYLE'>('METADATA');
 
+  // Single Page Fit & Layout Density State (Guaranteed 1 A4 Page)
+  const [layoutDensity, setLayoutDensity] = useState<'normal' | 'compact' | 'tight'>('normal');
+  const [isOnePageLocked, setIsOnePageLocked] = useState<boolean>(true);
+
   // UI Feedback States
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportingFormat, setExportingFormat] = useState<'png' | 'jpeg' | null>(null);
@@ -474,9 +478,20 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
   return (
     <div className="space-y-4 pb-16 animate-fadeIn">
-      {/* Scoped Print Styles for A4 Paper Layout */}
+      {/* Scoped Print Styles for Strict A4 1-Page Paper Layout */}
       <style>{`
         @media print {
+          @page {
+            size: A4 portrait;
+            margin: 6mm;
+          }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            height: 100% !important;
+            max-height: 100% !important;
+            overflow: hidden !important;
+          }
           body * {
             visibility: hidden !important;
           }
@@ -492,16 +507,19 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
-            min-height: 100% !important;
+            height: 100% !important;
+            max-height: 284mm !important;
             margin: 0 !important;
-            padding: 28px !important;
+            padding: 18px !important;
             box-shadow: none !important;
             border: none !important;
             background-color: white !important;
-          }
-          @page {
-            size: A4 portrait;
-            margin: 10mm;
+            page-break-after: avoid !important;
+            page-break-before: avoid !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            break-after: avoid !important;
+            overflow: hidden !important;
           }
         }
       `}</style>
@@ -523,7 +541,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
               </div>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap">
-              {/* TOMBOL OTORISASI PUSAT: BERISIKAN WEBHOOK DLL FITUR PEMERINTAH */}
+              {/* TOMBOL OTORISASI PUSAT */}
               <button
                 type="button"
                 onClick={() => setIsGovCentralAuthModalOpen(true)}
@@ -531,7 +549,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                 title="Buka Panel Otorisasi Pusat: Pengesahan Dokumen, Webhook Discord Kenegaraan & Fitur Pemerintah"
               >
                 <Crown className="w-3.5 h-3.5 text-black" />
-                <span>👑 Otorisasi Pusat:</span>
+                <span>👑 Otorisasi Pusat</span>
               </button>
               <button
                 type="button"
@@ -622,7 +640,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                 className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-200 rounded-lg text-xs font-bold transition flex items-center gap-1"
                 title="Buka menu pengaturan detail TTD manual"
               >
-                <span>⚙️ Atur TTD Manual</span>
+                <span>⚙️ Atur TTD</span>
               </button>
               <button
                 type="button"
@@ -649,157 +667,242 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
             </div>
           </div>
         )}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+
+        <div className="flex flex-col 2xl:flex-row 2xl:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
               <FileCheck className="w-7 h-7" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-lg font-bold text-gray-100 font-mono tracking-wide">
                   STUDIO DOKUMEN & SURAT RESMI KEPOLISIAN
                 </h1>
                 <span className="px-2 py-0.5 rounded bg-amber-950/80 border border-amber-600/50 text-amber-300 text-[10px] font-mono font-bold">
                   OFFICIAL HSPD v2.5
                 </span>
+                <span className="px-2 py-0.5 rounded bg-emerald-950/90 border border-emerald-500/60 text-emerald-300 text-[10px] font-mono font-bold flex items-center gap-1 shadow-sm">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                  FORMAT 1 HALAMAN PAS (A4)
+                </span>
               </div>
               <p className="text-xs text-gray-400 mt-0.5">
-                Pembuatan Surat Perintah, WCL, SKCK, BAP & Lembar Otorisasi Resmi dengan Kertas Realistis, Stempel Basah & Tanda Tangan Custom.
+                Surat Perintah, WCL, SKCK, BAP & Berkas Otorisasi • Format Presisi 1 Halaman A4 Siap Cetak & Unduh Gambar HD.
               </p>
             </div>
           </div>
 
-          {/* Top Main Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Otorisasi Pusat / Fitur Pemerintah Button */}
-            <button
-              id="btn-doc-gov-central-auth"
-              type="button"
-              onClick={() => setIsGovCentralAuthModalOpen(true)}
-              className="px-3 py-1.5 bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 hover:from-amber-500 hover:to-yellow-400 text-black font-black rounded-lg text-xs font-mono transition flex items-center gap-1.5 shadow-md shadow-amber-950/50 border border-amber-300 active:scale-95"
-              title="Buka Panel Otorisasi Pusat & Webhook Discord Kenegaraan"
-            >
-              <Crown className="w-3.5 h-3.5 text-black" />
-              <span>👑 Otorisasi Pusat:</span>
-            </button>
+          {/* Unified Action Buttons Bar: Organized in clear, professional groups */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* GRUP 1: CETAK GAMBAR & PDF (1 HALAMAN) */}
+            <div className="flex items-center bg-[#161B22] p-1 rounded-lg border border-gray-700 gap-1 shadow-inner">
+              {/* Export PNG */}
+              <button
+                id="btn-export-doc-png"
+                disabled={isExporting}
+                onClick={() => handleExportImage('png')}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50 active:scale-95"
+                title="Cetak dan unduh lembar surat sebagai file Gambar PNG (1 Halaman A4 HD)"
+              >
+                {exportingFormat === 'png' ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                <span>{exportingFormat === 'png' ? 'Memproses...' : 'Cetak PNG (1 Hal)'}</span>
+              </button>
 
-            {/* Toggle Portal Pemerintah */}
-            <button
-              type="button"
-              onClick={() => setForceGovMode(prev => !prev)}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1 border active:scale-95 ${
-                forceGovMode
-                  ? 'bg-amber-950/80 text-amber-300 border-amber-500'
-                  : 'bg-[#161B22] text-gray-300 border-gray-700 hover:text-white'
-              }`}
-              title="Aktifkan/Sembunyikan Bilah Surat Menyurat Kenegaraan"
-            >
-              <Building className="w-3.5 h-3.5 text-amber-400" />
-              <span>🏛️ {forceGovMode ? 'Portal Pemerintah: ON' : 'Mode Pemerintah'}</span>
-            </button>
+              {/* Export JPG */}
+              <button
+                id="btn-export-doc-jpg"
+                disabled={isExporting}
+                onClick={() => handleExportImage('jpeg')}
+                className="px-2.5 py-1.5 bg-teal-700 hover:bg-teal-600 text-white rounded-md text-xs font-mono font-bold transition flex items-center gap-1 shadow-sm disabled:opacity-50 active:scale-95"
+                title="Cetak dan unduh lembar surat sebagai file Gambar JPG (1 Halaman A4)"
+              >
+                {exportingFormat === 'jpeg' ? (
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <ImageIcon className="w-3.5 h-3.5" />
+                )}
+                <span>{exportingFormat === 'jpeg' ? 'Memproses...' : 'Cetak JPG'}</span>
+              </button>
 
-            {/* Archive Button */}
-            <button
-              id="btn-doc-archive-open"
-              onClick={() => setIsArchiveModalOpen(true)}
-              className="px-3 py-1.5 bg-[#161B22] hover:bg-[#1F242C] border border-gray-700 text-gray-200 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5 active:scale-95"
-              title="Buka daftar berkas dokumen yang tersimpan"
-            >
-              <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
-              <span>Arsip Berkas ({savedDocs.length})</span>
-            </button>
+              {/* Print / PDF (1 Halaman) */}
+              <button
+                id="btn-print-doc-pdf"
+                onClick={handlePrint}
+                className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-amber-300 rounded-md text-xs font-mono font-bold transition flex items-center gap-1 active:scale-95 border border-gray-600"
+                title="Cetak Lembar Dokumen via Browser / Simpan PDF (Format Pas 1 Halaman)"
+              >
+                <Printer className="w-3.5 h-3.5 text-amber-400" />
+                <span>PDF / Print</span>
+              </button>
+            </div>
 
-            {/* Blank Document Button */}
-            <button
-              id="btn-doc-new-blank"
-              onClick={handleCreateNewBlank}
-              className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-200 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5 active:scale-95"
-              title="Buat dokumen baru dari awal"
-            >
-              <FilePlus2 className="w-3.5 h-3.5 text-blue-400" />
-              <span>Dokumen Baru</span>
-            </button>
+            {/* GRUP 2: PENGATURAN TATA LETAK 1 HALAMAN */}
+            <div className="flex items-center bg-[#161B22] p-1 rounded-lg border border-gray-700 gap-1 text-[11px] font-mono shadow-inner">
+              <span className="text-gray-400 px-1 font-bold">Tata Letak:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setLayoutDensity('normal');
+                  setSaveSuccessMsg('📐 Tata letak diatur ke mode Normal (proporsional 1-2 pasal).');
+                  setTimeout(() => setSaveSuccessMsg(null), 2500);
+                }}
+                className={`px-2 py-1 rounded text-xs font-bold transition ${
+                  layoutDensity === 'normal'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                }`}
+                title="Tata letak standar proporsional (1-2 pasal/klausul)"
+              >
+                Normal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLayoutDensity('compact');
+                  setSaveSuccessMsg('📐 Tata letak diatur ke mode Kompak (muat 3-4 pasal dalam 1 halaman).');
+                  setTimeout(() => setSaveSuccessMsg(null), 2500);
+                }}
+                className={`px-2 py-1 rounded text-xs font-bold transition ${
+                  layoutDensity === 'compact'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                }`}
+                title="Tata letak kompak untuk muat 3-4 pasal dalam 1 halaman"
+              >
+                Kompak
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLayoutDensity('tight');
+                  setSaveSuccessMsg('📐 Tata letak diatur ke mode Sangat Rapat (muat 5+ pasal dalam 1 halaman).');
+                  setTimeout(() => setSaveSuccessMsg(null), 2500);
+                }}
+                className={`px-2 py-1 rounded text-xs font-bold transition ${
+                  layoutDensity === 'tight'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                }`}
+                title="Tata letak sangat rapat untuk dokumen padat 5+ pasal agar tetap pas 1 halaman"
+              >
+                Rapat
+              </button>
 
-            {/* Save to Database */}
-            <button
-              id="btn-doc-save-db"
-              onClick={handleSaveDocument}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-900/30 active:scale-95"
-              title="Simpan dokumen ini ke penyimpanan arsip lokal"
-            >
-              <Save className="w-3.5 h-3.5" />
-              <span>Simpan ke Database</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOnePageLocked(prev => {
+                    const next = !prev;
+                    setSaveSuccessMsg(next ? '🔒 Kunci 1 Halaman A4 AKTIF: Dokumen dipaksa pas 1 halaman.' : '🔓 Kunci 1 Halaman DINONAKTIFKAN: Dokumen bebas memanjang.');
+                    setTimeout(() => setSaveSuccessMsg(null), 3000);
+                    return next;
+                  });
+                }}
+                className={`px-2 py-1 rounded text-xs font-bold transition flex items-center gap-1 border ${
+                  isOnePageLocked
+                    ? 'bg-emerald-950/80 border-emerald-500/70 text-emerald-300'
+                    : 'bg-gray-800/80 border-gray-700 text-gray-400'
+                }`}
+                title="Kunci batas tinggi lembar agar selalu tepat 1 halaman A4"
+              >
+                <Lock className="w-3 h-3 text-emerald-400" />
+                <span>{isOnePageLocked ? '1 Hal (Kunci)' : 'Bebas'}</span>
+              </button>
+            </div>
 
-            {/* Export PNG */}
-            <button
-              id="btn-export-doc-png"
-              disabled={isExporting}
-              onClick={() => handleExportImage('png')}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-900/30 disabled:opacity-50 active:scale-95"
-              title="Cetak dan unduh lembar surat sebagai file PNG resolusi tinggi (HD)"
-            >
-              {exportingFormat === 'png' ? (
-                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Download className="w-3.5 h-3.5" />
-              )}
-              <span>{exportingFormat === 'png' ? 'Memproses PNG...' : 'Cetak PNG (HD)'}</span>
-            </button>
+            {/* GRUP 3: MANAJEMEN BERKAS & AKSI CEPAT */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Save to Database */}
+              <button
+                id="btn-doc-save-db"
+                onClick={handleSaveDocument}
+                className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-mono font-bold transition flex items-center gap-1 shadow-sm active:scale-95"
+                title="Simpan dokumen ini ke penyimpanan arsip lokal"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>Simpan</span>
+              </button>
 
-            {/* Export JPG */}
-            <button
-              id="btn-export-doc-jpg"
-              disabled={isExporting}
-              onClick={() => handleExportImage('jpeg')}
-              className="px-3 py-1.5 bg-teal-700 hover:bg-teal-600 text-white rounded-lg text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-md shadow-teal-900/30 disabled:opacity-50 active:scale-95"
-              title="Cetak dan unduh lembar surat sebagai file JPG berkualitas tinggi"
-            >
-              {exportingFormat === 'jpeg' ? (
-                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <ImageIcon className="w-3.5 h-3.5" />
-              )}
-              <span>{exportingFormat === 'jpeg' ? 'Memproses JPG...' : 'Cetak JPG'}</span>
-            </button>
+              {/* Archive Button */}
+              <button
+                id="btn-doc-archive-open"
+                onClick={() => setIsArchiveModalOpen(true)}
+                className="px-2.5 py-1.5 bg-[#161B22] hover:bg-[#1F242C] border border-gray-700 text-gray-200 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1 active:scale-95"
+                title="Buka daftar berkas dokumen yang tersimpan"
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-amber-400" />
+                <span>Arsip ({savedDocs.length})</span>
+              </button>
 
-            {/* Print / PDF */}
-            <button
-              id="btn-print-doc-pdf"
-              onClick={handlePrint}
-              className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1 active:scale-95"
-              title="Cetak Lembar Dokumen via Browser / Simpan PDF"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>PDF / Print</span>
-            </button>
+              {/* Blank Document Button */}
+              <button
+                id="btn-doc-new-blank"
+                onClick={handleCreateNewBlank}
+                className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-200 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1 active:scale-95"
+                title="Buat dokumen baru dari awal"
+              >
+                <FilePlus2 className="w-3.5 h-3.5 text-blue-400" />
+                <span>Baru</span>
+              </button>
 
-            {/* Copy Text */}
-            <button
-              id="btn-copy-doc-plain-text"
-              onClick={handleCopyText}
-              className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1 active:scale-95"
-              title="Salin isi dokumen dalam format Plain Text / Roleplay Chat"
-            >
-              {copiedText ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copiedText ? 'Tersalin!' : 'Salin Teks'}</span>
-            </button>
+              {/* Copy Text */}
+              <button
+                id="btn-copy-doc-plain-text"
+                onClick={handleCopyText}
+                className="px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-gray-300 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1 active:scale-95"
+                title="Salin isi dokumen dalam format Plain Text / Roleplay Chat"
+              >
+                {copiedText ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copiedText ? 'Tersalin' : 'Salin'}</span>
+              </button>
 
-            {/* Discord Webhook Button */}
-            <button
-              id="btn-send-doc-discord"
-              disabled={webhookStatus === 'sending'}
-              onClick={handleSendToDiscord}
-              className="px-2.5 py-1.5 bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1 disabled:opacity-50 active:scale-95"
-              title="Kirim arsip dokumen resmi ke Discord Webhook"
-            >
-              {webhookStatus === 'sending' ? (
-                <div className="w-3.5 h-3.5 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Send className="w-3.5 h-3.5" />
-              )}
-              <span>{webhookStatus === 'sending' ? 'Mengirim...' : 'Discord'}</span>
-            </button>
+              {/* Discord Webhook Button */}
+              <button
+                id="btn-send-doc-discord"
+                disabled={webhookStatus === 'sending'}
+                onClick={handleSendToDiscord}
+                className="px-2.5 py-1.5 bg-indigo-950/70 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1 disabled:opacity-50 active:scale-95"
+                title="Kirim arsip dokumen resmi ke Discord Webhook"
+              >
+                {webhookStatus === 'sending' ? (
+                  <div className="w-3.5 h-3.5 border-2 border-indigo-300 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Send className="w-3.5 h-3.5" />
+                )}
+                <span>Discord</span>
+              </button>
+
+              {/* Otorisasi Pusat */}
+              <button
+                id="btn-doc-gov-central-auth"
+                type="button"
+                onClick={() => setIsGovCentralAuthModalOpen(true)}
+                className="px-2.5 py-1.5 bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 hover:from-amber-500 hover:to-yellow-400 text-black font-black rounded-lg text-xs font-mono transition flex items-center gap-1 shadow-sm border border-amber-300 active:scale-95"
+                title="Buka Panel Otorisasi Pusat & Webhook Discord Kenegaraan"
+              >
+                <Crown className="w-3.5 h-3.5 text-black" />
+                <span>Otorisasi</span>
+              </button>
+
+              {/* Toggle Portal Pemerintah */}
+              <button
+                type="button"
+                onClick={() => setForceGovMode(prev => !prev)}
+                className={`px-2 py-1.5 rounded-lg text-xs font-mono font-bold transition flex items-center gap-1 border active:scale-95 ${
+                  forceGovMode
+                    ? 'bg-amber-950/80 text-amber-300 border-amber-500'
+                    : 'bg-[#161B22] text-gray-400 border-gray-700 hover:text-white'
+                }`}
+                title="Aktifkan/Sembunyikan Bilah Surat Menyurat Kenegaraan"
+              >
+                <Building className="w-3.5 h-3.5 text-amber-400" />
+                <span>{forceGovMode ? 'Pemerintah: ON' : 'Pemerintah'}</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -2666,14 +2769,67 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
             RIGHT COLUMN: REALISTIC HSPD PHYSICAL PAPER CANVAS
            ======================================================== */}
         <div className="xl:col-span-7 flex flex-col items-center">
-          <div className="w-full flex items-center justify-between mb-2 text-xs font-mono">
-            <span className="text-gray-400 flex items-center gap-1.5">
+          {/* Paper Canvas Header & Quick Controls */}
+          <div className="w-full flex flex-wrap items-center justify-between gap-2 mb-2 text-xs font-mono bg-[#11141A] p-2.5 rounded-xl border border-gray-800">
+            <div className="flex items-center gap-2 flex-wrap">
               <Eye className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Pratinjau Kertas Fisik Asli & Cap Air (Resolusi Tinggi Siap Cetak)</span>
-            </span>
-            <span className="text-[11px] text-gray-500">
-              Format A4 (210 x 297 mm) • HSPD High-Security Paper
-            </span>
+              <span className="text-gray-200 font-bold">Pratinjau Kertas 1 Halaman (A4 • 820 x 1160px)</span>
+              <span className="px-1.5 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-600/60 rounded text-[10px] font-bold flex items-center gap-1">
+                <CheckCircle2 className="w-2.5 h-2.5 text-emerald-400" />
+                {isOnePageLocked ? 'Terkunci Pas 1 Halaman' : 'Bebas'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] text-gray-400">Kerapatan:</span>
+              <button
+                type="button"
+                onClick={() => setLayoutDensity('normal')}
+                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition ${layoutDensity === 'normal' ? 'bg-blue-600 border-blue-400 text-white shadow-sm' : 'bg-gray-800 border-gray-700 text-gray-300 hover:text-white'}`}
+                title="Format normal (1-2 pasal/klausul)"
+              >
+                Normal
+              </button>
+              <button
+                type="button"
+                onClick={() => setLayoutDensity('compact')}
+                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition ${layoutDensity === 'compact' ? 'bg-blue-600 border-blue-400 text-white shadow-sm' : 'bg-gray-800 border-gray-700 text-gray-300 hover:text-white'}`}
+                title="Format kompak (3-4 pasal/klausul)"
+              >
+                Kompak
+              </button>
+              <button
+                type="button"
+                onClick={() => setLayoutDensity('tight')}
+                className={`px-2 py-0.5 rounded text-[10px] font-bold border transition ${layoutDensity === 'tight' ? 'bg-blue-600 border-blue-400 text-white shadow-sm' : 'bg-gray-800 border-gray-700 text-gray-300 hover:text-white'}`}
+                title="Format rapat (5+ pasal/klausul)"
+              >
+                Rapat
+              </button>
+
+              <div className="h-4 w-px bg-gray-700 mx-0.5"></div>
+
+              <button
+                type="button"
+                disabled={isExporting}
+                onClick={() => handleExportImage('png')}
+                className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold flex items-center gap-1 shadow-sm active:scale-95 disabled:opacity-50"
+                title="Unduh Lembar sebagai Gambar PNG 1 Halaman HD"
+              >
+                <Download className="w-3 h-3" />
+                <span>Unduh Gambar</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="px-2 py-0.5 bg-gray-800 hover:bg-gray-700 text-amber-300 border border-gray-600 rounded text-[10px] font-bold flex items-center gap-1 active:scale-95"
+                title="Cetak PDF Pas 1 Halaman"
+              >
+                <Printer className="w-3 h-3 text-amber-400" />
+                <span>Cetak PDF</span>
+              </button>
+            </div>
           </div>
 
           {/* PHYSICAL PAPER SHEET CONTAINER */}
@@ -2681,7 +2837,11 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
             <div
               id="hspd-official-paper-sheet"
               ref={paperRef}
-              className="w-[820px] min-h-[1160px] text-[#0F172A] p-10 shadow-2xl relative flex flex-col justify-between select-text transition-all duration-300"
+              className={`w-[820px] ${
+                isOnePageLocked ? 'h-[1160px] max-h-[1160px] overflow-hidden' : 'min-h-[1160px]'
+              } text-[#0F172A] ${
+                layoutDensity === 'tight' ? 'p-5' : layoutDensity === 'compact' ? 'p-6' : 'p-8'
+              } shadow-2xl relative flex flex-col justify-between select-text transition-all duration-300`}
               style={{
                 ...getPaperStyles(),
                 fontFamily: "'Times New Roman', 'Liberation Serif', serif",
@@ -2690,7 +2850,9 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
             >
               {/* Outer Security Microprint Border */}
               {activeDoc.paperBorderType !== 'minimal' && (
-                <div className="absolute inset-4 border border-[#B45309]/30 pointer-events-none z-0 rounded-sm">
+                <div className={`absolute ${
+                  layoutDensity === 'tight' ? 'inset-3' : layoutDensity === 'compact' ? 'inset-3.5' : 'inset-4'
+                } border border-[#B45309]/30 pointer-events-none z-0 rounded-sm`}>
                   <div className="absolute inset-1 border border-black/20"></div>
                   {/* Guilloche Corner Ornaments */}
                   {activeDoc.paperBorderType === 'official_guilloche' && (
@@ -2718,8 +2880,8 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                     onError={(e) => { (e.target as HTMLImageElement).src = HSPD_LOGO_FALLBACK; }}
                     alt="Official Watermark"
                     style={{
-                      width: activeDoc.watermarkSize ? `${activeDoc.watermarkSize}px` : '450px',
-                      height: activeDoc.watermarkSize ? `${activeDoc.watermarkSize}px` : '450px',
+                      width: activeDoc.watermarkSize ? `${activeDoc.watermarkSize}px` : (layoutDensity === 'tight' ? '360px' : layoutDensity === 'compact' ? '400px' : '440px'),
+                      height: activeDoc.watermarkSize ? `${activeDoc.watermarkSize}px` : (layoutDensity === 'tight' ? '360px' : layoutDensity === 'compact' ? '400px' : '440px'),
                       objectFit: 'contain',
                       filter: 'grayscale(20%) contrast(110%)'
                     }}
@@ -2729,37 +2891,51 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
               {/* TOP HEADER / KOP SURAT RESMI */}
               <div className="relative z-10">
-                <div className="flex items-center justify-between pb-3 border-b-[3px] border-black">
+                <div className={`flex items-center justify-between ${
+                  layoutDensity === 'tight' ? 'pb-1.5 border-b-[2px]' : layoutDensity === 'compact' ? 'pb-2 border-b-[2.5px]' : 'pb-2.5 border-b-[3px]'
+                } border-black`}>
                   
                   {/* Left: Official HSPD Badge Logo (High-Res Round Emblem) */}
-                  <div className="w-24 h-24 shrink-0 flex items-center justify-center">
+                  <div className={`${
+                    layoutDensity === 'tight' ? 'w-16 h-16' : layoutDensity === 'compact' ? 'w-18 h-18' : 'w-20 h-20'
+                  } shrink-0 flex items-center justify-center`}>
                     <img
                       src={activeDoc.customHeaderLogo || getActiveLogoUrl()}
                       onError={(e) => { (e.target as HTMLImageElement).src = HSPD_LOGO_FALLBACK; }}
                       alt="Official Department Emblem"
-                      className="w-20 h-20 object-contain drop-shadow-md rounded-full"
+                      className={`${
+                        layoutDensity === 'tight' ? 'w-14 h-14' : layoutDensity === 'compact' ? 'w-16 h-16' : 'w-18 h-18'
+                      } object-contain drop-shadow-md rounded-full`}
                     />
                   </div>
 
                   {/* Center: Official Title and Address */}
                   <div className="text-center flex-1 px-3">
-                    <h2 className="text-[17px] font-black tracking-wider uppercase text-black font-sans leading-tight">
+                    <h2 className={`${
+                      layoutDensity === 'tight' ? 'text-[14px]' : layoutDensity === 'compact' ? 'text-[15px]' : 'text-[16px]'
+                    } font-black tracking-wider uppercase text-black font-sans leading-tight`}>
                       KEPOLISIAN NEGARA HIGHSTATE (HSPD)
                     </h2>
-                    <h3 className="text-[13px] font-bold tracking-wide uppercase text-gray-800 font-sans mt-0.5">
+                    <h3 className={`${
+                      layoutDensity === 'tight' ? 'text-[10.5px]' : layoutDensity === 'compact' ? 'text-[11.5px]' : 'text-[12.5px]'
+                    } font-bold tracking-wide uppercase text-gray-800 font-sans mt-0.5`}>
                       MARKAS BESAR KEPOLISIAN • MISSION ROW HEADQUARTERS
                     </h3>
-                    <p className="text-[10px] text-gray-700 font-mono mt-1 leading-snug">
+                    <p className={`${
+                      layoutDensity === 'tight' ? 'text-[8.5px]' : layoutDensity === 'compact' ? 'text-[9px]' : 'text-[9.5px]'
+                    } text-gray-700 font-mono mt-0.5 leading-snug`}>
                       Sinner St & Atwater Ave, Mission Row, Downtown Los Santos | Hotline: 911 | Dispatch Frequency 10-8
                     </p>
-                    <div className="h-0.5 bg-gradient-to-r from-transparent via-[#B45309] to-transparent mt-1 opacity-70"></div>
+                    <div className="h-0.5 bg-gradient-to-r from-transparent via-[#B45309] to-transparent mt-0.5 opacity-70"></div>
                   </div>
 
                   {/* Right: Security Classification Badge */}
-                  <div className="w-28 shrink-0 text-right">
-                    <div className="border border-black px-2 py-1 text-center bg-gray-50/90 shadow-sm rounded-sm">
-                      <span className="text-[8.5px] block text-gray-500 font-mono font-bold">KLASIFIKASI:</span>
-                      <span className={`text-[10.5px] font-black font-mono tracking-wider ${
+                  <div className={`${layoutDensity === 'tight' ? 'w-24' : 'w-28'} shrink-0 text-right`}>
+                    <div className="border border-black px-2 py-0.5 text-center bg-gray-50/90 shadow-sm rounded-sm">
+                      <span className="text-[8px] block text-gray-500 font-mono font-bold">KLASIFIKASI:</span>
+                      <span className={`${
+                        layoutDensity === 'tight' ? 'text-[9.5px]' : 'text-[10.5px]'
+                      } font-black font-mono tracking-wider ${
                         activeDoc.classification === 'RAHASIA' || activeDoc.classification === 'SANGAT RAHASIA'
                           ? 'text-red-700'
                           : 'text-black'
@@ -2771,32 +2947,44 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                 </div>
                 
                 {/* Secondary thin sub-border line */}
-                <div className="border-b border-black mt-1 mb-5"></div>
+                <div className={`border-b border-black ${
+                  layoutDensity === 'tight' ? 'mt-0.5 mb-1.5' : layoutDensity === 'compact' ? 'mt-0.5 mb-2' : 'mt-1 mb-2.5'
+                }`}></div>
 
                 {/* DOCUMENT TITLE & NUMBER */}
-                <div className="text-center my-4">
-                  <h1 className="text-[16.5px] font-black uppercase tracking-wide text-black underline decoration-2 underline-offset-4 font-sans">
+                <div className={`text-center ${
+                  layoutDensity === 'tight' ? 'my-1' : layoutDensity === 'compact' ? 'my-1.5' : 'my-2'
+                }`}>
+                  <h1 className={`${
+                    layoutDensity === 'tight' ? 'text-[13.5px]' : layoutDensity === 'compact' ? 'text-[14.5px]' : 'text-[15.5px]'
+                  } font-black uppercase tracking-wide text-black underline decoration-2 underline-offset-4 font-sans`}>
                     {activeDoc.title}
                   </h1>
-                  <p className="text-[12px] font-bold font-mono tracking-wider text-gray-900 mt-1">
+                  <p className={`${
+                    layoutDensity === 'tight' ? 'text-[10px]' : layoutDensity === 'compact' ? 'text-[11px]' : 'text-[11.5px]'
+                  } font-bold font-mono tracking-wider text-gray-900 mt-0.5`}>
                     NOMOR: {activeDoc.docNumber}
                   </p>
-                  <p className="text-[11.5px] italic text-gray-700 mt-0.5">
+                  <p className={`${
+                    layoutDensity === 'tight' ? 'text-[9.5px]' : layoutDensity === 'compact' ? 'text-[10.5px]' : 'text-[11px]'
+                  } italic text-gray-700 mt-0.5`}>
                     Tentang: {activeDoc.subject}
                   </p>
                 </div>
 
                 {/* METADATA GRID (ISSUER & RECIPIENT SUMMARY) */}
-                <div className="grid grid-cols-2 gap-4 text-[11.5px] bg-white/60 border border-gray-400 p-3 rounded my-3 font-sans shadow-sm">
+                <div className={`grid grid-cols-2 gap-3 bg-white/60 border border-gray-400 ${
+                  layoutDensity === 'tight' ? 'p-1.5 my-1 text-[10px]' : layoutDensity === 'compact' ? 'p-2 my-1.5 text-[10.5px]' : 'p-2.5 my-2 text-[11px]'
+                } rounded font-sans shadow-sm`}>
                   <div>
-                    <span className="font-bold block text-gray-900 border-b border-gray-400 pb-0.5 mb-1.5 text-[11px] uppercase font-mono">
+                    <span className="font-bold block text-gray-900 border-b border-gray-400 pb-0.5 mb-1 text-[10px] uppercase font-mono">
                       I. PIHAK PERTAMA (PEJABAT PENERBIT):
                     </span>
-                    <table className="w-full text-[11.5px] leading-tight">
+                    <table className="w-full leading-tight">
                       <tbody>
                         <tr>
-                          <td className="w-20 text-gray-600">Nama</td>
-                          <td className="w-3">:</td>
+                          <td className="w-18 text-gray-600">Nama</td>
+                          <td className="w-2">:</td>
                           <td className="font-bold text-gray-900">{activeDoc.issuerName}</td>
                         </tr>
                         <tr>
@@ -2819,14 +3007,14 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                   </div>
 
                   <div>
-                    <span className="font-bold block text-gray-900 border-b border-gray-400 pb-0.5 mb-1.5 text-[11px] uppercase font-mono">
+                    <span className="font-bold block text-gray-900 border-b border-gray-400 pb-0.5 mb-1 text-[10px] uppercase font-mono">
                       II. PIHAK KEDUA (PENERIMA / SUBJEK):
                     </span>
-                    <table className="w-full text-[11.5px] leading-tight">
+                    <table className="w-full leading-tight">
                       <tbody>
                         <tr>
-                          <td className="w-20 text-gray-600">Nama</td>
-                          <td className="w-3">:</td>
+                          <td className="w-18 text-gray-600">Nama</td>
+                          <td className="w-2">:</td>
                           <td className="font-bold text-gray-900">{activeDoc.recipientName}</td>
                         </tr>
                         <tr>
@@ -2850,25 +3038,31 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                 </div>
 
                 {/* OPENING STATEMENT */}
-                <div className="text-[12.5px] leading-relaxed text-justify indent-8 my-3.5">
+                <div className={`${
+                  layoutDensity === 'tight' ? 'text-[10px] leading-snug my-1' : layoutDensity === 'compact' ? 'text-[10.5px] leading-normal my-1' : 'text-[11px] leading-relaxed my-1.5'
+                } text-justify indent-6`}>
                   {activeDoc.openingText}
                 </div>
 
                 {/* CLAUSES / PASAL LIST */}
-                <div className="space-y-3 my-4">
+                <div className={`${
+                  layoutDensity === 'tight' ? 'space-y-1 my-1' : layoutDensity === 'compact' ? 'space-y-1.5 my-1.5' : 'space-y-2 my-2'
+                }`}>
                   {activeDoc.clauses.map((clause, idx) => (
-                    <div key={clause.id} className="text-[12px] leading-normal">
-                      <div className="flex items-start gap-2">
-                        <span className="font-bold font-sans text-black whitespace-nowrap min-w-[70px]">
+                    <div key={clause.id} className={`${
+                      layoutDensity === 'tight' ? 'text-[10px] leading-tight' : layoutDensity === 'compact' ? 'text-[10.5px] leading-snug' : 'text-[11px] leading-normal'
+                    }`}>
+                      <div className="flex items-start gap-1.5">
+                        <span className="font-bold font-sans text-black whitespace-nowrap min-w-[65px]">
                           {clause.clauseNumber || `Pasal ${idx + 1}`}:
                         </span>
                         <div className="flex-1 text-justify">
                           {clause.title && (
-                            <strong className="block text-black mb-0.5 font-sans uppercase text-[11.5px]">
+                            <strong className="block text-black mb-0.5 font-sans uppercase text-[10.5px]">
                               [{clause.title}]
                             </strong>
                           )}
-                          <span className="text-gray-900 leading-relaxed">
+                          <span className="text-gray-900">
                             {clause.content}
                           </span>
                         </div>
@@ -2878,21 +3072,29 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                 </div>
 
                 {/* CLOSING STATEMENT */}
-                <div className="text-[12.5px] leading-relaxed text-justify indent-8 my-3.5">
+                <div className={`${
+                  layoutDensity === 'tight' ? 'text-[10px] leading-snug my-1' : layoutDensity === 'compact' ? 'text-[10.5px] leading-normal my-1' : 'text-[11px] leading-relaxed my-1.5'
+                } text-justify indent-6`}>
                   {activeDoc.closingText}
                 </div>
 
                 {/* DISCLAIMER / NOTES */}
                 {activeDoc.notes && (
-                  <div className="text-[10px] text-gray-700 italic bg-white/50 border-l-2 border-gray-500 p-2 my-2 font-sans">
+                  <div className={`${
+                    layoutDensity === 'tight' ? 'text-[8.5px] p-1 my-0.5' : layoutDensity === 'compact' ? 'text-[9px] p-1 my-1' : 'text-[9.5px] p-1.5 my-1'
+                  } text-gray-700 italic bg-white/50 border-l-2 border-gray-500 font-sans`}>
                     * Catatan: {activeDoc.notes}
                   </div>
                 )}
               </div>
 
               {/* BOTTOM SECTION: SIGNATURES & OFFICIAL SEALS */}
-              <div className="relative z-10 mt-6 pt-4 border-t border-gray-400">
-                <div className="text-[11px] text-right mb-4 font-mono text-gray-700">
+              <div className={`relative z-10 ${
+                layoutDensity === 'tight' ? 'mt-2 pt-1.5' : layoutDensity === 'compact' ? 'mt-2.5 pt-2' : 'mt-3 pt-2.5'
+              } border-t border-gray-400`}>
+                <div className={`${
+                  layoutDensity === 'tight' ? 'text-[9.5px] mb-1' : layoutDensity === 'compact' ? 'text-[10px] mb-1.5' : 'text-[10.5px] mb-2'
+                } text-right font-mono text-gray-700`}>
                   Ditetapkan di: <strong>{activeDoc.location}</strong> pada tanggal <strong>{activeDoc.date}</strong>
                 </div>
 
@@ -2901,14 +3103,20 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                   const isRecipientVisible = activeDoc.showRecipientSignature !== false;
                   const isIssuerVisible = activeDoc.showIssuerSignature !== false;
 
-                  let signatureGridClass = 'grid grid-cols-3 gap-4 text-center items-end relative';
+                  let signatureGridClass = 'grid grid-cols-3 gap-3 text-center items-end relative';
                   if (isRecipientVisible && !isIssuerVisible) {
-                    signatureGridClass = 'grid grid-cols-2 gap-4 text-center items-end relative max-w-xl';
+                    signatureGridClass = 'grid grid-cols-2 gap-3 text-center items-end relative max-w-xl';
                   } else if (!isRecipientVisible && isIssuerVisible) {
-                    signatureGridClass = 'grid grid-cols-2 gap-4 text-center items-end relative max-w-xl ml-auto';
+                    signatureGridClass = 'grid grid-cols-2 gap-3 text-center items-end relative max-w-xl ml-auto';
                   } else if (!isRecipientVisible && !isIssuerVisible) {
-                    signatureGridClass = 'flex flex-col items-center justify-center relative min-h-[120px] my-2';
+                    signatureGridClass = `flex flex-col items-center justify-center relative ${
+                      layoutDensity === 'tight' ? 'min-h-[80px]' : layoutDensity === 'compact' ? 'min-h-[90px]' : 'min-h-[105px]'
+                    } my-1`;
                   }
+
+                  const sigBoxHeight = layoutDensity === 'tight' ? 'h-11' : layoutDensity === 'compact' ? 'h-13' : 'h-15';
+                  const sealSize = layoutDensity === 'tight' ? 95 : layoutDensity === 'compact' ? 108 : 120;
+                  const secondarySealSize = layoutDensity === 'tight' ? 70 : layoutDensity === 'compact' ? 80 : 88;
 
                   return (
                     <div className={signatureGridClass}>
@@ -2923,7 +3131,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                               className="text-[9px] text-emerald-300 hover:text-white flex items-center gap-0.5"
                               title="Buka tab pengaturan tanda tangan"
                             >
-                              <span>✏️ Ubah Manual</span>
+                              <span>✏️ Ubah</span>
                             </button>
                             <span className="text-gray-600 text-[9px]">|</span>
                             <button
@@ -2941,7 +3149,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                               className="text-[9px] text-amber-300 hover:text-white flex items-center gap-0.5"
                               title="Kosongkan coretan TTD (siap ditandatangani pulpen basah)"
                             >
-                              <span>📄 Kosongkan</span>
+                              <span>📄 Kosong</span>
                             </button>
                             <span className="text-gray-600 text-[9px]">|</span>
                             <button
@@ -2954,16 +3162,16 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                               className="text-[9px] text-rose-300 hover:text-white flex items-center gap-0.5"
                               title="Hilangkan kolom tanda tangan penerima"
                             >
-                              <span>❌ Hilangkan</span>
+                              <span>❌ Sembunyikan</span>
                             </button>
                           </div>
 
-                          <span className="text-[11px] font-bold text-gray-800 font-sans block mb-1">
+                          <span className={`${layoutDensity === 'tight' ? 'text-[10px]' : 'text-[10.5px]'} font-bold text-gray-800 font-sans block mb-0.5`}>
                             {activeDoc.recipientSignatureTitle || 'Pihak Penerima,'}
                           </span>
                           
                           {/* Custom Recipient Signature Display */}
-                          <div className="h-16 flex items-center justify-center my-1 w-full overflow-hidden">
+                          <div className={`${sigBoxHeight} flex items-center justify-center my-0.5 w-full overflow-hidden`}>
                             {activeDoc.recipientSignatureImage ? (
                               <img
                                 src={activeDoc.recipientSignatureImage}
@@ -2983,7 +3191,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                                 if (style === 'formal') {
                                   return (
                                     <span 
-                                      className="text-[18px] text-gray-950 font-serif italic font-medium select-none"
+                                      className={`${layoutDensity === 'tight' ? 'text-[15px]' : 'text-[17px]'} text-gray-950 font-serif italic font-medium select-none`}
                                       style={{ fontFamily: 'Georgia, serif' }}
                                     >
                                       {nameText}
@@ -2993,7 +3201,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                                 if (style === 'handwriting2') {
                                   return (
                                     <span 
-                                      className="text-[21px] text-indigo-950 rotate-[-2deg] select-none font-sans italic font-light tracking-wide"
+                                      className={`${layoutDensity === 'tight' ? 'text-[17px]' : 'text-[19px]'} text-indigo-950 rotate-[-2deg] select-none font-sans italic font-light tracking-wide`}
                                       style={{ fontFamily: 'cursive, sans-serif' }}
                                     >
                                       {nameText}
@@ -3002,7 +3210,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                                 }
                                 if (style === 'badge_stamp') {
                                   return (
-                                    <span className="text-[12px] text-slate-800 font-mono font-bold tracking-widest uppercase border border-slate-700/60 px-2 py-0.5 rounded rotate-[2deg]">
+                                    <span className="text-[11px] text-slate-800 font-mono font-bold tracking-widest uppercase border border-slate-700/60 px-1.5 py-0.5 rounded rotate-[2deg]">
                                       {nameText}
                                     </span>
                                   );
@@ -3010,7 +3218,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                                 // default handwriting1
                                 return (
                                   <span 
-                                    className="text-[20px] text-blue-900 rotate-[-4deg] select-none italic font-serif"
+                                    className={`${layoutDensity === 'tight' ? 'text-[16px]' : 'text-[18px]'} text-blue-900 rotate-[-3deg] select-none italic font-serif`}
                                     style={{ fontFamily: 'Georgia, serif' }}
                                   >
                                     {nameText}
@@ -3020,14 +3228,14 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                             )}
                           </div>
 
-                          <div className="border-t border-black w-36 pt-1">
+                          <div className={`border-t border-black ${layoutDensity === 'tight' ? 'w-32' : 'w-36'} pt-0.5`}>
                             {activeDoc.recipientSignatureName !== '' && (
-                              <span className="font-bold text-[11.5px] block text-black">
+                              <span className={`font-bold ${layoutDensity === 'tight' ? 'text-[10px]' : 'text-[10.5px]'} block text-black truncate`}>
                                 {activeDoc.recipientSignatureName ?? activeDoc.recipientName}
                               </span>
                             )}
                             {activeDoc.recipientSignatureSubtitle !== '' && (
-                              <span className="text-[9.5px] text-gray-600 font-mono block">
+                              <span className="text-[8.5px] text-gray-600 font-mono block truncate">
                                 {activeDoc.recipientSignatureSubtitle ?? (activeDoc.recipientId ? `ID: ${activeDoc.recipientId}` : 'Pihak Terkait')}
                               </span>
                             )}
@@ -3036,13 +3244,15 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                       )}
 
                       {/* Center / Left-Center: Real Official Wet Stamp & Watermark QR */}
-                      <div className="flex flex-col items-center justify-center relative min-h-[120px]">
+                      <div className={`flex flex-col items-center justify-center relative ${
+                        layoutDensity === 'tight' ? 'min-h-[80px]' : layoutDensity === 'compact' ? 'min-h-[90px]' : 'min-h-[105px]'
+                      }`}>
                         {/* 1. Custom Uploaded Seal from Device (if enabled) */}
                         {(activeDoc.sealDisplayMode === 'custom' || activeDoc.sealDisplayMode === 'both') && activeDoc.customSealImage && (
-                          <div className="absolute top-[-20px] z-20">
+                          <div className="absolute top-[-15px] z-20">
                             <CustomUploadedSeal
                               imageUrl={activeDoc.customSealImage}
-                              size={Math.round((activeDoc.customSealScale ?? 1.0) * 130)}
+                              size={Math.round((activeDoc.customSealScale ?? 1.0) * sealSize)}
                               rotation={activeDoc.customSealRotation ?? -7}
                               opacity={activeDoc.customSealOpacity ?? 0.88}
                               colorFilter={activeDoc.customSealColorFilter ?? 'red'}
@@ -3052,23 +3262,23 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
                         {/* 2. Preset Official Vector Seal (if enabled) */}
                         {(activeDoc.sealDisplayMode === 'preset' || activeDoc.sealDisplayMode === 'both' || !activeDoc.sealDisplayMode) && (
-                          <div className={`absolute ${activeDoc.sealDisplayMode === 'both' ? 'top-[-5px] left-[-15px] z-10 opacity-70' : 'top-[-15px] z-20'}`}>
-                            <OfficialSeal type={activeDoc.primarySeal} size={125} />
+                          <div className={`absolute ${activeDoc.sealDisplayMode === 'both' ? 'top-[-5px] left-[-10px] z-10 opacity-70' : 'top-[-10px] z-20'}`}>
+                            <OfficialSeal type={activeDoc.primarySeal} size={sealSize} />
                           </div>
                         )}
 
                         {/* Secondary Seal if configured */}
                         {activeDoc.secondarySeal && activeDoc.sealDisplayMode === 'preset' && (
-                          <div className="absolute top-[20px] left-[-20px] z-10 opacity-80">
-                            <OfficialSeal type={activeDoc.secondarySeal} size={90} />
+                          <div className="absolute top-[15px] left-[-15px] z-10 opacity-80">
+                            <OfficialSeal type={activeDoc.secondarySeal} size={secondarySealSize} />
                           </div>
                         )}
 
                         {/* QR Code Security Stamp */}
                         {activeDoc.showQrVerification && (
-                          <div className="absolute bottom-[-15px] right-[-10px] z-30 bg-white border border-gray-400 p-1 rounded shadow-sm flex items-center gap-1">
-                            <QrCode className="w-7 h-7 text-black" />
-                            <div className="text-[7px] text-left leading-none font-mono text-gray-700">
+                          <div className="absolute bottom-[-10px] right-[-8px] z-30 bg-white border border-gray-400 p-0.5 rounded shadow-sm flex items-center gap-1">
+                            <QrCode className="w-5 h-5 text-black" />
+                            <div className="text-[6.5px] text-left leading-none font-mono text-gray-700">
                               <strong>VERIFIKASI</strong>
                               <br />HSPD-SECURE
                               <br />{activeDoc.id.slice(-6)}
@@ -3088,7 +3298,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                               className="text-[9px] text-blue-300 hover:text-white flex items-center gap-0.5"
                               title="Buka tab pengaturan tanda tangan"
                             >
-                              <span>✏️ Ubah Manual</span>
+                              <span>✏️ Ubah</span>
                             </button>
                             <span className="text-gray-600 text-[9px]">|</span>
                             <button
@@ -3106,7 +3316,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                               className="text-[9px] text-amber-300 hover:text-white flex items-center gap-0.5"
                               title="Kosongkan coretan TTD (siap ditandatangani pulpen basah)"
                             >
-                              <span>📄 Kosongkan</span>
+                              <span>📄 Kosong</span>
                             </button>
                             <span className="text-gray-600 text-[9px]">|</span>
                             <button
@@ -3119,16 +3329,16 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                               className="text-[9px] text-rose-300 hover:text-white flex items-center gap-0.5"
                               title="Hilangkan kolom tanda tangan penerbit"
                             >
-                              <span>❌ Hilangkan</span>
+                              <span>❌ Sembunyikan</span>
                             </button>
                           </div>
 
-                          <span className="text-[11px] font-bold text-gray-800 font-sans block mb-1">
+                          <span className={`${layoutDensity === 'tight' ? 'text-[10px]' : 'text-[10.5px]'} font-bold text-gray-800 font-sans block mb-0.5`}>
                             {activeDoc.issuerSignatureTitle || 'Pejabat Penerbit,'}
                           </span>
 
                           {/* Custom Issuer Signature Display */}
-                          <div className="h-16 flex items-center justify-center my-1 w-full overflow-hidden">
+                          <div className={`${sigBoxHeight} flex items-center justify-center my-0.5 w-full overflow-hidden`}>
                             {activeDoc.issuerSignatureImage ? (
                               <img
                                 src={activeDoc.issuerSignatureImage}
@@ -3148,7 +3358,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                                 if (style === 'handwriting1') {
                                   return (
                                     <span 
-                                      className="text-[22px] text-blue-900 rotate-[-4deg] select-none italic font-serif"
+                                      className={`${layoutDensity === 'tight' ? 'text-[17px]' : 'text-[19px]'} text-blue-900 rotate-[-3deg] select-none italic font-serif`}
                                       style={{ fontFamily: 'Georgia, serif' }}
                                     >
                                       {issuerText}
@@ -3158,7 +3368,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                                 if (style === 'handwriting2') {
                                   return (
                                     <span 
-                                      className="text-[22px] text-indigo-950 rotate-[-2deg] select-none font-sans italic font-light tracking-wide"
+                                      className={`${layoutDensity === 'tight' ? 'text-[17px]' : 'text-[19px]'} text-indigo-950 rotate-[-2deg] select-none font-sans italic font-light tracking-wide`}
                                       style={{ fontFamily: 'cursive, sans-serif' }}
                                     >
                                       {issuerText}
@@ -3167,7 +3377,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                                 }
                                 if (style === 'badge_stamp') {
                                   return (
-                                    <span className="text-[13px] text-slate-800 font-mono font-bold tracking-widest uppercase border border-slate-700/60 px-2 py-0.5 rounded rotate-[2deg]">
+                                    <span className="text-[11px] text-slate-800 font-mono font-bold tracking-widest uppercase border border-slate-700/60 px-1.5 py-0.5 rounded rotate-[2deg]">
                                       {issuerText}
                                     </span>
                                   );
@@ -3175,7 +3385,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                                 // default formal
                                 return (
                                   <span 
-                                    className="text-[22px] text-blue-950 rotate-[-2deg] select-none font-serif font-bold italic"
+                                    className={`${layoutDensity === 'tight' ? 'text-[17px]' : 'text-[19px]'} text-blue-950 rotate-[-2deg] select-none font-serif font-bold italic`}
                                     style={{ fontFamily: 'Georgia, serif' }}
                                   >
                                     {issuerText}
@@ -3185,14 +3395,14 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                             )}
                           </div>
 
-                          <div className="border-t border-black w-40 pt-1">
+                          <div className={`border-t border-black ${layoutDensity === 'tight' ? 'w-34' : 'w-38'} pt-0.5`}>
                             {activeDoc.issuerSignatureName !== '' && (
-                              <span className="font-bold text-[11.5px] block text-black">
+                              <span className={`font-bold ${layoutDensity === 'tight' ? 'text-[10px]' : 'text-[10.5px]'} block text-black truncate`}>
                                 {activeDoc.issuerSignatureName ?? activeDoc.issuerName}
                               </span>
                             )}
                             {activeDoc.issuerSignatureSubtitle !== '' && (
-                              <span className="text-[9.5px] text-gray-700 font-mono block">
+                              <span className="text-[8.5px] text-gray-700 font-mono block truncate">
                                 {activeDoc.issuerSignatureSubtitle ?? (activeDoc.issuerRank ? `${activeDoc.issuerRank} [${activeDoc.issuerBadge || 'ID'}]` : '')}
                               </span>
                             )}
@@ -3205,8 +3415,10 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
                 {/* High Command Final Acknowledgment Strip & Signature */}
                 {activeDoc.showAcknowledgedBySignature !== false && (!!activeDoc.acknowledgedByName || !!activeDoc.acknowledgedByRank) && (
-                  <div className="mt-6 pt-3 border-t border-dashed border-gray-400 flex items-center justify-between text-[10px] font-mono text-gray-700">
-                    <div className="flex items-center gap-2">
+                  <div className={`mt-2 pt-1 border-t border-dashed border-gray-400 flex items-center justify-between ${
+                    layoutDensity === 'tight' ? 'text-[8.5px]' : 'text-[9px]'
+                  } font-mono text-gray-700`}>
+                    <div className="flex items-center gap-1.5">
                       {activeDoc.acknowledgedByTitle !== '' && (
                         <span>{activeDoc.acknowledgedByTitle ?? 'Otorisasi Pusat:'} </span>
                       )}
@@ -3220,11 +3432,11 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                         <img
                           src={activeDoc.acknowledgedSignatureImage}
                           alt="High Command Signature"
-                          className="h-7 object-contain inline-block ml-1"
+                          className="h-5 object-contain inline-block ml-1"
                           style={{ mixBlendMode: 'multiply' }}
                         />
                       ) : (activeDoc.acknowledgedSignatureType === 'blank' || activeDoc.acknowledgedSignatureStyle === 'blank') ? (
-                        <span className="inline-block w-20 border-b border-gray-500 mx-1"></span>
+                        <span className="inline-block w-16 border-b border-gray-500 mx-1"></span>
                       ) : activeDoc.acknowledgedByName ? (
                         <span 
                           className="font-serif italic font-bold text-blue-950 ml-1 text-xs select-none"
@@ -3238,7 +3450,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                       <div>
                         <span>STATUS: </span>
                         <strong className="text-emerald-800">
-                          {activeDoc.acknowledgedCustomStatus ?? 'DISAHKAN & DIAKREDITASI OLEH MARKAS BESAR'}
+                          {activeDoc.acknowledgedCustomStatus ?? 'DISAHKAN OLEH MARKAS BESAR'}
                         </strong>
                       </div>
                     )}

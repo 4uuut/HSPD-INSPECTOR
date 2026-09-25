@@ -694,6 +694,12 @@ export const ALL_WEBHOOK_CONFIG_KEYS = [
   'hspd_document_bot_name',
   'hspd_document_bot_avatar',
   'hspd_document_auto_send',
+  // Dedicated Changelog & System Release Announcement Webhook Keys
+  'hspd_changelog_webhook_url',
+  'hspd_changelog_bot_name',
+  'hspd_changelog_bot_avatar',
+  'hspd_changelog_auto_send',
+  'hspd_changelog_mention_role',
   // Discord Bot Direct Message (PM / DM) Keys
   'hspd_discord_bot_token',
   'hspd_discord_bot_custom_name',

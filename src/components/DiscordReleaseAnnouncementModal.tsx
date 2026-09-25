@@ -248,7 +248,7 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
   // Status & Bot Config
   const [botConfig, setBotConfig] = useState<any>({
     prefix: '!hspd',
-    changelogChannelId: '',
+    changelogChannelId: '1550418868814610433',
     changelogMentionRole: '@everyone',
     dutyChannelId: '',
     rosterChannelId: ''
@@ -425,7 +425,7 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
       const discordEmbed = {
         author: {
           name: 'High State Police Department • Official System Release',
-          icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+          icon_url: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png'
         },
         title: `📢 ${title || 'Pembaruan Sistem MDT HSPD'} • [${version || 'v3.4.0'}]`,
         description: finalDesc,
@@ -433,7 +433,7 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
         fields,
         footer: {
           text: `HSPD MDC System • ${version || 'v3.4.0'} • High State Government`,
-          icon_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'
+          icon_url: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png'
         },
         timestamp: now.toISOString()
       };

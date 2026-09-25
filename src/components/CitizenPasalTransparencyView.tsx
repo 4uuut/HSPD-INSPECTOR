@@ -110,17 +110,17 @@ export const CitizenPasalTransparencyView: React.FC<Props> = ({
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       result = result.filter(p => 
-        p.code.toLowerCase().includes(q) ||
-        p.desc.toLowerCase().includes(q) ||
-        p.cat.toLowerCase().includes(q)
+        (p.code && p.code.toLowerCase().includes(q)) ||
+        (p.desc && p.desc.toLowerCase().includes(q)) ||
+        (p.cat && p.cat.toLowerCase().includes(q))
       );
     }
 
     return [...result].sort((a, b) => {
-      if (sortBy === 'fine_desc') return b.fine - a.fine;
-      if (sortBy === 'fine_asc') return a.fine - b.fine;
-      if (sortBy === 'time_desc') return b.time - a.time;
-      return a.code.localeCompare(b.code, undefined, { numeric: true });
+      if (sortBy === 'fine_desc') return (b.fine || 0) - (a.fine || 0);
+      if (sortBy === 'fine_asc') return (a.fine || 0) - (b.fine || 0);
+      if (sortBy === 'time_desc') return (b.time || 0) - (a.time || 0);
+      return (a.code || '').localeCompare(b.code || '', undefined, { numeric: true });
     });
   }, [pasalList, selectedCategory, searchQuery, sortBy]);
 

@@ -154,7 +154,7 @@ Jangan lupa untuk hidupin direct message agar pm bot mengirim ucp bisa masuk! Da
 export const PRESET_DISCORD_BOT_LOGOS = [
   {
     name: 'High State Blue Robot',
-    url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    url: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     category: 'High State'
   },
   {
@@ -207,7 +207,7 @@ export function getSavedDiscordBotConfig(): DiscordBotConfig {
     return {
       botToken: localStorage.getItem(DISCORD_BOT_TOKEN_KEY) || '',
       botName: localStorage.getItem(DISCORD_BOT_CUSTOM_NAME_KEY) || 'Cek Akun | High State',
-      botAvatar: localStorage.getItem(DISCORD_BOT_CUSTOM_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: localStorage.getItem(DISCORD_BOT_CUSTOM_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       defaultNote: localStorage.getItem(DISCORD_BOT_DEFAULT_NOTE_KEY) || 'Jangan beritahu informasi ini kepada orang lain!',
       embedTitle: localStorage.getItem(DISCORD_BOT_EMBED_TITLE_KEY) || '✅ Berhasil!',
       embedDescription: localStorage.getItem(DISCORD_BOT_EMBED_DESC_KEY) || 'Berikut adalah detail dari akun MDT Anda:',
@@ -217,7 +217,7 @@ export function getSavedDiscordBotConfig(): DiscordBotConfig {
       registrationEmbedTitle: localStorage.getItem(DISCORD_REGISTRATION_TITLE_KEY) || 'UCP Panel High State',
       registrationEmbedDesc: localStorage.getItem(DISCORD_REGISTRATION_DESC_KEY) || DEFAULT_REGISTRATION_PANEL_DESC,
       registrationEmbedColor: localStorage.getItem(DISCORD_REGISTRATION_COLOR_KEY) || '#00A8FF',
-      registrationThumbnail: localStorage.getItem(DISCORD_REGISTRATION_THUMBNAIL_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      registrationThumbnail: localStorage.getItem(DISCORD_REGISTRATION_THUMBNAIL_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       registrationFooter: localStorage.getItem(DISCORD_REGISTRATION_FOOTER_KEY) || 'Bot High State',
       registrationRegisterUrl: localStorage.getItem(DISCORD_REGISTRATION_URL_KEY) || ''
     };
@@ -225,7 +225,7 @@ export function getSavedDiscordBotConfig(): DiscordBotConfig {
     return {
       botToken: '',
       botName: 'Cek Akun | High State',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       defaultNote: 'Jangan beritahu informasi ini kepada orang lain!',
       embedTitle: '✅ Berhasil!',
       embedDescription: 'Berikut adalah detail dari akun MDT Anda:',
@@ -235,7 +235,7 @@ export function getSavedDiscordBotConfig(): DiscordBotConfig {
       registrationEmbedTitle: 'UCP Panel High State',
       registrationEmbedDesc: DEFAULT_REGISTRATION_PANEL_DESC,
       registrationEmbedColor: '#00A8FF',
-      registrationThumbnail: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      registrationThumbnail: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       registrationFooter: 'Bot High State',
       registrationRegisterUrl: ''
     };
@@ -497,14 +497,14 @@ export function getSavedWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(BOT_NAME_KEY) || 'HSPD CAD System',
-      botAvatar: localStorage.getItem(BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: localStorage.getItem(BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(AUTO_WEBHOOK_KEY) !== 'false' // default true if not set
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'HSPD CAD System',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -531,14 +531,14 @@ export function getSavedDutyWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(DUTY_WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(DUTY_BOT_NAME_KEY) || 'HSPD Duty Logger',
-      botAvatar: localStorage.getItem(DUTY_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: localStorage.getItem(DUTY_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(DUTY_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'HSPD Duty Logger',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -561,14 +561,14 @@ export function getSavedPromotionWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(PROMOTION_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(PROMOTION_BOT_NAME_KEY) || 'HSPD Promotion Board & HQ',
-      botAvatar: localStorage.getItem(PROMOTION_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: localStorage.getItem(PROMOTION_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(PROMOTION_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'HSPD Promotion Board & HQ',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -591,14 +591,14 @@ export function getSavedWarningWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(WARNING_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(WARNING_BOT_NAME_KEY) || 'HSPD Internal Affairs (Discipline)',
-      botAvatar: localStorage.getItem(WARNING_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: localStorage.getItem(WARNING_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(WARNING_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'HSPD Internal Affairs (Discipline)',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -621,14 +621,14 @@ export function getSavedDischargeWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(DISCHARGE_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(DISCHARGE_BOT_NAME_KEY) || 'HSPD High Command Disciplinary',
-      botAvatar: localStorage.getItem(DISCHARGE_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: localStorage.getItem(DISCHARGE_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(DISCHARGE_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'HSPD High Command Disciplinary',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -653,14 +653,14 @@ export function getSavedPinResetWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: effectiveUrl,
       botName: localStorage.getItem(PIN_RESET_BOT_NAME_KEY) || 'HSPD Security & Credentials HQ',
-      botAvatar: localStorage.getItem(PIN_RESET_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: localStorage.getItem(PIN_RESET_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(PIN_RESET_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: DEFAULT_PIN_RESET_WEBHOOK_URL,
       botName: 'HSPD Security & Credentials HQ',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -683,14 +683,14 @@ export function getSavedRosterWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(ROSTER_WEBHOOK_STORAGE_KEY) || localStorage.getItem(PIN_RESET_WEBHOOK_STORAGE_KEY) || localStorage.getItem(PROMOTION_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(ROSTER_BOT_NAME_KEY) || 'HSPD Personnel & Roster Bureau',
-      botAvatar: localStorage.getItem(ROSTER_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: localStorage.getItem(ROSTER_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(ROSTER_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'HSPD Personnel & Roster Bureau',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -713,14 +713,14 @@ export function getSavedDetectiveWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(DETECTIVE_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(DETECTIVE_BOT_NAME_KEY) || 'HSPD Detective Bureau & CID',
-      botAvatar: localStorage.getItem(DETECTIVE_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: localStorage.getItem(DETECTIVE_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(DETECTIVE_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'HSPD Detective Bureau & CID',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -743,14 +743,14 @@ export function getSavedBoloWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(BOLO_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(BOLO_BOT_NAME_KEY) || 'HSPD BOLO & Dispatch HQ',
-      botAvatar: localStorage.getItem(BOLO_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: localStorage.getItem(BOLO_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(BOLO_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'HSPD BOLO & Dispatch HQ',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -773,14 +773,14 @@ export function getSavedTrafficCitationWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(TRAFFIC_CITATION_WEBHOOK_STORAGE_KEY) || localStorage.getItem(IMPOUND_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(TRAFFIC_CITATION_BOT_NAME_KEY) || 'HSPD Traffic Enforcement & Citation Unit',
-      botAvatar: localStorage.getItem(TRAFFIC_CITATION_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: localStorage.getItem(TRAFFIC_CITATION_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(TRAFFIC_CITATION_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'HSPD Traffic Enforcement & Citation Unit',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -803,14 +803,14 @@ export function getSavedImpoundWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(IMPOUND_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(IMPOUND_BOT_NAME_KEY) || 'HSPD Traffic Enforcement & Impound Lot',
-      botAvatar: localStorage.getItem(IMPOUND_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: localStorage.getItem(IMPOUND_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(IMPOUND_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'HSPD Traffic Enforcement & Impound Lot',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -833,14 +833,14 @@ export function getSavedVaultWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(VAULT_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(VAULT_BOT_NAME_KEY) || 'HSPD Vault & Armory Bureau',
-      botAvatar: localStorage.getItem(VAULT_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: localStorage.getItem(VAULT_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(VAULT_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'HSPD Vault & Armory Bureau',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -863,14 +863,14 @@ export function getSavedDestructionWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(DESTRUCTION_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(DESTRUCTION_BOT_NAME_KEY) || 'HSPD Evidence & Smelting Registry',
-      botAvatar: localStorage.getItem(DESTRUCTION_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: localStorage.getItem(DESTRUCTION_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(DESTRUCTION_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'HSPD Evidence & Smelting Registry',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -893,14 +893,14 @@ export function getSavedDocumentWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(DOCUMENT_WEBHOOK_STORAGE_KEY) || localStorage.getItem(ROSTER_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(DOCUMENT_BOT_NAME_KEY) || 'HSPD Document Archives & Legal Bureau',
-      botAvatar: localStorage.getItem(DOCUMENT_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: localStorage.getItem(DOCUMENT_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(DOCUMENT_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'HSPD Document Archives & Legal Bureau',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -915,6 +915,64 @@ export function saveDocumentWebhookConfig(config: Partial<WebhookConfig>) {
     syncAllWebhooksToFirestore();
   } catch (e) {
     console.error('Failed to save document webhook settings', e);
+  }
+}
+
+export function getSavedChangelogWebhookConfig(): WebhookConfig {
+  try {
+    return {
+      webhookUrl: localStorage.getItem(CHANGELOG_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
+      botName: localStorage.getItem(CHANGELOG_BOT_NAME_KEY) || 'HSPD Release & Changelog Bot',
+      botAvatar: localStorage.getItem(CHANGELOG_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
+      autoSendOnSave: localStorage.getItem(CHANGELOG_AUTO_SEND_KEY) !== 'false'
+    };
+  } catch {
+    return {
+      webhookUrl: '',
+      botName: 'HSPD Release & Changelog Bot',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
+      autoSendOnSave: true
+    };
+  }
+}
+
+export function saveChangelogWebhookConfig(config: Partial<WebhookConfig>) {
+  try {
+    if (config.webhookUrl !== undefined) localStorage.setItem(CHANGELOG_WEBHOOK_STORAGE_KEY, config.webhookUrl);
+    if (config.botName !== undefined) localStorage.setItem(CHANGELOG_BOT_NAME_KEY, config.botName);
+    if (config.botAvatar !== undefined) localStorage.setItem(CHANGELOG_BOT_AVATAR_KEY, config.botAvatar);
+    if (config.autoSendOnSave !== undefined) localStorage.setItem(CHANGELOG_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');
+    syncAllWebhooksToFirestore();
+  } catch (e) {
+    console.error('Failed to save changelog webhook settings', e);
+  }
+}
+
+export async function testChangelogDiscordWebhook(url?: string): Promise<{ success: boolean; message: string }> {
+  const targetUrl = url || getSavedChangelogWebhookConfig().webhookUrl;
+  if (!targetUrl || !targetUrl.trim().startsWith('http')) {
+    return { success: false, message: 'URL Webhook Changelog / Rilis belum diisi!' };
+  }
+  try {
+    const res = await fetch(targetUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: '**[ UJI KONEKSI CHANNEL DISCORD CHANGELOG & RILIS OTOMATIS ]**',
+        embeds: [{
+          title: '📢 Uji Coba Integrasi Pengumuman Sistem Otomatis',
+          description: 'Koneksi ke channel ini berhasil diverifikasi! Setiap penambahan fitur, penghapusan komponen, atau perbaikan bug akan dikirimkan secara otomatis ke channel ini.',
+          color: 0x3B82F6,
+          timestamp: new Date().toISOString()
+        }]
+      })
+    });
+    if (res.ok) {
+      return { success: true, message: '✅ Uji koneksi Webhook Changelog berhasil terkirim ke Discord!' };
+    }
+    return { success: false, message: `Discord menolak permintaan: ${res.statusText}` };
+  } catch (err: any) {
+    return { success: false, message: `Gagal menghubungi Webhook Discord: ${err.message || err}` };
   }
 }
 
@@ -1025,7 +1083,7 @@ export async function sendArrestRecordToDiscord(
     fields,
     footer: {
       text: `HSPD MDC CAD Terminal • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date(record.timestamp || Date.now()).toISOString(),
   };
@@ -1072,7 +1130,7 @@ export async function sendArrestRecordToDiscord(
     if (hasFileAttachments) {
       const payload = {
         username: config.botName.trim() || 'HSPD CAD System',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: embeds.slice(0, 10), // Discord max 10 embeds
       };
 
@@ -1094,7 +1152,7 @@ export async function sendArrestRecordToDiscord(
     } else {
       const payload = {
         username: config.botName.trim() || 'HSPD CAD System',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: embeds.slice(0, 10),
       };
 
@@ -1334,7 +1392,7 @@ export async function sendDutyReportToDiscord(
     fields,
     footer: {
       text: `HSPD CAD Duty Dispatch Terminal • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date(duty.timestamp || Date.now()).toISOString(),
   };
@@ -1382,7 +1440,7 @@ export async function sendDutyReportToDiscord(
     if (hasFileAttachments) {
       const payload = {
         username: config.botName.trim() || 'HSPD Duty Logger',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: embeds.slice(0, 10),
       };
 
@@ -1404,7 +1462,7 @@ export async function sendDutyReportToDiscord(
     } else {
       const payload = {
         username: config.botName.trim() || 'HSPD Duty Logger',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: embeds.slice(0, 10),
       };
 
@@ -1445,7 +1503,7 @@ export async function testDiscordWebhook(config: WebhookConfig): Promise<{ succe
 
   const payload = {
     username: config.botName.trim() || 'HSPD CAD System',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '📡 KONEKSI TERMINAL HSPD CAD TERHUBUNG',
@@ -1499,7 +1557,7 @@ export async function testDutyDiscordWebhook(config: WebhookConfig): Promise<{ s
 
   const payload = {
     username: config.botName.trim() || 'HSPD Duty Logger',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '📻 UJI COBA INTEGRASI WEBHOOK DUTY LOG',
@@ -1616,14 +1674,14 @@ export async function sendOfficerWarningToDiscord(
     fields,
     footer: {
       text: `HSPD Disciplinary System • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date(warning.timestamp || Date.now()).toISOString(),
   };
 
   const payload = {
     username: config.botName.trim() || 'HSPD Internal Affairs (Discipline)',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [embedObj],
   };
 
@@ -1707,14 +1765,14 @@ export async function sendOfficerDischargeToDiscord(
     fields,
     footer: {
       text: `HSPD High Command HQ • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date(discharge.timestamp || Date.now()).toISOString(),
   };
 
   const payload = {
     username: config.botName.trim() || 'HSPD High Command Disciplinary',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [embedObj],
   };
 
@@ -1755,7 +1813,7 @@ export async function testWarningDiscordWebhook(config: WebhookConfig): Promise<
 
   const payload = {
     username: config.botName.trim() || 'HSPD Internal Affairs (Discipline)',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '⚠️ UJI COBA INTEGRASI WEBHOOK SURAT PERINGATAN (SP)',
@@ -1809,7 +1867,7 @@ export async function testDischargeDiscordWebhook(config: WebhookConfig): Promis
 
   const payload = {
     username: config.botName.trim() || 'HSPD High Command Disciplinary',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '🚫 UJI COBA INTEGRASI WEBHOOK PEMECATAN ANGGOTA',
@@ -1921,14 +1979,14 @@ export async function sendPromotionAnnouncementToDiscord(
     fields,
     footer: {
       text: `HSPD High Command Promotion Board • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date(promotion.timestamp || Date.now()).toISOString(),
   };
 
   const payload = {
     username: config.botName.trim() || 'HSPD Promotion Board & HQ',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [embedObj],
   };
 
@@ -1969,7 +2027,7 @@ export async function testPromotionDiscordWebhook(config: WebhookConfig): Promis
 
   const payload = {
     username: config.botName.trim() || 'HSPD Promotion Board & HQ',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '🎖️ UJI COBA INTEGRASI WEBHOOK PENGUMUMAN KENAIKAN PANGKAT',
@@ -2023,7 +2081,7 @@ export async function testPinResetDiscordWebhook(config: WebhookConfig): Promise
 
   const payload = {
     username: config.botName.trim() || 'HSPD Security & Credentials HQ',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '🔑 UJI COBA INTEGRASI WEBHOOK RESET PIN & KREDENSIAL',
@@ -2077,7 +2135,7 @@ export async function testRosterDiscordWebhook(config: WebhookConfig): Promise<{
 
   const payload = {
     username: config.botName.trim() || 'HSPD Personnel & Roster Bureau',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '🛡️ UJI COBA INTEGRASI WEBHOOK ROSTER & INFORMASI ANGGOTA',
@@ -2196,14 +2254,14 @@ export async function sendPinResetRequestToDiscord(params: {
     fields,
     footer: {
       text: `HSPD Security & CAD Helpdesk • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date().toISOString(),
   };
 
   const payload = {
     username: config.botName.trim() || 'HSPD CAD Security Center',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [embedObj],
   };
 
@@ -2299,14 +2357,14 @@ export async function sendPinResetResolvedWebhookToDiscord(params: {
     fields,
     footer: {
       text: `HSPD Security & CAD Headquarters • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date().toISOString(),
   };
 
   const payload = {
     username: config.botName.trim() || 'HSPD Security & Credentials HQ',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [embedObj],
   };
 
@@ -2400,14 +2458,14 @@ export async function sendPinResetAutoGrantedWebhookToDiscord(params: {
     fields,
     footer: {
       text: `HSPD Automated Access Control • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date().toISOString(),
   };
 
   const payload = {
     username: config.botName.trim() || 'HSPD Auto-Dispatch Security',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [embedObj],
   };
 
@@ -2537,14 +2595,14 @@ export async function sendNewOfficerRegistrationToDiscord(params: {
     fields,
     footer: {
       text: `Bot High State • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: now.toISOString(),
   };
 
   const payload: Record<string, any> = {
     username: config.botName.trim() || 'Cek Akun | High State',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [embedObj],
   };
 
@@ -2668,14 +2726,14 @@ export async function sendOfficerLoginCredentialsToDiscord(params: {
     fields,
     footer: {
       text: `Bot High State • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: now.toISOString(),
   };
 
   const payload: Record<string, any> = {
     username: config.botName.trim() || 'Cek Akun | High State',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [embedObj],
   };
 
@@ -3094,7 +3152,7 @@ export async function sendBatchPinBroadcastLogToDiscord(params: {
     ],
     footer: {
       text: `HSPD Bot Direct Dispatch • HighState Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date().toISOString(),
   };
@@ -3105,7 +3163,7 @@ export async function sendBatchPinBroadcastLogToDiscord(params: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: config.botName.trim() || 'HSPD Security & Credentials HQ',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: [embedObj]
       })
     });
@@ -3185,14 +3243,14 @@ export async function sendOfficerProfileUpdateToDiscord(params: {
     fields,
     footer: {
       text: `HSPD Personnel & Roster Bureau • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date().toISOString(),
   };
 
   const payload = {
     username: config.botName.trim() || 'HSPD Personnel & Roster Bureau',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [embedObj],
   };
 
@@ -3353,14 +3411,14 @@ export async function sendDetectiveCaseToDiscord(
     fields,
     footer: {
       text: `HSPD Detective Bureau (CID) • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date().toISOString(),
   };
 
   const payload = {
     username: config.botName.trim() || 'HSPD Detective Bureau & CID',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [embedObj],
   };
 
@@ -3398,7 +3456,7 @@ export async function testDetectiveDiscordWebhook(config: WebhookConfig): Promis
 
   const payload = {
     username: config.botName.trim() || 'HSPD Detective Bureau & CID',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '🔍 UJI COBA INTEGRASI WEBHOOK KASUS DETEKTIF (CID CASEBOARD)',
@@ -3528,14 +3586,14 @@ export async function sendBoloAlertToDiscord(
     fields,
     footer: {
       text: `HSPD Dispatch & BOLO Alert System • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date().toISOString(),
   };
 
   const payload = {
     username: config.botName.trim() || 'HSPD BOLO & Dispatch HQ',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [embedObj],
   };
 
@@ -3573,7 +3631,7 @@ export async function testBoloDiscordWebhook(config: WebhookConfig): Promise<{ s
 
   const payload = {
     username: config.botName.trim() || 'HSPD BOLO & Dispatch HQ',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '🚨 UJI COBA INTEGRASI WEBHOOK SIAGA BOLO (ALL POINTS BULLETIN)',
@@ -3714,7 +3772,7 @@ export async function sendTrafficCitationToDiscord(
     fields,
     footer: {
       text: `HSPD Traffic Enforcement & Citation Division • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date().toISOString(),
   };
@@ -3729,7 +3787,7 @@ export async function sendTrafficCitationToDiscord(
 
       const payload = {
         username: config.botName.trim() || 'HSPD Traffic Enforcement & Citation Unit',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: [primaryEmbed],
       };
 
@@ -3755,7 +3813,7 @@ export async function sendTrafficCitationToDiscord(
 
       const payload = {
         username: config.botName.trim() || 'HSPD Traffic Enforcement & Citation Unit',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: [primaryEmbed],
       };
 
@@ -3808,7 +3866,7 @@ export async function testTrafficCitationDiscordWebhook(config: WebhookConfig): 
 
   const payload = {
     username: config.botName.trim() || 'HSPD Traffic Enforcement & Citation Unit',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '🎫 UJI COBA INTEGRASI WEBHOOK LOG TILANG (TRAFFIC CITATION)',
@@ -3956,7 +4014,7 @@ export async function sendImpoundRecordToDiscord(
     fields,
     footer: {
       text: `HSPD Traffic Enforcement & Impound Lot • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date().toISOString(),
   };
@@ -4002,7 +4060,7 @@ export async function sendImpoundRecordToDiscord(
 
       const payload = {
         username: config.botName.trim() || 'HSPD Traffic Enforcement & Impound Lot',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: embedsToSend,
       };
 
@@ -4036,7 +4094,7 @@ export async function sendImpoundRecordToDiscord(
 
       const payload = {
         username: config.botName.trim() || 'HSPD Traffic Enforcement & Impound Lot',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: embedsToSend,
       };
 
@@ -4074,7 +4132,7 @@ export async function testImpoundDiscordWebhook(config: WebhookConfig): Promise<
 
   const payload = {
     username: config.botName.trim() || 'HSPD Traffic Enforcement & Impound Lot',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '🚗 UJI COBA INTEGRASI WEBHOOK SITAAN KENDARAAN (IMPOUND LOT)',
@@ -4213,7 +4271,7 @@ export async function sendVaultAuditToDiscord(
     fields,
     footer: {
       text: `HSPD Central Vault & Armory Bureau • Siklus Audit Mingguan • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date(audit.timestamp).toISOString(),
   };
@@ -4231,7 +4289,7 @@ export async function sendVaultAuditToDiscord(
 
       const payload = {
         username: config.botName.trim() || 'HSPD Vault & Armory Bureau',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: [embedObj],
       };
 
@@ -4257,7 +4315,7 @@ export async function sendVaultAuditToDiscord(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: config.botName.trim() || 'HSPD Vault & Armory Bureau',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: [embedObj],
       })
     });
@@ -4279,7 +4337,7 @@ export async function testVaultDiscordWebhook(config: WebhookConfig): Promise<{ 
 
   const payload = {
     username: config.botName.trim() || 'HSPD Vault & Armory Bureau',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '🏦 UJI COBA INTEGRASI WEBHOOK BRANKAS & AUDIT MINGGUAN',
@@ -4431,7 +4489,7 @@ export async function sendDestructionRecordToDiscord(
     fields,
     footer: {
       text: `HSPD Evidence Disposal & Smelting Registry • HighState Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date(item.timestamp).toISOString(),
   };
@@ -4451,7 +4509,7 @@ export async function sendDestructionRecordToDiscord(
 
       const payload = {
         username: config.botName.trim() || 'HSPD Evidence & Smelting Registry',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: [embedObj],
       };
 
@@ -4477,7 +4535,7 @@ export async function sendDestructionRecordToDiscord(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: config.botName.trim() || 'HSPD Evidence & Smelting Registry',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: [embedObj],
       })
     });
@@ -4499,7 +4557,7 @@ export async function testDestructionDiscordWebhook(config: WebhookConfig): Prom
 
   const payload = {
     username: config.botName.trim() || 'HSPD Evidence & Smelting Registry',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '💥 UJI COBA INTEGRASI WEBHOOK PELEBURAN KENDARAAN & SENJATA SITAAN',
@@ -4610,7 +4668,7 @@ export async function sendOfficialDocumentToDiscord(
     fields,
     footer: {
       text: `HSPD Legal & Documentation Bureau • Otorisasi: ${docItem.acknowledgedByName || 'Chief of Police'} • ${docItem.date}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date().toISOString(),
   };
@@ -4621,7 +4679,7 @@ export async function sendOfficialDocumentToDiscord(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: config.botName.trim() || 'HSPD Document Archives & Legal Bureau',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: [embedObj],
       })
     });
@@ -4652,7 +4710,7 @@ export async function testDocumentDiscordWebhook(config: WebhookConfig): Promise
 
   const payload = {
     username: config.botName.trim() || 'HSPD Document Archives & Legal Bureau',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '📜 UJI COBA INTEGRASI WEBHOOK ARSIP DOKUMEN & SURAT RESMI',
@@ -4701,7 +4759,7 @@ export async function sendDiscordLog(webhookUrl: string, payload: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: 'HSPD Central CAD & Tactical Network',
-        avatar_url: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        avatar_url: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: [
           {
             title: payload.title,

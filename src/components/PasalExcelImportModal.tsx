@@ -5,7 +5,7 @@ import {
   X, Crown, RefreshCw, FileText, ArrowRight, Eye, Check, ShieldAlert
 } from 'lucide-react';
 import { PasalItem } from '../types';
-import { OFFENCE_CATEGORIES, PASAL_LIST } from '../data/pasalData';
+import { OFFENCE_CATEGORIES, PASAL_LIST, sortPasalByBadgeCode } from '../data/pasalData';
 
 interface Props {
   isOpen: boolean;
@@ -169,7 +169,8 @@ export const PasalExcelImportModal: React.FC<Props> = ({
         throw new Error('Tidak ada baris data pasal yang valid ditemukan dalam file.');
       }
 
-      setParsedRows(results);
+      const sortedResults = sortPasalByBadgeCode(results);
+      setParsedRows(sortedResults);
       setParseErrors(errors);
     } catch (err: any) {
       console.error('Error parsing Excel file:', err);

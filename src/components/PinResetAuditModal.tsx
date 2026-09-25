@@ -300,22 +300,22 @@ export const PinResetAuditModal: React.FC<Props> = ({
   // Open resolve dialog for a specific ticket
   const handleOpenResolve = (req: EnrichedPinResetRequest) => {
     setResolvingRequest(req);
-    const cleanIdent = req.officerName.trim().toLowerCase();
-    const cleanBadge = req.officerBadge.trim().toLowerCase();
+    const cleanIdent = (req.officerName || '').trim().toLowerCase();
+    const cleanBadge = (req.officerBadge || '').trim().toLowerCase();
     
     let existingPin = '10-4';
     if (req.sourceType === 'GOVERNMENT') {
       const foundGov = govRoster.find(g => 
-        g.name.toLowerCase() === cleanIdent || 
-        g.badge.toLowerCase() === cleanBadge ||
-        g.name.toLowerCase().includes(cleanIdent)
+        (g.name && g.name.toLowerCase() === cleanIdent) || 
+        (g.badge && g.badge.toLowerCase() === cleanBadge) ||
+        (cleanIdent && g.name && g.name.toLowerCase().includes(cleanIdent))
       );
       if (foundGov) existingPin = foundGov.pin;
     } else {
       const found = roster.find(o => 
-        o.name.toLowerCase() === cleanIdent || 
-        o.badge.toLowerCase() === cleanBadge ||
-        o.name.toLowerCase().includes(cleanIdent)
+        (o.name && o.name.toLowerCase() === cleanIdent) || 
+        (o.badge && o.badge.toLowerCase() === cleanBadge) ||
+        (cleanIdent && o.name && o.name.toLowerCase().includes(cleanIdent))
       );
       if (found) existingPin = found.pin;
     }
@@ -956,10 +956,14 @@ export const PinResetAuditModal: React.FC<Props> = ({
                 const isManualResolved = req.status === 'RESOLVED' && !req.autoGranted;
                 const isRejected = req.status === 'REJECTED';
 
-                const matchedOfficer = roster.find(o => 
-                  o.name.toLowerCase() === req.officerName.toLowerCase() ||
-                  o.badge.toLowerCase() === req.officerBadge.toLowerCase()
-                );
+                const matchedOfficer = roster.find(o => {
+                  const reqName = (req.officerName || '').trim().toLowerCase();
+                  const reqBadge = (req.officerBadge || '').trim().toLowerCase();
+                  return (
+                    (o.name && reqName && o.name.toLowerCase().trim() === reqName) ||
+                    (o.badge && reqBadge && o.badge.toLowerCase().trim() === reqBadge)
+                  );
+                });
 
                 return (
                   <div

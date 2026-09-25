@@ -4,7 +4,7 @@ import {
   X, Globe, Settings, Lock, Check, Copy, ExternalLink, Sparkles, Sliders,
   AlertTriangle, UserX, Award, KeyRound, Users, Search, ShieldAlert, Car,
   Landmark, Flame, Hammer, Coins, Palette, FileText, Bot, Eye, EyeOff, MessageSquare,
-  Upload, Image, Activity, Zap, Ticket
+  Upload, Image, Activity, Zap, Ticket, Megaphone, Bell
 } from 'lucide-react';
 import { 
   getSavedWebhookConfig, saveWebhookConfig, 
@@ -21,6 +21,8 @@ import {
   getSavedVaultWebhookConfig, saveVaultWebhookConfig,
   getSavedDestructionWebhookConfig, saveDestructionWebhookConfig,
   getSavedDocumentWebhookConfig, saveDocumentWebhookConfig,
+  getSavedChangelogWebhookConfig, saveChangelogWebhookConfig,
+  testChangelogDiscordWebhook,
   getSavedDiscordBotConfig, saveDiscordBotConfig,
   getDiscordBotGatewayStatus, startDiscordBotGateway, stopDiscordBotGateway,
   testDiscordBotDirectMessage, DiscordBotConfig, PRESET_DISCORD_BOT_LOGOS,
@@ -36,6 +38,7 @@ import {
   testDocumentDiscordWebhook,
   WebhookConfig 
 } from '../utils/discordWebhook';
+import { checkAndBroadcastLatestRelease, LATEST_APP_RELEASE, sendSystemPingToDiscord } from '../utils/autoChangelogBroadcaster';
 import { OfficerProfile, isOfficerHighRank } from '../types';
 import { HSPD_LOGO_URL } from '../assets/logo';
 
@@ -45,7 +48,7 @@ interface Props {
   currentOfficer?: OfficerProfile | null;
   onSaved?: () => void;
   onOpenBrandingModal?: () => void;
-  initialTab?: 'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'tilang' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm';
+  initialTab?: 'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'tilang' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm' | 'changelog';
 }
 
 export const WebhookSettingsModal: React.FC<Props> = ({
@@ -56,7 +59,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
   onOpenBrandingModal,
   initialTab
 }) => {
-  const [activeTab, setActiveTab] = useState<'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'tilang' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm'>(initialTab || 'case');
+  const [activeTab, setActiveTab] = useState<'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'tilang' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm' | 'changelog'>(initialTab || 'case');
 
   useEffect(() => {
     if (isOpen && initialTab) {
@@ -133,6 +136,18 @@ export const WebhookSettingsModal: React.FC<Props> = ({
   const [documentConfig, setDocumentConfig] = useState<WebhookConfig>(() => getSavedDocumentWebhookConfig());
   const [isTestingDocument, setIsTestingDocument] = useState(false);
   const [documentTestResult, setDocumentTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Dedicated Changelog / System Release Auto-Broadcast Webhook State
+  const [changelogConfig, setChangelogConfig] = useState<WebhookConfig>(() => getSavedChangelogWebhookConfig());
+  const [isTestingChangelog, setIsTestingChangelog] = useState(false);
+  const [changelogTestResult, setChangelogTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isBroadcastingNow, setIsBroadcastingNow] = useState(false);
+  const [broadcastNowResult, setBroadcastNowResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // System Health Ping to Discord (Target: Channel 1550418868814610433)
+  const [targetChannelId, setTargetChannelId] = useState<string>(() => localStorage.getItem('hspd_changelog_channel_id') || '1550418868814610433');
+  const [isSendingPing, setIsSendingPing] = useState(false);
+  const [pingResult, setPingResult] = useState<{ success: boolean; message: string; data?: any } | null>(null);
 
   // Dedicated Discord Bot (PM / DM Direct Message) State
   const [botConfig, setBotConfig] = useState<DiscordBotConfig>(() => getSavedDiscordBotConfig());
@@ -534,6 +549,68 @@ export const WebhookSettingsModal: React.FC<Props> = ({
     }
   };
 
+  // Test Changelog / System Release Webhook
+  const handleTestChangelogWebhook = async () => {
+    setIsTestingChangelog(true);
+    setChangelogTestResult(null);
+    try {
+      const res = await testChangelogDiscordWebhook(changelogConfig.webhookUrl);
+      setChangelogTestResult(res);
+    } catch (err: any) {
+      setChangelogTestResult({
+        success: false,
+        message: err.message || 'Gagal terhubung ke Webhook Changelog'
+      });
+    } finally {
+      setIsTestingChangelog(false);
+    }
+  };
+
+  // Manual Trigger Auto-Broadcast Latest Release
+  const handleManualBroadcastLatestRelease = async () => {
+    setIsBroadcastingNow(true);
+    setBroadcastNowResult(null);
+    try {
+      // Simpan konfigurasi webhook terlebih dahulu
+      saveChangelogWebhookConfig(changelogConfig);
+      const res = await checkAndBroadcastLatestRelease(true);
+      setBroadcastNowResult({
+        success: res.success,
+        message: res.message
+      });
+    } catch (err: any) {
+      setBroadcastNowResult({
+        success: false,
+        message: err.message || 'Gagal menyiarkan rilis ke Discord'
+      });
+    } finally {
+      setIsBroadcastingNow(false);
+    }
+  };
+
+  // Send System Health Ping (Website & Bot Live Monitor)
+  const handleSendPing = async () => {
+    setIsSendingPing(true);
+    setPingResult(null);
+    try {
+      localStorage.setItem('hspd_changelog_channel_id', targetChannelId);
+      const res = await sendSystemPingToDiscord({
+        channelId: targetChannelId || '1550418868814610433',
+        triggerBy: `${currentOfficer?.name || 'Petugas'} (${currentOfficer?.badge || 'HSPD'})`,
+        websiteUrl: window.location.origin,
+        webhookUrl: changelogConfig.webhookUrl
+      });
+      setPingResult(res);
+    } catch (err: any) {
+      setPingResult({
+        success: false,
+        message: err.message || 'Gagal mengirim ping status ke Discord'
+      });
+    } finally {
+      setIsSendingPing(false);
+    }
+  };
+
   // Test Direct Message via Discord Bot
   const handleTestBotDm = async () => {
     if (!testBotUserId.trim()) {
@@ -575,6 +652,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
     saveVaultWebhookConfig(vaultConfig);
     saveDestructionWebhookConfig(destructionConfig);
     saveDocumentWebhookConfig(documentConfig);
+    saveChangelogWebhookConfig(changelogConfig);
     saveDiscordBotConfig(botConfig);
     setSaveSuccessNotice('✅ Seluruh konfigurasi Discord Webhook & Bot Direct Message (PM) berhasil disimpan!');
     if (onSaved) onSaved();
@@ -846,7 +924,21 @@ export const WebhookSettingsModal: React.FC<Props> = ({
             title="Bot Discord Pesan Pribadi (PM / DM)"
           >
             <Bot className="w-3 h-3 shrink-0 text-sky-400" />
-            <span className="truncate">15. Bot PM (DM)</span>
+            <span className="truncate">15. Bot PM</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('changelog')}
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
+              activeTab === 'changelog'
+                ? 'border-blue-500 text-blue-400 bg-[#161B22]'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+            }`}
+            title="Channel Siaran Pembaruan (Changelog) Otomatis ke Discord"
+          >
+            <Megaphone className="w-3 h-3 shrink-0 text-blue-400" />
+            <span className="truncate">16. Rilis Otomatis</span>
           </button>
         </div>
 
@@ -2946,7 +3038,7 @@ Bukti : Ada`}
                   {/* Discord Chat Header simulation */}
                   <div className="flex items-start gap-3">
                     <img
-                      src={botConfig.botAvatar || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
+                      src={botConfig.botAvatar || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png'}
                       alt="Bot Avatar"
                       referrerPolicy="no-referrer"
                       className="w-10 h-10 rounded-full bg-black/40 shrink-0 object-cover border border-gray-700"
@@ -2967,7 +3059,7 @@ Bukti : Ada`}
                       >
                         <div className="flex items-center gap-1.5">
                           <img
-                            src={botConfig.botAvatar || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
+                            src={botConfig.botAvatar || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png'}
                             alt="Embed Author"
                             referrerPolicy="no-referrer"
                             className="w-4 h-4 rounded-full object-cover"
@@ -3022,7 +3114,7 @@ Bukti : Ada`}
                         <div className="border-t border-gray-700/50 pt-1.5 text-[9.5px] text-gray-400 font-sans flex items-center justify-between">
                           <span>{botConfig.footerText || 'Bot High State'} • Hari ini pukul 12:40 AM</span>
                           <img
-                            src={botConfig.botAvatar || 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png'}
+                            src={botConfig.botAvatar || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png'}
                             alt="Footer Icon"
                             className="w-3 h-3 rounded-full object-cover"
                           />
@@ -3565,7 +3657,219 @@ Bukti : Ada`}
             </div>
           )}
 
-          {/* Privacy & High Command Security Note */}
+          {/* TAB 16: CHANGELOG & SYSTEM RELEASE AUTO-BROADCAST */}
+          {activeTab === 'changelog' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-blue-950/30 border border-blue-900/60 rounded-lg text-[11px] text-blue-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-blue-200">
+                  <Megaphone className="w-3.5 h-3.5 text-blue-400" />
+                  <span>SISTEM SIARAN PEMBARUAN & PERBAIKAN MASALAH OTOMATIS (AUTO-BROADCAST)</span>
+                </div>
+                <p className="leading-relaxed text-gray-300">
+                  Sistem kini bekerja <strong>100% otomatis</strong>. Setiap kali terdapat <strong>fitur baru (ditambah)</strong>, <strong>komponen yang dikurangi/dihapus</strong>, atau <strong>masalah yang diperbaiki (bugfix)</strong>, sistem langsung menyiarkan pesan terstruktur ke channel Discord yang tersimpan di bawah ini tanpa perlu menekan tombol manual lagi.
+                </p>
+              </div>
+
+              {/* Channel ID & Discord Bot Dispatch Configuration */}
+              <div className="space-y-3 bg-[#0D1117] p-4 rounded-lg border border-gray-800">
+                {/* Target Discord Channel ID for Bot Broadcast & System Ping */}
+                <div>
+                  <label className="block text-gray-300 font-bold mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Radio className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Channel ID Discord Siaran & Ping (Default: 1550418868814610433):</span>
+                    </span>
+                    <span className="text-[10px] text-emerald-400 font-mono">CHANNEL AKTIF</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={targetChannelId}
+                      onChange={(e) => {
+                        const val = e.target.value.trim();
+                        setTargetChannelId(val);
+                        localStorage.setItem('hspd_changelog_channel_id', val);
+                      }}
+                      placeholder="1550418868814610433"
+                      className="flex-1 bg-[#161B22] border border-gray-700 rounded p-2 text-gray-100 font-mono text-xs focus:border-blue-500 focus:outline-hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTargetChannelId('1550418868814610433');
+                        localStorage.setItem('hspd_changelog_channel_id', '1550418868814610433');
+                      }}
+                      className="px-2.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-[11px] font-mono whitespace-nowrap"
+                      title="Kembalikan ke channel default 1550418868814610433"
+                    >
+                      Default 1550418868814610433
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-gray-500 mt-1">
+                    Channel ID ini digunakan oleh Bot Discord untuk mengirim rilis pembaruan terkini dan laporan ping status website/bot secara otomatis.
+                  </p>
+                </div>
+
+                {/* MODUL PING STATUS WEBSITE & BOT DISCORD */}
+                <div className="p-3 bg-gradient-to-r from-[#0d1c2b] to-[#0D1117] rounded-lg border border-blue-600/50 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-bold text-blue-200 text-xs">
+                      <Activity className="w-4 h-4 text-emerald-400" />
+                      <span>MONITORING PING REAL-TIME: WEBSITE & BOT AKTIF (CHANNEL {targetChannelId || '1550418868814610433'})</span>
+                    </div>
+                    <span className="text-[9.5px] px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-700 text-emerald-300 font-mono flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span>SISTEM SIAGA</span>
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-gray-300 leading-snug">
+                    Kirim laporan status konektivitas, latensi HTTP website, serta status online bot Discord secara instan ke channel <code className="text-blue-300 bg-black/40 px-1 py-0.5 rounded">#{targetChannelId || '1550418868814610433'}</code> untuk memastikan seluruh layanan operasional berjalan optimal.
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleSendPing}
+                      disabled={isSendingPing}
+                      className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded transition flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                    >
+                      {isSendingPing ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Mengirim Ping Status...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-3.5 h-3.5 text-yellow-300" />
+                          <span>KIRIM PING WEBSITE & BOT SEKARANG</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {pingResult && (
+                    <div className={`p-2.5 rounded border text-xs flex items-center gap-2 ${
+                      pingResult.success 
+                        ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' 
+                        : 'bg-rose-950/60 border-rose-700 text-rose-300'
+                    }`}>
+                      {pingResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
+                      <span>{pingResult.message}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions & Testing Buttons */}
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-800">
+                  <button
+                    type="button"
+                    onClick={handleManualBroadcastLatestRelease}
+                    disabled={isBroadcastingNow}
+                    className="px-3.5 py-1.5 bg-blue-700 hover:bg-blue-600 text-white text-xs font-bold rounded transition flex items-center gap-1.5 disabled:opacity-40 shadow-sm"
+                  >
+                    {isBroadcastingNow ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Mengirim Siaran...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Megaphone className="w-3.5 h-3.5 text-yellow-300" />
+                        <span>KIRIM SIARAN RILIS TERKINI (v{LATEST_APP_RELEASE.version})</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Result alerts */}
+                {changelogTestResult && (
+                  <div className={`p-2.5 rounded border text-xs flex items-center gap-2 ${
+                    changelogTestResult.success 
+                      ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' 
+                      : 'bg-rose-950/60 border-rose-700 text-rose-300'
+                  }`}>
+                    {changelogTestResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
+                    <span>{changelogTestResult.message}</span>
+                  </div>
+                )}
+
+                {broadcastNowResult && (
+                  <div className={`p-2.5 rounded border text-xs flex items-center gap-2 ${
+                    broadcastNowResult.success 
+                      ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' 
+                      : 'bg-rose-950/60 border-rose-700 text-rose-300'
+                  }`}>
+                    {broadcastNowResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
+                    <span>{broadcastNowResult.message}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Rincian Pembaruan Sistem Terkini yang Otomatis Dikirim */}
+              <div className="bg-[#0D1117] p-4 rounded-lg border border-gray-800 space-y-3">
+                <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+                  <div className="font-bold text-gray-200 text-xs flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-blue-400" />
+                    <span>Daftar Perubahan yang Disiarkan Otomatis ({LATEST_APP_RELEASE.version}):</span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-blue-950 border border-blue-800 text-blue-300 font-mono">
+                    STATUS: AKTIF & TERSINKRONISASI
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  {/* Ditambah */}
+                  <div className="p-3 bg-[#161B22] border border-emerald-900/50 rounded-lg space-y-1.5">
+                    <div className="font-bold text-emerald-400 flex items-center gap-1.5 text-[11px]">
+                      <span>🚀 Fitur Baru (Ditambah):</span>
+                    </div>
+                    <ul className="list-disc list-inside space-y-1 text-gray-300 text-[10.5px]">
+                      {LATEST_APP_RELEASE.newFeatures.map((item, idx) => (
+                        <li key={idx} className="leading-snug">{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Dihapus / Dikurangi */}
+                  <div className="p-3 bg-[#161B22] border border-rose-900/50 rounded-lg space-y-1.5">
+                    <div className="font-bold text-rose-400 flex items-center gap-1.5 text-[11px]">
+                      <span>🗑️ Dihapus / Dikurangi / Disesuaikan:</span>
+                    </div>
+                    <ul className="list-disc list-inside space-y-1 text-gray-300 text-[10.5px]">
+                      {LATEST_APP_RELEASE.removedOrAdjusted.map((item, idx) => (
+                        <li key={idx} className="leading-snug">{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Diperbaiki (Bug Fixes) */}
+                  <div className="p-3 bg-[#161B22] border border-amber-900/50 rounded-lg space-y-1.5">
+                    <div className="font-bold text-amber-400 flex items-center gap-1.5 text-[11px]">
+                      <span>🛠️ Perbaikan Masalah & Bug (Diperbaiki):</span>
+                    </div>
+                    <ul className="list-disc list-inside space-y-1 text-gray-300 text-[10.5px]">
+                      {LATEST_APP_RELEASE.bugFixes.map((item, idx) => (
+                        <li key={idx} className="leading-snug">{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Peningkatan Sistem */}
+                  <div className="p-3 bg-[#161B22] border border-blue-900/50 rounded-lg space-y-1.5">
+                    <div className="font-bold text-blue-400 flex items-center gap-1.5 text-[11px]">
+                      <span>⚡ Peningkatan Sistem (Improvements):</span>
+                    </div>
+                    <ul className="list-disc list-inside space-y-1 text-gray-300 text-[10.5px]">
+                      {LATEST_APP_RELEASE.improvements.map((item, idx) => (
+                        <li key={idx} className="leading-snug">{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="p-3 bg-gray-900/80 border border-gray-800 rounded-lg text-gray-400 text-[11px] flex items-start gap-2">
             <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
             <div>

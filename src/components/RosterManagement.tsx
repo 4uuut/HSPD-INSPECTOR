@@ -238,7 +238,7 @@ export const RosterManagement: React.FC<Props> = ({
       const res = await testRosterDiscordWebhook({
         webhookUrl: rosterWebhookUrl.trim(),
         botName: rosterBotName.trim() || 'HSPD Personnel & Roster Bureau',
-        botAvatar: 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png',
+        botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         autoSendOnSave: true
       });
       setWebhookNotice({
@@ -596,7 +596,7 @@ export const RosterManagement: React.FC<Props> = ({
     }
 
     // Check duplicate name (strict normalized IC name check)
-    const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+    const normalize = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '').trim();
     const duplicateName = roster.find(o => normalize(o.name) === normalize(trimmedName));
     if (duplicateName) {
       setAddFormError(`Nama "${trimmedName}" sudah terdaftar di Roster (Badge ${duplicateName.badge}, Pangkat ${duplicateName.rank})! Sistem mencegah pembuatan akun ganda. Jika ingin mengubah badge, pangkat, atau divisinya, silakan klik tombol EDIT pada baris nama petugas tersebut.`);
@@ -784,14 +784,15 @@ export const RosterManagement: React.FC<Props> = ({
         seenNames.add(normName);
       }
 
-      const matchesSearch = 
-        officer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        officer.badge.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        officer.rank.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        officer.division.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (officer.discordTag && officer.discordTag.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (officer.phone && officer.phone.includes(searchQuery)) ||
-        (officer.pin && officer.pin.includes(searchQuery));
+      const q = (searchQuery || '').toLowerCase().trim();
+      const matchesSearch = !q ||
+        Boolean(officer.name && officer.name.toLowerCase().includes(q)) ||
+        Boolean(officer.badge && officer.badge.toLowerCase().includes(q)) ||
+        Boolean(officer.rank && officer.rank.toLowerCase().includes(q)) ||
+        Boolean(officer.division && officer.division.toLowerCase().includes(q)) ||
+        Boolean(officer.discordTag && officer.discordTag.toLowerCase().includes(q)) ||
+        Boolean(officer.phone && officer.phone.includes(searchQuery)) ||
+        Boolean(officer.pin && officer.pin.includes(searchQuery));
       
       if (!matchesSearch) return false;
       if (filterRank === 'DUTY') {
@@ -873,7 +874,7 @@ export const RosterManagement: React.FC<Props> = ({
       alert('Akses Ditolak: Hanya jajaran High Command yang berhak memecat atau menghapus anggota dari roster.');
       return;
     }
-    if (currentOfficerName && officer.name.toLowerCase() === currentOfficerName.toLowerCase()) {
+    if (currentOfficerName && officer.name && officer.name.toLowerCase() === currentOfficerName.toLowerCase()) {
       alert('Aksi Dibatalkan: Anda tidak dapat memecat atau menghapus akun Anda sendiri saat sedang aktif login.');
       return;
     }
@@ -1694,10 +1695,10 @@ export const RosterManagement: React.FC<Props> = ({
                   dischargedList
                     .filter(entry => {
                       if (!searchQuery) return true;
-                      const q = searchQuery.toLowerCase();
+                      const q = searchQuery.toLowerCase().trim();
                       return (
-                        entry.name.toLowerCase().includes(q) ||
-                        entry.badge.toLowerCase().includes(q) ||
+                        (entry.name && entry.name.toLowerCase().includes(q)) ||
+                        (entry.badge && entry.badge.toLowerCase().includes(q)) ||
                         (entry.rank && entry.rank.toLowerCase().includes(q)) ||
                         (entry.division && entry.division.toLowerCase().includes(q)) ||
                         (entry.reason && entry.reason.toLowerCase().includes(q))
@@ -1818,7 +1819,7 @@ export const RosterManagement: React.FC<Props> = ({
               ) : (
                 filteredRoster.map((officer) => {
                   const isHigh = isOfficerHighRank(officer.rank);
-                  const isSelf = currentOfficerName && officer.name.toLowerCase() === currentOfficerName.toLowerCase();
+                  const isSelf = Boolean(currentOfficerName && officer.name && officer.name.toLowerCase() === currentOfficerName.toLowerCase());
                   const warningsCount = officer.warnings?.length || 0;
                   const dutyState = getOfficerDutyState(officer.badge, roster);
                   const dutyDuration = formatDutyDuration(dutyState.isDuty, dutyState.dutyStartTime);

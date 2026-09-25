@@ -2,7 +2,7 @@ import officialBadgeImg from './images/hspd_official_seal_badge_1787696082793.jp
 
 export const HSPD_LOGO_URL = officialBadgeImg;
 
-export const HSPD_LOGO_FALLBACK = 'https://cdn-icons-png.flaticon.com/512/1022/1022382.png';
+export const HSPD_LOGO_FALLBACK = 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png';
 
 /**
  * Returns current active logo from storage if customized, otherwise fallback to official badge.

@@ -140,11 +140,15 @@ export const DetectiveCaseBoard: React.FC<Props> = ({
     return cases.filter(c => {
       const q = searchQuery.toLowerCase().trim();
       const matchSearch = !q || 
-        c.title.toLowerCase().includes(q) || 
-        c.caseNumber.toLowerCase().includes(q) ||
-        c.leadDetective.toLowerCase().includes(q) ||
-        c.location.toLowerCase().includes(q) ||
-        c.suspects.some(s => s.name.toLowerCase().includes(q) || (s.alias && s.alias.toLowerCase().includes(q)) || (s.customRoleTitle && s.customRoleTitle.toLowerCase().includes(q)));
+        Boolean(c.title && c.title.toLowerCase().includes(q)) || 
+        Boolean(c.caseNumber && c.caseNumber.toLowerCase().includes(q)) ||
+        Boolean(c.leadDetective && c.leadDetective.toLowerCase().includes(q)) ||
+        Boolean(c.location && c.location.toLowerCase().includes(q)) ||
+        (Array.isArray(c.suspects) && c.suspects.some(s => 
+          Boolean(s.name && s.name.toLowerCase().includes(q)) || 
+          Boolean(s.alias && s.alias.toLowerCase().includes(q)) || 
+          Boolean(s.customRoleTitle && s.customRoleTitle.toLowerCase().includes(q))
+        ));
       
       const matchStatus = selectedStatus === 'ALL' || c.status === selectedStatus;
       const matchPriority = selectedPriority === 'ALL' || c.priority === selectedPriority;

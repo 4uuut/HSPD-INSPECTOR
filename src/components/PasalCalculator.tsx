@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { PASAL_LIST, OFFENCE_CATEGORIES, getSavedPasalList, savePasalList, resetPasalList } from '../data/pasalData';
+import { PASAL_LIST, OFFENCE_CATEGORIES, getSavedPasalList, savePasalList, resetPasalList, sortPasalByBadgeCode } from '../data/pasalData';
 import { 
   PasalItem, ArrestRecord, OfficerProfile, 
   isOfficerHighRank, isAtasanRank, isSupervisorOrAbove, isGovernmentRank,
@@ -257,16 +257,13 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
       finalList = Array.from(map.values());
     }
 
-    // Sort cleanly by category and alphanumeric code (A01, A02, etc.)
-    finalList.sort((a, b) => {
-      if (a.cat !== b.cat) return a.cat.localeCompare(b.cat);
-      return a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' });
-    });
+    // Sort cleanly by category and badge / alphanumeric code (A01, A02, A10 or 01, 02...)
+    const sorted = sortPasalByBadgeCode(finalList);
 
-    setPasalList(finalList);
-    savePasalList(finalList);
+    setPasalList(sorted);
+    savePasalList(sorted);
     try {
-      window.dispatchEvent(new CustomEvent('hspd-pasal-updated', { detail: finalList }));
+      window.dispatchEvent(new CustomEvent('hspd-pasal-updated', { detail: sorted }));
     } catch {}
 
     setPasalNotice({
@@ -324,7 +321,7 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
 
     // Check duplicate if not editing or if code changed
     if (!editingPasalCode || editingPasalCode.toLowerCase() !== cleanCode.toLowerCase()) {
-      const duplicate = pasalList.some(p => p.code.toLowerCase() === cleanCode.toLowerCase());
+      const duplicate = pasalList.some(p => (p.code || '').toLowerCase() === cleanCode.toLowerCase());
       if (duplicate) {
         setFormError(`Kode pasal "${cleanCode}" sudah terdaftar dalam sistem. Gunakan kode lain.`);
         return;
@@ -459,9 +456,12 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
 
   const filteredPasal = useMemo(() => {
     return pasalList.filter(item => {
+      if (!item) return false;
       const matchCat = selectedCategory === 'ALL' || item.cat === selectedCategory;
       const q = searchQuery.toLowerCase().trim();
-      const matchQuery = !q || item.code.toLowerCase().includes(q) || item.desc.toLowerCase().includes(q);
+      const matchQuery = !q || 
+        Boolean(item.code && item.code.toLowerCase().includes(q)) || 
+        Boolean(item.desc && item.desc.toLowerCase().includes(q));
       return matchCat && matchQuery;
     });
   }, [pasalList, selectedCategory, searchQuery]);
@@ -470,13 +470,23 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
     return selectedCodes.map(c => pasalList.find(p => p.code === c)).filter(Boolean) as PasalItem[];
   }, [selectedCodes, pasalList]);
 
+  // Fine Multiplier (x1, x2, x3, x4, x5, dll) & Custom Fine Override State
+  const [fineMultiplier, setFineMultiplier] = useState<number>(1);
+  const [isCustomFineActive, setIsCustomFineActive] = useState<boolean>(false);
+  const [customFineInput, setCustomFineInput] = useState<string>('');
+
   const rawDenda = useMemo(() => {
     return selectedItems.reduce((acc, item) => acc + item.fine, 0);
   }, [selectedItems]);
 
   const finalDenda = useMemo(() => {
-    return isCooperative ? Math.floor(rawDenda * 0.8) : rawDenda;
-  }, [rawDenda, isCooperative]);
+    if (isCustomFineActive && customFineInput.trim() !== '') {
+      const parsed = parseInt(customFineInput.replace(/\D/g, ''), 10);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    const base = isCooperative ? Math.floor(rawDenda * 0.8) : rawDenda;
+    return Math.floor(base * (fineMultiplier || 1));
+  }, [rawDenda, isCooperative, fineMultiplier, isCustomFineActive, customFineInput]);
 
   const totalPenjara = useMemo(() => {
     return selectedItems.reduce((acc, item) => acc + item.time, 0);
@@ -501,6 +511,9 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
   const handleReset = () => {
     setSelectedCodes([]);
     setIsCooperative(false);
+    setFineMultiplier(1);
+    setIsCustomFineActive(false);
+    setCustomFineInput('');
     setSuspectName('');
     setSuspectId('');
     setLocation('');
@@ -513,6 +526,16 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
   // SAVE CASE AND TRIGGER DISCORD WEBHOOK
   const handleSaveToLog = async () => {
     if (selectedCodes.length === 0) return;
+
+    let caseNote = chronology.trim() || notes.trim() || 'Penanganan standar pelanggaran';
+    if (isCustomFineActive && customFineInput.trim() !== '') {
+      caseNote += ` [Denda Manual Override: $${finalDenda.toLocaleString()}]`;
+    } else if (fineMultiplier > 1) {
+      caseNote += ` [Faktor Pengali Denda: x${fineMultiplier}]`;
+    }
+    if (isCooperative) {
+      caseNote += ` [Diskon Kooperatif: -20%]`;
+    }
 
     const recordData: Omit<ArrestRecord, 'id' | 'timestamp'> = {
       suspectName: suspectName.trim() || (suspectId ? `Player #${suspectId}` : 'Tersangka Umum'),
@@ -530,7 +553,7 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
       totalJail: totalPenjara,
       totalImpound,
       isCooperative,
-      notes: chronology.trim() || notes.trim() || 'Penanganan standar pelanggaran'
+      notes: caseNote
     };
 
     // 1. Save to Local CAD State / Database
@@ -1230,6 +1253,145 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
             </div>
           </div>
 
+          {/* FAKTOR PENGALI DENDA & NOMINAL KHUSUS (ISI SENDIRI) */}
+          <div className="p-2.5 rounded-lg border border-blue-900/50 bg-[#0B0E14] space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-[11px] font-bold text-gray-200 uppercase tracking-wide">
+                  Faktor Pengali Denda & Nominal Khusus (Isi Sendiri)
+                </span>
+              </div>
+              <span className="text-[10px] font-mono text-blue-300 bg-blue-950/80 px-2 py-0.5 rounded border border-blue-800">
+                {isCustomFineActive ? 'MODE: NOMINAL MANUAL' : `PENGALI: x${fineMultiplier}`}
+              </span>
+            </div>
+
+            {/* Tombol Pengali Cepat (x1, x2, x3, x4, x5) */}
+            <div className="grid grid-cols-5 gap-1.5">
+              {[
+                { label: 'x1 Normal', value: 1, desc: 'Standar' },
+                { label: 'x2 Ganda', value: 2, desc: 'Berulang' },
+                { label: 'x3 Berat', value: 3, desc: 'Buron' },
+                { label: 'x4 Sindikat', value: 4, desc: 'Geng' },
+                { label: 'x5 Maks', value: 5, desc: 'Residivis' },
+              ].map((mult) => {
+                const isActive = !isCustomFineActive && fineMultiplier === mult.value;
+                return (
+                  <button
+                    key={mult.value}
+                    type="button"
+                    onClick={() => {
+                      setIsCustomFineActive(false);
+                      setFineMultiplier(mult.value);
+                    }}
+                    className={`px-1.5 py-1.5 rounded text-center transition border ${
+                      isActive
+                        ? 'bg-blue-600 border-blue-400 text-white font-bold shadow-sm shadow-blue-500/30'
+                        : 'bg-[#111622] hover:bg-[#182030] border-gray-800 hover:border-gray-700 text-gray-300'
+                    }`}
+                  >
+                    <div className="text-[11px] font-mono font-bold leading-tight">{mult.label.split(' ')[0]}</div>
+                    <div className="text-[8.5px] opacity-75 leading-tight">{mult.desc}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Isi Sendiri Nominal Denda */}
+            <div className="pt-1 border-t border-gray-800/80">
+              {!isCustomFineActive ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomFineActive(true);
+                    if (!customFineInput && finalDenda > 0) {
+                      setCustomFineInput(finalDenda.toLocaleString('en-US'));
+                    }
+                  }}
+                  className="w-full py-1.5 px-2.5 rounded bg-[#10141D] hover:bg-[#161D2B] border border-dashed border-gray-700 hover:border-blue-500/70 text-[11px] text-gray-300 hover:text-blue-300 transition flex items-center justify-center gap-1.5"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Atau <strong>Isi Sendiri Total Denda</strong> ($ Kustom Bebas)</span>
+                </button>
+              ) : (
+                <div className="space-y-1.5 bg-[#080A0E] p-2 rounded border border-blue-500/50">
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-blue-300 font-bold flex items-center gap-1">
+                      <Edit3 className="w-3 h-3" />
+                      Nominal Total Denda Manual (Override):
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsCustomFineActive(false);
+                        setCustomFineInput('');
+                      }}
+                      className="text-gray-400 hover:text-red-400 underline text-[9.5px]"
+                    >
+                      Batal (Gunakan Rumus x{fineMultiplier})
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-mono font-bold text-green-400 pl-1">$</span>
+                    <input
+                      type="text"
+                      value={customFineInput}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\D/g, '');
+                        setCustomFineInput(raw ? parseInt(raw, 10).toLocaleString('en-US') : '');
+                      }}
+                      placeholder="Masukkan nominal denda bebas..."
+                      className="flex-1 px-2.5 py-1 bg-[#121620] border border-blue-500/60 rounded text-xs font-mono text-green-300 focus:outline-hidden focus:border-green-400"
+                    />
+                    {/* Quick increment chips */}
+                    <div className="flex items-center gap-1">
+                      {[1000, 5000, 10000].map((inc) => (
+                        <button
+                          key={inc}
+                          type="button"
+                          onClick={() => {
+                            const current = parseInt(customFineInput.replace(/\D/g, ''), 10) || 0;
+                            setCustomFineInput((current + inc).toLocaleString('en-US'));
+                          }}
+                          className="px-1.5 py-1 bg-gray-800 hover:bg-gray-700 text-[9px] font-mono text-gray-200 rounded border border-gray-700"
+                        >
+                          +${(inc / 1000)}k
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Status Breakdown & Reset */}
+            <div className="text-[9.5px] text-gray-400 flex flex-wrap items-center justify-between gap-1 pt-0.5">
+              <span>
+                {isCustomFineActive ? (
+                  <span className="text-amber-400 font-mono">
+                    ✏️ Denda ditentukan manual: <strong>${finalDenda.toLocaleString()}</strong>
+                  </span>
+                ) : fineMultiplier > 1 ? (
+                  <span className="text-blue-300 font-mono">
+                    ⚡ Denda: (${(isCooperative ? Math.floor(rawDenda * 0.8) : rawDenda).toLocaleString()}) × {fineMultiplier} = <strong>${finalDenda.toLocaleString()}</strong>
+                  </span>
+                ) : (
+                  <span>Perhitungan standar KUHP & SOP HSPD</span>
+                )}
+              </span>
+              {fineMultiplier > 1 && !isCustomFineActive && (
+                <button
+                  type="button"
+                  onClick={() => setFineMultiplier(1)}
+                  className="text-gray-400 hover:text-gray-200 underline"
+                >
+                  Reset ke x1
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Discount Toggle */}
           <div 
             id="cooperative-toggle-box"
@@ -1257,13 +1419,21 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
           {/* High Density Metric Tiles */}
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-[#0D0F14] p-2.5 rounded border border-gray-800">
-              <div className="text-[9px] text-gray-500 uppercase font-bold">Total Denda</div>
-              <div className={`text-base font-mono font-bold leading-tight ${isCooperative ? 'text-green-400' : 'text-blue-400'}`}>
+              <div className="text-[9px] text-gray-500 uppercase font-bold flex items-center justify-between">
+                <span>Total Denda</span>
+                {fineMultiplier > 1 && !isCustomFineActive && (
+                  <span className="text-blue-400 font-mono">x{fineMultiplier}</span>
+                )}
+                {isCustomFineActive && (
+                  <span className="text-amber-400 font-mono">Manual</span>
+                )}
+              </div>
+              <div className={`text-base font-mono font-bold leading-tight ${isCustomFineActive ? 'text-amber-400' : isCooperative ? 'text-green-400' : 'text-blue-400'}`}>
                 ${finalDenda.toLocaleString()}
               </div>
-              {isCooperative && rawDenda > 0 && (
+              {(isCooperative || fineMultiplier > 1 || isCustomFineActive) && rawDenda > 0 && (
                 <div className="text-[9px] font-mono text-gray-600 line-through">
-                  ${rawDenda.toLocaleString()}
+                  Asli: ${rawDenda.toLocaleString()}
                 </div>
               )}
             </div>

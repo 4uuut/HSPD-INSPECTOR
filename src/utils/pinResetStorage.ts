@@ -582,11 +582,12 @@ export function getOnlineSuperiorsList(roster?: OfficerAccount[]): OnlineSuperio
     if (hbRaw) {
       const hb = JSON.parse(hbRaw);
       if (hb && now - hb.lastSeen <= thresholdMs) {
-        if (!result.some(r => r.badge.toLowerCase() === hb.badge.toLowerCase())) {
+        const hbBadge = (hb.badge || '').toLowerCase().trim();
+        if (!result.some(r => (r.badge || '').toLowerCase().trim() === hbBadge)) {
           result.push({
-            name: hb.name,
-            badge: hb.badge,
-            rank: hb.rank,
+            name: hb.name || 'Supervisor',
+            badge: hb.badge || '-',
+            rank: hb.rank || 'High Command',
             lastSeen: hb.lastSeen,
             isDuty: true
           });
@@ -603,15 +604,16 @@ export function getOnlineSuperiorsList(roster?: OfficerAccount[]): OnlineSuperio
       if (state.isDuty) {
         // Find matching officer in roster
         const match = effectiveRoster.find(r => 
-          r.badge.toLowerCase().replace(/[^a-z0-9]/g, '') === key ||
-          r.name.toLowerCase().replace(/[^a-z0-9]/g, '') === key
+          (r.badge || '').toLowerCase().replace(/[^a-z0-9]/g, '') === key ||
+          (r.name || '').toLowerCase().replace(/[^a-z0-9]/g, '') === key
         );
         if (match && isSupervisorOrAbove(match.rank)) {
-          if (!result.some(r => r.badge.toLowerCase() === match.badge.toLowerCase())) {
+          const matchBadge = (match.badge || '').toLowerCase().trim();
+          if (!result.some(r => (r.badge || '').toLowerCase().trim() === matchBadge)) {
             result.push({
-              name: match.name,
-              badge: match.badge,
-              rank: match.rank,
+              name: match.name || 'Supervisor',
+              badge: match.badge || '-',
+              rank: match.rank || 'High Command',
               lastSeen: state.updatedAt || now,
               isDuty: true
             });
@@ -1042,12 +1044,12 @@ export async function executePinResetSubmission(params: {
   const targetPin = (requestedPin && requestedPin.trim()) ? requestedPin.trim() : cfg.defaultFallbackPin;
 
   // Check matching officer in roster
-  const cleanName = officerName.trim().toLowerCase();
-  const cleanBadge = officerBadge.trim().toLowerCase();
-  const matchedOfficer = roster.find(r => 
-    isOfficerMatch(r, officerBadge) ||
-    isOfficerMatch(r, officerName)
-  );
+  const cleanName = (officerName || '').trim().toLowerCase();
+  const cleanBadge = (officerBadge || '').trim().toLowerCase();
+  const matchedOfficer = roster ? roster.find(r => 
+    (officerBadge && isOfficerMatch(r, officerBadge)) ||
+    (officerName && isOfficerMatch(r, officerName))
+  ) : undefined;
 
   const finalBadge = matchedOfficer ? matchedOfficer.badge : (officerBadge.trim() || '-');
   const finalRank = matchedOfficer ? matchedOfficer.rank : officerRank;
