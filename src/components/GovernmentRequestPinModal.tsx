@@ -14,7 +14,8 @@ import {
   executeGovPinResetSubmission, 
   autoApproveGovPinRequestDueToTimeout, 
   getGovPinResetRequests, 
-  GOV_PIN_RESET_AUTO_ACCEPT_TIMEOUT_MS 
+  GOV_PIN_RESET_AUTO_ACCEPT_TIMEOUT_MS,
+  updateGovernmentPin
 } from '../utils/governmentStorage';
 
 interface Props {
@@ -235,6 +236,9 @@ export const GovernmentRequestPinModal: React.FC<Props> = ({
   };
 
   const handleApplyPinAndClose = (appliedPin: string) => {
+    if (matchedOfficial) {
+      updateGovernmentPin(matchedOfficial.badge || matchedOfficial.name, appliedPin);
+    }
     if (onPinApplied && matchedOfficial) {
       onPinApplied(appliedPin, matchedOfficial.name);
     }

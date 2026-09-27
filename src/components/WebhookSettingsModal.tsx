@@ -39,6 +39,7 @@ import {
   WebhookConfig 
 } from '../utils/discordWebhook';
 import { checkAndBroadcastLatestRelease, LATEST_APP_RELEASE, sendSystemPingToDiscord } from '../utils/autoChangelogBroadcaster';
+import { ALL_SYSTEM_RELEASES, CURRENT_SYSTEM_RELEASE, SystemReleaseNote } from '../data/systemReleaseNotes';
 import { OfficerProfile, isOfficerHighRank } from '../types';
 import { HSPD_LOGO_URL } from '../assets/logo';
 
@@ -143,9 +144,11 @@ export const WebhookSettingsModal: React.FC<Props> = ({
   const [changelogTestResult, setChangelogTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isBroadcastingNow, setIsBroadcastingNow] = useState(false);
   const [broadcastNowResult, setBroadcastNowResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [selectedReleaseVersion, setSelectedReleaseVersion] = useState<string>(CURRENT_SYSTEM_RELEASE.version);
 
-  // System Health Ping to Discord (Target: Channel 1550418868814610433)
-  const [targetChannelId, setTargetChannelId] = useState<string>(() => localStorage.getItem('hspd_changelog_channel_id') || '1550418868814610433');
+  // System Health Ping to Discord & Changelog Target Channels
+  const [targetChangelogChannelId, setTargetChangelogChannelId] = useState<string>(() => localStorage.getItem('hspd_changelog_channel_id') || '1547776898833326161');
+  const [targetPingChannelId, setTargetPingChannelId] = useState<string>(() => localStorage.getItem('hspd_ping_channel_id') || '1550418868814610433');
   const [isSendingPing, setIsSendingPing] = useState(false);
   const [pingResult, setPingResult] = useState<{ success: boolean; message: string; data?: any } | null>(null);
 
@@ -566,14 +569,32 @@ export const WebhookSettingsModal: React.FC<Props> = ({
     }
   };
 
-  // Manual Trigger Auto-Broadcast Latest Release
+  // Manual Trigger Auto-Broadcast Latest Release (Target: Channel 1547776898833326161)
   const handleManualBroadcastLatestRelease = async () => {
+    if (isBroadcastingNow) return;
     setIsBroadcastingNow(true);
     setBroadcastNowResult(null);
     try {
+      localStorage.setItem('hspd_changelog_channel_id', targetChangelogChannelId);
       // Simpan konfigurasi webhook terlebih dahulu
       saveChangelogWebhookConfig(changelogConfig);
-      const res = await checkAndBroadcastLatestRelease(true);
+      
+      const targetRelease = ALL_SYSTEM_RELEASES.find(r => r.version === selectedReleaseVersion) || CURRENT_SYSTEM_RELEASE;
+      const res = await checkAndBroadcastLatestRelease(true, {
+        version: targetRelease.version,
+        title: targetRelease.title,
+        headerText: targetRelease.headerText,
+        customDescription: targetRelease.customDescription,
+        newFeatures: targetRelease.newFeatures,
+        removedOrAdjusted: targetRelease.removedOrAdjusted,
+        improvements: targetRelease.improvements,
+        bugFixes: targetRelease.bugFixes,
+        extraNotes: targetRelease.extraNotes,
+        embedColorHex: targetRelease.embedColorHex,
+        authorName: currentOfficer?.name || targetRelease.authorName || 'HSPD High Command',
+        authorBadge: currentOfficer?.badge || targetRelease.authorBadge || 'HQ-01',
+        authorRank: currentOfficer?.rank || targetRelease.authorRank || 'Chief of Police'
+      });
       setBroadcastNowResult({
         success: res.success,
         message: res.message
@@ -588,14 +609,15 @@ export const WebhookSettingsModal: React.FC<Props> = ({
     }
   };
 
-  // Send System Health Ping (Website & Bot Live Monitor)
+  // Send System Health Ping (Website & Bot Live Monitor, Target: Channel 1550418868814610433)
   const handleSendPing = async () => {
+    if (isSendingPing) return;
     setIsSendingPing(true);
     setPingResult(null);
     try {
-      localStorage.setItem('hspd_changelog_channel_id', targetChannelId);
+      localStorage.setItem('hspd_ping_channel_id', targetPingChannelId);
       const res = await sendSystemPingToDiscord({
-        channelId: targetChannelId || '1550418868814610433',
+        channelId: targetPingChannelId || '1550418868814610433',
         triggerBy: `${currentOfficer?.name || 'Petugas'} (${currentOfficer?.badge || 'HSPD'})`,
         websiteUrl: window.location.origin,
         webhookUrl: changelogConfig.webhookUrl
@@ -3672,41 +3694,41 @@ Bukti : Ada`}
 
               {/* Channel ID & Discord Bot Dispatch Configuration */}
               <div className="space-y-3 bg-[#0D1117] p-4 rounded-lg border border-gray-800">
-                {/* Target Discord Channel ID for Bot Broadcast & System Ping */}
+                {/* Target Discord Channel ID for Changelog & Release Announcements */}
                 <div>
                   <label className="block text-gray-300 font-bold mb-1 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
                       <Radio className="w-3.5 h-3.5 text-blue-400" />
-                      <span>Channel ID Discord Siaran & Ping (Default: 1550418868814610433):</span>
+                      <span>Channel ID Discord Siaran Changelog (Khusus Rilis: 1547776898833326161):</span>
                     </span>
-                    <span className="text-[10px] text-emerald-400 font-mono">CHANNEL AKTIF</span>
+                    <span className="text-[10px] text-blue-400 font-mono">CHANNEL RILIS BOT</span>
                   </label>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
-                      value={targetChannelId}
+                      value={targetChangelogChannelId}
                       onChange={(e) => {
                         const val = e.target.value.trim();
-                        setTargetChannelId(val);
+                        setTargetChangelogChannelId(val);
                         localStorage.setItem('hspd_changelog_channel_id', val);
                       }}
-                      placeholder="1550418868814610433"
+                      placeholder="1547776898833326161"
                       className="flex-1 bg-[#161B22] border border-gray-700 rounded p-2 text-gray-100 font-mono text-xs focus:border-blue-500 focus:outline-hidden"
                     />
                     <button
                       type="button"
                       onClick={() => {
-                        setTargetChannelId('1550418868814610433');
-                        localStorage.setItem('hspd_changelog_channel_id', '1550418868814610433');
+                        setTargetChangelogChannelId('1547776898833326161');
+                        localStorage.setItem('hspd_changelog_channel_id', '1547776898833326161');
                       }}
                       className="px-2.5 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-[11px] font-mono whitespace-nowrap"
-                      title="Kembalikan ke channel default 1550418868814610433"
+                      title="Kembalikan ke channel rilis default 1547776898833326161"
                     >
-                      Default 1550418868814610433
+                      Default 1547776898833326161
                     </button>
                   </div>
                   <p className="text-[10px] text-gray-500 mt-1">
-                    Channel ID ini digunakan oleh Bot Discord untuk mengirim rilis pembaruan terkini dan laporan ping status website/bot secara otomatis.
+                    Channel ID ini digunakan oleh Bot Discord untuk menyiarkan pembaruan rilis sistem resmi (#changelog).
                   </p>
                 </div>
 
@@ -3715,7 +3737,7 @@ Bukti : Ada`}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 font-bold text-blue-200 text-xs">
                       <Activity className="w-4 h-4 text-emerald-400" />
-                      <span>MONITORING PING REAL-TIME: WEBSITE & BOT AKTIF (CHANNEL {targetChannelId || '1550418868814610433'})</span>
+                      <span>MONITORING PING REAL-TIME: WEBSITE & BOT AKTIF (CHANNEL {targetPingChannelId || '1550418868814610433'})</span>
                     </div>
                     <span className="text-[9.5px] px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-700 text-emerald-300 font-mono flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -3723,8 +3745,39 @@ Bukti : Ada`}
                     </span>
                   </div>
 
+                  {/* Input Target Ping Channel */}
+                  <div>
+                    <label className="block text-gray-400 text-[11px] font-semibold mb-1 flex items-center justify-between">
+                      <span>Channel ID Tujuan Ping Status (Default: 1550418868814610433):</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={targetPingChannelId}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          setTargetPingChannelId(val);
+                          localStorage.setItem('hspd_ping_channel_id', val);
+                        }}
+                        placeholder="1550418868814610433"
+                        className="flex-1 bg-[#161B22] border border-gray-700 rounded p-1.5 text-gray-100 font-mono text-xs focus:border-blue-500 focus:outline-hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTargetPingChannelId('1550418868814610433');
+                          localStorage.setItem('hspd_ping_channel_id', '1550418868814610433');
+                        }}
+                        className="px-2 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-[10px] font-mono whitespace-nowrap"
+                        title="Kembalikan ke channel ping 1550418868814610433"
+                      >
+                        Reset Ping 1550418868814610433
+                      </button>
+                    </div>
+                  </div>
+
                   <p className="text-[11px] text-gray-300 leading-snug">
-                    Kirim laporan status konektivitas, latensi HTTP website, serta status online bot Discord secara instan ke channel <code className="text-blue-300 bg-black/40 px-1 py-0.5 rounded">#{targetChannelId || '1550418868814610433'}</code> untuk memastikan seluruh layanan operasional berjalan optimal.
+                    Laporan status konektivitas, latensi HTTP website, serta status online bot Discord disiarkan otomatis <strong>1 hari sekali (24 jam)</strong> ke channel <code className="text-blue-300 bg-black/40 px-1 py-0.5 rounded">#{targetPingChannelId || '1550418868814610433'}</code>. Anda juga dapat mengirimkannya secara instan dengan tombol di bawah:
                   </p>
 
                   <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -3806,68 +3859,110 @@ Bukti : Ada`}
                 )}
               </div>
 
-              {/* Rincian Pembaruan Sistem Terkini yang Otomatis Dikirim */}
-              <div className="bg-[#0D1117] p-4 rounded-lg border border-gray-800 space-y-3">
-                <div className="flex items-center justify-between border-b border-gray-800 pb-2">
-                  <div className="font-bold text-gray-200 text-xs flex items-center gap-2">
-                    <Bell className="w-4 h-4 text-blue-400" />
-                    <span>Daftar Perubahan yang Disiarkan Otomatis ({LATEST_APP_RELEASE.version}):</span>
-                  </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded bg-blue-950 border border-blue-800 text-blue-300 font-mono">
-                    STATUS: AKTIF & TERSINKRONISASI
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                  {/* Ditambah */}
-                  <div className="p-3 bg-[#161B22] border border-emerald-900/50 rounded-lg space-y-1.5">
-                    <div className="font-bold text-emerald-400 flex items-center gap-1.5 text-[11px]">
-                      <span>🚀 Fitur Baru (Ditambah):</span>
+              {/* Rincian Pembaruan Sistem Terkini yang Otomatis Dikirim (Dinamis Sesuai Rilis Terkini) */}
+              {(() => {
+                const activeRelease = ALL_SYSTEM_RELEASES.find(r => r.version === selectedReleaseVersion) || CURRENT_SYSTEM_RELEASE;
+                return (
+                  <div className="bg-[#0D1117] p-4 rounded-lg border border-gray-800 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between border-b border-gray-800 pb-2.5 gap-2">
+                      <div className="font-bold text-gray-200 text-xs flex items-center gap-2">
+                        <Bell className="w-4 h-4 text-blue-400" />
+                        <span>Daftar Perubahan yang Disiarkan Otomatis:</span>
+                      </div>
+                      
+                      {/* Pemilih Riwayat Rilis & Update Nyata */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-gray-400 font-medium">Versi Rilis:</span>
+                        <select
+                          value={selectedReleaseVersion}
+                          onChange={(e) => setSelectedReleaseVersion(e.target.value)}
+                          className="bg-[#161B22] border border-gray-700 text-blue-300 text-xs font-mono font-bold rounded px-2.5 py-1 focus:border-blue-500 focus:outline-hidden"
+                        >
+                          {ALL_SYSTEM_RELEASES.map((rel) => (
+                            <option key={rel.version} value={rel.version}>
+                              {rel.version} - {rel.releaseDate} {rel.version === CURRENT_SYSTEM_RELEASE.version ? '(Terbaru)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-blue-950 border border-blue-800 text-blue-300 font-mono">
+                          STATUS: AKTIF
+                        </span>
+                      </div>
                     </div>
-                    <ul className="list-disc list-inside space-y-1 text-gray-300 text-[10.5px]">
-                      {LATEST_APP_RELEASE.newFeatures.map((item, idx) => (
-                        <li key={idx} className="leading-snug">{item}</li>
-                      ))}
-                    </ul>
-                  </div>
 
-                  {/* Dihapus / Dikurangi */}
-                  <div className="p-3 bg-[#161B22] border border-rose-900/50 rounded-lg space-y-1.5">
-                    <div className="font-bold text-rose-400 flex items-center gap-1.5 text-[11px]">
-                      <span>🗑️ Dihapus / Dikurangi / Disesuaikan:</span>
+                    <div className="p-2 rounded bg-black/30 border border-gray-800 text-xs text-gray-300 leading-relaxed font-sans">
+                      <div className="font-bold text-blue-300 mb-0.5">{activeRelease.title}</div>
+                      <div className="text-[11px] text-gray-400">{activeRelease.customDescription}</div>
                     </div>
-                    <ul className="list-disc list-inside space-y-1 text-gray-300 text-[10.5px]">
-                      {LATEST_APP_RELEASE.removedOrAdjusted.map((item, idx) => (
-                        <li key={idx} className="leading-snug">{item}</li>
-                      ))}
-                    </ul>
-                  </div>
 
-                  {/* Diperbaiki (Bug Fixes) */}
-                  <div className="p-3 bg-[#161B22] border border-amber-900/50 rounded-lg space-y-1.5">
-                    <div className="font-bold text-amber-400 flex items-center gap-1.5 text-[11px]">
-                      <span>🛠️ Perbaikan Masalah & Bug (Diperbaiki):</span>
-                    </div>
-                    <ul className="list-disc list-inside space-y-1 text-gray-300 text-[10.5px]">
-                      {LATEST_APP_RELEASE.bugFixes.map((item, idx) => (
-                        <li key={idx} className="leading-snug">{item}</li>
-                      ))}
-                    </ul>
-                  </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      {/* Ditambah */}
+                      <div className="p-3 bg-[#161B22] border border-emerald-900/50 rounded-lg space-y-1.5">
+                        <div className="font-bold text-emerald-400 flex items-center gap-1.5 text-[11px]">
+                          <span>🚀 Fitur Baru (Ditambah):</span>
+                        </div>
+                        {activeRelease.newFeatures && activeRelease.newFeatures.length > 0 ? (
+                          <ul className="list-disc list-inside space-y-1 text-gray-300 text-[10.5px]">
+                            {activeRelease.newFeatures.map((item, idx) => (
+                              <li key={idx} className="leading-snug">{item}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="text-[11px] text-gray-500 italic">Tidak ada fitur baru pada rilis ini.</div>
+                        )}
+                      </div>
 
-                  {/* Peningkatan Sistem */}
-                  <div className="p-3 bg-[#161B22] border border-blue-900/50 rounded-lg space-y-1.5">
-                    <div className="font-bold text-blue-400 flex items-center gap-1.5 text-[11px]">
-                      <span>⚡ Peningkatan Sistem (Improvements):</span>
+                      {/* Dihapus / Dikurangi */}
+                      <div className="p-3 bg-[#161B22] border border-rose-900/50 rounded-lg space-y-1.5">
+                        <div className="font-bold text-rose-400 flex items-center gap-1.5 text-[11px]">
+                          <span>🗑️ Dihapus / Dikurangi / Disesuaikan:</span>
+                        </div>
+                        {activeRelease.removedOrAdjusted && activeRelease.removedOrAdjusted.length > 0 ? (
+                          <ul className="list-disc list-inside space-y-1 text-gray-300 text-[10.5px]">
+                            {activeRelease.removedOrAdjusted.map((item, idx) => (
+                              <li key={idx} className="leading-snug">{item}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="text-[11px] text-gray-500 italic">Tidak ada fitur yang dihapus/dikurangi.</div>
+                        )}
+                      </div>
+
+                      {/* Diperbaiki (Bug Fixes) */}
+                      <div className="p-3 bg-[#161B22] border border-amber-900/50 rounded-lg space-y-1.5">
+                        <div className="font-bold text-amber-400 flex items-center gap-1.5 text-[11px]">
+                          <span>🛠️ Perbaikan Masalah & Bug (Diperbaiki):</span>
+                        </div>
+                        {activeRelease.bugFixes && activeRelease.bugFixes.length > 0 ? (
+                          <ul className="list-disc list-inside space-y-1 text-gray-300 text-[10.5px]">
+                            {activeRelease.bugFixes.map((item, idx) => (
+                              <li key={idx} className="leading-snug">{item}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="text-[11px] text-gray-500 italic">Tidak ada bug yang dicatat.</div>
+                        )}
+                      </div>
+
+                      {/* Peningkatan Sistem */}
+                      <div className="p-3 bg-[#161B22] border border-blue-900/50 rounded-lg space-y-1.5">
+                        <div className="font-bold text-blue-400 flex items-center gap-1.5 text-[11px]">
+                          <span>⚡ Peningkatan Sistem (Improvements):</span>
+                        </div>
+                        {activeRelease.improvements && activeRelease.improvements.length > 0 ? (
+                          <ul className="list-disc list-inside space-y-1 text-gray-300 text-[10.5px]">
+                            {activeRelease.improvements.map((item, idx) => (
+                              <li key={idx} className="leading-snug">{item}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div className="text-[11px] text-gray-500 italic">Tidak ada peningkatan khusus.</div>
+                        )}
+                      </div>
                     </div>
-                    <ul className="list-disc list-inside space-y-1 text-gray-300 text-[10.5px]">
-                      {LATEST_APP_RELEASE.improvements.map((item, idx) => (
-                        <li key={idx} className="leading-snug">{item}</li>
-                      ))}
-                    </ul>
                   </div>
-                </div>
-              </div>
+                );
+              })()}
             </div>
           )}
           <div className="p-3 bg-gray-900/80 border border-gray-800 rounded-lg text-gray-400 text-[11px] flex items-start gap-2">

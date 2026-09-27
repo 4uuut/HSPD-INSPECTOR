@@ -14,8 +14,10 @@ import {
   getPinResetRequests,
   autoApproveSingleRequestDueToTimeout,
   PIN_RESET_AUTO_ACCEPT_TIMEOUT_MS,
-  playPoliceChime
+  playPoliceChime,
+  updateOfficerPinInRoster
 } from '../utils/pinResetStorage';
+import { setOfficerCustomPin } from '../utils/officerPinRegistry';
 
 interface Props {
   isOpen: boolean;
@@ -284,11 +286,20 @@ export const RequestPinDiscordModal: React.FC<Props> = ({
 
   const handleApplyPinAndLogin = () => {
     if (autoGrantedData) {
+      const targetPin = autoGrantedData.pin.trim();
+      const targetBadge = autoGrantedData.badge || autoGrantedData.officerName;
+      const targetName = autoGrantedData.officerName || autoGrantedData.badge;
+
+      // 1. Direct registry and database update
+      setOfficerCustomPin(targetBadge, targetName, targetPin);
+      updateOfficerPinInRoster(targetBadge, targetPin, targetName);
+
+      // 2. React state hook
       if (onUpdateOfficerPin) {
-        onUpdateOfficerPin(autoGrantedData.badge || autoGrantedData.officerName, autoGrantedData.pin);
+        onUpdateOfficerPin(targetBadge, targetPin);
       }
       if (onPinAutoApplied) {
-        onPinAutoApplied(autoGrantedData.pin, autoGrantedData.officerName || autoGrantedData.badge);
+        onPinAutoApplied(targetPin, targetName);
       }
     }
     onClose();

@@ -153,34 +153,14 @@ Jangan lupa untuk hidupin direct message agar pm bot mengirim ucp bisa masuk! Da
 
 export const PRESET_DISCORD_BOT_LOGOS = [
   {
-    name: 'High State Blue Robot',
+    name: 'HSPD Official Discord Bot',
     url: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     category: 'High State'
   },
   {
-    name: 'HSPD Golden Police Star',
-    url: 'https://cdn-icons-png.flaticon.com/512/1022/1022331.png',
-    category: 'HSPD Official'
-  },
-  {
-    name: 'Police Department Shield',
-    url: 'https://cdn-icons-png.flaticon.com/512/942/942748.png',
-    category: 'Police Shield'
-  },
-  {
-    name: 'Tactical Cyber Badge',
-    url: 'https://cdn-icons-png.flaticon.com/512/2345/2345338.png',
-    category: 'Cyber Tactical'
-  },
-  {
-    name: 'Command Star Bureau',
-    url: 'https://cdn-icons-png.flaticon.com/512/179/179386.png',
-    category: 'High Command'
-  },
-  {
-    name: 'Special Response SWAT',
-    url: 'https://cdn-icons-png.flaticon.com/512/1022/1022370.png',
-    category: 'Special Operations'
+    name: 'High State Blue Robot',
+    url: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
+    category: 'Official Bot'
   }
 ];
 
@@ -4789,14 +4769,14 @@ export function getSavedGovRosterWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(GOV_ROSTER_WEBHOOK_STORAGE_KEY) || localStorage.getItem(ROSTER_WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(GOV_ROSTER_BOT_NAME_KEY) || 'Biro Kepegawaian & Roster Negara',
-      botAvatar: localStorage.getItem(GOV_ROSTER_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      botAvatar: localStorage.getItem(GOV_ROSTER_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(GOV_ROSTER_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'Biro Kepegawaian & Roster Negara',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -4819,14 +4799,14 @@ export function getSavedGovDocumentWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(GOV_DOCUMENT_WEBHOOK_STORAGE_KEY) || localStorage.getItem(DOCUMENT_WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(GOV_DOCUMENT_BOT_NAME_KEY) || 'Arsip & Dokumen Resmi Kenegaraan',
-      botAvatar: localStorage.getItem(GOV_DOCUMENT_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      botAvatar: localStorage.getItem(GOV_DOCUMENT_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(GOV_DOCUMENT_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'Arsip & Dokumen Resmi Kenegaraan',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -4849,14 +4829,14 @@ export function getSavedGovPinResetWebhookConfig(): WebhookConfig {
     return {
       webhookUrl: localStorage.getItem(GOV_PIN_RESET_WEBHOOK_STORAGE_KEY) || localStorage.getItem(PIN_RESET_WEBHOOK_STORAGE_KEY) || '',
       botName: localStorage.getItem(GOV_PIN_RESET_BOT_NAME_KEY) || 'Audit Sandi & Kredensial Negara',
-      botAvatar: localStorage.getItem(GOV_PIN_RESET_BOT_AVATAR_KEY) || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      botAvatar: localStorage.getItem(GOV_PIN_RESET_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(GOV_PIN_RESET_AUTO_SEND_KEY) !== 'false'
     };
   } catch {
     return {
       webhookUrl: '',
       botName: 'Audit Sandi & Kredensial Negara',
-      botAvatar: 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: true
     };
   }
@@ -4880,7 +4860,7 @@ export async function testGovRosterDiscordWebhook(config: WebhookConfig): Promis
   }
   const payload = {
     username: config.botName.trim() || 'Biro Kepegawaian & Roster Negara',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '🏛️ UJI COBA WEBHOOK ROSTER PEJABAT PEMERINTAHAN',
@@ -4893,7 +4873,7 @@ export async function testGovRosterDiscordWebhook(config: WebhookConfig): Promis
         ],
         footer: {
           text: 'Executive Government of HighState • Official Secretariat',
-          icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
+          icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png'
         }
       }
     ]
@@ -4918,7 +4898,7 @@ export async function testGovDocumentDiscordWebhook(config: WebhookConfig): Prom
   }
   const payload = {
     username: config.botName.trim() || 'Arsip & Dokumen Resmi Kenegaraan',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '📜 UJI COBA WEBHOOK DOKUMEN & SURAT KENEGARAAN',
@@ -4931,7 +4911,7 @@ export async function testGovDocumentDiscordWebhook(config: WebhookConfig): Prom
         ],
         footer: {
           text: 'Executive Government of HighState • Official Archives',
-          icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
+          icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png'
         }
       }
     ]
@@ -5037,7 +5017,7 @@ export async function sendGovOfficialDocumentToDiscord(
     fields,
     footer: {
       text: `Executive Government of HighState • Lembaran Kenegaraan • Otorisasi: ${docItem.acknowledgedByName || 'Presiden Negara'} • ${docItem.date}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date().toISOString(),
   };
@@ -5048,7 +5028,7 @@ export async function sendGovOfficialDocumentToDiscord(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: config.botName.trim() || 'Arsip & Dokumen Resmi Kenegaraan',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: [embedObj],
       })
     });
@@ -5074,7 +5054,7 @@ export async function testGovPinResetDiscordWebhook(config: WebhookConfig): Prom
   }
   const payload = {
     username: config.botName.trim() || 'Audit Sandi & Kredensial Negara',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '🔑 UJI COBA WEBHOOK AUDIT KREDENSIAL SANDI NEGARA',
@@ -5087,7 +5067,7 @@ export async function testGovPinResetDiscordWebhook(config: WebhookConfig): Prom
         ],
         footer: {
           text: 'Executive Government of HighState • National Cybersecurity',
-          icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
+          icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png'
         }
       }
     ]
@@ -5186,14 +5166,14 @@ export async function sendGovPinResetRequestToDiscord(params: {
     fields,
     footer: {
       text: `Executive Government Security & Helpdesk • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date().toISOString(),
   };
 
   const payload = {
     username: config.botName.trim() || 'Audit Sandi & Kredensial Negara',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [embedObj],
   };
 
@@ -5284,14 +5264,14 @@ export async function sendGovPinResetAutoGrantedWebhookToDiscord(params: {
     fields,
     footer: {
       text: `Executive Government Security & Automated Registry • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date().toISOString(),
   };
 
   const payload = {
     username: config.botName.trim() || 'Audit Sandi & Kredensial Negara',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [embedObj],
   };
 
@@ -5378,14 +5358,14 @@ export async function sendGovPinResetResolvedWebhookToDiscord(params: {
     fields,
     footer: {
       text: `Executive Government Security & Credential Registry • Highstate Roleplay • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date().toISOString(),
   };
 
   const payload = {
     username: config.botName.trim() || 'Audit Sandi & Kredensial Negara',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [embedObj],
   };
 
@@ -5476,7 +5456,7 @@ export async function sendGovPinResetDiscordWebhook(params: {
 
   const payload = {
     username: config.botName.trim() || 'Audit Sandi & Kredensial Negara',
-    avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embeds: [
       {
         title: '🚨 TIKET PENGAJUAN PERUBAHAN / RESET PIN LOGIN PEJABAT',
@@ -5485,7 +5465,7 @@ export async function sendGovPinResetDiscordWebhook(params: {
         fields,
         footer: {
           text: 'Executive Government of HighState • National Cybersecurity & Credential Registry',
-          icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png'
+          icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png'
         },
         timestamp: new Date().toISOString()
       }
@@ -5573,7 +5553,7 @@ export async function sendGovNewOfficerAnnouncementToDiscord(params: {
     ],
     footer: {
       text: `Executive Government of HighState • Berita Negara • ${dateStr}`,
-      icon_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+      icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     },
     timestamp: new Date().toISOString()
   };
@@ -5584,7 +5564,7 @@ export async function sendGovNewOfficerAnnouncementToDiscord(params: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: config.botName.trim() || 'Biro Kepegawaian & Roster Negara',
-        avatar_url: config.botAvatar.trim() || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+        avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
         embeds: [embedObj]
       })
     });
@@ -5640,7 +5620,7 @@ export async function sendGovOfficerAccountDm(params: {
     rank: params.rank,
     division: params.division,
     botName: botConfig.botName || 'Sekretariat Negara | High State',
-    avatarUrl: botConfig.botAvatar || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png',
+    avatarUrl: botConfig.botAvatar || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
     embedTitle: '🏛️ Kredensial Akun Portal Pemerintahan HighState',
     embedDescription: `Selamat bertugas! Akun dinas kenegaraan Anda telah resmi diterbitkan oleh Jajaran Eksekutif Negara. Gunakan kredensial di bawah ini untuk mengakses Portal Resmi Pemerintahan:`,
     customNote: 'PENTING: Jaga kerahasiaan PIN ini. Jangan pernah berikan kepada siapapun. Pilih tab "🏛️ Portal Pemerintahan" pada saat masuk ke website.',

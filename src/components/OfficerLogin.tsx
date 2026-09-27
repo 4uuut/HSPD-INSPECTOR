@@ -17,6 +17,7 @@ import { CaptchaVerification } from './CaptchaVerification';
 import { CitizenPublicServicePortal } from './CitizenPublicServicePortal';
 import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from '../utils/brandingStorage';
 import { isOfficerMatch, getPinResetRequests, updateOfficerPinInRoster, getRosterFromStorage, saveRosterToStorage } from '../utils/pinResetStorage';
+import { getOfficerCustomPin } from '../utils/officerPinRegistry';
 import { HSPD_OFFICIAL_ROSTER, mergeWithOfficialRoster } from '../data/hspdOfficialRoster';
 import { isOfficerDischarged } from '../utils/dischargeStorage';
 import { pullLatestFromFirestore } from '../services/firebaseRealtimeSync';
@@ -225,6 +226,12 @@ export const OfficerLogin: React.FC<Props> = ({
     
     // Collect all valid PIN candidates for this officer
     const validPins = new Set<string>();
+
+    // Check central custom PIN registry (guaranteed persistent)
+    const customRegistryPin = getOfficerCustomPin(matched.badge, matched.name, matched.id);
+    if (customRegistryPin && customRegistryPin.trim()) {
+      validPins.add(customRegistryPin.trim());
+    }
     
     if (matched.pin && matched.pin.trim()) {
       validPins.add(matched.pin.trim());

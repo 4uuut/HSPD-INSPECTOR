@@ -8,6 +8,7 @@ import {
   safeFetchJson
 } from './discordWebhook';
 import { pushToFirestore } from '../services/firebaseRealtimeSync';
+import { CURRENT_SYSTEM_RELEASE, ALL_SYSTEM_RELEASES, SystemReleaseNote } from '../data/systemReleaseNotes';
 
 export interface SystemReleasePayload {
   version: string;
@@ -32,39 +33,27 @@ export const LAST_AUTO_BROADCAST_TIME_KEY = 'hspd_last_auto_broadcast_time';
 export const DISCORD_BOT_PROFILE_PICTURE = 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png';
 
 /**
- * Catatan Rilis Resmi Terkini Sistem MDT HSPD (v4.2.0)
- * Berisi rincian apa saja yang ditambah, dikurangi/dihapus, dan diperbaiki.
+ * Catatan Rilis Resmi Terkini Sistem MDT HSPD (v4.2.1)
+ * Menggunakan data terpadu dinamis dari systemReleaseNotes.ts.
  */
 export const LATEST_APP_RELEASE: SystemReleasePayload = {
-  version: 'v4.2.0',
-  title: 'Pembaruan Sistem MDT HSPD - Pengali Denda Kasus, Studio Dokumen 1 Halaman & Monitor Ping Status Real-Time',
-  headerText: '[ PEMBERITAHUAN RESMI PEMBARUAN & PENYEMPURNAAN SISTEM MDT HSPD ]',
-  customDescription: 'Sistem operasional MDT HSPD telah ditingkatkan ke versi v4.2.0. Pembaruan ini menghadirkan fitur pengali & input nominal denda mandiri pada formulir penindakan, penataan rapi 1 halaman pas dokumen kepolisian, serta pelaporan status ping website dan bot ke Discord:',
-  embedColorHex: '#2563EB',
-  newFeatures: [
-    'Faktor Pengali Denda (x1, x2, x3, x4, x5) & Nominal Khusus (Isi Sendiri) di Formulir Kasus Penindakan: Petugas dapat secara instan melipatgandakan total denda untuk kasus pelanggar berulang / sindikat atau menginput nominal kustom manual dengan kalkulasi otomatis',
-    'Studio Dokumen & Surat Resmi Terpadu 1 Halaman Pas (A4 Fit Lock): Penataan ulang seluruh tombol aksi, ekspor gambar HD (PNG/JPG), dan print PDF dalam satu layout terpadu dengan jaminan pas 1 lembar utuh tanpa halaman kedua kosong',
-    'Monitor Ping Status Website & Bot Discord Real-Time (Channel 1550418868814610433): Pengiriman laporan ping status kesehatan website (online, latensi ms, server uptime) dan status bot Discord (gateway ping ms, tag bot, modul dispatch aktif) secara langsung ke Discord'
-  ],
-  removedOrAdjusted: [
-    'Restrukturisasi Bilah Tombol Studio Dokumen: Menggabungkan tombol cetak gambar, cetak PDF, dan pengatur kerapatan (Density Mode: Normal, Compact, Tight) agar rapi dalam 1 halaman',
-    'Penyelarasan Channel Changelog & Monitoring Otomatis: Diarahkan langsung ke Channel ID 1550418868814610433'
-  ],
-  improvements: [
-    'Pilihan Kerapatan Tata Letak Dokumen (Normal, Compact, Tight): Menjamin dokumen resmi dengan banyak pasal atau pihak tetap muat presisi dalam satu lembar A4',
-    'Sinkronisasi Kalkulasi Denda Berlapis: Integrasi instan antara diskon kooperatif (-20%), faktor pengali pelanggaran, serta nominal custom override'
-  ],
-  bugFixes: [
-    'Perbaikan Siaran Bot Changelog Berulang: Memperbaiki sistem pengumuman bot Discord yang sebelumnya selalu mengirim pesan teks versi lawas (v3.5.0) yang sama',
-    'Perbaikan Cetak Dokumen Blank Halaman Kedua: Penerapan aturan CSS @media print (break-inside: avoid, max-height: 284mm) sehingga pencetakan PDF selalu 1 lembar bersih',
-    'Perbaikan Rekam Jejak Total Denda: Nilai denda hasil pengali dan nominal kustom kini tersimpan presisi ke CAD Roster, Riwayat Kasus, dan Webhook Discord'
-  ],
-  extraNotes: 'Pembaruan versi v4.2.0 telah aktif secara penuh di seluruh terminal MDT HSPD. Anda juga dapat memicu pengiriman ping kesehatan status server kapan saja melalui panel pengaturan atau command Discord.',
-  mentionRole: '@everyone',
-  authorName: 'HSPD High Command',
-  authorBadge: 'HQ-01',
-  authorRank: 'Chief of Police'
+  version: CURRENT_SYSTEM_RELEASE.version,
+  title: CURRENT_SYSTEM_RELEASE.title,
+  headerText: CURRENT_SYSTEM_RELEASE.headerText,
+  customDescription: CURRENT_SYSTEM_RELEASE.customDescription,
+  embedColorHex: CURRENT_SYSTEM_RELEASE.embedColorHex,
+  newFeatures: CURRENT_SYSTEM_RELEASE.newFeatures,
+  removedOrAdjusted: CURRENT_SYSTEM_RELEASE.removedOrAdjusted,
+  improvements: CURRENT_SYSTEM_RELEASE.improvements,
+  bugFixes: CURRENT_SYSTEM_RELEASE.bugFixes,
+  extraNotes: CURRENT_SYSTEM_RELEASE.extraNotes,
+  mentionRole: CURRENT_SYSTEM_RELEASE.mentionRole,
+  authorName: CURRENT_SYSTEM_RELEASE.authorName,
+  authorBadge: CURRENT_SYSTEM_RELEASE.authorBadge,
+  authorRank: CURRENT_SYSTEM_RELEASE.authorRank
 };
+
+let isPingInFlight = false;
 
 /**
  * Mengirim ping kesehatan website dan status bot ke channel Discord (Default: 1550418868814610433)
@@ -75,13 +64,22 @@ export async function sendSystemPingToDiscord(options?: {
   websiteUrl?: string;
   webhookUrl?: string;
 }): Promise<{ success: boolean; message: string; data?: any }> {
+  if (isPingInFlight) {
+    return {
+      success: true,
+      message: 'Pengiriman ping kesehatan sedang berlangsung. Menghindari permintaan duplikat.'
+    };
+  }
+
+  isPingInFlight = true;
   try {
     const targetChannel = options?.channelId || '1550418868814610433';
     const savedWebhook = 
       options?.webhookUrl ||
       localStorage.getItem(CHANGELOG_WEBHOOK_STORAGE_KEY) || 
-      localStorage.getItem(WEBHOOK_STORAGE_KEY) || 
-      DEFAULT_PIN_RESET_WEBHOOK_URL;
+      '';
+    const effectiveDonationUrl = (options as any)?.donationUrl || localStorage.getItem('hspd_donation_url') || 'https://saweria.co/linuxsamp';
+    const effectiveWebsiteUrl = options?.websiteUrl || 'https://mdc-hspd-inspector.vercel.app/';
 
     // 1. Kirim via Backend API route
     try {
@@ -91,8 +89,9 @@ export async function sendSystemPingToDiscord(options?: {
         body: JSON.stringify({
           channelId: targetChannel,
           triggerBy: options?.triggerBy || 'Petugas HSPD Web Terminal',
-          websiteUrl: options?.websiteUrl || window.location.origin,
-          webhookUrl: savedWebhook
+          websiteUrl: effectiveWebsiteUrl,
+          webhookUrl: savedWebhook,
+          donationUrl: effectiveDonationUrl
         })
       });
 
@@ -124,7 +123,7 @@ export async function sendSystemPingToDiscord(options?: {
       const webhookPayload = {
         username: 'HSPD Roleplay Assistant',
         avatar_url: DISCORD_BOT_PROFILE_PICTURE,
-        content: `📡 **[ PING KESEHATAN SISTEM: WEBSITE & BOT ONLINE ]**\nChannel Target: <#${targetChannel}>`,
+        content: `📡 **[ PING KESEHATAN SISTEM: WEBSITE & BOT ONLINE ]**`,
         embeds: [
           {
             author: {
@@ -132,25 +131,45 @@ export async function sendSystemPingToDiscord(options?: {
               icon_url: DISCORD_BOT_PROFILE_PICTURE
             },
             title: '📡 Laporan Ping Status Real-Time Website & Bot Discord',
-            description: `Pemeriksaan integritas konektivitas terminal MDT HSPD secara real-time pada channel <#${targetChannel}>.\n\n🕒 **Waktu Pemeriksaan:** \`${wibStr}\`\n👮 **Operator / Pemicu:** \`${options?.triggerBy || 'Petugas HSPD'}\``,
+            description: `Pemeriksaan integritas konektivitas terminal MDT HSPD secara real-time.\n\n🕒 **Waktu Pemeriksaan:** \`${wibStr}\``,
             color: 0x2ECC71,
             fields: [
               {
                 name: '🌐 Status Website & Server MDT',
-                value: `• Status: **🟢 ONLINE & AKTIF**\n• URL Aplikasi: [Buka Portal Web](${window.location.origin})\n• Kecepatan Respon: \`18-28 ms\` (Sangat Baik)\n• Engine: \`Vite + React + Express Full-Stack\``,
+                value: `• Status: **🟢 ONLINE & AKTIF**\n• Kecepatan Respon: \`18-28 ms\` (Sangat Baik)\n• Engine: \`Vite + React + Express Full-Stack\``,
                 inline: false
               },
               {
                 name: '🤖 Status Bot Dispatch Discord',
-                value: `• Status Bot: **🟢 AKTIF & SIAGA**\n• Channel ID: \`${targetChannel}\`\n• Sinkronisasi: \`Cloud Firestore & Local Storage Aktif\``,
+                value: `• Status Bot: **🟢 AKTIF & SIAGA**\n• Sinkronisasi: \`Cloud Firestore & Local Storage Aktif\``,
                 inline: false
               }
             ],
             footer: {
-              text: `HSPD System Diagnostics • Channel ID: ${targetChannel} • Status Operasional Optimal`,
+              text: `HSPD System Diagnostics • Status Operasional Optimal`,
               icon_url: DISCORD_BOT_PROFILE_PICTURE
             },
             timestamp: now.toISOString()
+          }
+        ],
+        components: [
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                style: 5,
+                label: 'Donasi',
+                url: effectiveDonationUrl
+              },
+              {
+                type: 2,
+                style: 5,
+                label: 'Website MDC',
+                url: effectiveWebsiteUrl,
+                emoji: { name: '🌐' }
+              }
+            ]
           }
         ]
       };
@@ -178,8 +197,12 @@ export async function sendSystemPingToDiscord(options?: {
       success: false,
       message: err.message || 'Terjadi kesalahan saat mengirim ping status.'
     };
+  } finally {
+    isPingInFlight = false;
   }
 }
+
+let isBroadcastInFlight = false;
 
 /**
  * Memeriksa apakah versi rilis terkini sudah disiarkan ke channel Discord yang tersimpan.
@@ -189,6 +212,15 @@ export async function checkAndBroadcastLatestRelease(
   force: boolean = false,
   customRelease?: Partial<SystemReleasePayload>
 ): Promise<{ success: boolean; triggered: boolean; message: string }> {
+  if (isBroadcastInFlight) {
+    return {
+      success: true,
+      triggered: false,
+      message: 'Proses siaran pembaruan sedang berlangsung. Permintaan duplikat dicegah.'
+    };
+  }
+
+  isBroadcastInFlight = true;
   try {
     const releaseData: SystemReleasePayload = {
       ...LATEST_APP_RELEASE,
@@ -196,6 +228,10 @@ export async function checkAndBroadcastLatestRelease(
     };
 
     const lastVersion = localStorage.getItem(LAST_AUTO_BROADCAST_VERSION_KEY);
+    const lastBroadcastTime = Number(localStorage.getItem(LAST_AUTO_BROADCAST_TIME_KEY) || '0');
+    const nowMs = Date.now();
+
+    // Proteksi duplikat: jika versi sama dan bukan paksa (force), atau baru dikirim dalam 10 detik terakhir
     if (!force && lastVersion === releaseData.version) {
       return {
         success: true,
@@ -204,13 +240,18 @@ export async function checkAndBroadcastLatestRelease(
       };
     }
 
-    // Dapatkan webhook URL yang tersimpan oleh user
-    const savedWebhook = 
-      localStorage.getItem(CHANGELOG_WEBHOOK_STORAGE_KEY) || 
-      localStorage.getItem(WEBHOOK_STORAGE_KEY) || 
-      DEFAULT_PIN_RESET_WEBHOOK_URL;
+    if (nowMs - lastBroadcastTime < 10000 && lastVersion === releaseData.version) {
+      return {
+        success: true,
+        triggered: false,
+        message: `Pembaruan versi [${releaseData.version}] baru saja disiarkan. Permintaan duplikat diabaikan.`
+      };
+    }
 
-    const savedMention = localStorage.getItem(CHANGELOG_MENTION_ROLE_KEY) || releaseData.mentionRole || '@everyone';
+    // Dapatkan webhook URL khusus changelog yang tersimpan oleh user (HANYA jika diatur, JANGAN kirim ke log kasus atau webhook lain)
+    const savedWebhook = localStorage.getItem(CHANGELOG_WEBHOOK_STORAGE_KEY) || '';
+
+    const savedMention = localStorage.getItem(CHANGELOG_MENTION_ROLE_KEY) || releaseData.mentionRole || 'none';
     const colorNum = parseInt((releaseData.embedColorHex || '#3B82F6').replace('#', ''), 16) || 0x3B82F6;
 
     let broadcastSuccess = false;
@@ -234,6 +275,7 @@ export async function checkAndBroadcastLatestRelease(
           mentionRole: savedMention,
           webhookUrl: savedWebhook,
           embedColor: colorNum,
+          channelId: '1547776898833326161',
           authorName: releaseData.authorName,
           authorBadge: releaseData.authorBadge,
           authorRank: releaseData.authorRank
@@ -291,14 +333,6 @@ export async function checkAndBroadcastLatestRelease(
         fields.push({
           name: '⚡ Peningkatan Sistem (Improvements)',
           value: releaseData.improvements.map(f => `• ${f.trim()}`).join('\n'),
-          inline: false
-        });
-      }
-
-      if (releaseData.extraNotes && releaseData.extraNotes.trim()) {
-        fields.push({
-          name: '📝 Catatan Teknis & Panduan',
-          value: releaseData.extraNotes.trim(),
           inline: false
         });
       }
@@ -376,5 +410,7 @@ export async function checkAndBroadcastLatestRelease(
       triggered: false,
       message: error?.message || 'Gagal menjalankan siaran otomatis.'
     };
+  } finally {
+    isBroadcastInFlight = false;
   }
 }

@@ -12,6 +12,7 @@ import {
   buildApiUrl,
   safeFetchJson
 } from '../utils/discordWebhook';
+import { CURRENT_SYSTEM_RELEASE, ALL_SYSTEM_RELEASES } from '../data/systemReleaseNotes';
 
 interface DiscordReleaseAnnouncementModalProps {
   isOpen: boolean;
@@ -30,33 +31,18 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
 }) => {
   const [activeTab, setActiveTab] = useState<'broadcast' | 'commands' | 'settings'>('broadcast');
 
-  // Form State
-  const [version, setVersion] = useState('v3.4.0');
-  const [title, setTitle] = useState('Hotfix MDT HSPD - Pemulihan Akun Jackie Xianlao, Reset PIN Instan, PM Bot & UI HP/PC');
-  const [headerText, setHeaderText] = useState('[ PEMBERITAHUAN RESMI PEMBARUAN & PERBAIKAN SISTEM MDT HSPD ]');
-  const [customDescription, setCustomDescription] = useState(
-    'Pembaruan sistem darurat: Akun pimpinan Jackie Xianlao telah dipulihkan secara penuh, sistem Lupa PIN langsung aktif seketika tanpa delay, bot Discord otomatis mengirim PM berisikan akun & PIN baru, dan tombol-tombol yang sebelumnya tidak muncul pada mode HP (Android) maupun PC kini telah dinormalkan.'
-  );
-  const [embedColorHex, setEmbedColorHex] = useState('#F59E0B');
+  // Form State (Default: Terhubung ke Versi Resmi Terkini)
+  const [version, setVersion] = useState(CURRENT_SYSTEM_RELEASE.version);
+  const [title, setTitle] = useState(CURRENT_SYSTEM_RELEASE.title);
+  const [headerText, setHeaderText] = useState(CURRENT_SYSTEM_RELEASE.headerText);
+  const [customDescription, setCustomDescription] = useState(CURRENT_SYSTEM_RELEASE.customDescription);
+  const [embedColorHex, setEmbedColorHex] = useState(CURRENT_SYSTEM_RELEASE.embedColorHex);
 
-  const [newFeatures, setNewFeatures] = useState<string[]>([
-    'Pemulihan & Proteksi Akun Chief of Police Jackie Xianlao (#001) dengan imunitas status pemecatan',
-    'Aktivasi PIN Baru Seketika (Zero Delay): PIN yang baru di-reset langsung aktif detik itu juga untuk login ke MDT',
-    'Otomatisasi Bot PM Discord: Bot kini langsung mengirimkan Pesan Pribadi (PM / DM) berisi Akun Login, Badge, dan PIN Baru ke akun Discord petugas',
-    'Perbaikan Tampilan Mode HP (Android) & PC: Tombol CAD 911, menu drawer Semua Aplikasi, dan navigasi Pengaturan kini muncul sempurna'
-  ]);
-  const [improvements, setImprovements] = useState<string[]>([
-    'Verifikasi otentikasi berlapis: sinkronisasi real-time multi-storage lokal, riwayat tiket, dan database cloud',
-    'Akses Halaman Pengaturan (Settings) kini terbuka dan dapat diakses oleh seluruh tingkatan perwira patroli hingga komando',
-    'Pemberitahuan embed Discord dengan format pesan dinamis yang dapat diacak agar tidak monoton dan tidak duplikat dengan log server'
-  ]);
-  const [bugFixes, setBugFixes] = useState<string[]>([
-    'Perbaikan error tombol CAD 911 di ponsel yang sebelumnya tidak menampilkan halaman apapun',
-    'Perbaikan nomor lencana tertimpa atau terhapus saat pembaruan PIN login petugas',
-    'Penyelesaian runtime error database pada layanan roster dan otentikasi server'
-  ]);
-  const [extraNotes, setExtraNotes] = useState('Bagi personel atau pimpinan yang sebelumnya terkendala login, silakan langsung login dengan PIN baru atau gunakan fitur Lupa PIN untuk menerima PM otomatis dari Bot.');
-  const [mentionRole, setMentionRole] = useState('@everyone');
+  const [newFeatures, setNewFeatures] = useState<string[]>(CURRENT_SYSTEM_RELEASE.newFeatures);
+  const [improvements, setImprovements] = useState<string[]>(CURRENT_SYSTEM_RELEASE.improvements);
+  const [bugFixes, setBugFixes] = useState<string[]>(CURRENT_SYSTEM_RELEASE.bugFixes);
+  const [extraNotes, setExtraNotes] = useState(CURRENT_SYSTEM_RELEASE.extraNotes || '');
+  const [mentionRole, setMentionRole] = useState(CURRENT_SYSTEM_RELEASE.mentionRole || '@everyone');
   const [variationIndex, setVariationIndex] = useState(0);
 
   // Randomize & vary wording so message is never identical to previous announcements
@@ -248,7 +234,7 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
   // Status & Bot Config
   const [botConfig, setBotConfig] = useState<any>({
     prefix: '!hspd',
-    changelogChannelId: '1550418868814610433',
+    changelogChannelId: '1547776898833326161',
     changelogMentionRole: '@everyone',
     dutyChannelId: '',
     rosterChannelId: ''
@@ -404,13 +390,6 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
         fields.push({
           name: '🛠️ Perbaikan Bug (Bug Fixes)',
           value: bugFixes.map(f => `• ${f.trim()}`).join('\n'),
-          inline: false
-        });
-      }
-      if (extraNotes && extraNotes.trim()) {
-        fields.push({
-          name: '📝 Catatan Rilis & Panduan',
-          value: extraNotes.trim(),
           inline: false
         });
       }

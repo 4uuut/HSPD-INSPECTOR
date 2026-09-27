@@ -624,6 +624,10 @@ export default function App() {
     const trimmedPin = newPin.trim();
     if (!trimmedPin) return false;
 
+    // 1. Persist canonical update to storage, central PIN registry, and Firestore
+    updateOfficerPinInRoster(badgeOrName, trimmedPin);
+
+    // 2. Update React App state
     setRoster(prev => {
       const nextRoster = prev.map(a => {
         if (
@@ -648,6 +652,15 @@ export default function App() {
 
       return nextRoster;
     });
+
+    // 3. If currently logged in officer PIN changed, update state
+    if (currentOfficer && (isOfficerMatch(currentOfficer as any, badgeOrName) || currentOfficer.badge === badgeOrName || currentOfficer.name === badgeOrName)) {
+      const updatedProfile = { ...currentOfficer, pin: trimmedPin };
+      setCurrentOfficer(updatedProfile);
+      try {
+        localStorage.setItem(OFFICER_STORAGE_KEY, JSON.stringify(updatedProfile));
+      } catch (e) {}
+    }
 
     return updated;
   };

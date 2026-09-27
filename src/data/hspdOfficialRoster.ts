@@ -6,6 +6,7 @@ import {
   isOfficerPermanentlyPurged,
   DischargedOfficerEntry
 } from '../utils/dischargeStorage';
+import { applyCustomPinOverrides } from '../utils/officerPinRegistry';
 
 export const HSPD_OFFICIAL_ROSTER: OfficerAccount[] = [
   // ==========================================
@@ -333,9 +334,10 @@ export function mergeWithOfficialRoster(
   }
 
   const uniqueOfficers = Array.from(nameRegistry.values());
+  const finalOfficers = applyCustomPinOverrides(uniqueOfficers);
   
   // Sort cleanly by numerical badge number (e.g. #001 -> #003 -> #018 -> #401 -> #402 -> #411 -> #421)
-  return uniqueOfficers.sort((a, b) => {
+  return finalOfficers.sort((a, b) => {
     const numA = extractBadgeNumeric(a.badge);
     const numB = extractBadgeNumeric(b.badge);
     if (numA !== numB) return numA - numB;

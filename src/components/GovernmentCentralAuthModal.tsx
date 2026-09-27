@@ -66,7 +66,7 @@ export const GovernmentCentralAuthModal: React.FC<GovernmentCentralAuthModalProp
   // Webhook State
   const [govDocWebhookUrl, setGovDocWebhookUrl] = useState('');
   const [govDocBotName, setGovDocBotName] = useState('Arsip & Dokumen Resmi Kenegaraan');
-  const [govDocBotAvatar, setGovDocBotAvatar] = useState('https://cdn-icons-png.flaticon.com/512/3135/3135715.png');
+  const [govDocBotAvatar, setGovDocBotAvatar] = useState('https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png');
   const [govDocAutoSend, setGovDocAutoSend] = useState(true);
 
   // Status & Feedback
@@ -85,7 +85,7 @@ export const GovernmentCentralAuthModal: React.FC<GovernmentCentralAuthModalProp
       const cfg = getSavedGovDocumentWebhookConfig();
       setGovDocWebhookUrl(cfg.webhookUrl || '');
       setGovDocBotName(cfg.botName || 'Arsip & Dokumen Resmi Kenegaraan');
-      setGovDocBotAvatar(cfg.botAvatar || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png');
+      setGovDocBotAvatar(cfg.botAvatar || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png');
       setGovDocAutoSend(cfg.autoSendOnSave !== false);
 
       setSecurityStatus(getStateSecurityStatus());
@@ -742,7 +742,7 @@ export const GovernmentCentralAuthModal: React.FC<GovernmentCentralAuthModalProp
                       type="url"
                       value={govDocBotAvatar}
                       onChange={(e) => setGovDocBotAvatar(e.target.value)}
-                      placeholder="https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+                      placeholder="https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png"
                       className="w-full bg-[#0D1117] border border-gray-700 rounded-lg px-3 py-2 text-gray-100 font-mono text-xs focus:border-blue-500 focus:outline-none"
                     />
                   </div>

@@ -35,7 +35,7 @@ export const GovernmentWebhookModal: React.FC<Props> = ({ isOpen, onClose }) => 
   const [botToken, setBotToken] = useState('');
   const [showToken, setShowToken] = useState(false);
   const [botName, setBotName] = useState('Sekretariat Negara | High State');
-  const [botAvatar, setBotAvatar] = useState('https://cdn-icons-png.flaticon.com/512/3135/3135715.png');
+  const [botAvatar, setBotAvatar] = useState('https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png');
   const [embedTitle, setEmbedTitle] = useState('🏛️ Kredensial Akun Portal Pemerintahan HighState');
   const [embedDesc, setEmbedDesc] = useState('Selamat bertugas! Akun dinas kenegaraan Anda telah resmi diterbitkan oleh Jajaran Eksekutif Negara. Gunakan kredensial di bawah ini untuk mengakses Portal Resmi Pemerintahan:');
   const [embedColor, setEmbedColor] = useState('#F59E0B');
@@ -78,7 +78,7 @@ export const GovernmentWebhookModal: React.FC<Props> = ({ isOpen, onClose }) => 
       const savedBot = getSavedDiscordBotConfig();
       setBotToken(savedBot.botToken || '');
       setBotName(savedBot.botName || 'Sekretariat Negara | High State');
-      setBotAvatar(savedBot.botAvatar || 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png');
+      setBotAvatar(savedBot.botAvatar || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png');
       setEmbedTitle(savedBot.embedTitle || '🏛️ Kredensial Akun Portal Pemerintahan HighState');
       setEmbedDesc(savedBot.embedDescription || 'Selamat bertugas! Akun dinas kenegaraan Anda telah resmi diterbitkan oleh Jajaran Eksekutif Negara. Gunakan kredensial di bawah ini untuk mengakses Portal Resmi Pemerintahan:');
       setEmbedColor(savedBot.embedColor || '#F59E0B');

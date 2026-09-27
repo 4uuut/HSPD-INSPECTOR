@@ -14,7 +14,7 @@ interface Props {
 
 export const SystemPingModal: React.FC<Props> = ({ isOpen, onClose, currentOfficer }) => {
   const [targetChannelId, setTargetChannelId] = useState<string>(() => {
-    return localStorage.getItem('hspd_changelog_channel_id') || '1550418868814610433';
+    return localStorage.getItem('hspd_ping_channel_id') || '1550418868814610433';
   });
   const [isSending, setIsSending] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string; data?: any } | null>(null);
@@ -23,6 +23,12 @@ export const SystemPingModal: React.FC<Props> = ({ isOpen, onClose, currentOffic
   const [autoPingEnabled, setAutoPingEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('hspd_auto_ping_enabled');
     return saved === null ? true : saved === 'true';
+  });
+  const [donationUrl, setDonationUrl] = useState<string>(() => {
+    return localStorage.getItem('hspd_donation_url') || 'https://saweria.co/linuxsamp';
+  });
+  const [websiteUrl, setWebsiteUrl] = useState<string>(() => {
+    return localStorage.getItem('hspd_website_url') || 'https://mdc-hspd-inspector.vercel.app/';
   });
 
   // Fetch live server health stats on modal open
@@ -33,6 +39,16 @@ export const SystemPingModal: React.FC<Props> = ({ isOpen, onClose, currentOffic
       if (res.ok) {
         const data = await res.json();
         setServerStats(data);
+      }
+      const cfgRes = await fetch('/api/discord/bot-config');
+      if (cfgRes.ok) {
+        const cfgData = await cfgRes.json();
+        if (cfgData.config?.donationUrl) {
+          setDonationUrl(cfgData.config.donationUrl);
+        }
+        if (cfgData.config?.websiteUrl) {
+          setWebsiteUrl(cfgData.config.websiteUrl);
+        }
       }
     } catch (e) {
       console.warn('Failed to fetch ping status:', e);
@@ -50,15 +66,27 @@ export const SystemPingModal: React.FC<Props> = ({ isOpen, onClose, currentOffic
   }, [isOpen]);
 
   const handleSendPingNow = async () => {
+    if (isSending) return;
     setIsSending(true);
     setResult(null);
     try {
-      localStorage.setItem('hspd_changelog_channel_id', targetChannelId);
+      localStorage.setItem('hspd_ping_channel_id', targetChannelId);
+      localStorage.setItem('hspd_donation_url', donationUrl);
+      localStorage.setItem('hspd_website_url', websiteUrl);
+
+      // Sync config to backend
+      fetch('/api/discord/bot-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ donationUrl, websiteUrl })
+      }).catch(() => {});
+
       const res = await sendSystemPingToDiscord({
         channelId: targetChannelId || '1550418868814610433',
         triggerBy: `${currentOfficer?.name || 'Petugas'} (${currentOfficer?.badge || 'HSPD'})`,
-        websiteUrl: window.location.origin
-      });
+        websiteUrl: websiteUrl || 'https://mdc-hspd-inspector.vercel.app/',
+        donationUrl: donationUrl || 'https://saweria.co/linuxsamp'
+      } as any);
       setResult(res);
       fetchLiveStats();
     } catch (err: any) {
@@ -125,7 +153,7 @@ export const SystemPingModal: React.FC<Props> = ({ isOpen, onClose, currentOffic
               <span>SISTEM PENGIRIMAN: OTOMATIS & MANUAL</span>
             </div>
             <p className="text-gray-300 leading-relaxed">
-              • <strong>Otomatis Kirim:</strong> Sistem sudah disetel <strong>aktif otomatis</strong> mengirimkan ping laporan status ke channel Discord <strong className="text-blue-300 font-mono">1550418868814610433</strong> saat server dimulai dan secara berkala setiap 60 menit.<br />
+              • <strong>Otomatis Kirim:</strong> Sistem sudah disetel <strong>aktif otomatis</strong> mengirimkan ping laporan status ke channel Discord <strong className="text-blue-300 font-mono">1550418868814610433</strong> saat server dimulai dan secara berkala <strong>1 hari sekali (24 jam)</strong>.<br />
               • <strong>Manual Kirim (Tombol Instan):</strong> Anda dapat menekan tombol <strong>&quot;⚡ Kirim Ping Status Sekarang&quot;</strong> di bawah ini kapan saja untuk langsung mengirimkan laporan status terbaru ke Discord.
             </p>
           </div>
@@ -220,13 +248,89 @@ export const SystemPingModal: React.FC<Props> = ({ isOpen, onClose, currentOffic
                 type="button"
                 onClick={() => {
                   setTargetChannelId('1550418868814610433');
-                  localStorage.setItem('hspd_changelog_channel_id', '1550418868814610433');
+                  localStorage.setItem('hspd_ping_channel_id', '1550418868814610433');
                 }}
                 className="px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-mono transition"
                 title="Reset ke Channel 1550418868814610433"
               >
                 Default 1550418868814610433
               </button>
+            </div>
+          </div>
+
+          {/* Tombol Interaktif Pesan Bot (Channel 1550418868814610433) */}
+          <div className="p-3.5 bg-[#0D1117] border border-blue-900/60 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-200 flex items-center gap-1.5">
+                <ExternalLink className="w-3.5 h-3.5 text-blue-400" />
+                <span>Tombol Tautan Pesan Bot (Discord Components)</span>
+              </span>
+              <span className="text-[10px] text-blue-300 font-mono bg-blue-950/80 px-2 py-0.5 rounded border border-blue-800/60">
+                ActionRow • 2 Tombol Aktif
+              </span>
+            </div>
+
+            {/* Live Preview of Discord Buttons */}
+            <div className="p-3 bg-[#161B22] rounded-lg border border-gray-800 space-y-2">
+              <span className="text-[10px] text-gray-400 font-medium block">Tampilan Tombol di Discord:</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href={donationUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#2B2D31] hover:bg-[#35373C] text-gray-200 text-xs font-semibold rounded-md border border-[#3E4047] shadow-sm transition group"
+                >
+                  <span>Donasi</span>
+                  <ExternalLink className="w-3.5 h-3.5 text-gray-400 group-hover:text-gray-200" />
+                </a>
+
+                <a
+                  href={websiteUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#2B2D31] hover:bg-[#35373C] text-gray-200 text-xs font-semibold rounded-md border border-[#3E4047] shadow-sm transition group"
+                >
+                  <span>🌐 Website MDC</span>
+                  <ExternalLink className="w-3.5 h-3.5 text-gray-400 group-hover:text-gray-200" />
+                </a>
+              </div>
+            </div>
+
+            {/* Config Inputs */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                  🎁 URL Tombol Donasi (Saweria/Trakteer):
+                </label>
+                <input
+                  type="text"
+                  value={donationUrl}
+                  onChange={(e) => {
+                    const val = e.target.value.trim();
+                    setDonationUrl(val);
+                    localStorage.setItem('hspd_donation_url', val);
+                  }}
+                  placeholder="https://saweria.co/linuxsamp"
+                  className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 rounded-lg text-xs font-mono text-gray-200 focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-gray-300 mb-1">
+                  🌐 URL Tombol Website MDT:
+                </label>
+                <input
+                  type="text"
+                  value={websiteUrl}
+                  onChange={(e) => {
+                    const val = e.target.value.trim();
+                    setWebsiteUrl(val);
+                    localStorage.setItem('hspd_website_url', val);
+                  }}
+                  placeholder="https://mdc-hspd-inspector.vercel.app/"
+                  className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 rounded-lg text-xs font-mono text-gray-200 focus:outline-hidden focus:border-blue-500"
+                />
+              </div>
             </div>
           </div>
 

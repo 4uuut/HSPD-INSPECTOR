@@ -37,6 +37,10 @@ export interface DiscordBotServerConfig {
   rosterChannelName?: string;
   caseChannelId?: string;
   caseChannelName?: string;
+  donationUrl?: string; // URL Saweria / Trakteer / Donasi (default: https://saweria.co/linuxsamp)
+  websiteUrl?: string; // URL Website (default: https://mdc-hspd-inspector.vercel.app/)
+  donationButtonLabel?: string; // Default: 'Donasi'
+  websiteButtonLabel?: string; // Default: 'Website MDC'
   prefix?: string;
   updatedAt?: number;
   updatedBy?: string;
@@ -62,31 +66,29 @@ export interface SystemUpdatePayload {
 
 // Data pembaruan sistem terbaru untuk disiarkan otomatis oleh bot ke Discord
 export const LATEST_SYSTEM_UPDATE: SystemUpdatePayload = {
-  version: 'v4.2.0',
-  title: 'Pembaruan Sistem MDT HSPD - Pengali Denda Kasus, Studio Dokumen 1 Halaman & Monitor Ping Status Real-Time',
+  version: 'v4.2.2',
+  title: 'Pembaruan Sistem MDT HSPD - Sinkronisasi Instan Edit PIN Roster & Integrasi Penuh Otorisasi Reset PIN',
   headerText: '[ PEMBERITAHUAN RESMI PEMBARUAN & PENYEMPURNAAN SISTEM MDT HSPD ]',
-  customDescription: 'Sistem operasional MDT HSPD telah diperbarui ke versi v4.2.0. Pembaruan ini mencakup penambahan faktor pengali dan nominal kustom denda penindakan, penyempurnaan tata letak dokumen kepolisian 1 halaman penuh, serta modul pemantauan ping status website dan bot Discord:',
-  embedColor: 0x2563EB,
+  customDescription: 'Sistem operasional MDT HSPD telah diperbarui ke versi v4.2.2. Pembaruan ini menyempurnakan keandalan otentikasi login, sinkronisasi instan PIN hasil edit di Roster Anggota, serta integrasi langsung permohonan lupa/ganti PIN ke database sehingga langsung aktif seketika tanpa tertimpa:',
+  embedColor: 0x00A8FF,
   newFeatures: [
-    'Faktor Pengali Denda (x1, x2, x3, x4, x5) & Nominal Khusus (Isi Sendiri) di Formulir Kasus Penindakan: Petugas dapat secara instan melipatgandakan denda kasus untuk pelanggar berulang / sindikat atau menginput nominal denda manual dengan kalkulasi otomatis',
-    'Studio Dokumen & Surat Resmi Terpadu 1 Halaman Pas (A4 Fit Lock): Seluruh tombol aksi cetak, ekspor gambar resolusi tinggi (PNG/JPG), dan PDF disatukan dalam tata letak rapi dengan jaminan pas 1 lembar tanpa tumpahan ke halaman kedua',
-    'Monitor Ping Status Website & Bot Discord Real-Time (Channel 1550418868814610433): Pengiriman laporan ping status kesehatan website (online, latensi ms, server uptime) dan status bot Discord (gateway ping ms, tag bot, modul dispatch aktif) secara langsung ke Discord'
+    'Sinkronisasi Instan Edit PIN Roster ke Login: PIN yang diubah melalui menu "Edit Petugas" di Roster Anggota kini langsung tersimpan ke Central PIN Registry dan Firestore sehingga petugas dapat langsung login menggunakan PIN baru seketika tanpa jeda',
+    'Integrasi Otomatis Permohonan Lupa/Ganti PIN: PIN baru yang diajukan atau disetujui atasan otomatis masuk ke database roster dan langsung dapat dipakai login seketika di portal MDT',
+    'Proteksi Anti-Overwrite PIN Resmi: Mengamankan PIN hasil kustomisasi petugas/atasan agar tidak pernah tertimpa kembali ke nilai default saat penggabungan data roster'
   ],
   removedOrAdjusted: [
-    'Restrukturisasi Bilah Tombol Studio Dokumen: Tombol yang sebelumnya menyebar kini dikelompokkan dalam satu bilah aksi terpadu (Cetak Gambar, Dokumen A4, dan Pengaturan Kerapatan Layout)',
-    'Penyelarasan Channel Changelog & Monitoring Otomatis: Diarahkan langsung ke Channel ID 1550418868814610433'
+    'Pembersihan Redundansi Validasi PIN: Menghilangkan ketidaksesuaian verifikasi PIN antara storage lokal browser dan server gateway'
   ],
   improvements: [
-    'Mode Kerapatan Tata Letak Dokumen (Normal, Compact, Tight): Menjamin surat dinas yang memiliki banyak pihak dan pasal tetap tercetak pas dalam satu lembar A4',
-    'Sinkronisasi Kalkulasi Denda Berlapis: Penggabungan otomatis antara diskon kooperatif (-20%), faktor pengali pelanggaran, serta nominal custom override'
+    'Centralized Persistent PIN Registry: Seluruh perubahan PIN diikat permanen dengan nomor badge, nama petugas, dan ID akun',
+    'Sinkronisasi Realtime Lintas Sesi: Perubahan PIN oleh atasan langsung memutakhirkan sesi login aktif petugas yang bersangkutan'
   ],
   bugFixes: [
-    'Perbaikan Siaran Bot Changelog Berulang: Memperbaiki sistem pengumuman bot Discord yang sebelumnya selalu mengirim pesan teks versi lawas (v3.5.0) yang sama',
-    'Perbaikan Cetak Dokumen Blank Halaman Kedua: Penerapan aturan CSS @media print (break-inside: avoid, max-height: 284mm) sehingga pencetakan PDF selalu 1 lembar bersih',
-    'Perbaikan Rekam Jejak Total Denda: Nilai denda hasil pengali dan nominal kustom kini tersimpan presisi ke CAD Roster, Riwayat Kasus, dan Webhook Discord'
+    'Perbaikan Login Setelah Edit PIN: Memperbaiki kendala di mana PIN yang telah diedit di roster tidak terbaca saat petugas mencoba login',
+    'Perbaikan Fitur Lupa PIN: Memastikan PIN hasil persetujuan manual maupun otomatis langsung tertulis ke database roster dan aktif seketika'
   ],
-  extraNotes: 'Pembaruan versi v4.2.0 telah aktif secara penuh di seluruh terminal MDT HSPD. Anda juga dapat memicu pengiriman ping kesehatan status server kapan saja melalui panel pengaturan atau command Discord.',
-  mentionRole: '@everyone',
+  extraNotes: '',
+  mentionRole: 'none',
   authorName: 'HSPD High Command',
   authorRank: 'Chief of Police',
   authorBadge: 'HQ-01'
@@ -186,6 +188,32 @@ export const DISCORD_SLASH_COMMANDS = [
         name: 'test',
         description: 'Kirim pesan uji coba ke channel pengumuman',
         type: 1
+      },
+      {
+        name: 'setdonation',
+        description: 'Atur tautan/URL tombol Donasi untuk pesan bot di channel status',
+        type: 1,
+        options: [
+          {
+            name: 'url',
+            description: 'Tautan Saweria / Trakteer / Donasi (Contoh: https://saweria.co/linuxsamp)',
+            type: 3,
+            required: true
+          }
+        ]
+      },
+      {
+        name: 'setwebsite',
+        description: 'Atur tautan/URL tombol Website untuk pesan bot di channel status',
+        type: 1,
+        options: [
+          {
+            name: 'url',
+            description: 'Tautan Website (Default: https://mdc-hspd-inspector.vercel.app/)',
+            type: 3,
+            required: true
+          }
+        ]
       }
     ]
   },
@@ -405,10 +433,17 @@ class DiscordGatewayManager {
   private sessionId: string | null = null;
   private resumeGatewayUrl: string | null = null;
   private isExplicitlyStopped: boolean = false;
+  private lastPingSentAt: number = 0;
+  private lastChangelogSentAt: number = 0;
+  private lastChangelogSentVersion: string = '';
   private serverConfig: DiscordBotServerConfig = {
     prefix: '!hspd',
     changelogMentionRole: 'none',
-    changelogChannelId: '1550418868814610433'
+    changelogChannelId: '1547776898833326161',
+    donationUrl: 'https://saweria.co/linuxsamp',
+    websiteUrl: 'https://mdc-hspd-inspector.vercel.app/',
+    donationButtonLabel: 'Donasi',
+    websiteButtonLabel: 'Website MDC'
   };
   private state: DiscordBotGatewayState = {
     isOnline: false,
@@ -427,27 +462,28 @@ class DiscordGatewayManager {
 
   /**
    * Pengiriman otomatis berkala status kesehatan website & bot ke channel Discord (Default: 1550418868814610433)
+   * Disetel 1 hari sekali (24 jam)
    */
   private startAutoPingScheduler() {
-    // Jalankan ping pertama kali setelah 8 detik server aktif
+    // Jalankan ping pertama kali setelah 10 detik server aktif
     setTimeout(() => {
       if (this.serverConfig.autoPingEnabled !== false) {
         this.sendSystemHealthPing({
-          channelId: this.serverConfig.changelogChannelId || '1550418868814610433',
+          channelId: '1550418868814610433',
           triggerBy: 'Sistem Heartbeat Otomatis (Server Startup)'
         }).catch(() => {});
       }
-    }, 8000);
+    }, 10000);
 
-    // Jalankan berkala setiap 60 menit (1 jam)
+    // Jalankan berkala 1 HARI SEKALI (24 jam = 24 * 60 * 60 * 1000 ms)
     setInterval(() => {
       if (this.serverConfig.autoPingEnabled !== false) {
         this.sendSystemHealthPing({
-          channelId: this.serverConfig.changelogChannelId || '1550418868814610433',
-          triggerBy: 'Sistem Heartbeat Otomatis (Rutin 60 Menit)'
+          channelId: '1550418868814610433',
+          triggerBy: 'Sistem Heartbeat Otomatis (Rutin 24 Jam / 1 Hari Sekali)'
         }).catch(() => {});
       }
-    }, 60 * 60 * 1000);
+    }, 24 * 60 * 60 * 1000);
   }
 
   private loadSavedServerConfig() {
@@ -459,15 +495,31 @@ class DiscordGatewayManager {
           this.serverConfig = {
             prefix: '!hspd',
             changelogMentionRole: 'none',
-            changelogChannelId: '1550418868814610433',
+            changelogChannelId: '1547776898833326161',
+            donationUrl: 'https://saweria.co/linuxsamp',
+            websiteUrl: 'https://mdc-hspd-inspector.vercel.app/',
+            donationButtonLabel: 'Donasi',
+            websiteButtonLabel: 'Website MDC',
             ...parsed
           };
           if (!this.serverConfig.changelogChannelId) {
-            this.serverConfig.changelogChannelId = '1550418868814610433';
+            this.serverConfig.changelogChannelId = '1547776898833326161';
+          }
+          if (!this.serverConfig.donationUrl) {
+            this.serverConfig.donationUrl = 'https://saweria.co/linuxsamp';
+          }
+          if (!this.serverConfig.websiteUrl) {
+            this.serverConfig.websiteUrl = 'https://mdc-hspd-inspector.vercel.app/';
+          }
+          if (!this.serverConfig.donationButtonLabel) {
+            this.serverConfig.donationButtonLabel = 'Donasi';
+          }
+          if (!this.serverConfig.websiteButtonLabel) {
+            this.serverConfig.websiteButtonLabel = 'Website MDC';
           }
         }
       } else {
-        this.serverConfig.changelogChannelId = '1550418868814610433';
+        this.serverConfig.changelogChannelId = '1547776898833326161';
         this.saveServerConfig();
       }
     } catch (e) {
@@ -520,7 +572,8 @@ class DiscordGatewayManager {
         method: 'POST',
         headers: {
           'Authorization': `Bot ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'User-Agent': 'DiscordBot (https://ais-hspd.internal, 1.0.0)'
         },
         body: JSON.stringify(payload)
       });
@@ -558,7 +611,7 @@ class DiscordGatewayManager {
     customDescription?: string;
     embedColor?: number;
   }): Promise<{ success: boolean; message: string; channelId?: string }> {
-    const targetChannelId = options.channelId || this.serverConfig.changelogChannelId || '1550418868814610433';
+    const targetChannelId = options.channelId || this.serverConfig.changelogChannelId || '1547776898833326161';
     if (!targetChannelId) {
       return {
         success: false,
@@ -567,6 +620,16 @@ class DiscordGatewayManager {
     }
 
     const ver = (options.version || 'v3.2.0').trim();
+
+    // Deduplication protection: cegah pengiriman rilis yang sama dalam 15 detik (anti double broadcast)
+    const nowMs = Date.now();
+    if (this.lastChangelogSentVersion === ver && (nowMs - this.lastChangelogSentAt) < 15000) {
+      return {
+        success: true,
+        message: `Pembaruan [${ver}] baru saja disiarkan ke <#${targetChannelId}>. Permintaan duplikat dicegah demi menghindari spam.`,
+        channelId: targetChannelId
+      };
+    }
     const title = (options.title || 'Pembaruan Sistem MDT HSPD').trim();
     const mention = (options.mentionRole ?? this.serverConfig.changelogMentionRole ?? '').trim();
     const pingContent = (mention && mention !== 'none' && mention !== 'off') ? `${mention} ` : '';
@@ -605,14 +668,6 @@ class DiscordGatewayManager {
       fields.push({
         name: '🛠️ Perbaikan Bug (Bug Fixes)',
         value: formatted || 'Tidak ada perbaikan bug.',
-        inline: false
-      });
-    }
-
-    if (options.extraNotes && options.extraNotes.trim()) {
-      fields.push({
-        name: '📝 Catatan Rilis & Panduan',
-        value: options.extraNotes.trim(),
         inline: false
       });
     }
@@ -666,6 +721,9 @@ class DiscordGatewayManager {
       };
     }
 
+    this.lastChangelogSentAt = Date.now();
+    this.lastChangelogSentVersion = ver;
+
     return {
       success: true,
       message: `Pembaruan berhasil dikirim ke channel <#${targetChannelId}>!`,
@@ -681,7 +739,10 @@ class DiscordGatewayManager {
     if (!token) return null;
     try {
       const guildsRes = await fetch('https://discord.com/api/v10/users/@me/guilds', {
-        headers: { Authorization: `Bot ${token}` }
+        headers: { 
+          'Authorization': `Bot ${token}`,
+          'User-Agent': 'DiscordBot (https://ais-hspd.internal, 1.0.0)'
+        }
       });
       if (!guildsRes.ok) return null;
       const guilds: any[] = await guildsRes.json();
@@ -689,7 +750,10 @@ class DiscordGatewayManager {
 
       for (const guild of guilds) {
         const channelsRes = await fetch(`https://discord.com/api/v10/guilds/${guild.id}/channels`, {
-          headers: { Authorization: `Bot ${token}` }
+          headers: { 
+            'Authorization': `Bot ${token}`,
+            'User-Agent': 'DiscordBot (https://ais-hspd.internal, 1.0.0)'
+          }
         });
         if (!channelsRes.ok) continue;
         const channels: any[] = await channelsRes.json();
@@ -801,8 +865,19 @@ class DiscordGatewayManager {
     triggerBy?: string;
     websiteUrl?: string;
     webhookUrl?: string;
+    donationUrl?: string;
   }): Promise<{ success: boolean; message: string; channelId?: string; pingStats?: any }> {
-    const targetChannelId = options?.channelId || this.serverConfig.changelogChannelId || '1550418868814610433';
+    const targetChannelId = options?.channelId || '1550418868814610433';
+
+    // Anti-duplikasi Ping: jika ping baru saja terkirim dalam 12 detik terakhir, cegah pengiriman ganda
+    const nowMs = Date.now();
+    if (nowMs - this.lastPingSentAt < 12000) {
+      return {
+        success: true,
+        message: `Laporan ping status baru saja dikirim ke <#${targetChannelId}>. Permintaan ping ganda dicegah.`,
+        channelId: targetChannelId
+      };
+    }
     const now = new Date();
     const wibDateStr = new Intl.DateTimeFormat('id-ID', {
       timeZone: 'Asia/Jakarta',
@@ -827,7 +902,9 @@ class DiscordGatewayManager {
     const uptimeStr = uptimeSec > 0 ? `${uptimeHours}j ${uptimeMins}m ${uptimeSec % 60}s` : 'Baru aktif';
 
     const nodeMemMB = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
-    const siteUrl = options?.websiteUrl || process.env.APP_URL || 'https://ais-dev-hfcwdemzm76lbgjvtwpnf6-80098255775.asia-southeast1.run.app';
+    const effectiveDonationUrl = (options?.donationUrl || this.serverConfig.donationUrl || process.env.DONATION_URL || 'https://saweria.co/linuxsamp').trim();
+    const effectiveWebsiteUrl = (options?.websiteUrl || this.serverConfig.websiteUrl || 'https://mdc-hspd-inspector.vercel.app/').trim();
+    const siteUrl = effectiveWebsiteUrl;
     const webLatency = Math.floor(Math.random() * 15) + 18; // 18-33ms internal container roundtrip
     const gatewayPing = this.state.lastHeartbeatAck ? Math.max(12, Math.min(120, Date.now() - this.state.lastHeartbeatAck)) : 22;
 
@@ -855,14 +932,13 @@ class DiscordGatewayManager {
         icon_url: botAvatar
       },
       title: '📡 Laporan Ping Status Real-Time Website & Bot Discord',
-      description: `Pemeriksaan integritas konektivitas terminal MDT HSPD dan bot dispatch Discord secara otomatis pada channel <#${targetChannelId}>.\n\n🕒 **Waktu Pemeriksaan:** \`${wibDateStr}\`\n👮 **Operator / Pemicu:** \`${options?.triggerBy || 'Sistem Health Monitor HSPD'}\``,
+      description: `Pemeriksaan integritas konektivitas terminal MDT HSPD dan bot dispatch Discord secara berkala.\n\n🕒 **Waktu Pemeriksaan:** \`${wibDateStr}\``,
       color: isBotOnline ? 0x2ECC71 : 0x00A8FF,
       fields: [
         {
           name: '🌐 Status Website & Server MDT',
           value: [
             `• Status: **🟢 ONLINE & AKTIF**`,
-            `• URL Aplikasi: [Buka Portal Web](${siteUrl})`,
             `• Kecepatan Respon: \`${webLatency} ms\` (Sangat Baik)`,
             `• Engine: \`Vite + React + Express Full-Stack\``
           ].join('\n'),
@@ -874,29 +950,55 @@ class DiscordGatewayManager {
             `• Status Bot: **${isBotOnline ? '🟢 AKTIF & TERHUBUNG' : '🟢 AKTIF (API REST Siaga)'}**`,
             `• Tag Bot: \`${botName}\``,
             `• Latensi Gateway: \`${gatewayPing} ms\``,
-            `• Waktu Aktif (Uptime): \`${uptimeStr}\``,
-            `• Target Channel: <#${targetChannelId}>`
+            `• Waktu Aktif (Uptime): \`${uptimeStr}\``
           ].join('\n'),
           inline: false
         }
       ],
       footer: {
-        text: `HSPD System Diagnostics • Channel ID: ${targetChannelId} • Status Operasional Optimal`,
+        text: `HSPD System Diagnostics • Status Operasional Optimal`,
         icon_url: botAvatar
       },
       timestamp: now.toISOString()
     };
 
+    const donationLabel = (this.serverConfig.donationButtonLabel || 'Donasi').trim();
+    const websiteLabel = (this.serverConfig.websiteButtonLabel || 'Website MDC').trim();
+
+    // Komponen Tombol Pesan Bot: [ Donasi ↗ ] dan [ 🌐 Website MDC ↗ ]
+    const components = [
+      {
+        type: 1, // ACTION_ROW
+        components: [
+          {
+            type: 2, // BUTTON
+            style: 5, // LINK (Discord otomatis menampilkan ikon ↗)
+            label: donationLabel,
+            url: effectiveDonationUrl
+          },
+          {
+            type: 2, // BUTTON
+            style: 5, // LINK
+            label: websiteLabel,
+            url: effectiveWebsiteUrl,
+            emoji: { name: '🌐' }
+          }
+        ]
+      }
+    ];
+
     const payload = {
       username: botName || 'HSPD Roleplay Assistant',
       avatar_url: botAvatar,
-      content: `📡 **[ PING KESEHATAN SISTEM: WEBSITE & BOT ONLINE ]**\nNotifikasi status operasional server untuk channel <#${targetChannelId}>`,
-      embeds: [embed]
+      content: `📡 **[ PING KESEHATAN SISTEM: WEBSITE & BOT ONLINE ]**`,
+      embeds: [embed],
+      components
     };
 
     // 1. Try bot channel message
     const res = await this.sendChannelMessage(targetChannelId, payload);
     if (res.success) {
+      this.lastPingSentAt = Date.now();
       return {
         success: true,
         message: `Ping status website & bot berhasil dikirim ke channel Discord <#${targetChannelId}>!`,
@@ -914,6 +1016,7 @@ class DiscordGatewayManager {
           body: JSON.stringify(payload)
         });
         if (hookRes.ok) {
+          this.lastPingSentAt = Date.now();
           return {
             success: true,
             message: `Ping status website & bot berhasil dikirim melalui Discord Webhook!`,
@@ -936,16 +1039,17 @@ class DiscordGatewayManager {
 
   private loadSavedToken() {
     try {
-      if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_BOT_TOKEN.trim()) {
-        this.token = process.env.DISCORD_BOT_TOKEN.trim();
-        return;
-      }
       if (fs.existsSync(CONFIG_FILE_PATH)) {
         const content = fs.readFileSync(CONFIG_FILE_PATH, 'utf-8');
         const parsed = JSON.parse(content);
-        if (parsed.token && typeof parsed.token === 'string') {
+        if (parsed.token && typeof parsed.token === 'string' && parsed.token.length > 20) {
           this.token = parsed.token.trim();
+          return;
         }
+      }
+      if (process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_BOT_TOKEN.trim()) {
+        this.token = process.env.DISCORD_BOT_TOKEN.trim();
+        return;
       }
     } catch (e) {
       console.warn('[Discord Gateway] Failed to read saved session config:', e);
@@ -994,7 +1098,10 @@ class DiscordGatewayManager {
     // Validate token via Discord REST API first
     try {
       const meRes = await fetch('https://discord.com/api/v10/users/@me', {
-        headers: { Authorization: `Bot ${tokenToUse}` }
+        headers: { 
+          'Authorization': `Bot ${tokenToUse}`,
+          'User-Agent': 'DiscordBot (https://ais-hspd.internal, 1.0.0)'
+        }
       });
       if (!meRes.ok) {
         const errJson = await meRes.json().catch(() => ({}));
@@ -1999,6 +2106,8 @@ class DiscordGatewayManager {
           'changelog', 'release', 'rilis',
           'setchannel', 'set-channel', 'channel',
           'setping', 'ping',
+          'setdonation', 'donasi', 'donation', 'saweria',
+          'setwebsite', 'website',
           'config', 'settings', 'setting', 'konfig',
           'status', 'info',
           'test', 'tes', 'uji',
@@ -2271,6 +2380,126 @@ class DiscordGatewayManager {
               description: `Pengaturan mention untuk rilis pembaruan kini telah diubah menjadi: \`${cleanRole}\`\n\nSetiap pengumuman pembaruan yang dikirim akan secara otomatis menyertakan mention ini.`,
               color: 0x10B981
             }]
+          });
+          return;
+        }
+
+        // -------------------------------------------------------------
+        // CMD: SETDONATION / DONASI
+        // -------------------------------------------------------------
+        if (command === 'setdonation' || command === 'donasi' || command === 'donation' || command === 'saweria') {
+          const urlArg = (args[0] || '').trim();
+          if (urlArg && (urlArg.startsWith('http://') || urlArg.startsWith('https://'))) {
+            if (!canConfigure) {
+              await this.sendChannelMessage(currentChannelId, {
+                message_reference: { message_id: data.id },
+                embeds: [{
+                  title: '⛔ Akses Ditolak',
+                  description: 'Anda memerlukan izin Administrator atau Atasan untuk mengubah link donasi.',
+                  color: 0xEF4444
+                }]
+              });
+              return;
+            }
+
+            this.updateServerConfig({
+              donationUrl: urlArg,
+              updatedBy: `${author.username} (${author.id})`
+            });
+
+            await this.sendChannelMessage(currentChannelId, {
+              message_reference: { message_id: data.id },
+              embeds: [{
+                title: '✅ Tautan Donasi Berhasil Diperbarui!',
+                description: `Tombol **[ Donasi ↗ ]** pada pesan bot di channel status kini mengarah ke:\n\`${urlArg}\``,
+                color: 0x10B981
+              }]
+            });
+            return;
+          }
+
+          // Tampilkan link donasi saat ini dengan tombol langsung
+          const currentDonationUrl = this.serverConfig.donationUrl || 'https://saweria.co/linuxsamp';
+          await this.sendChannelMessage(currentChannelId, {
+            message_reference: { message_id: data.id },
+            embeds: [{
+              title: '🎁 DUKUNGAN & DONASI PENGEMBANGAN MDT',
+              description: `Terima kasih atas apresiasi dan dukungan Anda untuk pengembangan sistem MDT HSPD!\n\n💳 **Tautan Donasi:** [${currentDonationUrl}](${currentDonationUrl})\n\n*(Untuk mengubah: \`!hspd setdonation https://saweria.co/username\`)*`,
+              color: 0x00A8FF
+            }],
+            components: [
+              {
+                type: 1,
+                components: [
+                  {
+                    type: 2,
+                    style: 5,
+                    label: 'Donasi',
+                    url: currentDonationUrl
+                  }
+                ]
+              }
+            ]
+          });
+          return;
+        }
+
+        // -------------------------------------------------------------
+        // CMD: SETWEBSITE / WEBSITE
+        // -------------------------------------------------------------
+        if (command === 'setwebsite' || command === 'website') {
+          const urlArg = (args[0] || '').trim();
+          if (urlArg && (urlArg.startsWith('http://') || urlArg.startsWith('https://'))) {
+            if (!canConfigure) {
+              await this.sendChannelMessage(currentChannelId, {
+                message_reference: { message_id: data.id },
+                embeds: [{
+                  title: '⛔ Akses Ditolak',
+                  description: 'Anda memerlukan izin Administrator atau Atasan untuk mengubah tautan website.',
+                  color: 0xEF4444
+                }]
+              });
+              return;
+            }
+
+            this.updateServerConfig({
+              websiteUrl: urlArg,
+              updatedBy: `${author.username} (${author.id})`
+            });
+
+            await this.sendChannelMessage(currentChannelId, {
+              message_reference: { message_id: data.id },
+              embeds: [{
+                title: '✅ Tautan Website Berhasil Diperbarui!',
+                description: `Tombol **[ 🌐 Website MDC ↗ ]** pada pesan bot kini mengarah ke:\n\`${urlArg}\``,
+                color: 0x10B981
+              }]
+            });
+            return;
+          }
+
+          const currentSiteUrl = this.serverConfig.websiteUrl || 'https://mdc-hspd-inspector.vercel.app/';
+          await this.sendChannelMessage(currentChannelId, {
+            message_reference: { message_id: data.id },
+            embeds: [{
+              title: '🌐 TAUTAN RESMI WEBSITE MDT HSPD',
+              description: `Akses terminal kepolisian langsung melalui peramban browser Anda:\n\n👉 [${currentSiteUrl}](${currentSiteUrl})`,
+              color: 0x00A8FF
+            }],
+            components: [
+              {
+                type: 1,
+                components: [
+                  {
+                    type: 2,
+                    style: 5,
+                    label: 'Website MDC',
+                    url: currentSiteUrl,
+                    emoji: { name: '🌐' }
+                  }
+                ]
+              }
+            ]
           });
           return;
         }
@@ -3019,10 +3248,20 @@ class DiscordGatewayManager {
           name: '📁 Channel Kasus & Investigasi', 
           value: this.serverConfig.caseChannelId ? `<#${this.serverConfig.caseChannelId}>` : '`Gunakan Webhook / Belum diatur`', 
           inline: true 
+        },
+        {
+          name: '💳 Link Tombol Donasi (Status Channel)',
+          value: this.serverConfig.donationUrl ? `[${this.serverConfig.donationUrl}](${this.serverConfig.donationUrl})` : '`https://saweria.co/linuxsamp` *(Ubah: `!hspd setdonation <url>`)*',
+          inline: false
+        },
+        {
+          name: '🌐 Link Tombol Website (Status Channel)',
+          value: this.serverConfig.websiteUrl ? `[${this.serverConfig.websiteUrl}](${this.serverConfig.websiteUrl})` : '`https://mdc-hspd-inspector.vercel.app/` *(Ubah: `!hspd setwebsite <url>`)*',
+          inline: false
         }
       ],
       footer: {
-        text: 'Gunakan perintah !hspd setchannel atau /hspd setchannel untuk mengubah channel.'
+        text: 'Gunakan perintah !hspd setchannel, !hspd setdonation, atau !hspd setwebsite untuk mengatur bot.'
       },
       timestamp: new Date().toISOString()
     };
@@ -4184,6 +4423,74 @@ class DiscordGatewayManager {
             embeds: [{
               title: '✅ Mention Ping Berhasil Diubah!',
               description: `Pengaturan mention untuk rilis pembaruan kini disetel ke: \`${roleVal}\``,
+              color: 0x10B981
+            }]
+          }
+        });
+      }
+
+      // SETDONATION (/hspd setdonation)
+      if (effectiveCmd === 'setdonation') {
+        if (!(await getCanConfigure())) {
+          return await sendCallback({
+            type: 4,
+            data: {
+              flags: 64,
+              embeds: [{
+                title: '⛔ Akses Ditolak',
+                description: 'Anda memerlukan izin Administrator atau Atasan untuk mengubah link donasi.',
+                color: 0xEF4444
+              }]
+            }
+          });
+        }
+
+        const urlVal = (effectiveOptions.find((o: any) => o.name === 'url')?.value || '').trim();
+        this.updateServerConfig({
+          donationUrl: urlVal,
+          updatedBy: `${discordUser.username} (${discordUser.id})`
+        });
+
+        return await sendCallback({
+          type: 4,
+          data: {
+            embeds: [{
+              title: '✅ Tautan Donasi Berhasil Diperbarui!',
+              description: `Tombol **[ Donasi ↗ ]** pada pesan bot di channel status kini mengarah ke:\n\`${urlVal}\``,
+              color: 0x10B981
+            }]
+          }
+        });
+      }
+
+      // SETWEBSITE (/hspd setwebsite)
+      if (effectiveCmd === 'setwebsite') {
+        if (!(await getCanConfigure())) {
+          return await sendCallback({
+            type: 4,
+            data: {
+              flags: 64,
+              embeds: [{
+                title: '⛔ Akses Ditolak',
+                description: 'Anda memerlukan izin Administrator atau Atasan untuk mengubah tautan website.',
+                color: 0xEF4444
+              }]
+            }
+          });
+        }
+
+        const urlVal = (effectiveOptions.find((o: any) => o.name === 'url')?.value || '').trim();
+        this.updateServerConfig({
+          websiteUrl: urlVal,
+          updatedBy: `${discordUser.username} (${discordUser.id})`
+        });
+
+        return await sendCallback({
+          type: 4,
+          data: {
+            embeds: [{
+              title: '✅ Tautan Website Berhasil Diperbarui!',
+              description: `Tombol **[ 🌐 Website MDC ↗ ]** pada pesan bot kini mengarah ke:\n\`${urlVal}\``,
               color: 0x10B981
             }]
           }

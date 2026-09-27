@@ -15,6 +15,7 @@ import { mergeWithOfficialRoster, HSPD_OFFICIAL_ROSTER } from '../data/hspdOffic
 import { isAtasanRank } from '../types';
 import { isOfficerDischarged, getDischargedOfficers, isOfficerPermanentlyPurged, getPermanentlyPurgedOfficers } from '../utils/dischargeStorage';
 import { buildApiUrl, safeFetchJson } from '../utils/discordWebhook';
+import { setOfficerCustomPin } from '../utils/officerPinRegistry';
 
 export interface FirebaseSyncStatus {
   connected: boolean;
@@ -1132,6 +1133,7 @@ export function initRealtimeFirebaseSync() {
 
                     if (isMatch && officer.pin !== targetPin) {
                       officer.pin = targetPin;
+                      setOfficerCustomPin(officer.badge, officer.name, targetPin, officer.id);
                       rosterModified = true;
                     }
                   });

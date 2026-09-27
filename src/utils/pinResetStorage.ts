@@ -9,6 +9,7 @@ import {
 import { getAllOfficersDutyRegistry, migrateOfficerDutyBadge } from './officerDutyStorage';
 import { pushAllToFirestore, pushToFirestore, deleteFromFirestore } from '../services/firebaseRealtimeSync';
 import { HSPD_OFFICIAL_ROSTER, mergeWithOfficialRoster } from '../data/hspdOfficialRoster';
+import { setOfficerCustomPin, getOfficerCustomPin } from './officerPinRegistry';
 
 const STORAGE_KEY = 'HSPD_PIN_RESET_REQUESTS_V1';
 const AUTO_GRANT_CONFIG_KEY = 'HSPD_PIN_RESET_AUTO_GRANT_CONFIG_V1';
@@ -219,13 +220,18 @@ export function updateOfficerPinInRoster(
       updated = true;
       const safeBadge = isBadgeString(badgeOrName) ? badgeOrName : officer.badge;
       const safeName = (officerName && !isBadgeString(officerName)) ? officerName : officer.name;
-      return {
+      // Register custom PIN in persistent registry
+      setOfficerCustomPin(safeBadge, safeName, trimmedPin, officer.id || officerId);
+      const updatedOfficerObj = {
         ...officer,
         name: safeName,
         badge: safeBadge,
         pin: trimmedPin,
         _updatedAt: Date.now()
       };
+      // Direct push this updated officer document to Firestore
+      pushToFirestore('ROSTER', updatedOfficerObj, updatedOfficerObj.id).catch(() => {});
+      return updatedOfficerObj;
     }
     return officer;
   });
@@ -238,14 +244,20 @@ export function updateOfficerPinInRoster(
       (officerId && o.id === officerId)
     );
     if (candidate) {
-      updatedRoster.push({
+      setOfficerCustomPin(candidate.badge, candidate.name, trimmedPin, candidate.id);
+      const newCandidate = {
         ...candidate,
         pin: trimmedPin,
         _updatedAt: Date.now()
-      });
+      };
+      updatedRoster.push(newCandidate);
+      pushToFirestore('ROSTER', newCandidate, newCandidate.id).catch(() => {});
       updated = true;
     }
   }
+
+  // Also ensure PIN registry has this mapping even if name/badge was partial
+  setOfficerCustomPin(badgeOrName, officerName || badgeOrName, trimmedPin, officerId);
 
   // Asynchronously sync to server backend so server memory and Firestore have the new PIN immediately
   try {
@@ -303,6 +315,24 @@ export function updateOfficerAccountInRoster(
     warnings: updated.warnings || originalOfficer?.warnings || [],
     _updatedAt: Date.now()
   };
+
+  // Register in central PIN registry so official roster merge never overwrites the new PIN
+  if (finalOfficer.pin) {
+    setOfficerCustomPin(
+      finalOfficer.badge,
+      finalOfficer.name,
+      finalOfficer.pin,
+      finalOfficer.id
+    );
+    if (cleanOriginalBadge || cleanOriginalName) {
+      setOfficerCustomPin(
+        cleanOriginalBadge || finalOfficer.badge,
+        cleanOriginalName || finalOfficer.name,
+        finalOfficer.pin,
+        originalOfficer?.id
+      );
+    }
+  }
 
   const isTargetMatch = (officer: OfficerAccount): boolean => {
     if (!officer) return false;

@@ -53,6 +53,7 @@ import {
 } from '../services/firebaseRealtimeSync';
 import { mergeWithOfficialRoster, HSPD_OFFICIAL_ROSTER, extractBadgeNumeric } from '../data/hspdOfficialRoster';
 import { updateOfficerPinInRoster, updateOfficerAccountInRoster, getRosterFromStorage, saveRosterToStorage, isOfficerMatch, isSameOfficerAccount } from '../utils/pinResetStorage';
+import { setOfficerCustomPin } from '../utils/officerPinRegistry';
 import { 
   getDischargedOfficers, 
   restoreDischargedOfficer, 
@@ -1105,6 +1106,15 @@ export const RosterManagement: React.FC<Props> = ({
       promotedBy: promotedByText,
       _updatedAt: Date.now()
     };
+
+    // Explicitly anchor updated PIN in central registry and persistent storage
+    if (finalPin) {
+      setOfficerCustomPin(finalBadge, trimmedName, finalPin, editingOfficer.id);
+      if (editingOfficer.badge || editingOfficer.name) {
+        setOfficerCustomPin(editingOfficer.badge, editingOfficer.name, finalPin, editingOfficer.id);
+      }
+      updateOfficerPinInRoster(finalBadge, finalPin, trimmedName);
+    }
 
     let dmResultNotice = '';
 

@@ -1034,14 +1034,6 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
         });
       }
 
-      if (extraNotes && extraNotes.trim()) {
-        fields.push({
-          name: '📝 Catatan Rilis & Panduan',
-          value: extraNotes.trim(),
-          inline: false
-        });
-      }
-
       const pingContent = (mentionRole && mentionRole !== 'none' && mentionRole !== 'off') ? `${mentionRole} ` : '';
       const headerTag = headerText?.trim() || '[ PENGUMUMAN PEMBARUAN SISTEM MDT HSPD ]';
       const defaultDesc = `Catatan rilis pembaruan perangkat lunak, penyempurnaan operasional, dan perbaikan kestabilan Terminal Mobile Data Computer (MDC) HSPD.\n\n📅 **Waktu Rilis:** \`${dateStr}\`\n👤 **Dipublikasikan Oleh:** \`${authorName || 'High Command'}\` ${authorBadge ? `(\`${authorBadge}\`)` : ''}`;
@@ -1124,12 +1116,13 @@ apiRouter.post('/discord/trigger-auto-changelog', async (req, res) => {
 // POST /api/discord/send-system-ping - Mengirim status kesehatan website & bot ke channel Discord (default: 1550418868814610433)
 apiRouter.post('/discord/send-system-ping', async (req, res) => {
   try {
-    const { channelId, triggerBy, websiteUrl, webhookUrl } = req.body || {};
+    const { channelId, triggerBy, websiteUrl, webhookUrl, donationUrl } = req.body || {};
     const result = await discordGatewayManager.sendSystemHealthPing({
       channelId: channelId || '1550418868814610433',
       triggerBy,
       websiteUrl,
-      webhookUrl
+      webhookUrl,
+      donationUrl
     });
     return res.json(result);
   } catch (err: any) {
@@ -1160,7 +1153,7 @@ apiRouter.get('/discord/ping-status', (req, res) => {
         botUser: status.botUser,
         hasToken: status.hasToken,
         uptimeSeconds: status.uptimeSeconds,
-        changelogChannelId: serverConfig.changelogChannelId || '1550418868814610433'
+        changelogChannelId: serverConfig.changelogChannelId || '1547776898833326161'
       }
     });
   } catch (err: any) {
