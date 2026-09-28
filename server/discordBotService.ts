@@ -37,7 +37,7 @@ export interface DiscordBotServerConfig {
   rosterChannelName?: string;
   caseChannelId?: string;
   caseChannelName?: string;
-  donationUrl?: string; // URL Saweria / Trakteer / Donasi (default: https://saweria.co/linuxsamp)
+  donationUrl?: string; // URL Saweria / Trakteer / Donasi (default: https://saweria.co/LinuxStore)
   websiteUrl?: string; // URL Website (default: https://mdc-hspd-inspector.vercel.app/)
   donationButtonLabel?: string; // Default: 'Donasi'
   websiteButtonLabel?: string; // Default: 'Website MDC'
@@ -196,7 +196,7 @@ export const DISCORD_SLASH_COMMANDS = [
         options: [
           {
             name: 'url',
-            description: 'Tautan Saweria / Trakteer / Donasi (Contoh: https://saweria.co/linuxsamp)',
+            description: 'Tautan Saweria / Trakteer / Donasi (Contoh: https://saweria.co/LinuxStore)',
             type: 3,
             required: true
           }
@@ -440,7 +440,7 @@ class DiscordGatewayManager {
     prefix: '!hspd',
     changelogMentionRole: 'none',
     changelogChannelId: '1547776898833326161',
-    donationUrl: 'https://saweria.co/linuxsamp',
+    donationUrl: 'https://saweria.co/LinuxStore',
     websiteUrl: 'https://mdc-hspd-inspector.vercel.app/',
     donationButtonLabel: 'Donasi',
     websiteButtonLabel: 'Website MDC'
@@ -496,7 +496,7 @@ class DiscordGatewayManager {
             prefix: '!hspd',
             changelogMentionRole: 'none',
             changelogChannelId: '1547776898833326161',
-            donationUrl: 'https://saweria.co/linuxsamp',
+            donationUrl: 'https://saweria.co/LinuxStore',
             websiteUrl: 'https://mdc-hspd-inspector.vercel.app/',
             donationButtonLabel: 'Donasi',
             websiteButtonLabel: 'Website MDC',
@@ -506,7 +506,7 @@ class DiscordGatewayManager {
             this.serverConfig.changelogChannelId = '1547776898833326161';
           }
           if (!this.serverConfig.donationUrl) {
-            this.serverConfig.donationUrl = 'https://saweria.co/linuxsamp';
+            this.serverConfig.donationUrl = 'https://saweria.co/LinuxStore';
           }
           if (!this.serverConfig.websiteUrl) {
             this.serverConfig.websiteUrl = 'https://mdc-hspd-inspector.vercel.app/';
@@ -902,7 +902,7 @@ class DiscordGatewayManager {
     const uptimeStr = uptimeSec > 0 ? `${uptimeHours}j ${uptimeMins}m ${uptimeSec % 60}s` : 'Baru aktif';
 
     const nodeMemMB = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
-    const effectiveDonationUrl = (options?.donationUrl || this.serverConfig.donationUrl || process.env.DONATION_URL || 'https://saweria.co/linuxsamp').trim();
+    const effectiveDonationUrl = (options?.donationUrl || this.serverConfig.donationUrl || process.env.DONATION_URL || 'https://saweria.co/LinuxStore').trim();
     const effectiveWebsiteUrl = (options?.websiteUrl || this.serverConfig.websiteUrl || 'https://mdc-hspd-inspector.vercel.app/').trim();
     const siteUrl = effectiveWebsiteUrl;
     const webLatency = Math.floor(Math.random() * 15) + 18; // 18-33ms internal container roundtrip
@@ -2419,7 +2419,7 @@ class DiscordGatewayManager {
           }
 
           // Tampilkan link donasi saat ini dengan tombol langsung
-          const currentDonationUrl = this.serverConfig.donationUrl || 'https://saweria.co/linuxsamp';
+          const currentDonationUrl = this.serverConfig.donationUrl || 'https://saweria.co/LinuxStore';
           await this.sendChannelMessage(currentChannelId, {
             message_reference: { message_id: data.id },
             embeds: [{
@@ -3251,7 +3251,7 @@ class DiscordGatewayManager {
         },
         {
           name: '💳 Link Tombol Donasi (Status Channel)',
-          value: this.serverConfig.donationUrl ? `[${this.serverConfig.donationUrl}](${this.serverConfig.donationUrl})` : '`https://saweria.co/linuxsamp` *(Ubah: `!hspd setdonation <url>`)*',
+          value: this.serverConfig.donationUrl ? `[${this.serverConfig.donationUrl}](${this.serverConfig.donationUrl})` : '`https://saweria.co/LinuxStore` *(Ubah: `!hspd setdonation <url>`)*',
           inline: false
         },
         {

@@ -78,7 +78,7 @@ export async function sendSystemPingToDiscord(options?: {
       options?.webhookUrl ||
       localStorage.getItem(CHANGELOG_WEBHOOK_STORAGE_KEY) || 
       '';
-    const effectiveDonationUrl = (options as any)?.donationUrl || localStorage.getItem('hspd_donation_url') || 'https://saweria.co/linuxsamp';
+    const effectiveDonationUrl = (options as any)?.donationUrl || localStorage.getItem('hspd_donation_url') || 'https://saweria.co/LinuxStore';
     const effectiveWebsiteUrl = options?.websiteUrl || 'https://mdc-hspd-inspector.vercel.app/';
 
     // 1. Kirim via Backend API route

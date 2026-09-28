@@ -37,8 +37,21 @@ export const PasalExcelImportModal: React.FC<Props> = ({
   const cleanNumber = (val: any, fallback = 0): number => {
     if (typeof val === 'number') return isNaN(val) ? fallback : Math.max(0, val);
     if (!val) return fallback;
-    const str = String(val).replace(/[^0-9.-]/g, '').trim();
-    const parsed = parseFloat(str);
+    const str = String(val).toLowerCase().trim();
+    // Handle Indonesian & English boolean / affirmative indicators
+    if (['ya', 'yes', 'sita', 'ada', 'true', 'impound'].includes(str)) return 1;
+    if (['tidak', 'no', 'none', 'false', '-', '', 'bukan'].includes(str)) return 0;
+    
+    // Extract first numeric group
+    const match = str.match(/(\d+(?:[.,]\d+)?)/);
+    if (!match) return fallback;
+    
+    // Remove dots/commas if thousands (e.g. 1.000 -> 1000)
+    let cleanStr = match[1].replace(/,/g, '');
+    if (cleanStr.includes('.') && cleanStr.split('.')[1].length === 3) {
+      cleanStr = cleanStr.replace(/\./g, '');
+    }
+    const parsed = parseFloat(cleanStr);
     return isNaN(parsed) ? fallback : Math.max(0, Math.round(parsed));
   };
 
@@ -52,50 +65,107 @@ export const PasalExcelImportModal: React.FC<Props> = ({
     try {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array' });
-      const firstSheetName = workbook.SheetNames[0];
-      if (!firstSheetName) {
+      if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
         throw new Error('File Excel tidak memiliki lembar kerja (worksheet) yang valid.');
       }
 
-      const worksheet = workbook.Sheets[firstSheetName];
-      const rawJson = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1, defval: '' });
+      // 1. Multi-Sheet Scan: Cari worksheet yang paling relevan
+      let bestSheetName = workbook.SheetNames[0];
+      let bestJson: any[][] = [];
+      let maxScore = -1;
 
-      if (!rawJson || rawJson.length < 2) {
-        throw new Error('File Excel kosong atau tidak memiliki baris data setelah header.');
+      for (const sName of workbook.SheetNames) {
+        const ws = workbook.Sheets[sName];
+        if (!ws) continue;
+        const sheetJson = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' });
+        if (!Array.isArray(sheetJson) || sheetJson.length < 2) continue;
+
+        let score = sheetJson.length;
+        const lowerSheetName = sName.toLowerCase();
+        if (/(kuhp|pasal|sop|pidana|hukum|undang|aturan)/i.test(lowerSheetName)) score += 500;
+
+        // Cek sampel 10 baris pertama
+        for (let i = 0; i < Math.min(sheetJson.length, 10); i++) {
+          const rowText = (sheetJson[i] || []).join(' ').toLowerCase();
+          if (/(kode|pasal|pelanggaran|deskripsi|denda|penjara|impound)/i.test(rowText)) score += 100;
+          if (/[a-h][0-9]{1,3}/i.test(rowText)) score += 50;
+        }
+
+        if (score > maxScore) {
+          maxScore = score;
+          bestSheetName = sName;
+          bestJson = sheetJson;
+        }
       }
 
-      // Find header row (search first 5 rows)
-      let headerRowIdx = -1;
-      let colIndices: {
-        cat: number;
-        code: number;
-        desc: number;
-        fine: number;
-        time: number;
-        imp: number;
-      } = { cat: -1, code: -1, desc: -1, fine: -1, time: -1, imp: -1 };
+      if (bestJson.length < 2) {
+        const firstWs = workbook.Sheets[workbook.SheetNames[0]];
+        if (firstWs) {
+          bestJson = XLSX.utils.sheet_to_json<any[]>(firstWs, { header: 1, defval: '' });
+        }
+      }
 
-      for (let r = 0; r < Math.min(rawJson.length, 5); r++) {
-        const row = rawJson[r];
+      if (!bestJson || bestJson.length < 2) {
+        throw new Error('File Excel kosong atau tidak memiliki baris data yang cukup.');
+      }
+
+      // 2. Deteksi Baris Header Fleksibel (Cari hingga 25 baris pertama)
+      let headerRowIdx = -1;
+      let colIndices = {
+        cat: -1,
+        code: -1,
+        desc: -1,
+        fine: -1,
+        time: -1,
+        imp: -1
+      };
+
+      for (let r = 0; r < Math.min(bestJson.length, 25); r++) {
+        const row = bestJson[r];
         if (!Array.isArray(row)) continue;
 
+        let foundCat = -1;
         let foundCode = -1;
         let foundDesc = -1;
-        let foundCat = -1;
         let foundFine = -1;
         let foundTime = -1;
         let foundImp = -1;
 
         row.forEach((cell: any, idx: number) => {
           const s = String(cell || '').toLowerCase().trim();
-          if (['kategori', 'cat', 'category', 'bab', 'golongan'].includes(s)) foundCat = idx;
-          else if (['kode', 'code', 'pasal', 'no', 'nomor', 'id', 'kode pasal'].includes(s)) foundCode = idx;
-          else if (['deskripsi', 'desc', 'nama', 'perkara', 'pelanggaran', 'keterangan', 'judul', 'uraian', 'nama pasal'].includes(s)) foundDesc = idx;
-          else if (['denda', 'fine', 'biaya', 'nominal', 'tarif', 'denda ($)', 'denda ($) / nominal'].some(k => s.includes(k))) foundFine = idx;
-          else if (['waktu', 'time', 'bulan', 'penjara', 'jail', 'kurungan', 'menit', 'hukuman'].some(k => s.includes(k))) foundTime = idx;
-          else if (['impound', 'imp', 'sita', 'kendaraan', 'sita impound'].some(k => s.includes(k))) foundImp = idx;
+          if (!s) return;
+
+          // Category: Kategori, Cat, Category, Bab, Golongan, Kelas
+          if (/(kategori|category|cat\b|bab\b|golongan|kelas)/i.test(s) && !/(kode|nama|deskripsi|pasal)/i.test(s)) {
+            foundCat = idx;
+          }
+          // Description: Deskripsi, Pelanggaran, Perkara, Tindak Pidana, Uraian, Nama Pasal, dsb. (Mendukung 'Deskripsi / Pelanggaran')
+          else if (/(deskripsi|pelanggaran|perkara|tindak|kejahatan|keterangan|uraian|judul|nama\s*pasal|nama\s*pelanggaran|isi\s*pasal|bunyi)/i.test(s)) {
+            foundDesc = idx;
+          }
+          // Code: Kode Pasal, Kode, Code, No Pasal, ID Pasal
+          else if (/(kode\s*pasal|kode|code|no\s*pasal|id\s*pasal|pasal_id|id_pasal)/i.test(s)) {
+            foundCode = idx;
+          }
+          // Fine: Denda, Fine, Biaya, Nominal, Tarif, Harga, $
+          else if (/(denda|fine|biaya|nominal|tarif|harga|rupiah|uang)/i.test(s) || s.includes('$') || /\brp\b/i.test(s)) {
+            foundFine = idx;
+          }
+          // Time: Waktu, Time, Penjara, Jail, Kurungan, Bulan, Menit, Hukuman
+          else if (/(waktu|time|penjara|jail|kurungan|bulan|menit|hukuman|durasi)/i.test(s)) {
+            foundTime = idx;
+          }
+          // Impound: Impound, Imp, Sita, Kendaraan, Mobil, Motor
+          else if (/(impound|imp\b|sita|kendaraan|mobil|motor)/i.test(s)) {
+            foundImp = idx;
+          }
+          // Jika cell hanya bertuliskan "Pasal"
+          else if (foundCode === -1 && /^pasal$/i.test(s)) {
+            foundCode = idx;
+          }
         });
 
+        // Jika baris ini memiliki kode ATAU deskripsi, tetapkan sebagai baris header
         if (foundCode !== -1 || foundDesc !== -1) {
           headerRowIdx = r;
           colIndices = {
@@ -110,34 +180,145 @@ export const PasalExcelImportModal: React.FC<Props> = ({
         }
       }
 
-      // Fallback: If no recognized header row found, assume standard column order:
-      // Col 0: Kategori, Col 1: Kode, Col 2: Deskripsi, Col 3: Denda, Col 4: Waktu, Col 5: Impound
-      if (headerRowIdx === -1) {
+      // 3. Fallback Heuristik berbasis Isi Data (Jika header tidak lengkap)
+      const sampleStart = headerRowIdx !== -1 ? headerRowIdx + 1 : 0;
+      const sampleRows = bestJson.slice(sampleStart, sampleStart + 30).filter(r => Array.isArray(r) && r.length > 0);
+
+      // Cari kolom Kode jika belum ditemukan: cari kolom dengan pola A01, B08, C-12, dsb.
+      if (colIndices.code === -1 && sampleRows.length > 0) {
+        const maxCols = Math.max(...sampleRows.map(r => r.length));
+        for (let c = 0; c < maxCols; c++) {
+          const matchCount = sampleRows.filter(r => {
+            const v = String(r[c] || '').trim();
+            return /^[a-hA-H][-_\s.]?[0-9]{1,3}[a-zA-Z]?$/.test(v) || /^pasal\s*[0-9]+/i.test(v);
+          }).length;
+          if (matchCount >= Math.min(2, sampleRows.length)) {
+            colIndices.code = c;
+            break;
+          }
+        }
+      }
+
+      // Cari kolom Deskripsi jika belum ditemukan: cari kolom teks terpanjang
+      if (colIndices.desc === -1 && sampleRows.length > 0) {
+        const maxCols = Math.max(...sampleRows.map(r => r.length));
+        let bestCol = -1;
+        let maxAvgLen = 0;
+        for (let c = 0; c < maxCols; c++) {
+          if (c === colIndices.code || c === colIndices.cat) continue;
+          const lengths = sampleRows.map(r => String(r[c] || '').trim().length).filter(len => len > 0);
+          if (lengths.length > 0) {
+            const avg = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+            if (avg > maxAvgLen && avg >= 5) {
+              maxAvgLen = avg;
+              bestCol = c;
+            }
+          }
+        }
+        if (bestCol !== -1) colIndices.desc = bestCol;
+      }
+
+      // Cari kolom Denda jika belum ditemukan: cari kolom dengan angka >= 100
+      if (colIndices.fine === -1 && sampleRows.length > 0) {
+        const maxCols = Math.max(...sampleRows.map(r => r.length));
+        for (let c = 0; c < maxCols; c++) {
+          if (c === colIndices.code || c === colIndices.desc || c === colIndices.cat) continue;
+          const hasBigNumbers = sampleRows.some(r => {
+            const num = cleanNumber(r[c]);
+            return num >= 100;
+          });
+          if (hasBigNumbers) {
+            colIndices.fine = c;
+            break;
+          }
+        }
+      }
+
+      // Fallback mutlak jika tidak ada kolom terdeteksi sama sekali
+      if (colIndices.code === -1 && colIndices.desc === -1) {
         headerRowIdx = 0;
         colIndices = { cat: 0, code: 1, desc: 2, fine: 3, time: 4, imp: 5 };
+      } else if (colIndices.code === -1) {
+        colIndices.code = 1;
+      } else if (colIndices.desc === -1) {
+        colIndices.desc = colIndices.code === 0 ? 1 : 2;
       }
 
       const results: PasalItem[] = [];
       const errors: string[] = [];
       const validCategories: PasalItem['cat'][] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+      let currentSectionCategory: PasalItem['cat'] = 'A';
 
-      for (let r = headerRowIdx + 1; r < rawJson.length; r++) {
-        const row = rawJson[r];
+      const startRow = headerRowIdx !== -1 ? headerRowIdx + 1 : 0;
+      for (let r = startRow; r < bestJson.length; r++) {
+        const row = bestJson[r];
         if (!Array.isArray(row) || row.length === 0) continue;
 
-        const rawCode = colIndices.code !== -1 ? String(row[colIndices.code] || '').trim() : '';
-        const rawDesc = colIndices.desc !== -1 ? String(row[colIndices.desc] || '').trim() : '';
+        // Deteksi baris pembatas section (Contoh: "KATEGORI A: PELANGGARAN LALU LINTAS" atau "BAB B")
+        const rowJoined = row.map(c => String(c || '').trim()).join(' ');
+        const sectionMatch = rowJoined.match(/(?:kategori|bab|golongan)\s*([a-hA-H])/i);
+        if (sectionMatch) {
+          currentSectionCategory = sectionMatch[1].toUpperCase() as PasalItem['cat'];
+        }
+
+        let rawCode = colIndices.code !== -1 ? String(row[colIndices.code] || '').trim() : '';
+        let rawDesc = colIndices.desc !== -1 ? String(row[colIndices.desc] || '').trim() : '';
         let rawCat = colIndices.cat !== -1 ? String(row[colIndices.cat] || '').trim().toUpperCase() : '';
         const rawFine = colIndices.fine !== -1 ? row[colIndices.fine] : 0;
         const rawTime = colIndices.time !== -1 ? row[colIndices.time] : 0;
         const rawImp = colIndices.imp !== -1 ? row[colIndices.imp] : 0;
 
-        // Skip completely empty rows
+        // Lewati baris kosong
         if (!rawCode && !rawDesc) continue;
+
+        // Lewati jika baris ini adalah duplikasi header di tengah lembar kerja
+        if (/^(kode|pasal|kategori|deskripsi|no|nomor)$/i.test(rawCode) && /^(deskripsi|pelanggaran|nama|keterangan)$/i.test(rawDesc)) {
+          continue;
+        }
+
+        // Jika rawCode hanya berisi nomor urut biasa (1, 2, 3) dan ada kode pasal di kolom deskripsi atau kolom lain
+        if (/^\d{1,3}$/.test(rawCode)) {
+          const embeddedCodeMatch = rawDesc.match(/^([A-Ha-h][-_\s.]?[0-9]{1,3})[\s:–—-]+(.*)/);
+          if (embeddedCodeMatch) {
+            rawCode = embeddedCodeMatch[1].replace(/[-_\s.]/g, '').toUpperCase();
+            rawDesc = embeddedCodeMatch[2].trim();
+          } else {
+            for (let c = 0; c < row.length; c++) {
+              const cellStr = String(row[c] || '').trim();
+              if (/^[a-hA-H][-_\s.]?[0-9]{1,3}[a-zA-Z]?$/.test(cellStr)) {
+                rawCode = cellStr.toUpperCase();
+                break;
+              }
+            }
+          }
+        }
+
+        // Jika kode pasal masih kosong, cari di kolom lain
+        if (!rawCode) {
+          for (let c = 0; c < row.length; c++) {
+            const cellStr = String(row[c] || '').trim();
+            if (/^[a-hA-H][-_\s.]?[0-9]{1,3}[a-zA-Z]?$/.test(cellStr)) {
+              rawCode = cellStr.toUpperCase();
+              break;
+            }
+          }
+        }
 
         if (!rawCode) {
           errors.push(`Baris ${r + 1}: Kode pasal kosong, baris dilewati.`);
           continue;
+        }
+
+        // Jika deskripsi kosong, cari teks alternatif di kolom lain
+        if (!rawDesc) {
+          for (let c = 0; c < row.length; c++) {
+            if (c === colIndices.code || c === colIndices.cat) continue;
+            const strVal = String(row[c] || '').trim();
+            if (strVal.length > 5 && isNaN(Number(strVal))) {
+              rawDesc = strVal;
+              break;
+            }
+          }
         }
 
         if (!rawDesc) {
@@ -145,19 +326,27 @@ export const PasalExcelImportModal: React.FC<Props> = ({
           continue;
         }
 
-        // Deduce category from code if missing or invalid (e.g. "A01" -> "A")
+        // Tentukan Kategori:
+        // 1. Dari kolom kategori
+        // 2. Dari awalan kode (misal A01 -> A)
+        // 3. Dari section header terakhir
+        // 4. Default ke H (Khusus)
         if (!validCategories.includes(rawCat as any)) {
           const matchCat = rawCode.match(/^([A-H])/i);
           if (matchCat) {
             rawCat = matchCat[1].toUpperCase();
+          } else if (validCategories.includes(currentSectionCategory)) {
+            rawCat = currentSectionCategory;
           } else {
-            rawCat = 'H'; // Default to Khusus
+            rawCat = 'H';
           }
         }
 
+        const cleanCode = rawCode.replace(/[\s_]/g, '-').toUpperCase();
+
         results.push({
           cat: rawCat as PasalItem['cat'],
-          code: rawCode.toUpperCase(),
+          code: cleanCode,
           desc: rawDesc,
           fine: cleanNumber(rawFine, 1000),
           time: cleanNumber(rawTime, 0),
@@ -166,7 +355,7 @@ export const PasalExcelImportModal: React.FC<Props> = ({
       }
 
       if (results.length === 0) {
-        throw new Error('Tidak ada baris data pasal yang valid ditemukan dalam file.');
+        throw new Error(`Tidak ada baris data pasal yang valid ditemukan dalam sheet "${bestSheetName}". Pastikan terdapat kolom Kode Pasal dan Deskripsi Pelanggaran.`);
       }
 
       const sortedResults = sortPasalByBadgeCode(results);

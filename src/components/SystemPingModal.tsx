@@ -25,7 +25,7 @@ export const SystemPingModal: React.FC<Props> = ({ isOpen, onClose, currentOffic
     return saved === null ? true : saved === 'true';
   });
   const [donationUrl, setDonationUrl] = useState<string>(() => {
-    return localStorage.getItem('hspd_donation_url') || 'https://saweria.co/linuxsamp';
+    return localStorage.getItem('hspd_donation_url') || 'https://saweria.co/LinuxStore';
   });
   const [websiteUrl, setWebsiteUrl] = useState<string>(() => {
     return localStorage.getItem('hspd_website_url') || 'https://mdc-hspd-inspector.vercel.app/';
@@ -85,7 +85,7 @@ export const SystemPingModal: React.FC<Props> = ({ isOpen, onClose, currentOffic
         channelId: targetChannelId || '1550418868814610433',
         triggerBy: `${currentOfficer?.name || 'Petugas'} (${currentOfficer?.badge || 'HSPD'})`,
         websiteUrl: websiteUrl || 'https://mdc-hspd-inspector.vercel.app/',
-        donationUrl: donationUrl || 'https://saweria.co/linuxsamp'
+        donationUrl: donationUrl || 'https://saweria.co/LinuxStore'
       } as any);
       setResult(res);
       fetchLiveStats();
@@ -310,7 +310,7 @@ export const SystemPingModal: React.FC<Props> = ({ isOpen, onClose, currentOffic
                     setDonationUrl(val);
                     localStorage.setItem('hspd_donation_url', val);
                   }}
-                  placeholder="https://saweria.co/linuxsamp"
+                  placeholder="https://saweria.co/LinuxStore"
                   className="w-full px-2.5 py-1.5 bg-[#161B22] border border-gray-700 rounded-lg text-xs font-mono text-gray-200 focus:outline-hidden focus:border-blue-500"
                 />
               </div>
