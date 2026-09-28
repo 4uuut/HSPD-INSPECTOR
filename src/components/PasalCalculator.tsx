@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { PASAL_LIST, OFFENCE_CATEGORIES, getSavedPasalList, savePasalList, resetPasalList, sortPasalByBadgeCode } from '../data/pasalData';
+import { PASAL_LIST, OFFENCE_CATEGORIES, getMergedCategories, getSavedPasalList, savePasalList, resetPasalList, sortPasalByBadgeCode } from '../data/pasalData';
 import { 
   PasalItem, ArrestRecord, OfficerProfile, 
   isOfficerHighRank, isAtasanRank, isSupervisorOrAbove, isGovernmentRank,
@@ -454,6 +454,9 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
     }
   }, [officerName, officerBadge, partnerOfficer]);
 
+  // Dynamic Categories based on default + custom pasals (including Category I, J, etc.)
+  const availableCategories = useMemo(() => getMergedCategories(pasalList), [pasalList]);
+
   const filteredPasal = useMemo(() => {
     return pasalList.filter(item => {
       if (!item) return false;
@@ -827,7 +830,7 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
 
         {/* Category Pills Header Bar */}
         <div id="pasal-category-filter" className="flex flex-wrap gap-1 p-1.5 bg-[#161B22] border border-gray-800 rounded-md">
-          {OFFENCE_CATEGORIES.map((cat) => {
+          {availableCategories.map((cat) => {
             const isSelected = selectedCategory === cat.key;
             const countInCat = cat.key === 'ALL' 
               ? pasalList.length 
@@ -1747,7 +1750,7 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
                     }}
                     className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-blue-500 rounded text-xs text-gray-100 outline-none"
                   >
-                    {OFFENCE_CATEGORIES.filter(c => c.key !== 'ALL').map((c) => (
+                    {availableCategories.filter(c => c.key !== 'ALL').map((c) => (
                       <option key={c.key} value={c.key}>
                         {c.title}
                       </option>

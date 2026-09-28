@@ -3,145 +3,171 @@ import { PasalItem, CategoryInfo } from '../types';
 export const OFFENCE_CATEGORIES: CategoryInfo[] = [
   { key: 'ALL', title: 'Semua Kategori', badgeColor: 'bg-slate-700 text-slate-200' },
   { key: 'A', title: 'A - Lalu Lintas', badgeColor: 'bg-emerald-700 text-emerald-100', desc: 'Pelanggaran berkendara, marka, lisensi, & kelengkapan' },
-  { key: 'B', title: 'B - Pidana Umum', badgeColor: 'bg-amber-700 text-amber-100', desc: 'Ketertiban umum, kekerasan ringan, penipuan & suap' },
-  { key: 'C', title: 'C - Properti', badgeColor: 'bg-orange-700 text-orange-100', desc: 'Penyusupan, vandalisme, & perusakan fasilitas' },
-  { key: 'D', title: 'D - Narkotika', badgeColor: 'bg-rose-700 text-rose-100', desc: 'Kepemilikan, produksi, & distribusi obat terlarang' },
-  { key: 'E', title: 'E - Senjata Api & Ilegal', badgeColor: 'bg-red-700 text-red-100', desc: 'Senpi ilegal, peluru clip, vest, bahan peledak' },
-  { key: 'F', title: 'F - Kriminal Berat', badgeColor: 'bg-purple-700 text-purple-100', desc: 'Robbery bank/ATM, pembegalan, sandera, terorisme' },
-  { key: 'G', title: 'G - Ekonomi', badgeColor: 'bg-cyan-700 text-cyan-100', desc: 'Money laundering, penyelundupan, pajak, penipuan' },
-  { key: 'H', title: 'H - Khusus / Lain-lain', badgeColor: 'bg-indigo-700 text-indigo-100', desc: 'Tindakan membahayakan, penyerangan tanpa motif' }
+  { key: 'B', title: 'B - Kejahatan Individu & Pembunuhan', badgeColor: 'bg-amber-700 text-amber-100', desc: 'Penganiayaan, pembunuhan, penyanderaan, penculikan, & penipuan' },
+  { key: 'C', title: 'C - Pencurian & Perampokan', badgeColor: 'bg-orange-700 text-orange-100', desc: 'Pencurian kendaraan & perampokan bersenjata / bank' },
+  { key: 'D', title: 'D - Senjata Api & Amunisi Ilegal', badgeColor: 'bg-rose-700 text-rose-100', desc: 'Senpi ilegal, clip/amunisi, penembakan umum, perdagangan senjata' },
+  { key: 'E', title: 'E - Narkotika & Benda Ilegal', badgeColor: 'bg-red-700 text-red-100', desc: 'Kanabis, marijuana, joint, cocain, opium, vest, & red money' },
+  { key: 'F', title: 'F - Kejahatan Terhadap Petugas', badgeColor: 'bg-purple-700 text-purple-100', desc: 'Melawan petugas, melarikan diri, bribery, penyerangan aparat' },
+  { key: 'G', title: 'G - Dokumen, Jabatan & Pemerintah', badgeColor: 'bg-cyan-700 text-cyan-100', desc: 'Pemalsuan dokumen/identitas, korupsi, penyalahgunaan jabatan' },
+  { key: 'H', title: 'H - Ketertiban Umum & Kerusuhan', badgeColor: 'bg-indigo-700 text-indigo-100', desc: 'Keributan, perkelahian umum, gangguan publik, & kerusuhan massal' },
+  { key: 'I', title: 'I - Terorisme & Kejahatan Berat', badgeColor: 'bg-fuchsia-700 text-fuchsia-100', desc: 'Terorisme, kudeta, kejahatan terorganisir, organisasi kriminal, sandera pejabat' }
 ];
 
+export const CATEGORY_COLOR_PALETTE: Record<string, string> = {
+  A: 'bg-emerald-700 text-emerald-100',
+  B: 'bg-amber-700 text-amber-100',
+  C: 'bg-orange-700 text-orange-100',
+  D: 'bg-rose-700 text-rose-100',
+  E: 'bg-red-700 text-red-100',
+  F: 'bg-purple-700 text-purple-100',
+  G: 'bg-cyan-700 text-cyan-100',
+  H: 'bg-indigo-700 text-indigo-100',
+  I: 'bg-fuchsia-700 text-fuchsia-100',
+  J: 'bg-pink-700 text-pink-100',
+  K: 'bg-teal-700 text-teal-100',
+  L: 'bg-lime-700 text-lime-100',
+  M: 'bg-sky-700 text-sky-100',
+  N: 'bg-violet-700 text-violet-100',
+  O: 'bg-yellow-700 text-yellow-100',
+  P: 'bg-emerald-800 text-emerald-200'
+};
+
+export function getCategoryBadgeColor(cat: string): string {
+  const c = (cat || '').toUpperCase().trim();
+  return CATEGORY_COLOR_PALETTE[c] || 'bg-slate-700 text-slate-200';
+}
+
+/**
+ * Menghasilkan daftar seluruh kategori secara dinamis dengan menggabungkan
+ * kategori default dan setiap kategori tambahan (seperti I, J, K, dst) yang terdapat di pasalList
+ */
+export function getMergedCategories(customPasalList?: PasalItem[]): CategoryInfo[] {
+  const baseMap = new Map<string, CategoryInfo>();
+  OFFENCE_CATEGORIES.forEach(c => baseMap.set(c.key, { ...c }));
+
+  if (Array.isArray(customPasalList)) {
+    customPasalList.forEach(item => {
+      if (item && item.cat) {
+        const catKey = String(item.cat).toUpperCase().trim();
+        if (catKey && !baseMap.has(catKey)) {
+          baseMap.set(catKey, {
+            key: catKey,
+            title: `${catKey} - Kategori ${catKey}`,
+            badgeColor: getCategoryBadgeColor(catKey),
+            desc: `Pasal-pasal dalam Kategori ${catKey}`
+          });
+        }
+      }
+    });
+  }
+
+  const allCat = baseMap.get('ALL') || { key: 'ALL', title: 'Semua Kategori', badgeColor: 'bg-slate-700 text-slate-200' };
+  const rest = Array.from(baseMap.values())
+    .filter(c => c.key !== 'ALL')
+    .sort((a, b) => a.key.localeCompare(b.key));
+
+  return [allCat, ...rest];
+}
+
 export const PASAL_LIST: PasalItem[] = [
-  // PASAL A - Lalu Lintas
-  { cat: 'A', code: 'A01', desc: 'Berkendara tidak memiliki SIM', fine: 1000, time: 0, imp: 1 },
-  { cat: 'A', code: 'A02', desc: 'Berkendara Secara Ugal - Ugalan', fine: 1200, time: 0, imp: 1 },
-  { cat: 'A', code: 'A03', desc: 'Parkir Sembarangan', fine: 1500, time: 0, imp: 1 },
-  { cat: 'A', code: 'A04', desc: 'Kendaraan tidak memiliki plat nomor', fine: 1300, time: 0, imp: 1 },
-  { cat: 'A', code: 'A05', desc: 'Kabur dari Kecelakaan', fine: 1800, time: 5, imp: 1 },
+  // PASAL A - Lalu Lintas (15 Pasal)
+  { cat: 'A', code: 'A01', desc: 'Berkendara tidak memiliki SIM', fine: 2000, time: 0, imp: 1 },
+  { cat: 'A', code: 'A02', desc: 'Berkendara Secara Ugal - Ugalan', fine: 2500, time: 0, imp: 1 },
+  { cat: 'A', code: 'A03', desc: 'Parkir Sembarangan', fine: 3000, time: 0, imp: 1 },
+  { cat: 'A', code: 'A04', desc: 'Kendaraan tidak memiliki plat nomor', fine: 3000, time: 0, imp: 1 },
+  { cat: 'A', code: 'A05', desc: 'Kabur dari Kecelakaan', fine: 4000, time: 5, imp: 1 },
   { cat: 'A', code: 'A06', desc: 'Kecelakaan hingga menimbulkan korban jiwa', fine: 5000, time: 10, imp: 2 },
-  { cat: 'A', code: 'A07', desc: 'Mengemudi Melawan Arus', fine: 1400, time: 0, imp: 0 },
-  { cat: 'A', code: 'A08', desc: 'Mengangkut Penumpang Lebih dari Kapasitas', fine: 2000, time: 0, imp: 0 },
-  { cat: 'A', code: 'A09', desc: 'Menghindar saat diberhentikan petugas', fine: 1700, time: 10, imp: 1 },
-  { cat: 'A', code: 'A10', desc: 'Menabrak Rambu Lalu Lintas', fine: 1200, time: 0, imp: 0 },
-  { cat: 'A', code: 'A11', desc: 'Modifikasi Ilegal (Nitro & Knalpot Api)', fine: 1500, time: 0, imp: 1 },
-  { cat: 'A', code: 'A12', desc: 'Balap Liar', fine: 4500, time: 15, imp: 2 },
-  { cat: 'A', code: 'A13', desc: 'Menerobos barikade kepolisian', fine: 2500, time: 0, imp: 1 },
-  { cat: 'A', code: 'A14', desc: 'Mengemudi dalam keadaan mabuk', fine: 2500, time: 5, imp: 2 },
-  { cat: 'A', code: 'A15', desc: 'Mengemudi dengan kecepatan berlebihan', fine: 1000, time: 0, imp: 1 },
-  { cat: 'A', code: 'A16', desc: 'Tidak memberikan prioritas kepada pejalan kaki', fine: 2200, time: 0, imp: 0 },
-  { cat: 'A', code: 'A17', desc: 'Menggunakan ponsel saat mengemudi', fine: 1500, time: 0, imp: 0 },
-  { cat: 'A', code: 'A18', desc: 'Tidak menggunakan sabuk pengaman', fine: 1500, time: 0, imp: 0 },
-  { cat: 'A', code: 'A19', desc: 'Melanggar lampu lalu lintas', fine: 1500, time: 0, imp: 1 },
-  { cat: 'A', code: 'A20', desc: 'Tidak memberikan lampu sen saat berbelok', fine: 1000, time: 0, imp: 0 },
+  { cat: 'A', code: 'A07', desc: 'Mengemudi Melawan Arus', fine: 3000, time: 0, imp: 0 },
+  { cat: 'A', code: 'A08', desc: 'Mengangkut Penumpang Lebih dari Kapasitas', fine: 4000, time: 0, imp: 0 },
+  { cat: 'A', code: 'A09', desc: 'Menghindar saat diberhentikan petugas', fine: 3500, time: 10, imp: 1 },
+  { cat: 'A', code: 'A10', desc: 'Mengemudi sambil mengunakan handphone', fine: 2000, time: 0, imp: 0 },
+  { cat: 'A', code: 'A11', desc: 'Modifikasi ilegal (Nitro & Knalpot Api)', fine: 5000, time: 0, imp: 1 },
+  { cat: 'A', code: 'A12', desc: 'Balap Liar', fine: 10000, time: 15, imp: 2 },
+  { cat: 'A', code: 'A13', desc: 'Menerobos barikade kepolisian', fine: 5000, time: 0, imp: 1 },
+  { cat: 'A', code: 'A14', desc: 'Mengemudi dalam keadaan mabuk', fine: 5000, time: 5, imp: 2 },
+  { cat: 'A', code: 'A15', desc: 'Mengemudi dengan kecepatan berlebihan', fine: 2000, time: 0, imp: 1 },
 
-  // PASAL B - Pidana Umum
-  { cat: 'B', code: 'B01', desc: 'Kekerasan Ringan', fine: 2500, time: 10, imp: 0 },
-  { cat: 'B', code: 'B02', desc: 'Memasuki zona merah polisi', fine: 1500, time: 5, imp: 0 },
-  { cat: 'B', code: 'B03', desc: 'Buang air kecil/besar sembarangan', fine: 1000, time: 5, imp: 0 },
-  { cat: 'B', code: 'B04', desc: 'Mengganggu / menipu petugas', fine: 1600, time: 8, imp: 0 },
-  { cat: 'B', code: 'B05', desc: 'Ujaran buruk individu/kelompok', fine: 3000, time: 12, imp: 0 },
-  { cat: 'B', code: 'B06', desc: 'Berkelahi di tempat umum', fine: 1750, time: 15, imp: 0 },
-  { cat: 'B', code: 'B07', desc: 'Gangguan Ketertiban Umum', fine: 1900, time: 10, imp: 1 },
-  { cat: 'B', code: 'B08', desc: 'Pencurian', fine: 3000, time: 18, imp: 1 },
-  { cat: 'B', code: 'B09', desc: 'Vandalisme', fine: 2500, time: 13, imp: 0 },
-  { cat: 'B', code: 'B10', desc: 'Atribut instansi ilegal', fine: 1750, time: 8, imp: 0 },
-  { cat: 'B', code: 'B11', desc: 'Menyamar sebagai petugas', fine: 1800, time: 10, imp: 0 },
-  { cat: 'B', code: 'B12', desc: 'Percobaan suap terhadap petugas', fine: 1800, time: 12, imp: 0 },
-  { cat: 'B', code: 'B13', desc: 'Informasi palsu kepada petugas', fine: 1500, time: 12, imp: 0 },
-  { cat: 'B', code: 'B14', desc: 'Memiliki hewan dilindungi', fine: 5500, time: 13, imp: 0 },
-  { cat: 'B', code: 'B15', desc: 'Memperjualbelikan hewan dilindungi', fine: 7000, time: 15, imp: 0 },
-  { cat: 'B', code: 'B16', desc: 'Mengumpulkan massa/kekacauan', fine: 9500, time: 25, imp: 0 },
-  { cat: 'B', code: 'B17', desc: 'Ikut kerusuhan', fine: 10000, time: 20, imp: 0 },
-  { cat: 'B', code: 'B18', desc: 'Menolak membubarkan diri', fine: 2000, time: 8, imp: 0 },
-  { cat: 'B', code: 'B19', desc: 'Penghakiman sepihak', fine: 8500, time: 20, imp: 0 },
-  { cat: 'B', code: 'B20', desc: 'Pemburuan tanpa lisensi', fine: 6500, time: 15, imp: 0 },
-  { cat: 'B', code: 'B21', desc: 'Melanggar jam malam', fine: 1100, time: 5, imp: 0 },
-  { cat: 'B', code: 'B22', desc: 'Suara keras/mengganggu', fine: 1150, time: 8, imp: 0 },
-  { cat: 'B', code: 'B23', desc: 'Menghina simbol negara', fine: 7500, time: 15, imp: 0 },
-  { cat: 'B', code: 'B24', desc: 'Menolak perintah petugas', fine: 8500, time: 10, imp: 0 },
-  { cat: 'B', code: 'B25', desc: 'Tindakan asusila di umum', fine: 9500, time: 12, imp: 0 },
-  { cat: 'B', code: 'B26', desc: 'Mencoba melarikan diri', fine: 1900, time: 10, imp: 0 },
+  // PASAL B - Kejahatan Individu & Pembunuhan (10 Pasal)
+  { cat: 'B', code: 'B01', desc: 'Penganiayaan Ringan (Benda Tumpul)', fine: 5000, time: 10, imp: 0 },
+  { cat: 'B', code: 'B02', desc: 'Penganiayaan Berat (Benda Tajam)', fine: 10000, time: 15, imp: 0 },
+  { cat: 'B', code: 'B03', desc: 'Percobaan Pembunuhan', fine: 20000, time: 30, imp: 0 },
+  { cat: 'B', code: 'B04', desc: 'Pembunuhan Berencana', fine: 40000, time: 50, imp: 0 },
+  { cat: 'B', code: 'B05', desc: 'Penyanderaan Warga Sipil', fine: 15000, time: 15, imp: 0 },
+  { cat: 'B', code: 'B06', desc: 'Penculikan Warga Sipil', fine: 25000, time: 35, imp: 0 },
+  { cat: 'B', code: 'B07', desc: 'Ancaman terhadap Warga', fine: 10000, time: 10, imp: 1 },
+  { cat: 'B', code: 'B08-1', desc: 'Penipuan Kelas Rendah (<$100,000)', fine: 50000, time: 15, imp: 1 },
+  { cat: 'B', code: 'B08-2', desc: 'Penipuan Kelas Menengah ($100,000 - 500,000)', fine: 250000, time: 30, imp: 0 },
+  { cat: 'B', code: 'B08-3', desc: 'Penipuan Kelas Tinggi (>$500,000)', fine: 500000, time: 60, imp: 0 },
 
-  // PASAL C - Properti
-  { cat: 'C', code: 'C01', desc: 'Masuk properti pribadi tanpa izin', fine: 1300, time: 10, imp: 0 },
-  { cat: 'C', code: 'C02', desc: 'Masuk properti pemerintah tanpa izin', fine: 1500, time: 11, imp: 0 },
-  { cat: 'C', code: 'C03', desc: 'Merusak properti', fine: 3500, time: 15, imp: 0 },
-  { cat: 'C', code: 'C04', desc: 'Membakar properti', fine: 3200, time: 25, imp: 0 },
-  { cat: 'C', code: 'C05', desc: 'Properti tempat barang ilegal', fine: 3900, time: 30, imp: 0 },
-  { cat: 'C', code: 'C06', desc: 'Membobol properti (niat curi)', fine: 4000, time: 23, imp: 0 },
-  { cat: 'C', code: 'C07', desc: 'Graffiti tanpa izin', fine: 3300, time: 8, imp: 0 },
-  { cat: 'C', code: 'C08', desc: 'Poster/spanduk tanpa izin', fine: 2900, time: 5, imp: 0 },
-  { cat: 'C', code: 'C09', desc: 'Mengganggu properti bersama', fine: 2700, time: 12, imp: 0 },
-  { cat: 'C', code: 'C10', desc: 'Mengubah fungsi properti', fine: 5000, time: 20, imp: 0 },
+  // PASAL C - Pencurian & Perampokan (7 Pasal)
+  { cat: 'C', code: 'C01', desc: 'Pencurian Kendaraan Roda 2', fine: 10000, time: 15, imp: 0 },
+  { cat: 'C', code: 'C02', desc: 'Pencurian Kendaraan Roda 4', fine: 25000, time: 30, imp: 0 },
+  { cat: 'C', code: 'C03', desc: 'Perampokkan', fine: 10000, time: 15, imp: 0 },
+  { cat: 'C', code: 'C04', desc: 'Perampokkan Bersenjata', fine: 15000, time: 20, imp: 0 },
+  { cat: 'C', code: 'C05', desc: 'Perampokkan ATM', fine: 15000, time: 25, imp: 0 },
+  { cat: 'C', code: 'C06', desc: 'Perampokkan Bank Desa', fine: 25000, time: 35, imp: 0 },
+  { cat: 'C', code: 'C07', desc: 'Perampokkan Bank Pusat', fine: 35000, time: 45, imp: 0 },
 
-  // PASAL D - Narkotika
-  { cat: 'D', code: 'D01', desc: 'Berada di tempat narkotika', fine: 2000, time: 15, imp: 0 },
-  { cat: 'D', code: 'D02', desc: 'Terlibat pembuatan narkotika', fine: 7000, time: 20, imp: 0 },
-  { cat: 'D', code: 'D03', desc: 'Menjual/distribusi narkotika', fine: 8000, time: 30, imp: 0 },
-  { cat: 'D', code: 'D04-1', desc: 'Kanabis [1-10 pcs]', fine: 1000, time: 15, imp: 0 },
-  { cat: 'D', code: 'D04-2', desc: 'Kanabis [11-25 pcs]', fine: 1500, time: 16, imp: 0 },
-  { cat: 'D', code: 'D04-3', desc: 'Kanabis [>25 pcs]', fine: 2500, time: 20, imp: 0 },
-  { cat: 'D', code: 'D05-1', desc: 'Marijuana [1-5 pcs]', fine: 3000, time: 25, imp: 0 },
-  { cat: 'D', code: 'D05-2', desc: 'Marijuana [6-10 pcs]', fine: 3500, time: 30, imp: 0 },
-  { cat: 'D', code: 'D05-3', desc: 'Marijuana [>10 pcs]', fine: 4000, time: 35, imp: 0 },
-  { cat: 'D', code: 'D06', desc: 'Alat konsumsi narkotika', fine: 2200, time: 12, imp: 0 },
-  { cat: 'D', code: 'D07', desc: 'Transport kimia narkotika', fine: 5500, time: 25, imp: 0 },
-  { cat: 'D', code: 'D08', desc: 'Resep palsu narkotika', fine: 4700, time: 18, imp: 0 },
-  { cat: 'D', code: 'D09', desc: 'Pencabutan Kanabis', fine: 2500, time: 15, imp: 0 },
-  { cat: 'D', code: 'D10', desc: 'Kepemilikan Srimulat', fine: 1000, time: 10, imp: 0 },
-  { cat: 'D', code: 'D11', desc: 'Kepemilikan Sabu', fine: 1000, time: 13, imp: 0 },
-  { cat: 'D', code: 'D12', desc: 'Narkotika di bagasi', fine: 1500, time: 13, imp: 0 },
+  // PASAL D - Senjata Api & Amunisi Ilegal (9 Pasal)
+  { cat: 'D', code: 'D01-1', desc: 'Kepemilikkan Senjata Api Ilegal (First Class)', fine: 15000, time: 10, imp: 0 },
+  { cat: 'D', code: 'D01-2', desc: 'Kepemilikkan Senjata Api Ilegal (Second Class)', fine: 20000, time: 15, imp: 0 },
+  { cat: 'D', code: 'D01-3', desc: 'Kepemilikkan Senjata Api Ilegal (Third Class)', fine: 25000, time: 20, imp: 0 },
+  { cat: 'D', code: 'D02-1', desc: 'Kepemilikan Clip First Class (Pistol Clip)', fine: 5000, time: 15, imp: 0 },
+  { cat: 'D', code: 'D02-2', desc: 'Kepemilikan Clip Second Class (SG Clip, SMG Clip)', fine: 7500, time: 15, imp: 0 },
+  { cat: 'D', code: 'D02-3', desc: 'Kepemilikan Clip Third Class (AR Clip, Sniper Clip)', fine: 10000, time: 20, imp: 0 },
+  { cat: 'D', code: 'D03', desc: 'Menembakkan senjata di tempat umum', fine: 10000, time: 15, imp: 0 },
+  { cat: 'D', code: 'D04', desc: 'Perdagangan senjata ilegal', fine: 15000, time: 15, imp: 0 },
+  { cat: 'D', code: 'D05', desc: 'Kepemilikan senjata api ilegal dalam jumlah besar', fine: 30000, time: 30, imp: 0 },
 
-  // PASAL E - Senjata Api & Ilegal
-  { cat: 'E', code: 'E01', desc: 'Senjata tajam ilegal', fine: 6000, time: 10, imp: 0 },
-  { cat: 'E', code: 'E02-1', desc: 'Senpi ilegal (Class 1 - Pistol)', fine: 6500, time: 12, imp: 0 },
-  { cat: 'E', code: 'E02-2', desc: 'Senpi ilegal (Class 2 - SMG/SG)', fine: 7500, time: 15, imp: 0 },
-  { cat: 'E', code: 'E02-3', desc: 'Senpi ilegal (Class 3 - Rifle/Heavy)', fine: 8500, time: 20, imp: 0 },
-  { cat: 'E', code: 'E03', desc: 'Kepemilikan Vest (Kevlar Ilegal)', fine: 3500, time: 10, imp: 0 },
-  { cat: 'E', code: 'E04', desc: 'Kepemilikan Opium', fine: 2000, time: 8, imp: 0 },
-  { cat: 'E', code: 'E05', desc: 'Bahan peledak ilegal', fine: 10000, time: 30, imp: 0 },
-  { cat: 'E', code: 'E06', desc: 'Senjata menakut-nakuti', fine: 2500, time: 15, imp: 0 },
-  { cat: 'E', code: 'E07', desc: 'Clip Class 1', fine: 1500, time: 15, imp: 0 },
-  { cat: 'E', code: 'E08', desc: 'Clip Class 2', fine: 1800, time: 15, imp: 0 },
-  { cat: 'E', code: 'E09', desc: 'Clip Class 3', fine: 2000, time: 20, imp: 0 },
-  { cat: 'E', code: 'E10', desc: 'Uang Merah (5k - 20k)', fine: 3000, time: 15, imp: 0 },
-  { cat: 'E', code: 'E11', desc: 'Uang Merah (20k - 999k)', fine: 4000, time: 20, imp: 0 },
-  { cat: 'E', code: 'E12', desc: 'Barang tindak kriminal', fine: 1500, time: 15, imp: 0 },
+  // PASAL E - Narkotika & Benda Ilegal (17 Pasal)
+  { cat: 'E', code: 'E01', desc: 'Penanaman Kanabis', fine: 5000, time: 15, imp: 0 },
+  { cat: 'E', code: 'E02-1', desc: 'Membawa Bibit Kanabis [1-50 pcs]', fine: 5000, time: 15, imp: 0 },
+  { cat: 'E', code: 'E02-2', desc: 'Membawa Bibit Kanabis [>50 pcs] Interogasi', fine: 7500, time: 20, imp: 0 },
+  { cat: 'E', code: 'E03-1', desc: 'Membawa Canabis [1-100 pcs]', fine: 7500, time: 15, imp: 0 },
+  { cat: 'E', code: 'E03-2', desc: 'Membawa Canabis [>100 pcs] Interogasi', fine: 10000, time: 20, imp: 0 },
+  { cat: 'E', code: 'E04-1', desc: 'Membawa Marijuana [1-50 pcs]', fine: 10000, time: 15, imp: 0 },
+  { cat: 'E', code: 'E04-2', desc: 'Membawa Marijuana [>50 pcs] Interogasi', fine: 12500, time: 20, imp: 0 },
+  { cat: 'E', code: 'E05-1', desc: 'Membawa Joint [1-50 pcs]', fine: 15000, time: 15, imp: 0 },
+  { cat: 'E', code: 'E05-2', desc: 'Membawa Joint [>50 pcs] Interogasi', fine: 25000, time: 20, imp: 0 },
+  { cat: 'E', code: 'E06-1', desc: 'Membawa Cocain [1-20 pcs]', fine: 15000, time: 15, imp: 0 },
+  { cat: 'E', code: 'E06-2', desc: 'Membawa Cocain [>20 pcs] Interogasi', fine: 25000, time: 20, imp: 0 },
+  { cat: 'E', code: 'E07-1', desc: 'Membawa Opium [1-20 pcs]', fine: 20000, time: 15, imp: 0 },
+  { cat: 'E', code: 'E07-2', desc: 'Membawa Opium [>20 pcs] Interogasi', fine: 30000, time: 20, imp: 0 },
+  { cat: 'E', code: 'E08', desc: 'Perdagangan Narkotika', fine: 25000, time: 25, imp: 0 },
+  { cat: 'E', code: 'E09', desc: 'Kepemilikkan Vest', fine: 15000, time: 15, imp: 0 },
+  { cat: 'E', code: 'E10', desc: 'Kepemilikkan Red Money [1 - 10,000]', fine: 15000, time: 15, imp: 0 },
+  { cat: 'E', code: 'E11', desc: 'Kepemilikkan Red Money [> 10,000] Interogasi', fine: 25000, time: 25, imp: 0 },
 
-  // PASAL F - Kriminal Berat
-  { cat: 'F', code: 'F01', desc: 'Pembegalan', fine: 5000, time: 15, imp: 2 },
-  { cat: 'F', code: 'F02', desc: 'Perampokan Warung', fine: 5500, time: 17, imp: 2 },
-  { cat: 'F', code: 'F03', desc: 'Pencurian Mobil (Grand Theft Auto)', fine: 4000, time: 12, imp: 0 },
-  { cat: 'F', code: 'F04', desc: 'Penyerangan instansi / Markas', fine: 2600, time: 10, imp: 0 },
-  { cat: 'F', code: 'F05', desc: 'Penyanderaan', fine: 7000, time: 15, imp: 0 },
-  { cat: 'F', code: 'F06', desc: 'War antar kelompok / Gang War', fine: 7500, time: 25, imp: 0 },
-  { cat: 'F', code: 'F07', desc: 'Pencurian dengan kekerasan', fine: 8500, time: 20, imp: 0 },
-  { cat: 'F', code: 'F08', desc: 'Pembunuhan', fine: 10000, time: 30, imp: 0 },
-  { cat: 'F', code: 'F09', desc: 'Penyerangan fasilitas penting', fine: 6000, time: 18, imp: 0 },
-  { cat: 'F', code: 'F10', desc: 'Pemerasan dengan ancaman', fine: 8500, time: 16, imp: 0 },
-  { cat: 'F', code: 'F11', desc: 'Terorisme', fine: 10000, time: 30, imp: 0 },
-  { cat: 'F', code: 'F12', desc: 'Penyanderaan Massal', fine: 10000, time: 30, imp: 0 },
-  { cat: 'F', code: 'F13', desc: 'Perampokan ATM', fine: 6000, time: 30, imp: 0 },
-  { cat: 'F', code: 'F14', desc: 'Perampokan Bank Desa (Palomino/Dillimore)', fine: 8000, time: 35, imp: 0 },
-  { cat: 'F', code: 'F15', desc: 'Perampokan Bank Besar (Bank Pusat Los Santos)', fine: 10000, time: 45, imp: 0 },
-  { cat: 'F', code: 'F16', desc: 'Penembakan terhadap warga / aparat', fine: 3500, time: 40, imp: 0 },
+  // PASAL F - Kejahatan Terhadap Petugas (8 Pasal)
+  { cat: 'F', code: 'F01', desc: 'Menghalangi petugas dalam menjalankan tugas', fine: 7500, time: 5, imp: 0 },
+  { cat: 'F', code: 'F02', desc: 'Melawan petugas saat penangkapan', fine: 10000, time: 10, imp: 0 },
+  { cat: 'F', code: 'F03', desc: 'Melarikan diri dari petugas', fine: 10000, time: 15, imp: 0 },
+  { cat: 'F', code: 'F04', desc: 'Penyerangan terhadap petugas', fine: 15000, time: 20, imp: 0 },
+  { cat: 'F', code: 'F05', desc: 'Pembunuhan terhadap petugas', fine: 250000, time: 60, imp: 0 },
+  { cat: 'F', code: 'F06', desc: 'Penyogokan/bribery terhadap petugas', fine: 50000, time: 30, imp: 0 },
+  { cat: 'F', code: 'F07', desc: 'Menyamar sebagai aparat', fine: 15000, time: 20, imp: 0 },
+  { cat: 'F', code: 'F08', desc: 'Mengganggu operasi kepolisian', fine: 25000, time: 15, imp: 0 },
 
-  // PASAL G - Ekonomi
-  { cat: 'G', code: 'G01', desc: 'Pencucian uang (Money Laundering)', fine: 10000, time: 20, imp: 0 },
-  { cat: 'G', code: 'G02', desc: 'Penipuan bisnis', fine: 2000, time: 15, imp: 0 },
-  { cat: 'G', code: 'G03', desc: 'Pemalsuan dokumen keuangan', fine: 1500, time: 18, imp: 0 },
-  { cat: 'G', code: 'G04', desc: 'Penghindaran pajak', fine: 1300, time: 12, imp: 0 },
-  { cat: 'G', code: 'G05', desc: 'Perdagangan ilegal', fine: 3400, time: 22, imp: 0 },
-  { cat: 'G', code: 'G06', desc: 'Penyelundupan barang', fine: 4500, time: 20, imp: 0 },
+  // PASAL G - Dokumen, Jabatan & Pemerintah (5 Pasal)
+  { cat: 'G', code: 'G01', desc: 'Pemalsuan dokumen', fine: 10000, time: 15, imp: 0 },
+  { cat: 'G', code: 'G02', desc: 'Pemalsuan identitas', fine: 50000, time: 20, imp: 0 },
+  { cat: 'G', code: 'G03', desc: 'Korupsi', fine: 150000, time: 60, imp: 0 },
+  { cat: 'G', code: 'G04', desc: 'Penyalahgunaan jabatan', fine: 100000, time: 60, imp: 0 },
+  { cat: 'G', code: 'G05', desc: 'Membocorkan informasi rahasia pemerintah', fine: 100000, time: 60, imp: 0 },
 
-  // PASAL H - Khusus
-  { cat: 'H', code: 'H01', desc: 'Membahayakan diri sendiri', fine: 3000, time: 5, imp: 0 },
-  { cat: 'H', code: 'H02', desc: 'Penyalahgunaan info pribadi', fine: 2000, time: 8, imp: 0 },
-  { cat: 'H', code: 'H03', desc: 'Penyerangan tanpa motif', fine: 8500, time: 15, imp: 0 },
-  { cat: 'H', code: 'H04', desc: 'Kendaraan sebagai senjata (Vehicular Manslaughter)', fine: 9500, time: 12, imp: 1 },
-  { cat: 'H', code: 'H05', desc: 'Tindakan provokatif kepada aparat', fine: 5500, time: 3, imp: 0 },
-  { cat: 'H', code: 'H06', desc: 'Tindakan curang / Abuse', fine: 4500, time: 18, imp: 0 }
+  // PASAL H - Ketertiban Umum & Kerusuhan (5 Pasal)
+  { cat: 'H', code: 'H01', desc: 'Membuat keributan di tempat umum', fine: 15000, time: 5, imp: 0 },
+  { cat: 'H', code: 'H02', desc: 'Perkelahian di tempat umum', fine: 10000, time: 10, imp: 0 },
+  { cat: 'H', code: 'H03', desc: 'Mengganggu pelayanan publik', fine: 10000, time: 10, imp: 0 },
+  { cat: 'H', code: 'H04', desc: 'Memprovokasi kerusuhan', fine: 20000, time: 20, imp: 0 },
+  { cat: 'H', code: 'H05', desc: 'Kerusuhan massal', fine: 15000, time: 15, imp: 0 },
+
+  // PASAL I - Terorisme & Kejahatan Berat (5 Pasal)
+  { cat: 'I', code: 'I-01', desc: 'Terorisme', fine: 50000, time: 40, imp: 0 },
+  { cat: 'I', code: 'I-02', desc: 'Percobaan kudeta', fine: 75000, time: 45, imp: 0 },
+  { cat: 'I', code: 'I-03', desc: 'Kejahatan terorganisir', fine: 100000, time: 50, imp: 0 },
+  { cat: 'I', code: 'I-04', desc: 'Pembentukan organisasi kriminal', fine: 150000, time: 55, imp: 0 },
+  { cat: 'I', code: 'I-05', desc: 'Penyanderaan pejabat negara', fine: 200000, time: 60, imp: 0 }
 ];
 
 export const HSPD_COMMANDS_LIST = [
@@ -167,25 +193,17 @@ export const HSPD_COMMANDS_LIST = [
   { name: "Department Radio", cmd: "/d", desc: "Radio antar instansi (HSPD, Medic/FD, Gov)" }
 ];
 
-export const PASAL_STORAGE_KEY = 'hspd_custom_pasal_list_v1';
+export const PASAL_STORAGE_KEY = 'hspd_custom_pasal_list_v2';
 
 /**
  * Mengurutkan daftar pasal KUHP & SOP secara rapi berdasarkan Kategori dan Nomor Kode / Badge
- * Contoh: A01, A02 ... A09, A10, A11 atau format nomor murni 01, 02, 10
+ * Contoh: A01, A02 ... A15, B08-1, I-01
  */
 export function sortPasalByBadgeCode(list: PasalItem[]): PasalItem[] {
   return [...list].sort((a, b) => {
-    // 1. Kategori (A, B, C, D, E, F, G, H)
+    // 1. Kategori (A, B, C, D, E, F, G, H, I, dst)
     if (a.cat !== b.cat) return (a.cat || '').localeCompare(b.cat || '');
-    // 2. Parse kode menjadi prefix huruf, nomor urut angka, dan suffix
-    const matchA = (a.code || '').trim().match(/^([A-Za-z]+)?(\d+)?(.*)$/);
-    const matchB = (b.code || '').trim().match(/^([A-Za-z]+)?(\d+)?(.*)$/);
-    const prefixA = (matchA?.[1] || '').toUpperCase();
-    const prefixB = (matchB?.[1] || '').toUpperCase();
-    if (prefixA !== prefixB) return prefixA.localeCompare(prefixB);
-    const numA = matchA?.[2] ? parseInt(matchA[2], 10) : 0;
-    const numB = matchB?.[2] ? parseInt(matchB[2], 10) : 0;
-    if (numA !== numB) return numA - numB;
+    // 2. Natural sort pada kode
     return (a.code || '').localeCompare(b.code || '', undefined, { numeric: true, sensitivity: 'base' });
   });
 }
@@ -193,6 +211,10 @@ export function sortPasalByBadgeCode(list: PasalItem[]): PasalItem[] {
 export function getSavedPasalList(): PasalItem[] {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
+      // Hapus cache v1 agar master list terbaru langsung aktif
+      if (localStorage.getItem('hspd_custom_pasal_list_v1')) {
+        localStorage.removeItem('hspd_custom_pasal_list_v1');
+      }
       const raw = localStorage.getItem(PASAL_STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
@@ -224,6 +246,7 @@ export function resetPasalList(): PasalItem[] {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
       localStorage.removeItem(PASAL_STORAGE_KEY);
+      localStorage.removeItem('hspd_custom_pasal_list_v1');
       const sortedDefault = sortPasalByBadgeCode([...PASAL_LIST]);
       window.dispatchEvent(new CustomEvent('hspd-pasal-updated', { detail: sortedDefault }));
     }

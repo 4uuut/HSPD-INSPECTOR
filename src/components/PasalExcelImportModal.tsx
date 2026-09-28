@@ -190,7 +190,7 @@ export const PasalExcelImportModal: React.FC<Props> = ({
         for (let c = 0; c < maxCols; c++) {
           const matchCount = sampleRows.filter(r => {
             const v = String(r[c] || '').trim();
-            return /^[a-hA-H][-_\s.]?[0-9]{1,3}[a-zA-Z]?$/.test(v) || /^pasal\s*[0-9]+/i.test(v);
+            return /^[a-zA-Z][-_\s.]?[0-9]{1,3}[a-zA-Z]?$/.test(v) || /^pasal\s*[0-9]+/i.test(v);
           }).length;
           if (matchCount >= Math.min(2, sampleRows.length)) {
             colIndices.code = c;
@@ -246,19 +246,22 @@ export const PasalExcelImportModal: React.FC<Props> = ({
 
       const results: PasalItem[] = [];
       const errors: string[] = [];
-      const validCategories: PasalItem['cat'][] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
-      let currentSectionCategory: PasalItem['cat'] = 'A';
+      const validCategories: string[] = [
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+        'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
+      ];
+      let currentSectionCategory: string = 'A';
 
       const startRow = headerRowIdx !== -1 ? headerRowIdx + 1 : 0;
       for (let r = startRow; r < bestJson.length; r++) {
         const row = bestJson[r];
         if (!Array.isArray(row) || row.length === 0) continue;
 
-        // Deteksi baris pembatas section (Contoh: "KATEGORI A: PELANGGARAN LALU LINTAS" atau "BAB B")
+        // Deteksi baris pembatas section (Contoh: "KATEGORI I: PIDANA KHUSUS" atau "BAB I")
         const rowJoined = row.map(c => String(c || '').trim()).join(' ');
-        const sectionMatch = rowJoined.match(/(?:kategori|bab|golongan)\s*([a-hA-H])/i);
+        const sectionMatch = rowJoined.match(/(?:kategori|bab|golongan)\s*([a-zA-Z])/i);
         if (sectionMatch) {
-          currentSectionCategory = sectionMatch[1].toUpperCase() as PasalItem['cat'];
+          currentSectionCategory = sectionMatch[1].toUpperCase();
         }
 
         let rawCode = colIndices.code !== -1 ? String(row[colIndices.code] || '').trim() : '';
@@ -278,14 +281,14 @@ export const PasalExcelImportModal: React.FC<Props> = ({
 
         // Jika rawCode hanya berisi nomor urut biasa (1, 2, 3) dan ada kode pasal di kolom deskripsi atau kolom lain
         if (/^\d{1,3}$/.test(rawCode)) {
-          const embeddedCodeMatch = rawDesc.match(/^([A-Ha-h][-_\s.]?[0-9]{1,3})[\s:–—-]+(.*)/);
+          const embeddedCodeMatch = rawDesc.match(/^([a-zA-Z][-_\s.]?[0-9]{1,3})[\s:–—-]+(.*)/);
           if (embeddedCodeMatch) {
             rawCode = embeddedCodeMatch[1].replace(/[-_\s.]/g, '').toUpperCase();
             rawDesc = embeddedCodeMatch[2].trim();
           } else {
             for (let c = 0; c < row.length; c++) {
               const cellStr = String(row[c] || '').trim();
-              if (/^[a-hA-H][-_\s.]?[0-9]{1,3}[a-zA-Z]?$/.test(cellStr)) {
+              if (/^[a-zA-Z][-_\s.]?[0-9]{1,3}[a-zA-Z]?$/.test(cellStr)) {
                 rawCode = cellStr.toUpperCase();
                 break;
               }
@@ -297,7 +300,7 @@ export const PasalExcelImportModal: React.FC<Props> = ({
         if (!rawCode) {
           for (let c = 0; c < row.length; c++) {
             const cellStr = String(row[c] || '').trim();
-            if (/^[a-hA-H][-_\s.]?[0-9]{1,3}[a-zA-Z]?$/.test(cellStr)) {
+            if (/^[a-zA-Z][-_\s.]?[0-9]{1,3}[a-zA-Z]?$/.test(cellStr)) {
               rawCode = cellStr.toUpperCase();
               break;
             }
@@ -328,17 +331,17 @@ export const PasalExcelImportModal: React.FC<Props> = ({
 
         // Tentukan Kategori:
         // 1. Dari kolom kategori
-        // 2. Dari awalan kode (misal A01 -> A)
+        // 2. Dari awalan kode (misal I01 -> I, A01 -> A)
         // 3. Dari section header terakhir
         // 4. Default ke H (Khusus)
-        if (!validCategories.includes(rawCat as any)) {
-          const matchCat = rawCode.match(/^([A-H])/i);
+        if (!validCategories.includes(rawCat)) {
+          const matchCat = rawCode.match(/^([a-zA-Z])/i);
           if (matchCat) {
             rawCat = matchCat[1].toUpperCase();
           } else if (validCategories.includes(currentSectionCategory)) {
             rawCat = currentSectionCategory;
           } else {
-            rawCat = 'H';
+            rawCat = 'I';
           }
         }
 
@@ -407,7 +410,10 @@ export const PasalExcelImportModal: React.FC<Props> = ({
       ['C', 'C01', 'Masuk properti pribadi tanpa izin', 1300, 10, 0],
       ['D', 'D01', 'Berada di tempat narkotika', 2000, 15, 0],
       ['E', 'E01', 'Kepemilikan Senjata Api Tanpa Izin', 7500, 25, 1],
-      ['F', 'F01', 'Perampokan Bank / ATM (Robbery)', 10000, 30, 2]
+      ['F', 'F01', 'Perampokan Bank / ATM (Robbery)', 10000, 30, 2],
+      ['G', 'G01', 'Pencucian Uang / Money Laundering', 12500, 35, 3],
+      ['H', 'H01', 'Pelanggaran Ketertiban Luar Biasa', 5000, 20, 1],
+      ['I', 'I01', 'Tindak Pidana Khusus / Korupsi Berat', 15000, 45, 3]
     ];
 
     const wsData = [

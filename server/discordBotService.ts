@@ -3313,7 +3313,8 @@ class DiscordGatewayManager {
       E: 'E - Senjata Api & Ilegal',
       F: 'F - Kriminal Berat',
       G: 'G - Ekonomi',
-      H: 'H - Khusus / Lain-lain'
+      H: 'H - Khusus / Ketertiban',
+      I: 'I - Pidana Khusus / Berat'
     };
     return (cat && map[cat.toUpperCase()]) || (cat ? `Kategori ${cat}` : 'Umum');
   }
@@ -3327,7 +3328,8 @@ class DiscordGatewayManager {
       E: 0xDC2626, // Red
       F: 0x7C3AED, // Purple
       G: 0x06B6D4, // Cyan
-      H: 0x4F46E5  // Indigo
+      H: 0x4F46E5, // Indigo
+      I: 0xD946EF  // Fuchsia
     };
     return (cat && map[cat.toUpperCase()]) || 0x00A8FF;
   }
@@ -3341,7 +3343,7 @@ class DiscordGatewayManager {
           icon_url: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png'
         },
         title: '📜 Kitab Undang-Undang Hukum Pidana (KUHP) HSPD',
-        description: 'Masukkan kode pasal (misal: `/pasal query: A01`) atau kata kunci pencarian (misal: `/pasal query: narkoba`).\n\n**Daftar Kategori KUHP:**\n• **A** - Pelanggaran Lalu Lintas & Jalan Raya\n• **B** - Pidana Ringan & Gangguan Ketertiban Umum\n• **C** - Kejahatan Terhadap Properti & Pencurian\n• **D** - Narkotika & Zat Terlarang\n• **E** - Senjata Api, Bahan Peledak, & Benda Ilegal\n• **F** - Kriminal Berat, Pembunuhan, & Terorisme\n• **G** - Kejahatan Finansial, Penipuan, & Korupsi\n• **H** - Kejahatan Khusus & Ketentuan Tambahan',
+        description: 'Masukkan kode pasal (misal: `/pasal query: A01`) atau kata kunci pencarian (misal: `/pasal query: narkoba`).\n\n**Daftar Kategori KUHP:**\n• **A** - Pelanggaran Lalu Lintas & Jalan Raya\n• **B** - Pidana Ringan & Gangguan Ketertiban Umum\n• **C** - Kejahatan Terhadap Properti & Pencurian\n• **D** - Narkotika & Zat Terlarang\n• **E** - Senjata Api, Bahan Peledak, & Benda Ilegal\n• **F** - Kriminal Berat, Pembunuhan, & Terorisme\n• **G** - Kejahatan Finansial, Penipuan, & Korupsi\n• **H** - Kejahatan Khusus & Ketertiban\n• **I** - Tindak Pidana Khusus / Berat Lanjutan',
         color: 0x00A8FF,
         footer: { text: 'Gunakan /hitung untuk menjumlahkan denda & hukuman gabungan' }
       };

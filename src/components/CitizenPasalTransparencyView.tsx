@@ -6,7 +6,7 @@ import {
   Info, ExternalLink, HelpCircle, ShieldAlert, ArrowRight, X
 } from 'lucide-react';
 import { PasalItem, CategoryInfo } from '../types';
-import { OFFENCE_CATEGORIES, getSavedPasalList } from '../data/pasalData';
+import { OFFENCE_CATEGORIES, getMergedCategories, getSavedPasalList } from '../data/pasalData';
 
 interface Props {
   onBackToServices?: () => void;
@@ -32,6 +32,8 @@ export const CitizenPasalTransparencyView: React.FC<Props> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [sortBy, setSortBy] = useState<'code' | 'fine_asc' | 'fine_desc' | 'time_desc'>('code');
+
+  const availableCategories = useMemo(() => getMergedCategories(pasalList), [pasalList]);
 
   // Selected Pasal Codes for calculation simulation
   const [selectedCodes, setSelectedCodes] = useState<string[]>(initialSelectedCodes);
@@ -628,7 +630,7 @@ export const CitizenPasalTransparencyView: React.FC<Props> = ({
 
         {/* CATEGORY TABS BAR */}
         <div className="flex overflow-x-auto gap-1.5 pb-2 text-xs scrollbar-none font-medium">
-          {OFFENCE_CATEGORIES.map(cat => {
+          {availableCategories.map(cat => {
             const isSelected = selectedCategory === cat.key;
             const countInCat = cat.key === 'ALL' 
               ? pasalList.length 
@@ -660,7 +662,7 @@ export const CitizenPasalTransparencyView: React.FC<Props> = ({
         {selectedCategory !== 'ALL' && (
           <div className="flex items-center justify-between text-xs bg-[#0B0E14] px-3.5 py-2 rounded-xl border border-gray-800">
             <span className="text-gray-400">
-              Kategori: <strong className="text-white">{OFFENCE_CATEGORIES.find(c => c.key === selectedCategory)?.title}</strong>
+              Kategori: <strong className="text-white">{availableCategories.find(c => c.key === selectedCategory)?.title}</strong>
               <span className="ml-2 text-gray-500">({filteredPasal.length} Pasal ditemukan)</span>
             </span>
 
@@ -679,7 +681,7 @@ export const CitizenPasalTransparencyView: React.FC<Props> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {filteredPasal.map(item => {
               const isChecked = selectedCodes.includes(item.code);
-              const catInfo = OFFENCE_CATEGORIES.find(c => c.key === item.cat);
+              const catInfo = availableCategories.find(c => c.key === item.cat);
 
               return (
                 <div

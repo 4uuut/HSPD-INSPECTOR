@@ -1,5 +1,10 @@
+export type CategoryLetter = 
+  | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M'
+  | 'N' | 'O' | 'P' | 'Q' | 'R' | 'S' | 'T' | 'U' | 'V' | 'W' | 'X' | 'Y' | 'Z'
+  | (string & {});
+
 export interface PasalItem {
-  cat: 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
+  cat: CategoryLetter;
   code: string;
   desc: string;
   fine: number;
@@ -8,7 +13,7 @@ export interface PasalItem {
 }
 
 export interface CategoryInfo {
-  key: 'ALL' | 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
+  key: 'ALL' | CategoryLetter;
   title: string;
   badgeColor: string;
   desc?: string;
