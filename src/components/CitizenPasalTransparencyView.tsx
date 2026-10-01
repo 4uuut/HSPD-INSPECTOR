@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Scale, Search, AlertCircle, CheckCircle2, Shield, 
   FileText, DollarSign, Clock, Car, Copy, Check, 
   RotateCcw, Sparkles, Filter, ChevronDown, ChevronUp,
-  Info, ExternalLink, HelpCircle, ShieldAlert, ArrowRight, X
+  Info, ExternalLink, HelpCircle, ShieldAlert, ArrowRight, X,
+  ChevronLeft, ChevronRight, LayoutGrid, ArrowUp
 } from 'lucide-react';
 import { PasalItem, CategoryInfo } from '../types';
 import { OFFENCE_CATEGORIES, getMergedCategories, getSavedPasalList } from '../data/pasalData';
@@ -34,6 +35,61 @@ export const CitizenPasalTransparencyView: React.FC<Props> = ({
   const [sortBy, setSortBy] = useState<'code' | 'fine_asc' | 'fine_desc' | 'time_desc'>('code');
 
   const availableCategories = useMemo(() => getMergedCategories(pasalList), [pasalList]);
+
+  // Horizontal category scroll & layout mode
+  const categoryScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState<boolean>(false);
+  const [canScrollRight, setCanScrollRight] = useState<boolean>(true);
+  const [isCategoryWrapMode, setIsCategoryWrapMode] = useState<boolean>(false);
+  const [showScrollTop, setShowScrollTop] = useState<boolean>(false);
+
+  const checkCategoryScroll = () => {
+    if (!categoryScrollRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = categoryScrollRef.current;
+    setCanScrollLeft(scrollLeft > 4);
+    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 6);
+  };
+
+  useEffect(() => {
+    checkCategoryScroll();
+    const el = categoryScrollRef.current;
+    if (el) {
+      el.addEventListener('scroll', checkCategoryScroll, { passive: true });
+    }
+    window.addEventListener('resize', checkCategoryScroll);
+    return () => {
+      if (el) el.removeEventListener('scroll', checkCategoryScroll);
+      window.removeEventListener('resize', checkCategoryScroll);
+    };
+  }, [availableCategories, isCategoryWrapMode]);
+
+  const scrollCategories = (direction: 'left' | 'right') => {
+    if (!categoryScrollRef.current) return;
+    const scrollAmount = direction === 'left' ? -280 : 280;
+    categoryScrollRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    setTimeout(checkCategoryScroll, 350);
+  };
+
+  const handleCategoryWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (isCategoryWrapMode || !categoryScrollRef.current) return;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      categoryScrollRef.current.scrollLeft += e.deltaY;
+      checkCategoryScroll();
+    }
+  };
+
+  // Scroll to top button detection
+  useEffect(() => {
+    const handleWindowScroll = () => {
+      setShowScrollTop(window.scrollY > 350);
+    };
+    window.addEventListener('scroll', handleWindowScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleWindowScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Selected Pasal Codes for calculation simulation
   const [selectedCodes, setSelectedCodes] = useState<string[]>(initialSelectedCodes);
@@ -628,34 +684,116 @@ export const CitizenPasalTransparencyView: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* CATEGORY TABS BAR */}
-        <div className="flex overflow-x-auto gap-1.5 pb-2 text-xs scrollbar-none font-medium">
-          {availableCategories.map(cat => {
-            const isSelected = selectedCategory === cat.key;
-            const countInCat = cat.key === 'ALL' 
-              ? pasalList.length 
-              : pasalList.filter(p => p.cat === cat.key).length;
-            
-            return (
+        {/* CATEGORY TABS BAR WITH DEDICATED SCROLL BUTTONS & TOGGLE WRAP */}
+        <div className="space-y-2 pt-1">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-1.5 text-gray-300 font-semibold">
+              <Filter className="w-3.5 h-3.5 text-blue-400" />
+              <span>Filter Kategori ({availableCategories.length - 1} Kategori A – I):</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 ml-auto">
+              {/* Toggle Wrap vs Scroll */}
               <button
-                key={cat.key}
                 type="button"
-                onClick={() => setSelectedCategory(cat.key)}
-                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition flex items-center gap-1.5 ${
-                  isSelected
-                    ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-900/40 ring-1 ring-blue-400'
-                    : 'bg-[#151B26] text-gray-400 hover:text-gray-200 hover:bg-gray-800/80 border border-gray-800'
+                onClick={() => {
+                  setIsCategoryWrapMode(!isCategoryWrapMode);
+                  setTimeout(checkCategoryScroll, 100);
+                }}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition flex items-center gap-1.5 border cursor-pointer ${
+                  isCategoryWrapMode
+                    ? 'bg-blue-900/60 text-blue-200 border-blue-500 shadow-sm'
+                    : 'bg-[#151B26] text-gray-300 border-gray-700 hover:text-white hover:bg-gray-800'
                 }`}
+                title={isCategoryWrapMode ? 'Ganti ke Mode Baris Tunggal (Scroll)' : 'Buka Semua Kategori Sekaligus (Wrap)'}
               >
-                <span>{cat.title}</span>
-                <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
-                  isSelected ? 'bg-blue-900 text-blue-200' : 'bg-[#0B0E14] text-gray-400'
-                }`}>
-                  {countInCat}
-                </span>
+                <LayoutGrid className="w-3.5 h-3.5 text-blue-400" />
+                <span>{isCategoryWrapMode ? 'Mode Scroll' : 'Buka Semua (Wrap)'}</span>
               </button>
-            );
-          })}
+
+              {!isCategoryWrapMode && (
+                <div className="flex items-center gap-1">
+                  {/* Left Scroll Button */}
+                  <button
+                    type="button"
+                    onClick={() => scrollCategories('left')}
+                    disabled={!canScrollLeft}
+                    className={`p-1.5 rounded-lg border transition flex items-center justify-center ${
+                      canScrollLeft
+                        ? 'bg-[#151B26] text-white border-gray-600 hover:bg-gray-700 hover:border-blue-400 shadow-sm cursor-pointer'
+                        : 'bg-[#0B0E14] text-gray-600 border-gray-800 opacity-40 cursor-not-allowed'
+                    }`}
+                    title="Geser Kategori ke Kiri"
+                    aria-label="Geser Kategori ke Kiri"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  {/* Right Scroll Button */}
+                  <button
+                    type="button"
+                    onClick={() => scrollCategories('right')}
+                    className={`px-2.5 py-1.5 rounded-lg border transition flex items-center gap-1.5 font-bold text-xs ${
+                      canScrollRight
+                        ? 'bg-blue-600 text-white border-blue-400 hover:bg-blue-500 shadow-md shadow-blue-900/40 cursor-pointer animate-pulse'
+                        : 'bg-[#151B26] text-gray-400 border-gray-700 hover:text-gray-200 cursor-pointer'
+                    }`}
+                    title="Geser Kategori ke Kanan untuk melihat F, G, H, I"
+                    aria-label="Geser Kategori ke Kanan"
+                  >
+                    <span className="text-[11px] font-mono">Geser Kategori</span>
+                    <ChevronRight className="w-4 h-4 stroke-[3]" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Category Tabs Container */}
+          <div className="relative">
+            {/* Scrollable / Wrapped List */}
+            <div
+              ref={categoryScrollRef}
+              onWheel={handleCategoryWheel}
+              className={`text-xs font-medium pb-2 transition-all ${
+                isCategoryWrapMode
+                  ? 'flex flex-wrap gap-1.5 p-2 bg-[#0B0E14] rounded-xl border border-gray-800 shadow-inner'
+                  : 'flex overflow-x-auto gap-1.5 scroll-smooth custom-scrollbar pb-3 pt-0.5'
+              }`}
+            >
+              {availableCategories.map(cat => {
+                const isSelected = selectedCategory === cat.key;
+                const countInCat = cat.key === 'ALL' 
+                  ? pasalList.length 
+                  : pasalList.filter(p => p.cat === cat.key).length;
+                
+                return (
+                  <button
+                    key={cat.key}
+                    type="button"
+                    onClick={(e) => {
+                      setSelectedCategory(cat.key);
+                      if (!isCategoryWrapMode) {
+                        e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                      isSelected
+                        ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-900/40 ring-1 ring-blue-400'
+                        : 'bg-[#151B26] text-gray-300 hover:text-white hover:bg-gray-800/80 border border-gray-800'
+                    }`}
+                  >
+                    <span>{cat.title}</span>
+                    <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded ${
+                      isSelected ? 'bg-blue-900 text-blue-200' : 'bg-[#0B0E14] text-gray-400'
+                    }`}>
+                      {countInCat}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* QUICK CATEGORY SELECTION BUTTON */}
@@ -786,6 +924,19 @@ export const CitizenPasalTransparencyView: React.FC<Props> = ({
           Versi Regulasi: KUHP-v1.4 • Hak Cipta Publik Bebas Akses Warga
         </span>
       </div>
+
+      {/* FLOATING SCROLL TO TOP BUTTON */}
+      {showScrollTop && (
+        <button
+          type="button"
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-40 p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-xl shadow-blue-900/60 border border-blue-400 flex items-center justify-center transition-all animate-bounce cursor-pointer group"
+          title="Kembali ke Atas"
+          aria-label="Scroll ke Atas"
+        >
+          <ArrowUp className="w-5 h-5 stroke-[2.5] group-hover:-translate-y-0.5 transition-transform" />
+        </button>
+      )}
     </div>
   );
 };
