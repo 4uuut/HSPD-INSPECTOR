@@ -8,6 +8,7 @@ import {
 import { 
   CHANGELOG_WEBHOOK_STORAGE_KEY, 
   CHANGELOG_MENTION_ROLE_KEY,
+  WEBHOOK_STORAGE_KEY,
   DISCORD_BOT_TOKEN_KEY,
   buildApiUrl,
   safeFetchJson
@@ -313,7 +314,16 @@ export const DiscordReleaseAnnouncementModal: React.FC<DiscordReleaseAnnouncemen
     setSendSuccessMsg(null);
     setSendErrorMsg(null);
 
-    const savedWebhook = localStorage.getItem(CHANGELOG_WEBHOOK_STORAGE_KEY) || '';
+    let savedWebhook = localStorage.getItem(CHANGELOG_WEBHOOK_STORAGE_KEY) || '';
+    const mainLogKasusUrl = localStorage.getItem(WEBHOOK_STORAGE_KEY) || '';
+    if (savedWebhook && (
+      savedWebhook === mainLogKasusUrl ||
+      savedWebhook.includes('1541925244602941562') ||
+      savedWebhook.includes('1541924088480669907')
+    )) {
+      localStorage.removeItem(CHANGELOG_WEBHOOK_STORAGE_KEY);
+      savedWebhook = '';
+    }
     const colorNum = parseInt(embedColorHex.replace('#', ''), 16) || 0x00A8FF;
     const botToken = localStorage.getItem(DISCORD_BOT_TOKEN_KEY) || '';
 

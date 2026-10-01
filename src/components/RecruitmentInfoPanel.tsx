@@ -10,22 +10,49 @@ import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from
 import { 
   RecruitmentPortalConfig, 
   getRecruitmentPortalConfig, 
-  subscribeToRecruitmentPortal 
+  subscribeToRecruitmentPortal,
+  saveRecruitmentPortalConfig
 } from '../utils/recruitmentPortalStorage';
 
 export const RecruitmentInfoPanel: React.FC = () => {
   const [branding, setBranding] = useState<DepartmentBrandingConfig>(getCustomBranding());
   const [portal, setPortal] = useState<RecruitmentPortalConfig>(getRecruitmentPortalConfig());
   const [activeTab, setActiveTab] = useState<'overview' | 'requirements' | 'phases' | 'divisions'>('overview');
+  const [localAnimMode, setLocalAnimMode] = useState<'spin' | 'spin3d' | 'spin-float' | 'float'>('spin3d');
 
   useEffect(() => {
     const unsubBranding = subscribeToBranding(cfg => setBranding(cfg));
-    const unsubPortal = subscribeToRecruitmentPortal(cfg => setPortal(cfg));
+    const unsubPortal = subscribeToRecruitmentPortal(cfg => {
+      setPortal(cfg);
+      if (cfg.logoAnimation && cfg.logoAnimation !== 'none') {
+        setLocalAnimMode(cfg.logoAnimation as any);
+      }
+    });
     return () => {
       unsubBranding();
       unsubPortal();
     };
   }, []);
+
+  const handleCycleAnimation = () => {
+    setLocalAnimMode(prev => {
+      const next = prev === 'spin3d' ? 'spin' : prev === 'spin' ? 'spin-float' : prev === 'spin-float' ? 'float' : 'spin3d';
+      saveRecruitmentPortalConfig({ logoAnimation: next });
+      return next;
+    });
+  };
+
+  const animClass = 
+    localAnimMode === 'spin' ? 'animate-spin-slow' :
+    localAnimMode === 'spin3d' ? 'animate-spin-3d' :
+    localAnimMode === 'spin-float' ? 'animate-spin-float' :
+    'animate-float-gentle';
+
+  const animLabel = 
+    localAnimMode === 'spin' ? 'Rotasi 360° Muter' :
+    localAnimMode === 'spin3d' ? 'Rotasi 3D Koin Emas' :
+    localAnimMode === 'spin-float' ? 'Muter & Mengambang' :
+    'Melayang Halus';
 
   return (
     <div className="bg-[#161B22] border border-gray-800 rounded-xl shadow-2xl overflow-hidden flex flex-col h-full font-mono text-xs">
@@ -33,13 +60,28 @@ export const RecruitmentInfoPanel: React.FC = () => {
       <div className="bg-gradient-to-r from-[#0F1319] via-[#151c27] to-[#0F1319] border-b border-gray-800 p-4 sm:p-5 flex flex-col sm:flex-row items-center gap-4 relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-48 bg-gradient-to-l from-amber-500/10 to-transparent pointer-events-none"></div>
 
-        <div className="relative shrink-0">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/80 p-1 border-2 border-amber-500/60 shadow-lg shadow-amber-500/20 flex items-center justify-center">
+        {/* Dynamic Spinning & Moving Logo Container */}
+        <div 
+          onClick={handleCycleAnimation}
+          className="relative shrink-0 group cursor-pointer select-none"
+          title={`Logo sedang ${animLabel}. Klik untuk mengganti variasi putaran logo!`}
+        >
+          {/* Outer glowing orbital spinning ring */}
+          <div className="absolute -inset-1.5 rounded-full border-2 border-dashed border-amber-400/60 animate-spin-slow pointer-events-none"></div>
+          
+          {/* Second subtle reverse spinning ring */}
+          <div 
+            className="absolute -inset-3 rounded-full border border-dotted border-amber-500/30 pointer-events-none" 
+            style={{ animation: 'spinSlow 22s linear infinite reverse' }}
+          ></div>
+
+          {/* Badge Frame with Glowing Pulse Aura */}
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/90 p-1 border-2 border-amber-500/80 shadow-xl shadow-amber-500/40 flex items-center justify-center animate-pulse-glow transition-all duration-300 group-hover:scale-105 group-hover:border-amber-400">
             <img
               src={branding.logoUrl || HSPD_LOGO_URL}
               alt={`${branding.departmentName} Police Academy`}
               referrerPolicy="no-referrer"
-              className="w-full h-full object-contain rounded-full"
+              className={`w-full h-full object-contain rounded-full transition-transform ${animClass}`}
               onError={e => {
                 (e.target as HTMLImageElement).src = HSPD_LOGO_URL;
               }}

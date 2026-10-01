@@ -611,7 +611,11 @@ class DiscordGatewayManager {
     customDescription?: string;
     embedColor?: number;
   }): Promise<{ success: boolean; message: string; channelId?: string }> {
-    const targetChannelId = options.channelId || this.serverConfig.changelogChannelId || '1547776898833326161';
+    // Cegah mutlak changelog dikirim ke channel log-kasus (1541924088480669907)
+    let targetChannelId = options.channelId || this.serverConfig.changelogChannelId || '1547776898833326161';
+    if (targetChannelId === '1541924088480669907') {
+      targetChannelId = '1547776898833326161';
+    }
     if (!targetChannelId) {
       return {
         success: false,

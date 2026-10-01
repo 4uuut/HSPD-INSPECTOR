@@ -74,10 +74,20 @@ export async function sendSystemPingToDiscord(options?: {
   isPingInFlight = true;
   try {
     const targetChannel = options?.channelId || '1550418868814610433';
-    const savedWebhook = 
+    let savedWebhook = 
       options?.webhookUrl ||
       localStorage.getItem(CHANGELOG_WEBHOOK_STORAGE_KEY) || 
       '';
+    const mainLogKasusUrl = localStorage.getItem(WEBHOOK_STORAGE_KEY) || '';
+    // Cegah ping / changelog terkirim ke webhook log-kasus
+    if (savedWebhook && (
+      savedWebhook === mainLogKasusUrl ||
+      savedWebhook.includes('1541925244602941562') ||
+      savedWebhook.includes('1541924088480669907')
+    )) {
+      localStorage.removeItem(CHANGELOG_WEBHOOK_STORAGE_KEY);
+      savedWebhook = '';
+    }
     const effectiveDonationUrl = (options as any)?.donationUrl || localStorage.getItem('hspd_donation_url') || 'https://saweria.co/LinuxStore';
     const effectiveWebsiteUrl = options?.websiteUrl || 'https://mdc-hspd-inspector.vercel.app/';
 
@@ -248,8 +258,19 @@ export async function checkAndBroadcastLatestRelease(
       };
     }
 
-    // Dapatkan webhook URL khusus changelog yang tersimpan oleh user (HANYA jika diatur, JANGAN kirim ke log kasus atau webhook lain)
-    const savedWebhook = localStorage.getItem(CHANGELOG_WEBHOOK_STORAGE_KEY) || '';
+    // Dapatkan webhook URL khusus changelog yang tersimpan oleh user (HANYA jika diatur, JANGAN PERNAH kirim ke log kasus atau webhook lain)
+    let savedWebhook = localStorage.getItem(CHANGELOG_WEBHOOK_STORAGE_KEY) || '';
+    const mainLogKasusUrl = localStorage.getItem(WEBHOOK_STORAGE_KEY) || '';
+
+    // PROTEKSI KETAT: Jika tersimpan webhook log-kasus (channel 1541924088480669907 / id 1541925244602941562), hapus dari penyimpanan!
+    if (savedWebhook && (
+      savedWebhook === mainLogKasusUrl ||
+      savedWebhook.includes('1541925244602941562') ||
+      savedWebhook.includes('1541924088480669907')
+    )) {
+      localStorage.removeItem(CHANGELOG_WEBHOOK_STORAGE_KEY);
+      savedWebhook = '';
+    }
 
     const savedMention = localStorage.getItem(CHANGELOG_MENTION_ROLE_KEY) || releaseData.mentionRole || 'none';
     const colorNum = parseInt((releaseData.embedColorHex || '#3B82F6').replace('#', ''), 16) || 0x3B82F6;

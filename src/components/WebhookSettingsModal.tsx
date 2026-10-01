@@ -619,8 +619,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
       const res = await sendSystemPingToDiscord({
         channelId: targetPingChannelId || '1550418868814610433',
         triggerBy: `${currentOfficer?.name || 'Petugas'} (${currentOfficer?.badge || 'HSPD'})`,
-        websiteUrl: window.location.origin,
-        webhookUrl: changelogConfig.webhookUrl
+        websiteUrl: window.location.origin
       });
       setPingResult(res);
     } catch (err: any) {

@@ -958,6 +958,9 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
     let botResult: { success: boolean; message: string; channelId?: string } | null = null;
     const botStatus = discordGatewayManager.getStatus();
 
+    // PROTEKSI: Jika channelId diarahkan ke channel log-kasus (1541924088480669907), alihkan kembali ke channel changelog resmi (1547776898833326161)
+    const safeChannelId = (channelId === '1541924088480669907') ? '1547776898833326161' : channelId;
+
     if (botStatus.hasToken) {
       botResult = await discordGatewayManager.sendChangelogBroadcast({
         version: version || 'v3.2.0',
@@ -968,7 +971,7 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
         bugFixes: cleanBugFixes,
         extraNotes,
         mentionRole,
-        channelId,
+        channelId: safeChannelId,
         authorName,
         authorBadge,
         authorRank,
@@ -989,7 +992,14 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
     }
 
     // Fallback to Webhook if provided or if bot channel wasn't configured
-    if (webhookUrl && typeof webhookUrl === 'string' && webhookUrl.startsWith('https://discord.com/api/webhooks/')) {
+    // PROTEKSI: Jangan pernah izinkan webhook log-kasus (ID: 1541925244602941562 / channel: 1541924088480669907) menerima siaran changelog/pembaruan!
+    if (
+      webhookUrl && 
+      typeof webhookUrl === 'string' && 
+      webhookUrl.startsWith('https://discord.com/api/webhooks/') &&
+      !webhookUrl.includes('1541925244602941562') &&
+      !webhookUrl.includes('1541924088480669907')
+    ) {
       const now = new Date();
       const dateStr = now.toLocaleDateString('id-ID', {
         weekday: 'long',

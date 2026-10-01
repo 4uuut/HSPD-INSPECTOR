@@ -1,1 +1,96 @@
 @import "tailwindcss";
+
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spin3D {
+  0% {
+    transform: perspective(600px) rotateY(0deg);
+    filter: brightness(1) drop-shadow(0 0 6px rgba(245, 158, 11, 0.4));
+  }
+  25% {
+    transform: perspective(600px) rotateY(90deg);
+    filter: brightness(1.25) drop-shadow(0 0 16px rgba(251, 191, 36, 0.85));
+  }
+  50% {
+    transform: perspective(600px) rotateY(180deg);
+    filter: brightness(1) drop-shadow(0 0 6px rgba(245, 158, 11, 0.4));
+  }
+  75% {
+    transform: perspective(600px) rotateY(270deg);
+    filter: brightness(1.25) drop-shadow(0 0 16px rgba(251, 191, 36, 0.85));
+  }
+  100% {
+    transform: perspective(600px) rotateY(360deg);
+    filter: brightness(1) drop-shadow(0 0 6px rgba(245, 158, 11, 0.4));
+  }
+}
+
+@keyframes floatGentle {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes spinFloat {
+  0% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-3px) rotate(90deg);
+  }
+  50% {
+    transform: translateY(0px) rotate(180deg);
+  }
+  75% {
+    transform: translateY(-3px) rotate(270deg);
+  }
+  100% {
+    transform: translateY(0px) rotate(360deg);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.35), inset 0 0 8px rgba(245, 158, 11, 0.2);
+    border-color: rgba(245, 158, 11, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 28px rgba(245, 158, 11, 0.65), inset 0 0 16px rgba(245, 158, 11, 0.45);
+    border-color: rgba(251, 191, 36, 1);
+  }
+}
+
+.animate-spin-slow {
+  animation: spinSlow 12s linear infinite;
+}
+
+.animate-spin-medium {
+  animation: spinSlow 7s linear infinite;
+}
+
+.animate-spin-3d {
+  animation: spin3D 6s linear infinite;
+  transform-style: preserve-3d;
+}
+
+.animate-float-gentle {
+  animation: floatGentle 3s ease-in-out infinite;
+}
+
+.animate-spin-float {
+  animation: spinFloat 14s linear infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2.5s ease-in-out infinite;
+}

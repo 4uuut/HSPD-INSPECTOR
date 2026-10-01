@@ -900,8 +900,22 @@ export function saveDocumentWebhookConfig(config: Partial<WebhookConfig>) {
 
 export function getSavedChangelogWebhookConfig(): WebhookConfig {
   try {
+    let savedChangelogUrl = localStorage.getItem(CHANGELOG_WEBHOOK_STORAGE_KEY) || '';
+    const mainLogKasusUrl = localStorage.getItem(WEBHOOK_STORAGE_KEY) || '';
+
+    // PROTEKSI KETAT: Jika URL changelog sama dengan webhook log-kasus atau channel 1541924088480669907 (ID: 1541925244602941562),
+    // hapus seketika agar pemberitahuan pembaruan TIDAK PERNAH terkirim ke channel log-kasus!
+    if (savedChangelogUrl && (
+      savedChangelogUrl === mainLogKasusUrl ||
+      savedChangelogUrl.includes('1541925244602941562') ||
+      savedChangelogUrl.includes('1541924088480669907')
+    )) {
+      localStorage.removeItem(CHANGELOG_WEBHOOK_STORAGE_KEY);
+      savedChangelogUrl = '';
+    }
+
     return {
-      webhookUrl: localStorage.getItem(CHANGELOG_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
+      webhookUrl: savedChangelogUrl,
       botName: localStorage.getItem(CHANGELOG_BOT_NAME_KEY) || 'HSPD Release & Changelog Bot',
       botAvatar: localStorage.getItem(CHANGELOG_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
       autoSendOnSave: localStorage.getItem(CHANGELOG_AUTO_SEND_KEY) !== 'false'
@@ -918,7 +932,21 @@ export function getSavedChangelogWebhookConfig(): WebhookConfig {
 
 export function saveChangelogWebhookConfig(config: Partial<WebhookConfig>) {
   try {
-    if (config.webhookUrl !== undefined) localStorage.setItem(CHANGELOG_WEBHOOK_STORAGE_KEY, config.webhookUrl);
+    if (config.webhookUrl !== undefined) {
+      const cleanUrl = config.webhookUrl.trim();
+      const mainLogKasusUrl = (localStorage.getItem(WEBHOOK_STORAGE_KEY) || '').trim();
+      
+      // Cegah webhook log-kasus disimpan sebagai webhook changelog
+      if (cleanUrl && (
+        cleanUrl === mainLogKasusUrl ||
+        cleanUrl.includes('1541925244602941562') ||
+        cleanUrl.includes('1541924088480669907')
+      )) {
+        localStorage.removeItem(CHANGELOG_WEBHOOK_STORAGE_KEY);
+      } else {
+        localStorage.setItem(CHANGELOG_WEBHOOK_STORAGE_KEY, cleanUrl);
+      }
+    }
     if (config.botName !== undefined) localStorage.setItem(CHANGELOG_BOT_NAME_KEY, config.botName);
     if (config.botAvatar !== undefined) localStorage.setItem(CHANGELOG_BOT_AVATAR_KEY, config.botAvatar);
     if (config.autoSendOnSave !== undefined) localStorage.setItem(CHANGELOG_AUTO_SEND_KEY, config.autoSendOnSave ? 'true' : 'false');

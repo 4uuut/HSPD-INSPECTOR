@@ -66,9 +66,10 @@ export const GovernmentRecruitmentInfoPanel: React.FC<Props> = ({ currentOfficer
         <div className="absolute right-0 top-0 bottom-0 w-56 bg-gradient-to-l from-amber-500/15 to-transparent pointer-events-none"></div>
 
         {/* State Seal Emblem */}
-        <div className="relative shrink-0">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/90 p-2 border-2 border-amber-500/80 shadow-xl shadow-amber-500/30 flex items-center justify-center text-amber-300">
-            <Landmark className="w-10 h-10 text-amber-400" />
+        <div className="relative shrink-0 group select-none">
+          <div className="absolute -inset-1.5 rounded-full border-2 border-dashed border-amber-500/50 animate-spin-slow pointer-events-none"></div>
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-black/90 p-2 border-2 border-amber-500/80 shadow-xl shadow-amber-500/30 flex items-center justify-center text-amber-300 animate-pulse-glow transition-transform duration-300 group-hover:scale-105">
+            <Landmark className="w-10 h-10 text-amber-400 animate-float-gentle" />
           </div>
         </div>
 

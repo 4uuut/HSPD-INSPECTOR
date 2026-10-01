@@ -24,7 +24,8 @@ import {
   PhoneCall,
   Flame,
   Search,
-  Car
+  Car,
+  RotateCw
 } from 'lucide-react';
 import {
   RecruitmentPortalConfig,
@@ -509,6 +510,39 @@ export const RecruitmentPortalSettingsModal: React.FC<Props> = ({
                         placeholder="Deskripsi pembuka tentang pengabdian dan integritas kepolisian..."
                       />
                     </div>
+
+                    {/* Pengaturan Animasi Logo Bergerak & Muter */}
+                    <div className="space-y-2 pt-2 border-t border-gray-800">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[11px] text-amber-300 font-semibold flex items-center gap-1.5">
+                          <RotateCw className="w-3.5 h-3.5 text-amber-400 animate-spin-slow" />
+                          <span>Animasi Logo Bergerak & Muter (Rotating Badge Effect):</span>
+                        </label>
+                        <span className="text-[10px] text-gray-400 font-mono">AKTIF</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                          { id: 'spin', label: '🔄 360° Muter Berkelanjutan', desc: 'Rotasi dinamis 360 derajat' },
+                          { id: 'spin3d', label: '🪙 Rotasi 3D Koin Emas', desc: 'Berputar 3D perspektif Y-axis' },
+                          { id: 'spin-float', label: '✨ Muter & Mengambang', desc: 'Kombinasi rotasi & naikturun' },
+                          { id: 'float', label: '🌊 Melayang Lembut', desc: 'Floating & pulse aura cahaya' }
+                        ].map(opt => (
+                          <button
+                            key={opt.id}
+                            type="button"
+                            onClick={() => setPortalConfig({ ...portalConfig, logoAnimation: opt.id as any })}
+                            className={`p-2.5 rounded-lg border text-left transition ${
+                              (portalConfig.logoAnimation || 'spin3d') === opt.id
+                                ? 'bg-amber-950/70 border-amber-500 text-amber-200 shadow-md shadow-amber-950/40'
+                                : 'bg-[#0D1117] border-gray-800 text-gray-400 hover:text-gray-200 hover:border-gray-700'
+                            }`}
+                          >
+                            <div className="text-[11px] font-bold">{opt.label}</div>
+                            <div className="text-[10px] text-gray-500 mt-0.5">{opt.desc}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Footer & Hotline */}
@@ -908,13 +942,22 @@ export const RecruitmentPortalSettingsModal: React.FC<Props> = ({
                   <div className="border-2 border-gray-800 rounded-xl overflow-hidden bg-[#161B22] shadow-2xl">
                     {/* Header Banner */}
                     <div className="bg-gradient-to-r from-[#0F1319] via-[#151c27] to-[#0F1319] border-b border-gray-800 p-4 flex flex-col sm:flex-row items-center gap-3 relative">
-                      <div className="w-14 h-14 rounded-full bg-black/80 p-1 border-2 border-amber-500/60 shadow-lg flex items-center justify-center shrink-0">
-                        <img
-                          src={branding.logoUrl || HSPD_LOGO_URL}
-                          alt="Logo"
-                          className="w-full h-full object-contain rounded-full"
-                          referrerPolicy="no-referrer"
-                        />
+                      {/* Animated Logo Preview */}
+                      <div className="relative shrink-0">
+                        <div className="absolute -inset-1 rounded-full border border-dashed border-amber-400/60 animate-spin-slow pointer-events-none"></div>
+                        <div className="w-14 h-14 rounded-full bg-black/90 p-1 border-2 border-amber-500/80 shadow-lg flex items-center justify-center animate-pulse-glow">
+                          <img
+                            src={branding.logoUrl || HSPD_LOGO_URL}
+                            alt="Logo"
+                            className={`w-full h-full object-contain rounded-full ${
+                              portalConfig.logoAnimation === 'spin3d' ? 'animate-spin-3d' :
+                              portalConfig.logoAnimation === 'spin-float' ? 'animate-spin-float' :
+                              portalConfig.logoAnimation === 'float' ? 'animate-float-gentle' :
+                              'animate-spin-slow'
+                            }`}
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
                       </div>
 
                       <div className="space-y-1 text-center sm:text-left flex-1">

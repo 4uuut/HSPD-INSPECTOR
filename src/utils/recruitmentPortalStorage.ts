@@ -41,6 +41,7 @@ export interface RecruitmentPortalConfig {
   badgeCategoryText: string;
   portalTitle: string;
   portalDescription: string;
+  logoAnimation?: 'spin' | 'spin3d' | 'spin-float' | 'float' | 'none';
 
   // 2. Tab 1 - Overview & Core Values
   visionTitle: string;
@@ -89,6 +90,7 @@ export const DEFAULT_RECRUITMENT_PORTAL_CONFIG: RecruitmentPortalConfig = {
   badgeCategoryText: 'POLICE ACADEMY',
   portalTitle: 'PORTAL INFORMASI & PENERIMAAN ANGGOTA HSPD',
   portalDescription: 'Bergabunglah dengan jajaran penegak hukum terdepan STATE OF HIGH STATE POLICE DEPARTMENT. Mengabdi dengan integritas, keberanian, dan profesionalisme tinggi.',
+  logoAnimation: 'spin3d',
 
   visionTitle: 'VISI & NILAI UTAMA KEPOLISIAN (CORE VALUES)',
   visionDescription: 'State of HighState Police Department (HSPD) bertindak sebagai garda terdepan penegakan hukum pidana, ketertiban umum, dan perlindungan warga kota. Setiap personel dituntut menjunjung tinggi:',
@@ -272,7 +274,8 @@ export function getRecruitmentPortalConfig(): RecruitmentPortalConfig {
           oocRequirements: Array.isArray(parsed.oocRequirements) ? parsed.oocRequirements : DEFAULT_RECRUITMENT_PORTAL_CONFIG.oocRequirements,
           phases: Array.isArray(parsed.phases) ? parsed.phases : DEFAULT_RECRUITMENT_PORTAL_CONFIG.phases,
           divisions: Array.isArray(parsed.divisions) ? parsed.divisions : DEFAULT_RECRUITMENT_PORTAL_CONFIG.divisions,
-          rankHierarchy: Array.isArray(parsed.rankHierarchy) ? parsed.rankHierarchy : DEFAULT_RECRUITMENT_PORTAL_CONFIG.rankHierarchy
+          rankHierarchy: Array.isArray(parsed.rankHierarchy) ? parsed.rankHierarchy : DEFAULT_RECRUITMENT_PORTAL_CONFIG.rankHierarchy,
+          logoAnimation: (!parsed.logoAnimation || parsed.logoAnimation === 'spin') ? 'spin3d' : parsed.logoAnimation
         };
       }
     }

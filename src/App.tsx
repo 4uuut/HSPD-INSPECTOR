@@ -33,7 +33,6 @@ import { SettingsView } from './components/SettingsView';
 import { CitizenPublicServicePortal } from './components/CitizenPublicServicePortal';
 import { DiscordReleaseAnnouncementModal } from './components/DiscordReleaseAnnouncementModal';
 import { SystemPingModal } from './components/SystemPingModal';
-import { checkAndBroadcastLatestRelease } from './utils/autoChangelogBroadcaster';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
 import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch, isSameOfficerAccount, saveRosterToStorage, updateOfficerPinInRoster, updateOfficerAccountInRoster } from './utils/pinResetStorage';
 import { getSavedDetectiveCases, saveDetectiveCases } from './utils/detectiveCaseStorage';
@@ -205,14 +204,19 @@ export default function App() {
     return subscribeToBranding(cfg => setBranding(cfg));
   }, []);
 
-  // Otomatisasi Siaran Log Pembaruan & Fitur / Bugfix ke Channel Discord yang Tersimpan
+  // Pembersihan otomatis agar webhook log-kasus tidak pernah terpakai sebagai webhook changelog
   useEffect(() => {
-    const timer = setTimeout(() => {
-      checkAndBroadcastLatestRelease().catch(err => {
-        console.warn('[Auto-Changelog Broadcast Notice]', err);
-      });
-    }, 2500);
-    return () => clearTimeout(timer);
+    try {
+      const changelogHook = localStorage.getItem('hspd_changelog_webhook_url');
+      const mainHook = localStorage.getItem('hspd_discord_webhook_url');
+      if (changelogHook && (
+        changelogHook === mainHook ||
+        changelogHook.includes('1541925244602941562') ||
+        changelogHook.includes('1541924088480669907')
+      )) {
+        localStorage.removeItem('hspd_changelog_webhook_url');
+      }
+    } catch {}
   }, []);
 
   // Keep superior heartbeat active so other sessions / requests know superior is online
