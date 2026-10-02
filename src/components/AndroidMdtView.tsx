@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { 
   OfficerProfile, OfficerAccount, OfficerRankLevel,
-  isOfficerHighRank, isSupervisorOrAbove, ModuleAccessKey, isGovernmentRank 
+  isOfficerHighRank, isSupervisorOrAbove, isAtasanRank, ModuleAccessKey, isGovernmentRank 
 } from '../types';
 import { DepartmentBrandingConfig } from '../utils/brandingStorage';
 import { FirebaseSyncStatus } from '../services/firebaseRealtimeSync';
@@ -79,6 +79,7 @@ export const AndroidMdtView: React.FC<Props> = ({
 
   const isHighRank = isOfficerHighRank(currentOfficer.rank);
   const isSupervisor = isSupervisorOrAbove(currentOfficer.rank);
+  const isAtasan = isHighRank || isSupervisor || isAtasanRank(currentOfficer.rank);
   const hasFullAccess = isHighRank || isSupervisor;
 
   // Live time ticker for Android Status Bar
@@ -668,7 +669,7 @@ export const AndroidMdtView: React.FC<Props> = ({
                   <span>Mode Desktop</span>
                 </button>
 
-                {hasFullAccess && (
+                {isAtasan && (
                   <button
                     type="button"
                     onClick={() => {

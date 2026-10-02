@@ -850,6 +850,7 @@ export default function App() {
   const isHighRank = isOfficerHighRank(currentOfficer.rank);
   const isSupervisor = isSupervisorOrAbove(currentOfficer.rank);
   const isGovernment = currentOfficer.accountType === 'GOVERNMENT' || isGovernmentRank(currentOfficer.rank);
+  const isAtasan = isHighRank || isSupervisor || isAtasanRank(currentOfficer.rank);
   const hasFullAccess = isHighRank || isSupervisor || isGovernment;
 
   // Time on duty formatted
@@ -914,13 +915,13 @@ export default function App() {
           <header id="main-header" className="h-14 border-b border-gray-800 flex items-center px-4 justify-between bg-[#161B22]/95 backdrop-blur-md sticky top-0 z-40 shadow-xl">
             <div className="flex items-center gap-3">
               <div 
-                className={`relative shrink-0 ${hasFullAccess && !isGovernment ? 'cursor-pointer group' : ''}`}
+                className={`relative shrink-0 ${isAtasan && !isGovernment ? 'cursor-pointer group' : ''}`}
                 onClick={() => {
-                  if (hasFullAccess && !isGovernment) {
+                  if (isAtasan && !isGovernment) {
                     setIsBrandingModalOpen(true);
                   }
                 }} 
-                title={isGovernment ? "Lambang Resmi Dewan Pemerintahan Negara" : (hasFullAccess ? "Pengaturan Logo & Background (Full Access)" : `${branding.departmentName} Official Crest`)}
+                title={isGovernment ? "Lambang Resmi Dewan Pemerintahan Negara" : (isAtasan ? "Pengaturan Logo & Background (Khusus Atasan)" : `${branding.departmentName} Official Crest`)}
               >
                 {isGovernment ? (
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-amber-500/20 to-yellow-600/10 border border-amber-500 flex items-center justify-center text-amber-400 p-1 shadow-sm">
@@ -931,14 +932,14 @@ export default function App() {
                     src={branding.logoUrl || HSPD_LOGO_URL}
                     alt={`${branding.departmentName} Official Crest`}
                     referrerPolicy="no-referrer"
-                    className={`w-9 h-9 rounded-full object-contain drop-shadow-md border border-amber-500/40 bg-black/60 p-0.5 ${hasFullAccess ? 'group-hover:scale-105 transition' : ''}`}
+                    className={`w-9 h-9 rounded-full object-contain drop-shadow-md border border-amber-500/40 bg-black/60 p-0.5 ${isAtasan ? 'group-hover:scale-105 transition' : ''}`}
                     onError={e => {
                       (e.target as HTMLImageElement).src = HSPD_LOGO_URL;
                     }}
                   />
                 )}
-                {hasFullAccess && !isGovernment && (
-                  <div className="absolute -bottom-1 -right-1 z-20 bg-amber-500 text-black p-0.5 rounded-full border border-black text-[9px] group-hover:block transition">
+                {isAtasan && !isGovernment && (
+                  <div className="absolute -bottom-1 -right-1 z-20 bg-amber-500 text-black p-0.5 rounded-full border border-black text-[9px] group-hover:block transition" title="Ubah Logo & Background (Khusus Atasan)">
                     <Palette className="w-2 h-2" />
                   </div>
                 )}
@@ -985,19 +986,21 @@ export default function App() {
 
             {/* Header Right Actions: Duty Toggle Button & Officer Badge */}
             <div className="flex items-center gap-2 text-xs">
-              {/* PING STATUS & HEALTH MONITOR BUTTON (CHANNEL 1550418868814610433) */}
-              <button
-                id="btn-system-ping-monitor"
-                type="button"
-                onClick={() => setIsPingModalOpen(true)}
-                className="px-2.5 py-1.5 bg-[#0D1522] hover:bg-[#142338] text-blue-300 hover:text-blue-200 border border-blue-500/60 hover:border-blue-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-blue-950/40"
-                title="Buka Panel Laporan Ping Status Real-Time Website & Bot Discord (Channel 1550418868814610433)"
-              >
-                <Activity className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-                <span className="hidden sm:inline">📡 PING STATUS</span>
-                <span className="sm:hidden">PING</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-              </button>
+              {/* PING STATUS & HEALTH MONITOR BUTTON (CHANNEL 1550418868814610433) - KHUSUS ATASAN */}
+              {(isHighRank || isSupervisor || isAtasanRank(currentOfficer.rank)) && (
+                <button
+                  id="btn-system-ping-monitor"
+                  type="button"
+                  onClick={() => setIsPingModalOpen(true)}
+                  className="px-2.5 py-1.5 bg-[#0D1522] hover:bg-[#142338] text-blue-300 hover:text-blue-200 border border-blue-500/60 hover:border-blue-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-blue-950/40"
+                  title="Buka Panel Laporan Ping Status Real-Time Website & Bot Discord (Khusus Atasan / Komando)"
+                >
+                  <Activity className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                  <span className="hidden sm:inline">📡 PING STATUS</span>
+                  <span className="sm:hidden">PING</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                </button>
+              )}
 
               {/* SWITCH TO ANDROID VIEW MODE BUTTON */}
               <button
@@ -1570,9 +1573,9 @@ export default function App() {
         defaultModule={otpModalDefaultModule}
       />
 
-      {/* Custom Website Logo & Department Branding Modal */}
+      {/* Custom Website Logo & Department Branding Modal (Khusus Atasan) */}
       <CustomBrandingModal
-        isOpen={isBrandingModalOpen}
+        isOpen={isBrandingModalOpen && Boolean(isAtasan && !isGovernment)}
         onClose={() => setIsBrandingModalOpen(false)}
         currentOfficer={currentOfficer}
         onBrandingUpdated={cfg => setBranding(cfg)}
@@ -1604,9 +1607,9 @@ export default function App() {
         } : undefined}
       />
 
-      {/* Realtime Website & Discord Bot System Ping Monitor Modal */}
+      {/* Realtime Website & Discord Bot System Ping Monitor Modal (Khusus Atasan) */}
       <SystemPingModal
-        isOpen={isPingModalOpen}
+        isOpen={isPingModalOpen && Boolean(isHighRank || isSupervisor || isAtasanRank(currentOfficer?.rank))}
         onClose={() => setIsPingModalOpen(false)}
         currentOfficer={currentOfficer}
       />

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { ExportAttendanceModal } from './ExportAttendanceModal';
 import { WeeklyOperationsReportModal } from './WeeklyOperationsReportModal';
+import { ExportAccountsModal } from './ExportAccountsModal';
 import { getNextAvailableBadge, detectBadgeStatus, BadgeDetectionResult, normalizeBadgeFormat } from '../utils/badgeHelper';
 import { 
   sendOfficerWarningToDiscord, 
@@ -368,6 +369,7 @@ export const RosterManagement: React.FC<Props> = ({
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [isExportAttendanceModalOpen, setIsExportAttendanceModalOpen] = useState(false);
   const [isWeeklyOperationsModalOpen, setIsWeeklyOperationsModalOpen] = useState(false);
+  const [isExportAccountsModalOpen, setIsExportAccountsModalOpen] = useState(false);
   // Discharged Officer History Management In-App Dialogs (Safe from iframe window.confirm blocking)
   const [entryToDeleteHistory, setEntryToDeleteHistory] = useState<DischargedOfficerEntry | null>(null);
   const [showClearAllDischargedModal, setShowClearAllDischargedModal] = useState(false);
@@ -1466,6 +1468,18 @@ export const RosterManagement: React.FC<Props> = ({
               <span>📥 EXPORT ABSEN MINGGUAN</span>
             </button>
 
+            {/* EXPORT AKUN ANGGOTA (DATA & KREDENSIAL LOGIN) */}
+            <button
+              id="btn-open-export-accounts"
+              type="button"
+              onClick={() => setIsExportAccountsModalOpen(true)}
+              className="px-3 py-2 bg-gradient-to-r from-amber-950/90 via-orange-950/90 to-amber-900/90 hover:from-amber-900 hover:to-orange-800 border border-amber-500/80 hover:border-amber-400 text-amber-200 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-md shadow-amber-950/40 active:scale-95"
+              title="Ekspor seluruh akun anggota kepolisian, nomor badge, pangkat, divisi, catatan SP, dan kredensial PIN ke Excel (.xlsx), CSV, JSON, atau Teks Format Discord (Khusus Atasan)"
+            >
+              <KeyRound className="w-4 h-4 text-amber-400" />
+              <span>🔑 EXPORT AKUN ANGGOTA</span>
+            </button>
+
             {/* STATUS OTOMATIS REAL-TIME SYNC */}
             <div 
               className="px-3 py-2 bg-emerald-950/50 border border-emerald-500/50 rounded-lg text-xs font-mono text-emerald-300 flex items-center gap-2 shadow-sm"
@@ -1651,6 +1665,17 @@ export const RosterManagement: React.FC<Props> = ({
           >
             <UserX className="w-3.5 h-3.5" />
             <span>Arsip Dipecat ({dischargedList.length})</span>
+          </button>
+
+          {/* Quick Action: Export Akun */}
+          <button
+            id="btn-quick-export-accounts"
+            onClick={() => setIsExportAccountsModalOpen(true)}
+            className="px-2.5 py-1 rounded transition whitespace-nowrap flex items-center gap-1 bg-amber-950/80 hover:bg-amber-900 border border-amber-500/70 text-amber-200 font-bold"
+            title="Buka dialog ekspor data & kredensial akun anggota (Excel, CSV, JSON, Discord, Cetak)"
+          >
+            <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+            <span>Ekspor Akun</span>
           </button>
         </div>
       </div>
@@ -3845,6 +3870,16 @@ export const RosterManagement: React.FC<Props> = ({
         isOpen={isExportAttendanceModalOpen}
         onClose={() => setIsExportAttendanceModalOpen(false)}
         roster={roster}
+      />
+
+      {/* EXPORT ACCOUNTS MODAL */}
+      <ExportAccountsModal
+        isOpen={isExportAccountsModalOpen}
+        onClose={() => setIsExportAccountsModalOpen(false)}
+        roster={roster}
+        currentOfficerName={currentOfficerName}
+        currentOfficerBadge={currentOfficerBadge}
+        currentOfficerRank={currentOfficerRank}
       />
 
       {/* WEEKLY OPERATIONS REPORT MODAL (DUTY, CITATIONS, IMPOUND, CASES, EVIDENCE) */}

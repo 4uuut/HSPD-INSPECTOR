@@ -390,12 +390,14 @@ export const isAtasanRank = (rank?: string): boolean => {
     r.includes('CAPTAIN') ||
     r.includes('[CPT]') ||
     r.includes('LIEUTENANT') ||
-    r.includes('[LT]')
+    r.includes('[LT]') ||
+    r.includes('SERGEANT') ||
+    r.includes('[SGT]')
   );
 };
 
 /**
- * Check if officer is Supervisor / Command Staff (Captain or Lieutenant or above)
+ * Check if officer is Supervisor / Command Staff (Sergeant or Lieutenant or Captain or above)
  * Authorized to generate OTP, approve destruction, manage confidential documents, and access vault.
  */
 export const isSupervisorOrAbove = (rank?: string): boolean => {
@@ -410,9 +412,7 @@ export const isSupervisorOrAbove = (rank?: string): boolean => {
     r.includes('LIEUTENANT') ||
     r.includes('[LT]') ||
     r.includes('SERGEANT') ||
-    r.includes('[SGT]') ||
-    r.includes('SENIOR LEAD') ||
-    r.includes('[SLO]')
+    r.includes('[SGT]')
   );
 };
 
