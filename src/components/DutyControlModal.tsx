@@ -5,7 +5,7 @@ import {
   AlertCircle, Settings, Send, RefreshCw, X, Globe,
   CheckCheck, Timer, Calendar, ShieldCheck, Camera,
   Upload, Image as ImageIcon, Trash2, ZoomIn, Link2, Plus,
-  Smartphone, FileText
+  Smartphone, FileText, AlertTriangle, Lock
 } from 'lucide-react';
 import { 
   getSavedDutyWebhookConfig, saveDutyWebhookConfig, 
@@ -122,6 +122,20 @@ export const DutyControlModal: React.FC<Props> = ({
 
   const endTimeStr = new Date(currentTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB';
 
+  // Strict Off-Duty (8-1-0) 3-Photo Requirement State & Validation
+  const isOffDutyStatus = selectedStatus === '8-1-0' || selectedStatus === '10-7';
+  const isOnDutyStatus = selectedStatus === '8-1-1' || selectedStatus === '10-8';
+
+  const offDutyMissingSlots = [
+    !offDutyActivityImage1 ? 'Foto Kegiatan 1' : null,
+    !offDutyActivityImage2 ? 'Foto Kegiatan 2' : null,
+    !offDutyPhoneImage ? 'Foto Layar HP Selesai' : null
+  ].filter(Boolean) as string[];
+
+  const offDutyUploadedCount = 3 - offDutyMissingSlots.length;
+  const isOffDutyPhotosComplete = offDutyUploadedCount === 3;
+  const isSubmitDisabled = isSubmitting || (isOffDutyStatus && !isOffDutyPhotosComplete);
+
   // Helper to process single file upload from device
   const handleProcessFileForSlot = async (
     file: File, 
@@ -172,6 +186,16 @@ export const DutyControlModal: React.FC<Props> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // STRICT VALIDATION: Lepas dinas (8-1-0) WAJIB 3 berkas foto lengkap (2 Kegiatan + 1 HP Selesai)
+    if (isOffDutyStatus && !isOffDutyPhotosComplete) {
+      setSubmitFeedback({
+        type: 'error',
+        message: `Akses Ditolak: Anda baru mengunggah ${offDutyUploadedCount} dari 3 bukti foto yang diwajibkan SOP. Wajib mengunggah ${offDutyMissingSlots.join(', ')} sebelum dapat menekan tombol Selesai 8-1-0 (Lepas Dinas).`
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitFeedback(null);
 
@@ -185,9 +209,6 @@ export const DutyControlModal: React.FC<Props> = ({
     const finalDurationFormatted = finalHours > 0 
       ? `${finalHours} Jam ${finalRemMins} Menit ${finalSeconds} Detik` 
       : `${finalRemMins} Menit ${finalSeconds} Detik`;
-
-    const isOnDutyStatus = selectedStatus === '8-1-1' || selectedStatus === '10-8';
-    const isOffDutyStatus = selectedStatus === '8-1-0' || selectedStatus === '10-7';
 
     const statusTexts: Record<DutyStatusCode, string> = {
       '8-1-1': '8-1-1 ON DUTY (Mulai Dinas / Siap Patroli)',
@@ -614,8 +635,12 @@ export const DutyControlModal: React.FC<Props> = ({
                 </span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-rose-950 text-rose-300 border border-rose-800">
-                  {[offDutyActivityImage1, offDutyActivityImage2, offDutyPhoneImage].filter(Boolean).length} / 3 Foto
+                <span className={`text-[10px] px-2.5 py-0.5 rounded font-bold border ${
+                  isOffDutyPhotosComplete
+                    ? 'bg-emerald-950 text-emerald-300 border-emerald-600'
+                    : 'bg-rose-950 text-rose-300 border-rose-600 animate-pulse'
+                }`}>
+                  {isOffDutyPhotosComplete ? '✅ 3 / 3 Foto Lengkap' : `⚠️ ${offDutyUploadedCount} / 3 Foto (Wajib 3)`}
                 </span>
               </div>
             </div>
@@ -623,6 +648,20 @@ export const DutyControlModal: React.FC<Props> = ({
             <p className="text-[10px] text-gray-400 leading-relaxed">
               Sesuai SOP, wajib mengunggah <strong>2 Foto Kegiatan Patroli / Penindakan</strong> dan <strong>1 Foto Layar HP Selesai Dinas</strong>.
             </p>
+
+            {!isOffDutyPhotosComplete && (
+              <div className="p-2.5 bg-rose-950/60 border border-rose-700/80 rounded-lg text-[11px] text-rose-200 font-mono flex items-start gap-2 shadow-sm">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5 leading-snug">
+                  <div>
+                    <strong>Validasi Ketat Lepas Dinas:</strong> Tombol lepas dinas akan <strong>terkunci</strong> jika Anda tidak mengirim 3 foto lengkap (hanya kirim 1 atau 2 tidak diizinkan).
+                  </div>
+                  <div className="text-[10px] text-rose-300 font-sans">
+                    Kurang: <span className="font-semibold text-white">{offDutyMissingSlots.join(', ')}</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Master Batch Input for Off Duty */}
             <input
@@ -964,6 +1003,35 @@ export const DutyControlModal: React.FC<Props> = ({
           )}
         </div>
 
+        {/* BANNER VALIDASI KETAT: OFF DUTY 8-1-0 WAJIB 3 FOTO */}
+        {isOffDutyStatus && !isOffDutyPhotosComplete && (
+          <div className="p-3 bg-rose-950/80 border-2 border-rose-600/90 rounded-xl text-rose-200 text-xs font-mono flex items-start gap-2.5 shadow-lg">
+            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5 animate-bounce" />
+            <div className="space-y-1 flex-1">
+              <div className="font-bold text-rose-200 flex items-center justify-between">
+                <span>⚠️ SYARAT LEPAS DINAS KETAT: WAJIB MENGUNGGAH 3 BUKTI LENGKAP</span>
+                <span className="text-[11px] bg-rose-900 border border-rose-500 px-2 py-0.5 rounded font-bold text-rose-100">
+                  {offDutyUploadedCount} / 3 FOTO TERUNGGAH
+                </span>
+              </div>
+              <div className="text-[11px] text-rose-300 leading-relaxed">
+                Tombol <strong className="text-white">"SELESAIKAN 8-1-0 (LEPAS DINAS)"</strong> di bawah terkunci dan tidak dapat ditekan jika hanya mengirim 1 atau 2 foto. Anda wajib mengunggah ketiga berkas berikut:
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1 font-sans text-[11px]">
+                <span className={`px-2 py-0.5 rounded border ${offDutyActivityImage1 ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300 font-medium' : 'bg-rose-900/60 border-rose-500 text-rose-200 font-bold animate-pulse'}`}>
+                  {offDutyActivityImage1 ? '✓ Foto Kegiatan 1 Terunggah' : '✗ 1. Foto Kegiatan 1 (Kurang)'}
+                </span>
+                <span className={`px-2 py-0.5 rounded border ${offDutyActivityImage2 ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300 font-medium' : 'bg-rose-900/60 border-rose-500 text-rose-200 font-bold animate-pulse'}`}>
+                  {offDutyActivityImage2 ? '✓ Foto Kegiatan 2 Terunggah' : '✗ 2. Foto Kegiatan 2 (Kurang)'}
+                </span>
+                <span className={`px-2 py-0.5 rounded border ${offDutyPhoneImage ? 'bg-emerald-950/80 border-emerald-600 text-emerald-300 font-medium' : 'bg-rose-900/60 border-rose-500 text-rose-200 font-bold animate-pulse'}`}>
+                  {offDutyPhoneImage ? '✓ Foto Layar HP Selesai Terunggah' : '✗ 3. Foto Layar HP Selesai (Kurang)'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-800">
           <button
@@ -975,19 +1043,34 @@ export const DutyControlModal: React.FC<Props> = ({
           </button>
 
           <button
+            id="btn-submit-duty-status"
             type="button"
             onClick={handleSubmit}
-            disabled={isSubmitting}
-            className={`px-5 py-2.5 text-white font-bold rounded-lg text-xs transition flex items-center gap-2 shadow-lg ${
-              (selectedStatus === '8-1-1' || selectedStatus === '10-8')
-                ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/30'
-                : 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/30'
+            disabled={isSubmitDisabled}
+            title={
+              isOffDutyStatus && !isOffDutyPhotosComplete
+                ? `Tombol dinonaktifkan: Wajib unggah 3 bukti foto (saat ini ${offDutyUploadedCount}/3). Masih kurang: ${offDutyMissingSlots.join(', ')}.`
+                : undefined
+            }
+            className={`px-5 py-2.5 font-bold rounded-lg text-xs transition flex items-center gap-2 shadow-lg ${
+              isSubmitDisabled && isOffDutyStatus
+                ? 'bg-rose-950/60 text-rose-400 border-2 border-rose-800/80 cursor-not-allowed opacity-90 shadow-none'
+                : (selectedStatus === '8-1-1' || selectedStatus === '10-8')
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30 active:scale-95'
+                  : 'bg-rose-600 hover:bg-rose-500 text-white shadow-rose-600/30 active:scale-95'
             }`}
           >
             {isSubmitting ? (
               <>
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                 <span>Mengirim Laporan & Berkas Bukti...</span>
+              </>
+            ) : isOffDutyStatus && !isOffDutyPhotosComplete ? (
+              <>
+                <Lock className="w-3.5 h-3.5 text-rose-400" />
+                <span>
+                  🔴 WAJIB 3 FOTO SELESAI ({offDutyUploadedCount}/3 TERUNGGAH)
+                </span>
               </>
             ) : (
               <>
