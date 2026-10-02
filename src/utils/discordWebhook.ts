@@ -2619,11 +2619,16 @@ export async function sendNewOfficerRegistrationToDiscord(params: {
   }
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+
     const res = await fetch(config.webhookUrl.trim(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify(payload)
     });
+    clearTimeout(timeoutId);
 
     if (!res.ok) {
       throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -2822,9 +2827,13 @@ export async function sendOfficerDirectMessageViaBot(params: {
   }
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4500);
+
     const res = await fetch(buildApiUrl('/api/discord/send-bot-dm'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
       body: JSON.stringify({
         botToken: token,
         userId: rawTarget,
@@ -2851,6 +2860,7 @@ export async function sendOfficerDirectMessageViaBot(params: {
     });
 
     const parsed = await safeFetchJson(res);
+    clearTimeout(timeoutId);
     if (!parsed.ok || !parsed.data) {
       return {
         success: false,

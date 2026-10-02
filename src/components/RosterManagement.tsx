@@ -637,13 +637,12 @@ export const RosterManagement: React.FC<Props> = ({
       restoreDischargedOfficer(newAccount.name);
       if (newAccount.id) restoreDischargedOfficer(newAccount.id);
 
-      // 1. Immediately persist new account and generated PIN to storage, PIN registry & Firestore
+      // 1. Immediately persist new account and generated PIN to storage & PIN registry (Instant < 5ms)
       const updatedRosterPool = [newAccount, ...roster.filter(o => !isSameOfficerAccount(o, newAccount))];
       saveRosterToStorage(updatedRosterPool);
       updateOfficerPinInRoster(newAccount.badge, trimmedPin, newAccount.name);
-      await pushToFirestore('ROSTER', newAccount, newAccount.id);
 
-      // 2. Call handler or update roster in App state
+      // 2. Call handler to update roster in App state immediately (Instant UI update)
       if (onRegisterOfficer) {
         onRegisterOfficer(newAccount);
       } else {
@@ -654,83 +653,13 @@ export const RosterManagement: React.FC<Props> = ({
       setFilterRank('ALL');
       setSearchQuery('');
 
-      // 4. Send Direct Message (PM / DM) via Discord Bot directly to officer's Discord inbox if requested
-      if (addSendDm && addDiscordTag.trim()) {
-        try {
-          const dmRes = await sendOfficerDirectMessageViaBot({
-            discordUserId: addDiscordTag.trim(),
-            officerName: trimmedName,
-            pin: trimmedPin,
-            badge: trimmedBadge,
-            rank: addRank,
-            division: finalDivision,
-            customMessage: addCustomMessage.trim() || undefined,
-            note: 'Jangan beritahu informasi ini kepada orang lain!',
-            registeredBy: currentOfficerName || 'High Command',
-            registeredByRank: currentOfficerRank || 'HIGH COMMAND',
-            registeredByBadge: currentOfficerBadge || undefined,
-            loginUrl: 'https://mdc-hspd-inspector.vercel.app/',
-          });
-          if (dmRes.success) {
-            dmStatusText = ` & Kredensial Akun (UCP & PIN MDT) OTOMATIS terkirim ke PM Discord (@${addDiscordTag.trim()}) 🟢!`;
-            dmFeedbackPayload = {
-              success: true,
-              title: '🟢 Kredensial Berhasil Terkirim ke PM Discord!',
-              message: `Bot Discord berhasil mengirimkan Nama UCP, Nomor Badge, Pangkat, Divisi, dan PIN Login MDT (${trimmedPin}) langsung ke Pesan Pribadi (PM) Discord @${addDiscordTag.trim()}.`,
-              details: `Personel ${trimmedName} dapat langsung membuka inbox Discord miliknya untuk melihat detail akun dan tautan masuk MDT.`
-            };
-          } else {
-            dmStatusText = ` (⚠️ Bot PM: ${dmRes.message})`;
-            dmFeedbackPayload = {
-              success: false,
-              title: '⚠️ Akun Tersimpan, Namun PM Bot Discord Gagal Terkirim',
-              message: dmRes.message || 'Bot tidak dapat mengirimkan Direct Message ke akun Discord anggota.',
-              details: `Akun ${trimmedName} (${trimmedBadge}) dengan PIN ${trimmedPin} SUDAH TERSIMPAN di database & siap digunakan. Silakan berikan PIN secara manual ke personel atau pastikan: (1) Bot Token sudah valid di menu Pengaturan Bot Discord, (2) Akun anggota sudah bergabung ke Server Discord yang sama dengan bot, dan (3) Anggota tidak memblokir DM dari member server.`
-            };
-          }
-        } catch (botErr: any) {
-          console.warn('Bot PM dispatch skipped or encountered error:', botErr);
-          dmStatusText = ` (⚠️ Bot PM: ${botErr.message || 'Gagal mengirim PM'})`;
-          dmFeedbackPayload = {
-            success: false,
-            title: '⚠️ Akun Tersimpan, Namun Terjadi Gangguan PM Bot',
-            message: botErr.message || 'Gagal menghubungi API Discord Bot.',
-            details: `Akun ${trimmedName} (${trimmedBadge}) dengan PIN ${trimmedPin} tetap berhasil dibuat di sistem.`
-          };
-        }
-      } else if (addSendDm && !addDiscordTag.trim()) {
-        dmStatusText = ' (ℹ️ Catatan: Username Discord tidak diisi, PM dilewati)';
-        dmFeedbackPayload = {
-          success: false,
-          title: 'ℹ️ Akun Terdaftar (PM Bot Dilewati)',
-          message: 'Pilihan kirim PM Discord aktif, namun kolom Username Discord dikosongkan.',
-          details: `Akun ${trimmedName} (${trimmedBadge}) dengan PIN ${trimmedPin} telah resmi disahkan. Anda dapat memberikan PIN ini secara manual kepada yang bersangkutan.`
-        };
-      }
+      // 4. Background non-blocking sync to Cloud Firestore
+      pushToFirestore('ROSTER', newAccount, newAccount.id).catch(err => {
+        console.warn('[CloudSync] Background roster push notice:', err);
+      });
 
-      if (dmFeedbackPayload) {
-        setAddDmFeedbackModal(dmFeedbackPayload);
-      }
-
-      // 5. Send Discord Webhook Announcement & Credential Dispatch if enabled
-      if (addSendWebhook) {
-        try {
-          await sendNewOfficerRegistrationToDiscord({
-            officerName: trimmedName,
-            officerBadge: trimmedBadge,
-            officerRank: addRank,
-            officerDivision: finalDivision,
-            officerPhone: addPhone.trim() || undefined,
-            discordTag: addDiscordTag.trim() || undefined,
-            initialPin: trimmedPin,
-            registeredBy: currentOfficerName || 'High Command',
-            registeredByBadge: currentOfficerBadge || '#001',
-            registeredByRank: currentOfficerRank || 'HIGH COMMAND',
-          });
-        } catch (webhookErr: any) {
-          console.warn('Webhook dispatch error (non-fatal):', webhookErr);
-        }
-      }
+      // 5. Instantly finish UI submission & reset form for lightning-fast user experience
+      setIsSubmittingAdd(false);
 
       if (addAnother) {
         // Prepare for the NEXT officer immediately
@@ -744,17 +673,71 @@ export const RosterManagement: React.FC<Props> = ({
         setAddName('');
         setAddDiscordTag('');
         setAddPhone('');
-        setAddOfficerSuccessMsg(`✅ Petugas ${trimmedName} (${trimmedBadge}) sukses didaftarkan dengan PIN ${trimmedPin}!${dmStatusText} Nomor badge otomatis berikutnya: ${nextSequentialBadge} (mengikuti urutan dari ${trimmedBadge}).`);
-        setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) berhasil ditambahkan ke Roster!${dmStatusText}`);
+        setAddOfficerSuccessMsg(`⚡ Personel ${trimmedName} (${trimmedBadge}) langsung aktif di Roster & Database! PIN: ${trimmedPin}. Nomor badge berikutnya: ${nextSequentialBadge}.`);
+        setSuccessNotice(`⚡ Personel Baru ${trimmedName} (${trimmedBadge}) berhasil ditambahkan ke Roster!`);
         setTimeout(() => setSuccessNotice(''), 5000);
       } else {
         setIsAddOfficerModalOpen(false);
-        setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) pangkat ${addRank} berhasil ditambahkan ke Roster dan disahkan!${dmStatusText}`);
+        setSuccessNotice(`⚡ Personel Baru ${trimmedName} (${trimmedBadge}) pangkat ${addRank} berhasil ditambahkan dan langsung aktif di Roster!`);
         setTimeout(() => setSuccessNotice(''), 6000);
+      }
+
+      // 6. Asynchronously dispatch Discord Bot PM and Webhook in the background without freezing the UI
+      if ((addSendDm && addDiscordTag.trim()) || addSendWebhook) {
+        (async () => {
+          try {
+            const tasks: Promise<any>[] = [];
+
+            if (addSendDm && addDiscordTag.trim()) {
+              tasks.push(
+                sendOfficerDirectMessageViaBot({
+                  discordUserId: addDiscordTag.trim(),
+                  officerName: trimmedName,
+                  pin: trimmedPin,
+                  badge: trimmedBadge,
+                  rank: addRank,
+                  division: finalDivision,
+                  customMessage: addCustomMessage.trim() || undefined,
+                  note: 'Jangan beritahu informasi ini kepada orang lain!',
+                  registeredBy: currentOfficerName || 'High Command',
+                  registeredByRank: currentOfficerRank || 'HIGH COMMAND',
+                  registeredByBadge: currentOfficerBadge || undefined,
+                  loginUrl: 'https://mdc-hspd-inspector.vercel.app/',
+                }).then(dmRes => {
+                  if (dmRes.success) {
+                    setSuccessNotice(prev => `${prev || ''} 📩 Kredensial otomatis terkirim ke PM Discord @${addDiscordTag.trim()}!`.trim());
+                  }
+                }).catch(() => {})
+              );
+            }
+
+            if (addSendWebhook) {
+              tasks.push(
+                sendNewOfficerRegistrationToDiscord({
+                  officerName: trimmedName,
+                  officerBadge: trimmedBadge,
+                  officerRank: addRank,
+                  officerDivision: finalDivision,
+                  officerPhone: addPhone.trim() || undefined,
+                  discordTag: addDiscordTag.trim() || undefined,
+                  initialPin: trimmedPin,
+                  registeredBy: currentOfficerName || 'High Command',
+                  registeredByBadge: currentOfficerBadge || '#001',
+                  registeredByRank: currentOfficerRank || 'HIGH COMMAND',
+                }).catch(() => {})
+              );
+            }
+
+            await Promise.allSettled(tasks);
+          } catch (bgErr) {
+            console.warn('[BackgroundSync] Discord dispatch notice:', bgErr);
+          }
+        })();
       }
     } catch (err: any) {
       console.error('Failed to register new officer:', err);
       if (onRegisterOfficer) onRegisterOfficer(newAccount);
+      setIsSubmittingAdd(false);
       if (addAnother) {
         const simulatedRoster = [...roster, newAccount];
         const nextSequentialBadge = getNextAvailableBadge(simulatedRoster, addRank, trimmedBadge);
@@ -766,10 +749,10 @@ export const RosterManagement: React.FC<Props> = ({
         setAddName('');
         setAddDiscordTag('');
         setAddPhone('');
-        setAddOfficerSuccessMsg(`✅ Personel ${trimmedName} (${trimmedBadge}) tersimpan di database! Nomor badge berikutnya: ${nextSequentialBadge}.`);
+        setAddOfficerSuccessMsg(`⚡ Personel ${trimmedName} (${trimmedBadge}) tersimpan di database! Nomor badge berikutnya: ${nextSequentialBadge}.`);
       } else {
         setIsAddOfficerModalOpen(false);
-        setSuccessNotice(`✅ Personel Baru ${trimmedName} (${trimmedBadge}) otomatis tersimpan ke Database Cloud & langsung aktif di Roster Anggota!${dmStatusText}`);
+        setSuccessNotice(`⚡ Personel Baru ${trimmedName} (${trimmedBadge}) otomatis tersimpan ke Database Cloud & langsung aktif di Roster Anggota!`);
         setTimeout(() => setSuccessNotice(''), 6000);
       }
     } finally {
@@ -1118,111 +1101,87 @@ export const RosterManagement: React.FC<Props> = ({
       updateOfficerPinInRoster(finalBadge, finalPin, trimmedName);
     }
 
-    let dmResultNotice = '';
-
     try {
-      if (isRankChanged && promotionSendWebhook) {
-        const promotionConfig = getSavedPromotionWebhookConfig();
-        if (promotionConfig.webhookUrl) {
-          const promotionRecord: PromotionRecord = {
-            officerId: editingOfficer.id,
-            officerName: trimmedName,
-            officerBadge: finalBadge,
-            oldRank: editingOfficer.rank,
-            newRank: newRank,
-            division: newDivision || editingOfficer.division,
-            reason: finalPromotionReason,
-            promotedBy: currentOfficerName || 'High Command',
-            promotedByBadge: currentOfficerBadge || 'HC-01',
-            promotedByRank: currentOfficerRank || 'HIGH COMMAND',
-            timestamp: Date.now()
-          };
+      // 1. Immediately update App state, PIN registry, and local storage (Instant UI update)
+      onUpdateOfficer(updated, editingOfficer);
+      setIsSubmittingRankUpdate(false);
+      setEditingOfficer(null);
+      setSuccessNotice(`⚡ Berhasil memperbarui data petugas ${trimmedName} (${finalBadge})!${isNameChanged ? ` Nama diubah dari "${editingOfficer.name}".` : ''}${isRankChanged ? ` Pangkat disesuaikan ke ${newRank}.` : ''}${isPinChanged ? ` PIN diperbarui ke ${finalPin}.` : ''}`);
+      setTimeout(() => setSuccessNotice(''), 6000);
 
-          await sendPromotionAnnouncementToDiscord(promotionRecord, promotionConfig);
-        }
-      }
-
-      // Auto-send credentials (new or old) via Discord Bot PM directly to officer's inbox
-      if (editSendDmOnSave && editDiscordTag.trim()) {
+      // 2. Dispatch promotion announcements and Bot DM asynchronously in the background
+      (async () => {
         try {
-          const changeNotes: string[] = [];
-          if (isNameChanged) {
-            changeNotes.push(`• **Nama / UCP**: \`${editingOfficer.name}\` ➔ **\`${trimmedName}\`**`);
-          } else {
-            changeNotes.push(`• **Nama / UCP**: **\`${trimmedName}\`**`);
-          }
-          if (isBadgeChanged) {
-            changeNotes.push(`• **Nomor Badge**: \`${editingOfficer.badge}\` ➔ **\`${finalBadge}\`**`);
-          } else {
-            changeNotes.push(`• **Nomor Badge**: **\`${finalBadge}\`**`);
-          }
-          if (isRankChanged) {
-            changeNotes.push(`• **Pangkat Baru**: **\`${newRank}\`**`);
-          }
-          if (isPinChanged) {
-            changeNotes.push(`• **Password / PIN Login**: \`${editingOfficer.pin || '10-4'}\` ➔ **\`${finalPin}\`** (PIN BARU)`);
-          } else {
-            changeNotes.push(`• **Password / PIN Login**: **\`${finalPin}\`** (PIN AKTIF)`);
-          }
-
-          const customDmMessage = `Halo **${trimmedName}**, data akun MDT Kepolisian HSPD Anda baru saja diperbarui oleh Atasan **${currentOfficerName || 'High Command'}** (${currentOfficerRank || 'Command'}).\n\n📌 **Detail Kredensial Login Anda:**\n${changeNotes.join('\n')}\n\n*Silakan gunakan Username/UCP dan Password/PIN di atas untuk login ke portal MDT CAD HSPD.*`;
-
-          const dmRes = await sendOfficerDirectMessageViaBot({
-            discordUserId: editDiscordTag.trim(),
-            discordUsername: editDiscordTag.trim(),
-            officerName: trimmedName,
-            pin: finalPin,
-            badge: finalBadge,
-            rank: newRank,
-            division: newDivision || editingOfficer.division,
-            customMessage: customDmMessage,
-            note: 'Jangan beritahu informasi ini kepada orang lain! Simpan Username dan PIN Anda dengan aman.',
-            registeredBy: currentOfficerName || 'High Command',
-            registeredByRank: currentOfficerRank || 'HIGH COMMAND',
-            registeredByBadge: currentOfficerBadge || undefined,
-            loginUrl: 'https://mdc-hspd-inspector.vercel.app/',
-          });
-
-          if (dmRes.success) {
-            dmResultNotice = ` & 📩 Kredensial (User: ${trimmedName}, PIN: ${finalPin}) terkirim ke PM Discord @${editDiscordTag.trim()}!`;
-          } else {
-            console.warn('Bot PM dispatch notice:', dmRes.message);
-            try {
-              const fallbackRes = await sendOfficerLoginCredentialsToDiscord({
+          if (isRankChanged && promotionSendWebhook) {
+            const promotionConfig = getSavedPromotionWebhookConfig();
+            if (promotionConfig.webhookUrl) {
+              const promotionRecord: PromotionRecord = {
+                officerId: editingOfficer.id,
                 officerName: trimmedName,
                 officerBadge: finalBadge,
-                officerRank: newRank,
-                officerDivision: newDivision || editingOfficer.division,
-                pin: finalPin,
-                discordTag: editDiscordTag.trim(),
-                sentBy: currentOfficerName || 'High Command',
-                sentByBadge: currentOfficerBadge || '#001',
-                sentByRank: currentOfficerRank || 'HIGH COMMAND'
-              });
-              if (fallbackRes.success) {
-                dmResultNotice = ` (Bot PM: ${dmRes.message}. Kredensial dialihkan ke Webhook Discord)`;
-              } else {
-                dmResultNotice = ` (⚠️ Bot PM: ${dmRes.message})`;
-              }
-            } catch {
-              dmResultNotice = ` (⚠️ Bot PM: ${dmRes.message})`;
+                oldRank: editingOfficer.rank,
+                newRank: newRank,
+                division: newDivision || editingOfficer.division,
+                reason: finalPromotionReason,
+                promotedBy: currentOfficerName || 'High Command',
+                promotedByBadge: currentOfficerBadge || 'HC-01',
+                promotedByRank: currentOfficerRank || 'HIGH COMMAND',
+                timestamp: Date.now()
+              };
+
+              sendPromotionAnnouncementToDiscord(promotionRecord, promotionConfig).catch(() => {});
             }
           }
-        } catch (dmErr: any) {
-          console.warn('Error during Bot PM dispatch:', dmErr);
-        }
-      }
 
-      onUpdateOfficer(updated, editingOfficer);
-      setSuccessNotice(`✅ Berhasil memperbarui data petugas ${trimmedName} (${finalBadge})!${isNameChanged ? ` Nama diubah dari "${editingOfficer.name}".` : ''}${isRankChanged ? ` Pangkat disesuaikan ke ${newRank}.` : ''}${isPinChanged ? ` PIN diperbarui ke ${finalPin}.` : ''}${dmResultNotice}`);
-      setEditingOfficer(null);
-      setTimeout(() => setSuccessNotice(''), 6000);
+          // Auto-send credentials (new or old) via Discord Bot PM directly to officer's inbox
+          if (editSendDmOnSave && editDiscordTag.trim()) {
+            const changeNotes: string[] = [];
+            if (isNameChanged) {
+              changeNotes.push(`• **Nama / UCP**: \`${editingOfficer.name}\` ➔ **\`${trimmedName}\`**`);
+            } else {
+              changeNotes.push(`• **Nama / UCP**: **\`${trimmedName}\`**`);
+            }
+            if (isBadgeChanged) {
+              changeNotes.push(`• **Nomor Badge**: \`${editingOfficer.badge}\` ➔ **\`${finalBadge}\`**`);
+            } else {
+              changeNotes.push(`• **Nomor Badge**: **\`${finalBadge}\`**`);
+            }
+            if (isRankChanged) {
+              changeNotes.push(`• **Pangkat Baru**: **\`${newRank}\`**`);
+            }
+            if (isPinChanged) {
+              changeNotes.push(`• **Password / PIN Login**: \`${editingOfficer.pin || '10-4'}\` ➔ **\`${finalPin}\`** (PIN BARU)`);
+            } else {
+              changeNotes.push(`• **Password / PIN Login**: **\`${finalPin}\`** (PIN AKTIF)`);
+            }
+
+            const customDmMessage = `Halo **${trimmedName}**, data akun MDT Kepolisian HSPD Anda baru saja diperbarui oleh Atasan **${currentOfficerName || 'High Command'}** (${currentOfficerRank || 'Command'}).\n\n📌 **Detail Kredensial Login Anda:**\n${changeNotes.join('\n')}\n\n*Silakan gunakan Username/UCP dan Password/PIN di atas untuk login ke portal MDT CAD HSPD.*`;
+
+            sendOfficerDirectMessageViaBot({
+              discordUserId: editDiscordTag.trim(),
+              discordUsername: editDiscordTag.trim(),
+              officerName: trimmedName,
+              pin: finalPin,
+              badge: finalBadge,
+              rank: newRank,
+              division: newDivision || editingOfficer.division,
+              customMessage: customDmMessage,
+              note: 'Jangan beritahu informasi ini kepada orang lain! Simpan Username dan PIN Anda dengan aman.',
+              registeredBy: currentOfficerName || 'High Command',
+              registeredByRank: currentOfficerRank || 'HIGH COMMAND',
+              registeredByBadge: currentOfficerBadge || undefined,
+              loginUrl: 'https://mdc-hspd-inspector.vercel.app/',
+            }).catch(() => {});
+          }
+        } catch (bgErr) {
+          console.warn('[BackgroundSync] Edit officer background notification notice:', bgErr);
+        }
+      })();
     } catch (err) {
       console.error('Failed to update officer rank/pin', err);
       onUpdateOfficer(updated, editingOfficer);
-      setEditingOfficer(null);
-    } finally {
       setIsSubmittingRankUpdate(false);
+      setEditingOfficer(null);
     }
   };
 

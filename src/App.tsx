@@ -354,23 +354,12 @@ export default function App() {
   const isRosterFirstMount = useRef(true);
   const isRecordsFirstMount = useRef(true);
 
-  // Persist roster and sync to Firestore
+  // Persist roster to local storage immediately without heavy recurring cloud rewrites
   useEffect(() => {
     try {
       localStorage.setItem(ROSTER_STORAGE_KEY, JSON.stringify(roster));
       localStorage.setItem('hspd_roster_database_v3', JSON.stringify(roster));
       localStorage.setItem('hspd_roster_database_v2', JSON.stringify(roster));
-      
-      if (isRosterFirstMount.current) {
-        isRosterFirstMount.current = false;
-        return;
-      }
-      if (roster && roster.length > 0) {
-        const timeout = setTimeout(() => {
-          syncCollectionWithFirestore('ROSTER', roster).catch(() => {});
-        }, 1000);
-        return () => clearTimeout(timeout);
-      }
     } catch (e) {
       console.error('Failed to persist roster database', e);
     }
