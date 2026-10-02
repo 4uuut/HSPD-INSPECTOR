@@ -961,15 +961,9 @@ export function mergeWithOfficialRoster(
         }
       }
 
-      // Typo alias check for specific officers
-      if (cleanName && cleanName.includes('neave') && existingName.includes('neave')) {
-        return key;
-      }
-      if (
-        cleanName &&
-        (cleanName.includes('leoarnd') || cleanName.includes('leonard') || cleanName.includes('leoanrd')) &&
-        (existingName.includes('leoarnd') || existingName.includes('leonard') || existingName.includes('leoanrd'))
-      ) {
+      // Safe typo transposition check for "Leoanrd Neave" <-> "Leonard Neave" (full name must match)
+      const normalizeLeo = (str: string) => str.replace(/\bleoarnd\b/g, 'leonard').replace(/\bleoanrd\b/g, 'leonard');
+      if (cleanName && existingName && normalizeLeo(cleanName) === normalizeLeo(existingName)) {
         return key;
       }
 

@@ -77,16 +77,17 @@ export function isSameOfficerAccount(
     return true;
   }
 
-  // 3. Direct Badge comparison
+  // 3. Direct Badge comparison (ONLY if names are not in conflict with two distinct people)
   const badgeA = (a.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
   const badgeB = (b.badge || '').replace(/[^a-zA-Z0-9]/g, '').toLowerCase().trim();
 
   if (badgeA && badgeB) {
-    if (badgeA === badgeB) return true;
-    const numA = parseInt(badgeA, 10);
-    const numB = parseInt(badgeB, 10);
-    if (!isNaN(numA) && !isNaN(numB) && numA === numB) {
-      return true;
+    const isBadgeMatch = badgeA === badgeB || (!isNaN(parseInt(badgeA, 10)) && parseInt(badgeA, 10) === parseInt(badgeB, 10));
+    if (isBadgeMatch) {
+      // If both records specify names, only treat as same account if names do not conflict with two distinct people
+      if (!nameA || !nameB || normA === normB || nameA === nameB) {
+        return true;
+      }
     }
   }
 
@@ -213,9 +214,7 @@ export function updateOfficerPinInRoster(
   const updatedRoster = currentRoster.map(officer => {
     if (
       (officerId && officer.id && officer.id.toLowerCase().trim() === officerId.toLowerCase().trim()) ||
-      isSameOfficerAccount(officer, targetIdentifier) ||
-      isOfficerMatch(officer, badgeOrName) || 
-      (officerName && isOfficerMatch(officer, officerName))
+      isSameOfficerAccount(officer, targetIdentifier)
     ) {
       updated = true;
       const safeBadge = isBadgeString(badgeOrName) ? badgeOrName : officer.badge;
@@ -236,11 +235,10 @@ export function updateOfficerPinInRoster(
     return officer;
   });
 
-  // If officer was not present in current dynamic storage, check HSPD_OFFICIAL_ROSTER baseline (e.g. Jackie Xianlao)
+  // If officer was not present in current dynamic storage, check HSPD_OFFICIAL_ROSTER baseline
   if (!updated) {
     const candidate = HSPD_OFFICIAL_ROSTER.find(o => 
-      isOfficerMatch(o, badgeOrName) || 
-      (officerName && isOfficerMatch(o, officerName)) ||
+      isSameOfficerAccount(o, targetIdentifier) ||
       (officerId && o.id === officerId)
     );
     if (candidate) {
