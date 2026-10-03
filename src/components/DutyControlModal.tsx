@@ -1,17 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { OfficerProfile, DutyStatusCode, DutyLog, isOfficerHighRank } from '../types';
 import { 
   Radio, Shield, Power, Clock, User, CheckCircle2, 
   AlertCircle, Settings, Send, RefreshCw, X, Globe,
   CheckCheck, Timer, Calendar, ShieldCheck, Camera,
   Upload, Image as ImageIcon, Trash2, ZoomIn, Link2, Plus,
-  Smartphone, FileText, AlertTriangle, Lock
+  Smartphone, FileText, AlertTriangle, Lock, ChevronRight
 } from 'lucide-react';
 import { 
   getSavedDutyWebhookConfig, saveDutyWebhookConfig, 
   sendDutyReportToDiscord, testDutyDiscordWebhook, WebhookConfig 
 } from '../utils/discordWebhook';
-import { recordDutySession } from '../utils/attendanceExport';
+import { recordDutySession, getTodayDutyStatsForOfficer } from '../utils/attendanceExport';
+import { getActiveLeaveForOfficer, formatIndoDateDisplay } from '../utils/officerLeaveStorage';
 import { processAndCompressImage } from '../utils/imageCompressor';
 import { HSPD_LOGO_URL } from '../assets/logo';
 
@@ -22,6 +23,7 @@ interface Props {
   isDuty: boolean;
   dutyStartTime: number;
   onDutyStatusChanged: (newDutyState: boolean, newDutyStartTime: number, statusCode?: DutyStatusCode) => void;
+  onOpenLeaveModal?: () => void;
 }
 
 export const DutyControlModal: React.FC<Props> = ({
@@ -30,7 +32,8 @@ export const DutyControlModal: React.FC<Props> = ({
   currentOfficer,
   isDuty,
   dutyStartTime,
-  onDutyStatusChanged
+  onDutyStatusChanged,
+  onOpenLeaveModal
 }) => {
   const [selectedStatus, setSelectedStatus] = useState<DutyStatusCode>(isDuty ? '8-1-0' : '8-1-1');
 
@@ -96,6 +99,20 @@ export const DutyControlModal: React.FC<Props> = ({
     return () => clearInterval(interval);
   }, [isOpen]);
 
+  // Akumulasi Laporan Harian (siang + malam disatukan menjadi 1 laporan harian)
+  const todayPriorDutyStats = useMemo(() => {
+    if (!isOpen) {
+      return { hasDutyToday: false, todayMinutes: 0, todayFormatted: '0 Menit', sessionsCount: 0, existingSession: null };
+    }
+    return getTodayDutyStatsForOfficer(currentOfficer.badge, currentOfficer.name);
+  }, [isOpen, currentOfficer.badge, currentOfficer.name, currentTime]);
+
+  // Check active approved leave for today
+  const activeLeaveToday = useMemo(() => {
+    if (!isOpen) return null;
+    return getActiveLeaveForOfficer(currentOfficer.badge, currentOfficer.name);
+  }, [isOpen, currentOfficer.badge, currentOfficer.name]);
+
   if (!isOpen) return null;
 
   // Calculate live duty duration
@@ -126,6 +143,24 @@ export const DutyControlModal: React.FC<Props> = ({
   const isOffDutyStatus = selectedStatus === '8-1-0' || selectedStatus === '10-7';
   const isOnDutyStatus = selectedStatus === '8-1-1' || selectedStatus === '10-8';
 
+  // SOP RULES: MINIMAL DURASI DINAS ADALAH 2 JAM (120 MENIT)
+  const MIN_DUTY_MINUTES = 120; // 2 Jam (120 Menit)
+  const currentElapsedMs = (isDuty && dutyStartTime > 0) ? Math.max(0, currentTime - dutyStartTime) : 0;
+  const currentElapsedMinutes = Math.floor(currentElapsedMs / 60000);
+
+  const totalTodayAccumulatedMinutes = todayPriorDutyStats.todayMinutes + currentElapsedMinutes;
+
+  // Minimal duty 2 jam terpenuhi jika sesi saat ini >= 120 menit ATAU total akumulasi hari ini (siang + malam) >= 120 menit
+  // (atau jika perwira tinggi High Rank)
+  const isHighRank = isOfficerHighRank(currentOfficer.rank);
+  const isMinDutySatisfied = !isOffDutyStatus || currentElapsedMinutes >= MIN_DUTY_MINUTES || totalTodayAccumulatedMinutes >= MIN_DUTY_MINUTES || isHighRank;
+  const missingDutyMinutes = Math.max(0, MIN_DUTY_MINUTES - Math.max(currentElapsedMinutes, totalTodayAccumulatedMinutes));
+  const missingH = Math.floor(missingDutyMinutes / 60);
+  const missingM = missingDutyMinutes % 60;
+  const missingText = missingH > 0 
+    ? `${missingH} Jam ${missingM > 0 ? `${missingM} Menit` : ''}` 
+    : `${missingM} Menit`;
+
   const offDutyMissingSlots = [
     !offDutyActivityImage1 ? 'Foto Kegiatan 1' : null,
     !offDutyActivityImage2 ? 'Foto Kegiatan 2' : null,
@@ -134,7 +169,7 @@ export const DutyControlModal: React.FC<Props> = ({
 
   const offDutyUploadedCount = 3 - offDutyMissingSlots.length;
   const isOffDutyPhotosComplete = offDutyUploadedCount === 3;
-  const isSubmitDisabled = isSubmitting || (isOffDutyStatus && !isOffDutyPhotosComplete);
+  const isSubmitDisabled = isSubmitting || (isOffDutyStatus && (!isOffDutyPhotosComplete || !isMinDutySatisfied));
 
   // Helper to process single file upload from device
   const handleProcessFileForSlot = async (
@@ -187,7 +222,19 @@ export const DutyControlModal: React.FC<Props> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // STRICT VALIDATION: Lepas dinas (8-1-0) WAJIB 3 berkas foto lengkap (2 Kegiatan + 1 HP Selesai)
+    // STRICT VALIDATION 1: Minimal Durasi Dinas 2 Jam (120 Menit)
+    if (isOffDutyStatus && !isMinDutySatisfied) {
+      const missingH = Math.floor(missingDutyMinutes / 60);
+      const missingM = missingDutyMinutes % 60;
+      const missingText = missingH > 0 ? `${missingH} Jam ${missingM} Menit` : `${missingM} Menit`;
+      setSubmitFeedback({
+        type: 'error',
+        message: `Akses Ditolak: Sesuai SOP Kepolisian, durasi dinas wajib minimal 2 Jam (120 Menit). Durasi dinas Anda saat ini baru ${Math.floor(currentElapsedMinutes / 60)} Jam ${currentElapsedMinutes % 60} Menit (kurang ${missingText} lagi). Anda belum dapat melakukan lepas dinas (8-1-0).`
+      });
+      return;
+    }
+
+    // STRICT VALIDATION 2: Lepas dinas (8-1-0) WAJIB 3 berkas foto lengkap (2 Kegiatan + 1 HP Selesai)
     if (isOffDutyStatus && !isOffDutyPhotosComplete) {
       setSubmitFeedback({
         type: 'error',
@@ -209,6 +256,14 @@ export const DutyControlModal: React.FC<Props> = ({
     const finalDurationFormatted = finalHours > 0 
       ? `${finalHours} Jam ${finalRemMins} Menit ${finalSeconds} Detik` 
       : `${finalRemMins} Menit ${finalSeconds} Detik`;
+
+    // Hitung akumulasi harian jika sebelumnya sudah pernah dinas hari ini (misal sesi siang + sesi malam)
+    const totalTodayAccumulatedMinutes = todayPriorDutyStats.todayMinutes + (isOffDutyStatus ? finalMinutes : 0);
+    const totalTodayHours = Math.floor(totalTodayAccumulatedMinutes / 60);
+    const totalTodayRemMins = totalTodayAccumulatedMinutes % 60;
+    const accumulatedFormatted = totalTodayHours > 0 
+      ? `${totalTodayHours} Jam ${totalTodayRemMins} Menit` 
+      : `${totalTodayRemMins} Menit`;
 
     const statusTexts: Record<DutyStatusCode, string> = {
       '8-1-1': '8-1-1 ON DUTY (Mulai Dinas / Siap Patroli)',
@@ -245,6 +300,9 @@ export const DutyControlModal: React.FC<Props> = ({
       dutyEndTime: isOffDutyStatus ? now : undefined,
       durationMinutes: isOffDutyStatus ? finalMinutes : undefined,
       durationFormatted: isOffDutyStatus ? finalDurationFormatted : undefined,
+      accumulatedDayMinutes: isOffDutyStatus ? totalTodayAccumulatedMinutes : undefined,
+      accumulatedDayFormatted: isOffDutyStatus ? accumulatedFormatted : undefined,
+      sessionsCountToday: isOffDutyStatus ? (todayPriorDutyStats.sessionsCount + 1) : undefined,
       // Attached photos
       onDutyPhoneImage: isOnDutyStatus ? onDutyPhoneImage : undefined,
       offDutyActivityImage1: isOffDutyStatus ? offDutyActivityImage1 : undefined,
@@ -376,6 +434,42 @@ export const DutyControlModal: React.FC<Props> = ({
           </div>
         )}
 
+        {/* ACTIVE LEAVE STATUS BANNER */}
+        {activeLeaveToday && (
+          <div className="p-3 bg-amber-950/60 border-2 border-amber-600/80 rounded-xl text-xs text-amber-200 flex items-start gap-2.5 shadow-md font-mono">
+            <Calendar className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div className="space-y-0.5 flex-1">
+              <div className="font-bold text-amber-300 flex items-center justify-between">
+                <span>🟡 STATUS CUTI RESMI AKTIF</span>
+                <span className="bg-amber-900 border border-amber-600 text-amber-100 text-[10px] px-2 py-0.2 rounded font-bold">
+                  {activeLeaveToday.totalDays} HARI
+                </span>
+              </div>
+              <div className="text-[11px] text-gray-300 leading-relaxed">
+                Anda memiliki izin cuti resmi dari <strong>{formatIndoDateDisplay(activeLeaveToday.startDate)}</strong> s/d <strong>{formatIndoDateDisplay(activeLeaveToday.endDate)}</strong>. Di-ACC oleh: <strong>{activeLeaveToday.approvedBy}</strong> ({activeLeaveToday.approvedRank || 'Atasan'}).
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* AJUKAN IZIN / CUTI SAPD BUTTON */}
+        {onOpenLeaveModal && (
+          <button
+            type="button"
+            onClick={onOpenLeaveModal}
+            className="w-full py-2.5 px-3 bg-[#1C1613] hover:bg-[#281F1A] border border-amber-500/80 hover:border-amber-400 rounded-xl text-amber-300 text-xs font-bold flex items-center justify-between transition shadow-sm group font-mono active:scale-98"
+          >
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4 text-amber-400" />
+              <span>AJUKAN IZIN / CUTI SAPD (ACC ATASAN)</span>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-amber-400 group-hover:translate-x-0.5 transition">
+              <span>Buka Formulir</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </div>
+          </button>
+        )}
+
         {/* STATUS SELECTION CARDS: 8-1-1 ON DUTY & 8-1-0 OFF DUTY ONLY */}
         <div>
           <label className="text-[11px] font-bold text-gray-300 uppercase block mb-2">
@@ -478,6 +572,25 @@ export const DutyControlModal: React.FC<Props> = ({
                 </div>
               </div>
             </div>
+
+            {/* Daily Consolidation Badge (e.g. Siang + Malam = 1 Laporan Harian) */}
+            {(selectedStatus === '8-1-0' || selectedStatus === '10-7') && todayPriorDutyStats.hasDutyToday && (
+              <div className="bg-blue-950/40 border border-blue-800/80 rounded-lg p-2.5 text-xs text-blue-200 flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <div className="font-bold text-blue-300 flex items-center gap-1.5">
+                    <span>📊 Akumulasi 1 Laporan Harian (Dinas Siang & Malam)</span>
+                    <span className="text-[10px] bg-blue-900 border border-blue-600 px-1.5 py-0.2 rounded font-bold text-blue-100">
+                      1 LAPORAN HARIAN
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-gray-300 leading-relaxed">
+                    Sesi dinas sebelumnya hari ini: <span className="font-bold text-amber-300">{todayPriorDutyStats.todayFormatted}</span> ({todayPriorDutyStats.sessionsCount} sesi).
+                    Total gabungan hari ini menjadi: <span className="font-bold text-emerald-300">{Math.floor(totalTodayAccumulatedMinutes / 60)} Jam {totalTodayAccumulatedMinutes % 60} Menit</span> (seluruh sesi siang & malam otomatis disatukan dan dihitung sebagai <strong>1 Laporan Harian</strong> resmi).
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1003,7 +1116,27 @@ export const DutyControlModal: React.FC<Props> = ({
           )}
         </div>
 
-        {/* BANNER VALIDASI KETAT: OFF DUTY 8-1-0 WAJIB 3 FOTO */}
+        {/* BANNER VALIDASI KETAT 1: OFF DUTY 8-1-0 WAJIB MINIMAL 2 JAM (120 MENIT) */}
+        {isOffDutyStatus && !isMinDutySatisfied && (
+          <div className="p-3 bg-rose-950/80 border-2 border-rose-600/90 rounded-xl text-rose-200 text-xs font-mono flex items-start gap-2.5 shadow-lg">
+            <Lock className="w-5 h-5 text-rose-400 shrink-0 mt-0.5 animate-pulse" />
+            <div className="space-y-1 flex-1">
+              <div className="font-bold text-rose-200 flex items-center justify-between">
+                <span>🔒 SYARAT DURASI LEPAS DINAS: WAJIB MINIMAL 2 JAM (120 MENIT)</span>
+                <span className="text-[11px] bg-rose-900 border border-rose-500 px-2 py-0.5 rounded font-bold text-rose-100">
+                  KURANG {missingText.toUpperCase()}
+                </span>
+              </div>
+              <div className="text-[11px] text-rose-300 leading-relaxed">
+                Sesuai SOP Kepolisian, durasi dinas wajib minimal <strong>2 Jam (120 Menit)</strong>. Durasi dinas Anda saat ini baru <strong>{Math.floor(currentElapsedMinutes / 60)} Jam {currentElapsedMinutes % 60} Menit</strong>
+                {todayPriorDutyStats.hasDutyToday ? ` (Total akumulasi hari ini: ${Math.floor(totalTodayAccumulatedMinutes / 60)} Jam ${totalTodayAccumulatedMinutes % 60} Menit)` : ''}.
+                Tombol <strong className="text-white">"SELESAIKAN 8-1-0 (LEPAS DINAS)"</strong> di bawah terkunci hingga syarat durasi terpenuhi.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* BANNER VALIDASI KETAT 2: OFF DUTY 8-1-0 WAJIB 3 FOTO */}
         {isOffDutyStatus && !isOffDutyPhotosComplete && (
           <div className="p-3 bg-rose-950/80 border-2 border-rose-600/90 rounded-xl text-rose-200 text-xs font-mono flex items-start gap-2.5 shadow-lg">
             <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5 animate-bounce" />
@@ -1048,9 +1181,11 @@ export const DutyControlModal: React.FC<Props> = ({
             onClick={handleSubmit}
             disabled={isSubmitDisabled}
             title={
-              isOffDutyStatus && !isOffDutyPhotosComplete
-                ? `Tombol dinonaktifkan: Wajib unggah 3 bukti foto (saat ini ${offDutyUploadedCount}/3). Masih kurang: ${offDutyMissingSlots.join(', ')}.`
-                : undefined
+              isOffDutyStatus && !isMinDutySatisfied
+                ? `Tombol dinonaktifkan: Wajib dinas minimal 2 Jam (120 Menit). Durasi saat ini baru ${Math.floor(currentElapsedMinutes / 60)} Jam ${currentElapsedMinutes % 60} Menit (kurang ${missingText}).`
+                : isOffDutyStatus && !isOffDutyPhotosComplete
+                  ? `Tombol dinonaktifkan: Wajib unggah 3 bukti foto (saat ini ${offDutyUploadedCount}/3). Masih kurang: ${offDutyMissingSlots.join(', ')}.`
+                  : undefined
             }
             className={`px-5 py-2.5 font-bold rounded-lg text-xs transition flex items-center gap-2 shadow-lg ${
               isSubmitDisabled && isOffDutyStatus
@@ -1064,6 +1199,13 @@ export const DutyControlModal: React.FC<Props> = ({
               <>
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                 <span>Mengirim Laporan & Berkas Bukti...</span>
+              </>
+            ) : isOffDutyStatus && !isMinDutySatisfied ? (
+              <>
+                <Lock className="w-3.5 h-3.5 text-rose-400" />
+                <span>
+                  🔒 MINIMAL DINAS 2 JAM (KURANG {missingText.toUpperCase()})
+                </span>
               </>
             ) : isOffDutyStatus && !isOffDutyPhotosComplete ? (
               <>

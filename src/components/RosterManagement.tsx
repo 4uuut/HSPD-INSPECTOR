@@ -9,11 +9,13 @@ import {
   UserX, Trash2, AlertOctagon, Send, RotateCcw, AlertCircle, FileText, RefreshCw,
   UserPlus, Phone, Sliders, Eye, EyeOff, Radio, Activity, FileSpreadsheet, Download, Archive,
   MessageSquare, Bot, Upload, Image, Palette, Save, Bookmark, Settings, Globe, ExternalLink,
-  Maximize2, Minimize2, ArrowUpDown
+  Maximize2, Minimize2, ArrowUpDown, Calendar
 } from 'lucide-react';
 import { ExportAttendanceModal } from './ExportAttendanceModal';
 import { WeeklyOperationsReportModal } from './WeeklyOperationsReportModal';
 import { ExportAccountsModal } from './ExportAccountsModal';
+import { OfficerLeaveModal } from './OfficerLeaveModal';
+import { getActiveLeaveForOfficer, formatIndoDateDisplay } from '../utils/officerLeaveStorage';
 import { getNextAvailableBadge, detectBadgeStatus, BadgeDetectionResult, normalizeBadgeFormat } from '../utils/badgeHelper';
 import { 
   sendOfficerWarningToDiscord, 
@@ -370,6 +372,8 @@ export const RosterManagement: React.FC<Props> = ({
   const [isExportAttendanceModalOpen, setIsExportAttendanceModalOpen] = useState(false);
   const [isWeeklyOperationsModalOpen, setIsWeeklyOperationsModalOpen] = useState(false);
   const [isExportAccountsModalOpen, setIsExportAccountsModalOpen] = useState(false);
+  const [isOfficerLeaveModalOpen, setIsOfficerLeaveModalOpen] = useState(false);
+  const [selectedLeaveOfficer, setSelectedLeaveOfficer] = useState<{ badge: string; name: string; rank: string; division?: string } | null>(null);
   // Discharged Officer History Management In-App Dialogs (Safe from iframe window.confirm blocking)
   const [entryToDeleteHistory, setEntryToDeleteHistory] = useState<DischargedOfficerEntry | null>(null);
   const [showClearAllDischargedModal, setShowClearAllDischargedModal] = useState(false);
@@ -1086,8 +1090,8 @@ export const RosterManagement: React.FC<Props> = ({
       rank: newRank,
       division: newDivision || editingOfficer.division,
       pin: finalPin,
-      discordTag: editDiscordTag.trim() || undefined,
-      phone: editPhone.trim() || undefined,
+      discordTag: editDiscordTag.trim(),
+      phone: editPhone.trim(),
       promotedBy: promotedByText,
       _updatedAt: Date.now()
     };
@@ -1408,11 +1412,26 @@ export const RosterManagement: React.FC<Props> = ({
               id="btn-open-weekly-operations-report"
               type="button"
               onClick={() => setIsWeeklyOperationsModalOpen(true)}
-              className="px-3 py-2 bg-gradient-to-r from-cyan-950/90 via-blue-950/90 to-indigo-950/90 hover:from-cyan-900 hover:to-indigo-900 border border-cyan-500/80 hover:border-cyan-400 text-cyan-200 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-md shadow-cyan-950/40"
+              className="px-3 py-2 bg-gradient-to-r from-cyan-950/90 via-blue-950/90 to-indigo-950/90 hover:from-cyan-900 hover:to-indigo-900 border border-cyan-500/80 hover:border-cyan-400 text-cyan-200 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-md shadow-cyan-950/40 cursor-pointer"
               title="Rekap data operasional seminggu: jam duty, upload surat tilang, sita kendaraan (impound), upload berkas kasus, dan barang bukti eviden (Excel / Dokumen Cetak)"
             >
               <Activity className="w-4 h-4 text-cyan-400" />
               <span>📊 REKAP DATA DINAS MINGGUAN</span>
+            </button>
+
+            {/* IZIN / CUTI ANGGOTA (ACC ATASAN) */}
+            <button
+              id="btn-open-officer-leave"
+              type="button"
+              onClick={() => {
+                setSelectedLeaveOfficer(null);
+                setIsOfficerLeaveModalOpen(true);
+              }}
+              className="px-3 py-2 bg-gradient-to-r from-amber-950/90 via-yellow-950/90 to-amber-900/90 hover:from-amber-900 hover:to-yellow-800 border border-amber-500/80 hover:border-amber-400 text-amber-200 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-md shadow-amber-950/40 cursor-pointer"
+              title="Pengajuan & ACC Izin / Cuti Dinas Anggota SAPD (Format Resmi)"
+            >
+              <Calendar className="w-4 h-4 text-amber-400" />
+              <span>🌴 IZIN / CUTI ANGGOTA</span>
             </button>
 
             {/* EXPORT ABSEN MINGGUAN (EXCEL / ZIP / CSV / PDF) */}
@@ -1817,6 +1836,7 @@ export const RosterManagement: React.FC<Props> = ({
                   const warningsCount = officer.warnings?.length || 0;
                   const dutyState = getOfficerDutyState(officer.badge, roster);
                   const dutyDuration = formatDutyDuration(dutyState.isDuty, dutyState.dutyStartTime);
+                  const activeLeave = getActiveLeaveForOfficer(officer.badge, officer.name);
 
                   return (
                     <tr key={officer.id || officer.name} className="hover:bg-gray-800/30 transition">
@@ -1859,6 +1879,16 @@ export const RosterManagement: React.FC<Props> = ({
                             </span>
                             <span className="text-[9px] text-emerald-400/80 font-mono pl-0.5">
                               ⏱️ {dutyDuration.shortStr}
+                            </span>
+                          </div>
+                        ) : activeLeave ? (
+                          <div className="inline-flex flex-col gap-0.5" title={`Izin Cuti Resmi s/d ${formatIndoDateDisplay(activeLeave.endDate)} - ACC: ${activeLeave.approvedBy || 'Atasan'}`}>
+                            <span className="inline-flex items-center gap-1 text-[10px] bg-amber-950/90 text-amber-300 border border-amber-600/90 px-2 py-0.5 rounded font-bold shadow-xs">
+                              <span>🌴</span>
+                              <span>CUTI RESMI</span>
+                            </span>
+                            <span className="text-[9px] text-amber-400/90 font-mono pl-0.5">
+                              s/d {formatIndoDateDisplay(activeLeave.endDate)}
                             </span>
                           </div>
                         ) : (
@@ -1995,6 +2025,25 @@ export const RosterManagement: React.FC<Props> = ({
                               >
                                 <AlertTriangle className="w-3 h-3" />
                                 <span className="hidden sm:inline">SP ({warningsCount}/3)</span>
+                              </button>
+
+                              {/* Cuti Button */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedLeaveOfficer({
+                                    badge: officer.badge,
+                                    name: officer.name,
+                                    rank: officer.rank,
+                                    division: officer.division
+                                  });
+                                  setIsOfficerLeaveModalOpen(true);
+                                }}
+                                className="px-2 py-1 bg-amber-950/80 hover:bg-amber-800 text-amber-300 hover:text-white border border-amber-700/80 rounded text-[10px] font-bold transition flex items-center gap-1 shadow-sm cursor-pointer"
+                                title="Ajukan / Kelola Izin Cuti Petugas Ini"
+                              >
+                                <Calendar className="w-3 h-3 text-amber-400" />
+                                <span className="hidden md:inline">CUTI</span>
                               </button>
 
                               {/* Edit Button */}
@@ -3846,6 +3895,23 @@ export const RosterManagement: React.FC<Props> = ({
         isOpen={isWeeklyOperationsModalOpen}
         onClose={() => setIsWeeklyOperationsModalOpen(false)}
         roster={roster}
+      />
+
+      {/* OFFICER LEAVE / CUTI MODAL (ACC ATASAN) */}
+      <OfficerLeaveModal
+        isOpen={isOfficerLeaveModalOpen}
+        onClose={() => {
+          setIsOfficerLeaveModalOpen(false);
+          setSelectedLeaveOfficer(null);
+        }}
+        currentOfficer={{
+          name: currentOfficerName,
+          badge: currentOfficerBadge,
+          rank: currentOfficerRank,
+          division: 'Command Division'
+        } as any}
+        roster={roster}
+        initialTargetOfficer={selectedLeaveOfficer}
       />
 
       {/* MODAL FEEDBACK HASIL PENGIRIMAN PM DISCORD SAAT TAMBAH ANGGOTA */}

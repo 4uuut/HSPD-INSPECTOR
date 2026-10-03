@@ -614,7 +614,7 @@ export const ExportAttendanceModal: React.FC<Props> = ({
                     <th className="py-2 px-3">Pangkat</th>
                     <th className="py-2 px-3">Divisi</th>
                     <th className="py-2 px-3">Total Jam Dinas</th>
-                    <th className="py-2 px-3">Shift</th>
+                    <th className="py-2 px-3" title="Total Laporan Harian Resmi (Sesi siang + malam diakumulasikan menjadi 1 laporan harian)">Total Laporan</th>
                     <th className="py-2 px-3">Hari</th>
                     <th className="py-2 px-3 text-right">Predikat</th>
                   </tr>
@@ -622,7 +622,8 @@ export const ExportAttendanceModal: React.FC<Props> = ({
                 <tbody className="divide-y divide-gray-800/60 font-mono">
                   {filteredSummaries.map((s, idx) => {
                     let badgeColor = 'bg-gray-800 text-gray-400 border-gray-700';
-                    if (s.attendanceStatus === 'SANGAT AKTIF') badgeColor = 'bg-emerald-950 text-emerald-300 border-emerald-800';
+                    if (s.attendanceStatus === 'CUTI RESMI') badgeColor = 'bg-amber-950 text-amber-300 border-amber-600 font-bold shadow-xs';
+                    else if (s.attendanceStatus === 'SANGAT AKTIF') badgeColor = 'bg-emerald-950 text-emerald-300 border-emerald-800';
                     else if (s.attendanceStatus === 'AKTIF') badgeColor = 'bg-blue-950 text-blue-300 border-blue-800';
                     else if (s.attendanceStatus === 'CUKUP') badgeColor = 'bg-amber-950 text-amber-300 border-amber-800';
                     else if (s.attendanceStatus === 'KURANG AKTIF') badgeColor = 'bg-rose-950 text-rose-300 border-rose-800';
@@ -631,11 +632,21 @@ export const ExportAttendanceModal: React.FC<Props> = ({
                       <tr key={s.badge + idx} className="hover:bg-gray-800/40 transition">
                         <td className="py-2 px-3 text-gray-500 text-[11px]">{idx + 1}</td>
                         <td className="py-2 px-3 font-bold text-amber-400">{s.badge}</td>
-                        <td className="py-2 px-3 font-bold text-gray-200">{s.name}</td>
+                        <td className="py-2 px-3 font-bold text-gray-200">
+                          {s.name}
+                          {(s.activeLeave || s.leaveStatusText) && (
+                            <div className="text-[9px] text-amber-400 font-normal mt-0.5 flex items-center gap-1">
+                              <span>🌴</span>
+                              <span>{s.leaveStatusText || 'Cuti Resmi Di-ACC Atasan'}</span>
+                            </div>
+                          )}
+                        </td>
                         <td className="py-2 px-3 text-gray-400 text-[11px]">{s.rank}</td>
                         <td className="py-2 px-3 text-gray-400 text-[11px]">{s.division}</td>
                         <td className="py-2 px-3 font-bold text-emerald-400">{s.totalDutyFormatted}</td>
-                        <td className="py-2 px-3 text-gray-300">{s.totalShifts}x</td>
+                        <td className="py-2 px-3 text-gray-200 font-semibold" title="Total Laporan Harian (siang + malam disatukan menjadi 1 laporan)">
+                          {s.totalShifts} Lap
+                        </td>
                         <td className="py-2 px-3 text-gray-300">{s.daysActiveCount} Hari</td>
                         <td className="py-2 px-3 text-right">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badgeColor}`}>

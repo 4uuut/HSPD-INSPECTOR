@@ -994,10 +994,12 @@ export function mergeWithOfficialRoster(
           rank: item.rank || existing.rank,
           division: item.division || existing.division,
           pin: (item.pin !== undefined && String(item.pin).trim() !== '') ? String(item.pin).trim() : existing.pin,
-          phone: item.phone || existing.phone,
-          discordTag: (item.discordTag !== undefined && item.discordTag !== null && String(item.discordTag).trim() !== '') 
+          phone: ('phone' in item && item.phone !== undefined) 
+            ? String(item.phone).trim() 
+            : (existing.phone || ''),
+          discordTag: ('discordTag' in item && item.discordTag !== undefined)
             ? String(item.discordTag).trim() 
-            : existing.discordTag,
+            : (existing.discordTag || ''),
           promotedBy: item.promotedBy || existing.promotedBy,
           warnings: Array.isArray(item.warnings) && item.warnings.length > 0 ? item.warnings : (existing.warnings || []),
           _updatedAt: item._updatedAt || Date.now()

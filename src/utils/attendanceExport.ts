@@ -1,17 +1,19 @@
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
-import { OfficerAccount } from '../types';
+import { OfficerAccount, OfficerLeaveRecord } from '../types';
 import { getAllOfficersDutyRegistry, getOfficerDutyState, formatDutyDuration } from './officerDutyStorage';
 import { getSavedTrafficCitations } from './trafficCitationStorage';
 import { getSavedImpounds } from './boloImpoundStorage';
 import { getSavedDetectiveCases } from './detectiveCaseStorage';
 import { getSavedVaultAuditLogs } from './vaultAndDestructionStorage';
+import { getApprovedLeavesInDateRange, getActiveLeaveForOfficer } from './officerLeaveStorage';
 import { HSPD_LOGO_URL } from '../assets/logo';
 import { pushToFirestore } from '../services/firebaseRealtimeSync';
 
 export interface WeeklyOperationsSummary {
   periodLabel: string;
   totalDutyOfficers: number;
+  totalOfficersOnLeave?: number;
   totalDutyHours: number;
   totalDutyMinutes: number;
   totalCitationsCount: number;
@@ -28,6 +30,8 @@ export interface WeeklyOperationsSummary {
     dutyHoursFormatted: string;
     dutyMinutes: number;
     dutyShifts: number;
+    leaveStatusText?: string;
+    isLeave?: boolean;
     citationsCount: number;
     citationsFine: number;
     impoundsCount: number;
@@ -127,6 +131,8 @@ export function getWeeklyOperationsSummary(
       dutyHoursFormatted: s.totalDutyFormatted,
       dutyMinutes: s.totalDutyMinutes,
       dutyShifts: s.totalShifts,
+      leaveStatusText: s.leaveStatusText,
+      isLeave: Boolean(s.activeLeave || s.attendanceStatus === 'CUTI RESMI'),
       citationsCount: officerCitations.length,
       citationsFine: totalCitationsFine,
       impoundsCount: officerImpounds.length,
@@ -141,6 +147,7 @@ export function getWeeklyOperationsSummary(
   return {
     periodLabel: label,
     totalDutyOfficers: summaries.filter(s => s.totalDutyMinutes > 0).length,
+    totalOfficersOnLeave: summaries.filter(s => s.activeLeave || s.attendanceStatus === 'CUTI RESMI').length,
     totalDutyHours: Math.floor(totalDutyMinutes / 60),
     totalDutyMinutes,
     totalCitationsCount: citations.length,
@@ -151,6 +158,14 @@ export function getWeeklyOperationsSummary(
     totalEvidenceCount: directEvidenceCount,
     officerBreakdown
   };
+}
+
+export interface DutySessionSegment {
+  startTime: number;
+  endTime: number;
+  durationMinutes: number;
+  durationFormatted: string;
+  notes?: string;
 }
 
 export interface DutySession {
@@ -165,6 +180,8 @@ export interface DutySession {
   durationFormatted: string;
   notes?: string;
   dateStr: string; // YYYY-MM-DD
+  sessionsCountToday?: number; // Jumlah sesi dinas yang telah disatukan pada hari ini (misal sesi siang + malam = 2 sesi)
+  sessionSegments?: DutySessionSegment[]; // Rincian masing-masing sesi dinas pada hari yang sama
 }
 
 export interface OfficerAttendanceSummary {
@@ -184,13 +201,28 @@ export interface OfficerAttendanceSummary {
   daysActiveCount: number;
   lastActiveTime: number;
   lastActiveFormatted: string;
-  attendanceStatus: 'SANGAT AKTIF' | 'AKTIF' | 'CUKUP' | 'KURANG AKTIF' | 'BELUM DINAS';
+  attendanceStatus: 'SANGAT AKTIF' | 'AKTIF' | 'CUKUP' | 'KURANG AKTIF' | 'BELUM DINAS' | 'CUTI RESMI';
+  activeLeave?: OfficerLeaveRecord | null;
+  leaveDaysCount?: number;
+  leaveStatusText?: string;
   sessions: DutySession[];
 }
 
 export type ExportDateRangeType = 'current_week' | 'last_week' | 'last_7_days' | 'last_14_days' | 'current_month' | 'all_time' | 'custom';
 
 export const ATTENDANCE_STORAGE_KEY = 'hspd_duty_sessions_history_v1';
+
+/**
+ * Returns YYYY-MM-DD string in user's local timezone (e.g. WIB / WITA / WIT).
+ * Avoids UTC day-shift bugs caused by toISOString() on midnight/early morning shifts.
+ */
+export function getLocalDateString(time: number | Date = Date.now()): string {
+  const d = typeof time === 'number' ? new Date(time) : time;
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 /**
  * Loads all recorded duty sessions from localStorage
@@ -211,28 +243,146 @@ export function getSavedDutySessions(): DutySession[] {
 }
 
 /**
- * Saves a completed duty session to history
+ * Helper to fetch current date's accumulated duty stats for an officer
+ * (e.g. check if officer already completed a shift earlier today like in the afternoon)
+ */
+export function getTodayDutyStatsForOfficer(officerBadge: string, officerName?: string): {
+  hasDutyToday: boolean;
+  todayMinutes: number;
+  todayFormatted: string;
+  sessionsCount: number;
+  existingSession: DutySession | null;
+} {
+  const sessions = getSavedDutySessions();
+  const todayStr = getLocalDateString();
+  const normBadge = (officerBadge || '').replace(/#/g, '').toLowerCase().trim();
+  const normName = (officerName || '').toLowerCase().trim();
+
+  const todaySession = sessions.find(s => {
+    const sDate = s.dateStr || getLocalDateString(s.endTime || s.startTime || 0);
+    if (sDate !== todayStr) return false;
+    const sBadge = (s.officerBadge || '').replace(/#/g, '').toLowerCase().trim();
+    const sName = (s.officerName || '').toLowerCase().trim();
+    return (sBadge && normBadge && sBadge === normBadge) || (sName && normName && sName === normName);
+  });
+
+  if (!todaySession) {
+    return { hasDutyToday: false, todayMinutes: 0, todayFormatted: '0 Menit', sessionsCount: 0, existingSession: null };
+  }
+
+  const mins = todaySession.durationMinutes || 0;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const formatted = h > 0 ? `${h} Jam ${m} Menit` : `${m} Menit`;
+
+  return {
+    hasDutyToday: true,
+    todayMinutes: mins,
+    todayFormatted: formatted,
+    sessionsCount: todaySession.sessionsCountToday || 1,
+    existingSession: todaySession
+  };
+}
+
+/**
+ * Saves a completed duty session to history.
+ * ATURAN KHUSUS (AKUMULASI 1 LAPORAN HARIAN):
+ * Jika petugas dinas beberapa kali dalam 1 hari yang sama (contoh dinas siang lalu dinas lagi malam),
+ * seluruh sesi pada hari tersebut otomatis diakumulasikan dan dihitung sebagai 1 LAPORAN HARIAN.
  */
 export function recordDutySession(session: Omit<DutySession, 'id' | 'dateStr'>): DutySession {
   const sessions = getSavedDutySessions();
-  const dateObj = new Date(session.startTime || Date.now());
-  const dateStr = dateObj.toISOString().split('T')[0];
+  const dateStr = getLocalDateString(session.endTime || session.startTime || Date.now());
   
-  const newSession: DutySession = {
-    ...session,
-    id: `session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-    dateStr
-  };
+  const normBadge = (session.officerBadge || '').replace(/#/g, '').toLowerCase().trim();
+  const normName = (session.officerName || '').toLowerCase().trim();
 
-  const updated = [newSession, ...sessions].slice(0, 2000); // keep up to 2000 records
+  // Cari apakah petugas sudah memiliki sesi/laporan dinas pada tanggal yang sama hari ini (siang/malam)
+  const existingIndex = sessions.findIndex(s => {
+    const sDate = s.dateStr || getLocalDateString(s.endTime || s.startTime || 0);
+    if (sDate !== dateStr) return false;
+    const sBadge = (s.officerBadge || '').replace(/#/g, '').toLowerCase().trim();
+    const sName = (s.officerName || '').toLowerCase().trim();
+    return (sBadge && normBadge && sBadge === normBadge) || (sName && normName && sName === normName);
+  });
+
+  let finalSession: DutySession;
+  let updated: DutySession[];
+
+  if (existingIndex >= 0) {
+    // KONSOLIDASI: Satukan sesi dinas hari ini menjadi 1 laporan harian
+    const existing = sessions[existingIndex];
+    const combinedMinutes = (existing.durationMinutes || 0) + (session.durationMinutes || 0);
+    const combinedHours = Math.floor(combinedMinutes / 60);
+    const combinedRemMins = combinedMinutes % 60;
+    const combinedDurationFormatted = combinedHours > 0 
+      ? `${combinedHours} Jam ${combinedRemMins} Menit` 
+      : `${combinedRemMins} Menit`;
+
+    const prevSegments: DutySessionSegment[] = existing.sessionSegments && existing.sessionSegments.length > 0
+      ? existing.sessionSegments
+      : [{
+          startTime: existing.startTime,
+          endTime: existing.endTime,
+          durationMinutes: existing.durationMinutes,
+          durationFormatted: existing.durationFormatted,
+          notes: existing.notes
+        }];
+
+    const newSegment: DutySessionSegment = {
+      startTime: session.startTime,
+      endTime: session.endTime,
+      durationMinutes: session.durationMinutes,
+      durationFormatted: session.durationFormatted,
+      notes: session.notes
+    };
+
+    const combinedSegments = [...prevSegments, newSegment];
+    const sessionCount = combinedSegments.length;
+
+    finalSession = {
+      ...existing,
+      officerRank: session.officerRank || existing.officerRank,
+      division: session.division || existing.division,
+      endTime: Math.max(existing.endTime, session.endTime),
+      durationMinutes: combinedMinutes,
+      durationFormatted: `${combinedDurationFormatted} (Akumulasi ${sessionCount} Sesi)`,
+      notes: [existing.notes, session.notes].filter(Boolean).join(' | '),
+      sessionsCountToday: sessionCount,
+      sessionSegments: combinedSegments
+    };
+
+    updated = [...sessions];
+    updated[existingIndex] = finalSession;
+  } else {
+    // Sesi pertama untuk hari ini
+    finalSession = {
+      ...session,
+      id: `session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      dateStr,
+      sessionsCountToday: 1,
+      sessionSegments: [{
+        startTime: session.startTime,
+        endTime: session.endTime,
+        durationMinutes: session.durationMinutes,
+        durationFormatted: session.durationFormatted,
+        notes: session.notes
+      }]
+    };
+    updated = [finalSession, ...sessions];
+  }
+
+  // Batasi history maksimal 2000 entri
+  updated = updated.slice(0, 2000);
+
   try {
     localStorage.setItem(ATTENDANCE_STORAGE_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent('hspd-duty-sessions-updated', { detail: updated }));
-    pushToFirestore('DUTY_SESSIONS', newSession, newSession.id).catch(() => {});
+    pushToFirestore('DUTY_SESSIONS', finalSession, finalSession.id).catch(() => {});
   } catch (e) {
     console.error('Failed to save duty session', e);
   }
-  return newSession;
+  return finalSession;
 }
 
 /**
@@ -384,9 +534,21 @@ export function generateAttendanceSummaries(
     const remMins = totalMinutes % 60;
     const totalDutyFormatted = totalHours > 0 ? `${totalHours} Jam ${remMins} Mnt` : `${remMins} Menit`;
 
+    // Check if officer has approved leaves overlapping with selected date range or active today
+    const officerApprovedLeaves = getApprovedLeavesInDateRange(officer.badge, officer.name, startMs, endMs);
+    const activeTodayLeave = getActiveLeaveForOfficer(officer.badge, officer.name);
+    const primaryLeave = activeTodayLeave || (officerApprovedLeaves.length > 0 ? officerApprovedLeaves[0] : null);
+
+    let leaveDaysCount = 0;
+    officerApprovedLeaves.forEach(l => {
+      leaveDaysCount += l.totalDays;
+    });
+
     // Attendance grading status
     let attendanceStatus: OfficerAttendanceSummary['attendanceStatus'] = 'BELUM DINAS';
-    if (totalMinutes >= 600) { // >= 10 Hours
+    if (primaryLeave && totalMinutes === 0) {
+      attendanceStatus = 'CUTI RESMI';
+    } else if (totalMinutes >= 600) { // >= 10 Hours
       attendanceStatus = 'SANGAT AKTIF';
     } else if (totalMinutes >= 300) { // >= 5 Hours
       attendanceStatus = 'AKTIF';
@@ -394,6 +556,8 @@ export function generateAttendanceSummaries(
       attendanceStatus = 'CUKUP';
     } else if (totalMinutes > 0) {
       attendanceStatus = 'KURANG AKTIF';
+    } else if (primaryLeave) {
+      attendanceStatus = 'CUTI RESMI';
     }
 
     const regDateObj = new Date(officer.registeredAt || Date.now());
@@ -411,9 +575,15 @@ export function generateAttendanceSummaries(
     }
 
     let currentStatusText = '8-1-0 (OFF DUTY)';
-    if (dutyState.isDuty) {
+    if (primaryLeave) {
+      currentStatusText = `🟡 CUTI (${primaryLeave.totalDays} Hari - ACC: ${primaryLeave.approvedBy || 'Atasan'})`;
+    } else if (dutyState.isDuty) {
       currentStatusText = dutyState.dutyStatus ? `${dutyState.dutyStatus} (ON DUTY)` : '8-1-1 (ON DUTY)';
     }
+
+    const todayDateStr = getLocalDateString();
+    const hasActiveShiftToday = dutyState.isDuty && !daysSet.has(todayDateStr);
+    const totalDailyReports = daysSet.size + (hasActiveShiftToday ? 1 : 0);
 
     return {
       badge: officer.badge,
@@ -428,11 +598,14 @@ export function generateAttendanceSummaries(
       totalCompletedDutyMinutes: completedMinutes,
       totalDutyMinutes: totalMinutes,
       totalDutyFormatted,
-      totalShifts: officerSessions.length + (dutyState.isDuty ? 1 : 0),
+      totalShifts: totalDailyReports,
       daysActiveCount: daysSet.size,
       lastActiveTime: lastActive,
       lastActiveFormatted,
       attendanceStatus,
+      activeLeave: primaryLeave,
+      leaveDaysCount,
+      leaveStatusText: primaryLeave ? `Cuti ${primaryLeave.totalDays} Hari (${primaryLeave.startDate} s/d ${primaryLeave.endDate})` : undefined,
       sessions: officerSessions
     };
   });
@@ -474,9 +647,10 @@ export function exportAttendanceToExcel(
     'Nomor Telepon': s.phone,
     'Total Durasi Dinas': s.totalDutyFormatted,
     'Total Menit': s.totalDutyMinutes,
-    'Total Shift': s.totalShifts,
+    'Total Laporan Dinas (Harian)': s.totalShifts,
     'Hari Aktif': `${s.daysActiveCount} Hari`,
     'Status Dinas Terkini': s.currentStatus,
+    'Status Izin / Cuti (SAPD)': s.activeLeave ? `Cuti Resmi (${s.activeLeave.totalDays} Hari) - ACC: ${s.activeLeave.approvedBy || 'Atasan'}` : (s.leaveDaysCount && s.leaveDaysCount > 0 ? `Tercatat Cuti (${s.leaveDaysCount} Hari)` : '-'),
     'Predikat Absensi': s.attendanceStatus,
     'Aktivitas Terakhir': s.lastActiveFormatted,
     'Tanggal Terdaftar': s.registeredDate
@@ -494,9 +668,10 @@ export function exportAttendanceToExcel(
     { wch: 15 }, // Phone
     { wch: 20 }, // Total Durasi
     { wch: 12 }, // Total Menit
-    { wch: 12 }, // Total Shift
+    { wch: 26 }, // Total Laporan Dinas
     { wch: 12 }, // Hari Aktif
-    { wch: 20 }, // Status Terkini
+    { wch: 24 }, // Status Terkini
+    { wch: 36 }, // Status Izin / Cuti
     { wch: 16 }, // Predikat
     { wch: 22 }, // Terakhir Aktif
     { wch: 16 }  // Terdaftar
@@ -750,6 +925,7 @@ export function exportAttendanceToHTML(
     .status-aktif { background: #e0e7ff; color: #3730a3; }
     .status-cukup { background: #fef9c3; color: #854d0e; }
     .status-kurang { background: #fee2e2; color: #991b1b; }
+    .status-cuti { background: #fef3c7; color: #b45309; border: 1px solid #f59e0b; }
     .status-belum { background: #f1f5f9; color: #64748b; }
     .footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 11px; color: #64748b; }
     @media print {
@@ -817,6 +993,7 @@ export function exportAttendanceToHTML(
           else if (s.attendanceStatus === 'AKTIF') statusClass = 'status-aktif';
           else if (s.attendanceStatus === 'CUKUP') statusClass = 'status-cukup';
           else if (s.attendanceStatus === 'KURANG AKTIF') statusClass = 'status-kurang';
+          else if (s.attendanceStatus === 'CUTI RESMI') statusClass = 'status-cuti';
 
           return `<tr>
             <td>${idx + 1}</td>
@@ -871,6 +1048,7 @@ export function exportWeeklyOperationsToExcel(
     { 'INDIKATOR OPERASIONAL MINGGUAN': 'Filter Divisi', 'JUMLAH / STATISTIK': filterDivision === 'ALL' ? 'Semua Divisi Kepolisian' : filterDivision },
     { 'INDIKATOR OPERASIONAL MINGGUAN': 'Personel Aktif Berdinas', 'JUMLAH / STATISTIK': `${summary.totalDutyOfficers} Petugas` },
     { 'INDIKATOR OPERASIONAL MINGGUAN': 'Akumulasi Jam Dinas', 'JUMLAH / STATISTIK': `${summary.totalDutyHours} Jam ${summary.totalDutyMinutes % 60} Menit` },
+    { 'INDIKATOR OPERASIONAL MINGGUAN': 'Personel Tercatat Izin Cuti Resmi', 'JUMLAH / STATISTIK': `${summary.totalOfficersOnLeave || 0} Petugas` },
     { 'INDIKATOR OPERASIONAL MINGGUAN': 'Total Upload / Terbitan Surat Tilang (Citations)', 'JUMLAH / STATISTIK': `${summary.totalCitationsCount} Berkas (Total Denda: $${summary.totalCitationsFine.toLocaleString()})` },
     { 'INDIKATOR OPERASIONAL MINGGUAN': 'Total Upload / Penyitaan Kendaraan (Impounds)', 'JUMLAH / STATISTIK': `${summary.totalImpoundsCount} Unit (Total Biaya Sita: $${summary.totalImpoundsFee.toLocaleString()})` },
     { 'INDIKATOR OPERASIONAL MINGGUAN': 'Total Upload Berkas Kasus Investigasi (Detective Cases)', 'JUMLAH / STATISTIK': `${summary.totalCasesCount} Kasus` },
@@ -894,7 +1072,8 @@ export function exportWeeklyOperationsToExcel(
     'Pangkat': o.rank,
     'Divisi': o.division,
     'Jam Dinas': o.dutyHoursFormatted,
-    'Jumlah Shift': o.dutyShifts,
+    'Laporan Dinas (Harian)': o.dutyShifts,
+    'Status Izin / Cuti (SAPD)': o.leaveStatusText || (o.isLeave ? 'Cuti Resmi' : '-'),
     'Upload Tilang (Citations)': o.citationsCount,
     'Total Denda Tilang ($)': o.citationsFine,
     'Upload Impound (Sita Kendaraan)': o.impoundsCount,
@@ -910,7 +1089,8 @@ export function exportWeeklyOperationsToExcel(
     { wch: 22 },
     { wch: 18 },
     { wch: 15 },
-    { wch: 14 },
+    { wch: 24 },
+    { wch: 30 },
     { wch: 24 },
     { wch: 22 },
     { wch: 28 },
@@ -991,7 +1171,7 @@ export function exportWeeklyOperationsToDocument(
       <div class="summary-card">
         <div class="val">${summary.totalDutyHours}j ${summary.totalDutyMinutes % 60}m</div>
         <div class="lbl">Total Jam Dinas</div>
-        <div class="sub">${summary.totalDutyOfficers} Personel Aktif</div>
+        <div class="sub">${summary.totalDutyOfficers} Personel Aktif • ${summary.totalOfficersOnLeave || 0} Cuti</div>
       </div>
       <div class="summary-card">
         <div class="val">${summary.totalCitationsCount}</div>
@@ -1008,6 +1188,11 @@ export function exportWeeklyOperationsToDocument(
         <div class="lbl">Kasus & Eviden</div>
         <div class="sub">Total Barang Bukti Terdata</div>
       </div>
+      <div class="summary-card">
+        <div class="val">${summary.totalOfficersOnLeave || 0}</div>
+        <div class="lbl">Personel Cuti / Izin</div>
+        <div class="sub">Resmi Di-ACC Atasan</div>
+      </div>
     </div>
 
     <h3>Rincian Rekapitulasi per Personel Kepolisian</h3>
@@ -1019,6 +1204,7 @@ export function exportWeeklyOperationsToDocument(
           <th>Nama Petugas</th>
           <th>Pangkat</th>
           <th>Divisi</th>
+          <th>Status / Cuti</th>
           <th>Jam Dinas</th>
           <th>Tilang</th>
           <th>Impound</th>
@@ -1034,6 +1220,10 @@ export function exportWeeklyOperationsToDocument(
             <td><strong>${o.name}</strong></td>
             <td>${o.rank}</td>
             <td>${o.division}</td>
+            <td>${o.isLeave 
+              ? `<span style="background: #fef3c7; color: #b45309; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #f59e0b; font-size: 10px;">🌴 CUTI RESMI</span><div style="font-size: 9px; color: #92400e; margin-top: 2px;">${o.leaveStatusText || ''}</div>`
+              : (o.dutyMinutes > 0 ? '<span style="color: #059669; font-weight: bold;">● AKTIF DINAS</span>' : '<span style="color: #94a3b8;">-</span>')
+            }</td>
             <td><strong>${o.dutyHoursFormatted}</strong> (${o.dutyShifts}x)</td>
             <td><strong>${o.citationsCount}</strong> ($${o.citationsFine.toLocaleString()})</td>
             <td><strong>${o.impoundsCount}</strong></td>

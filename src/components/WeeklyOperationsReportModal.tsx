@@ -179,10 +179,15 @@ export const WeeklyOperationsReportModal: React.FC<WeeklyOperationsReportModalPr
       `📑 **Upload Tilang:** ${summary.totalCitationsCount} Berkas (Total Denda: $${summary.totalCitationsFine.toLocaleString()})`,
       `🚗 **Upload Impound:** ${summary.totalImpoundsCount} Kendaraan (Biaya Sita: $${summary.totalImpoundsFee.toLocaleString()})`,
       `📁 **Upload Kasus:** ${summary.totalCasesCount} Kasus Investigasi`,
-      `📦 **Upload Eviden:** ${summary.totalEvidenceCount} Barang Bukti Terdaftar`,
-      `--------------------------------------------------`,
-      `**🏆 TOP KONTRIBUTOR OPERASIONAL MINGGU INI:**`
+      `📦 **Upload Eviden:** ${summary.totalEvidenceCount} Barang Bukti Terdaftar`
     ];
+
+    if (summary.totalOfficersOnLeave && summary.totalOfficersOnLeave > 0) {
+      lines.push(`🌴 **Izin / Cuti Resmi:** ${summary.totalOfficersOnLeave} Petugas (Di-ACC Atasan)`);
+    }
+
+    lines.push(`--------------------------------------------------`);
+    lines.push(`**🏆 TOP KONTRIBUTOR OPERASIONAL MINGGU INI:**`);
 
     const sortedByDuty = [...filteredBreakdown].sort((a, b) => b.dutyMinutes - a.dutyMinutes);
     sortedByDuty.slice(0, 5).forEach((o, idx) => {
@@ -257,8 +262,8 @@ export const WeeklyOperationsReportModal: React.FC<WeeklyOperationsReportModalPr
           </div>
         )}
 
-        {/* TOP STATS CARDS: 5 PILLARS (DUTY, TILANG, IMPOUND, KASUS, EVIDEN) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 text-xs">
+        {/* TOP STATS CARDS: 6 PILLARS (DUTY, TILANG, IMPOUND, KASUS, EVIDEN, CUTI) */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
           {/* 1. Jam Duty */}
           <div className="bg-[#182030] border border-blue-900/60 rounded-lg p-3">
             <div className="flex items-center justify-between text-gray-400">
@@ -316,7 +321,7 @@ export const WeeklyOperationsReportModal: React.FC<WeeklyOperationsReportModalPr
           </div>
 
           {/* 5. Upload Eviden */}
-          <div className="bg-[#182030] border border-emerald-900/60 rounded-lg p-3 col-span-2 sm:col-span-1">
+          <div className="bg-[#182030] border border-emerald-900/60 rounded-lg p-3">
             <div className="flex items-center justify-between text-gray-400">
               <span className="text-[11px] font-semibold">5. Upload Eviden</span>
               <Boxes className="w-4 h-4 text-emerald-400" />
@@ -326,6 +331,20 @@ export const WeeklyOperationsReportModal: React.FC<WeeklyOperationsReportModalPr
             </div>
             <div className="text-[10px] text-gray-400 mt-0.5">
               Barang Bukti Terdaftar
+            </div>
+          </div>
+
+          {/* 6. Izin / Cuti Resmi */}
+          <div className="bg-[#182030] border border-amber-900/60 rounded-lg p-3">
+            <div className="flex items-center justify-between text-gray-400">
+              <span className="text-[11px] font-semibold">6. Izin / Cuti</span>
+              <Calendar className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="text-lg font-bold text-amber-300 mt-1">
+              {summary.totalOfficersOnLeave || 0} <span className="text-xs font-normal text-amber-400">Personel</span>
+            </div>
+            <div className="text-[10px] text-gray-400 mt-0.5">
+              Cuti Resmi Di-ACC Atasan
             </div>
           </div>
         </div>
@@ -558,6 +577,7 @@ export const WeeklyOperationsReportModal: React.FC<WeeklyOperationsReportModalPr
                     <th className="py-2.5 px-3">Badge</th>
                     <th className="py-2.5 px-3">Nama Petugas</th>
                     <th className="py-2.5 px-3">Divisi</th>
+                    <th className="py-2.5 px-3 text-center">Status / Cuti</th>
                     <th className="py-2.5 px-3 text-center">Duty</th>
                     <th className="py-2.5 px-3 text-center">Tilang</th>
                     <th className="py-2.5 px-3 text-center">Impound</th>
@@ -575,9 +595,31 @@ export const WeeklyOperationsReportModal: React.FC<WeeklyOperationsReportModalPr
                         <div className="text-[10px] text-gray-400 font-normal">{o.rank}</div>
                       </td>
                       <td className="py-2 px-3 text-gray-400 text-[11px]">{o.division}</td>
+                      <td className="py-2 px-3 text-center">
+                        {o.isLeave ? (
+                          <div className="inline-flex flex-col items-center">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] bg-amber-950/90 text-amber-300 border border-amber-600/80 font-bold" title={o.leaveStatusText}>
+                              <span>🌴</span>
+                              <span>CUTI RESMI</span>
+                            </span>
+                            {o.leaveStatusText && (
+                              <span className="text-[8px] text-amber-400/80 font-mono mt-0.5 max-w-[120px] truncate" title={o.leaveStatusText}>
+                                {o.leaveStatusText}
+                              </span>
+                            )}
+                          </div>
+                        ) : o.dutyMinutes > 0 ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] bg-emerald-950/60 text-emerald-300 border border-emerald-800/60 font-semibold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                            <span>AKTIF</span>
+                          </span>
+                        ) : (
+                          <span className="text-gray-600 text-[10px]">-</span>
+                        )}
+                      </td>
                       <td className="py-2 px-3 text-center font-bold text-blue-300">
                         {o.dutyHoursFormatted}
-                        <div className="text-[9px] text-gray-500">{o.dutyShifts}x Shift</div>
+                        <div className="text-[9px] text-gray-400 font-semibold" title="Total Laporan Harian resmi">{o.dutyShifts}x Laporan</div>
                       </td>
                       <td className="py-2 px-3 text-center font-bold text-amber-300">
                         {o.citationsCount}
@@ -596,7 +638,7 @@ export const WeeklyOperationsReportModal: React.FC<WeeklyOperationsReportModalPr
                   ))}
                   {filteredBreakdown.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="py-6 text-center text-gray-500">
+                      <td colSpan={10} className="py-6 text-center text-gray-500">
                         Tidak ada personel yang cocok dengan pencarian / filter.
                       </td>
                     </tr>

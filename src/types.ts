@@ -291,12 +291,40 @@ export interface DutyLog {
   dutyEndTime?: number;
   durationMinutes?: number;
   durationFormatted?: string;
+  accumulatedDayMinutes?: number;
+  accumulatedDayFormatted?: string;
+  sessionsCountToday?: number;
   // Evidence photos
   onDutyPhoneImage?: string; // 1 foto HP sebelum on duty
   offDutyActivityImage1?: string; // Foto kegiatan 1 saat off duty
   offDutyActivityImage2?: string; // Foto kegiatan 2 saat off duty
   offDutyPhoneImage?: string; // 1 foto HP saat off duty
   evidenceImages?: string[]; // Array of attached evidence images
+}
+
+// Format Izin Cuti SAPD (Status Approval & Record)
+export type LeaveApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+
+export interface OfficerLeaveRecord {
+  id: string;
+  officerName: string;
+  officerBadge: string;
+  officerRank: string;
+  division?: string;
+  reason: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  totalDays: number;
+  status: LeaveApprovalStatus;
+  approvedBy?: string;
+  approvedBadge?: string;
+  approvedRank?: string;
+  approvedAt?: number;
+  approvalNotes?: string;
+  rejectedBy?: string;
+  rejectedAt?: number;
+  rejectionReason?: string;
+  requestedAt: number;
 }
 
 export const ALL_RANKS: OfficerRankLevel[] = [

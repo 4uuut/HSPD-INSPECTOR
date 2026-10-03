@@ -190,6 +190,11 @@ export const SYNC_COLLECTIONS = {
     name: 'gov_announcements',
     storageKey: 'government_announcements_v1',
     event: 'government-announcements-updated'
+  },
+  OFFICER_LEAVES: {
+    name: 'officer_leaves',
+    storageKey: 'hspd_officer_leaves_history_v1',
+    event: 'hspd-officer-leaves-updated'
   }
 } as const;
 

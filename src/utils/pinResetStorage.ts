@@ -307,8 +307,8 @@ export function updateOfficerAccountInRoster(
     rank: updated.rank || originalOfficer?.rank || 'CADET [CDT]',
     division: updated.division || originalOfficer?.division || 'Patrol Division',
     pin: (updated.pin ? updated.pin.trim() : originalOfficer?.pin) || '10-4',
-    phone: updated.phone !== undefined ? updated.phone : originalOfficer?.phone,
-    discordTag: updated.discordTag !== undefined ? updated.discordTag : originalOfficer?.discordTag,
+    phone: ('phone' in updated && updated.phone !== undefined) ? updated.phone.trim() : (originalOfficer?.phone || ''),
+    discordTag: ('discordTag' in updated && updated.discordTag !== undefined) ? updated.discordTag.trim() : (originalOfficer?.discordTag || ''),
     promotedBy: updated.promotedBy || originalOfficer?.promotedBy,
     warnings: updated.warnings || originalOfficer?.warnings || [],
     _updatedAt: Date.now()

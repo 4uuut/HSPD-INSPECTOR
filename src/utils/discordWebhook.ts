@@ -1,7 +1,7 @@
 import { 
   ArrestRecord, DutyLog, OfficerAccount, OfficerWarning, DischargeRecord, PromotionRecord,
   DetectiveCase, BoloAlert, ImpoundRecord, OfficerProfile, VaultAuditLog, DestructionRegistryItem,
-  OfficialDocument, TrafficCitationRecord, GovernmentAccount
+  OfficialDocument, TrafficCitationRecord, GovernmentAccount, OfficerLeaveRecord
 } from '../types';
 import { dataURLtoBlob } from './imageCompressor';
 import { pushToFirestore, syncAllWebhooksToFirestore } from '../services/firebaseRealtimeSync';
@@ -1233,8 +1233,14 @@ export async function sendDutyReportToDiscord(
     embedColor = 0xEF4444; // 8-1-0 Red
     statusBadge = '🔴 8-1-0 OFF DUTY';
     titleIcon = '🔴';
-    titleText = '🔴 [HSPD CAD] LAPORAN SELESAI DINAS & LEPAS PIKET (8-1-0 OFF DUTY)';
-    descText = 'Petugas Kepolisian Highstate Roleplay telah menyelesaikan seluruh rangkaian shift operasional, penyerahan inventaris, dan resmi lepas dinas.';
+    const sessionCount = duty.sessionsCountToday || 1;
+    if (sessionCount > 1) {
+      titleText = `🔴 [HSPD CAD] KONSOLIDASI LAPORAN DINAS HARIAN (1 LAPORAN HARIAN - SESI KE-${sessionCount})`;
+      descText = `Petugas Kepolisian Highstate Roleplay telah menyelesaikan sesi dinas ke-${sessionCount} hari ini. Seluruh sesi dinas (siang & malam) otomatis diakumulasikan dan resmi dihitung sebagai 1 LAPORAN HARIAN kepolisian.`;
+    } else {
+      titleText = '🔴 [HSPD CAD] LAPORAN SELESAI DINAS & LEPAS PIKET (8-1-0 OFF DUTY)';
+      descText = 'Petugas Kepolisian Highstate Roleplay telah menyelesaikan seluruh rangkaian shift operasional, penyerahan inventaris, dan resmi lepas dinas.';
+    }
   } else if (duty.status === '10-6') {
     embedColor = 0xF59E0B; // 10-6 Amber
     statusBadge = '🟡 10-6 BUSY (SEDANG PENANGANAN KASUS)';
@@ -1297,9 +1303,17 @@ export async function sendDutyReportToDiscord(
   if (isOffDuty) {
     if (duty.durationFormatted || (duty.durationMinutes !== undefined && duty.durationMinutes >= 0)) {
       fields.push({
-        name: '⏱️ Total Durasi Dinas (Shift Duration)',
+        name: '⏱️ Durasi Sesi Dinas Ini',
         value: `**${duty.durationFormatted || `${duty.durationMinutes} Menit`}**`,
-        inline: false,
+        inline: Boolean(duty.accumulatedDayFormatted && duty.sessionsCountToday && duty.sessionsCountToday > 1),
+      });
+    }
+
+    if (duty.accumulatedDayFormatted && duty.sessionsCountToday && duty.sessionsCountToday > 1) {
+      fields.push({
+        name: '📊 Akumulasi Dinas Hari Ini (1 Laporan Harian)',
+        value: `**${duty.accumulatedDayFormatted}**\n*(Gabungan ${duty.sessionsCountToday} sesi dinas hari ini)*`,
+        inline: true,
       });
     }
 
@@ -1494,6 +1508,131 @@ export async function sendDutyReportToDiscord(
     return {
       success: false,
       message: `Gagal mengirim Duty Log ke Discord: ${err.message || 'Cek URL Webhook'}`
+    };
+  }
+}
+
+/**
+ * Sends Officer Leave (Izin Cuti SAPD) to Discord Webhook
+ * Formatted matching user's requested template:
+ * ```    IZIN CUTI SAPD```
+ * ```Nama Petugas  : 
+ * Reason : 
+ * Dari Tanggal  : 
+ * Hingga Tanggal: 
+ * Total Durasi Cuti  : 
+ * ```
+ */
+export async function sendOfficerLeaveToDiscord(
+  leave: OfficerLeaveRecord,
+  config: WebhookConfig
+): Promise<{ success: boolean; message: string }> {
+  if (!config.webhookUrl || !config.webhookUrl.trim().startsWith('http')) {
+    return { success: false, message: 'URL Webhook Discord belum diatur' };
+  }
+
+  const isApproved = leave.status === 'APPROVED';
+  const isRejected = leave.status === 'REJECTED';
+
+  const embedColor = isApproved ? 0x10B981 : isRejected ? 0xEF4444 : 0xF59E0B;
+  const statusBadge = isApproved 
+    ? '✅ RESMI DI-ACC ATASAN' 
+    : isRejected 
+      ? '❌ DITOLAK ATASAN' 
+      : '⏳ MENUNGGU VERIFIKASI ACC ATASAN';
+
+  const titleText = isApproved
+    ? '📋 [HSPD CAD] SURAT IZIN CUTI RESMI SAPD (DI-ACC ATASAN)'
+    : isRejected
+      ? '📋 [HSPD CAD] PEMBERITAHUAN PENOLAKAN IZIN CUTI SAPD'
+      : '📋 [HSPD CAD] PENGAJUAN IZIN CUTI PERSONEL SAPD';
+
+  const dateStr = new Date(leave.requestedAt || Date.now()).toLocaleString('id-ID', {
+    day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+
+  const rawFormatted = `\`\`\`    IZIN CUTI SAPD\`\`\`
+\`\`\`Nama Petugas  : ${leave.officerName} [${leave.officerBadge}]
+Reason : ${leave.reason}
+Dari Tanggal  : ${formatIndoDateDisplay(leave.startDate)}
+Hingga Tanggal: ${formatIndoDateDisplay(leave.endDate)}
+Total Durasi Cuti  : ${leave.totalDays} Hari
+\`\`\``;
+
+  const fields: any[] = [
+    {
+      name: '👮 Identitas Personel',
+      value: `**${leave.officerName}**\nNomor Badge: \`${leave.officerBadge}\`\nPangkat: **${leave.officerRank}**`,
+      inline: true,
+    },
+    {
+      name: '🏢 Divisi & Status ACC',
+      value: `**${leave.division || 'Patrol Division'}**\nStatus: **${statusBadge}**`,
+      inline: true,
+    },
+    {
+      name: '📅 Rentang Waktu Cuti',
+      value: `Mulai: \`${leave.startDate}\`\nSelesai: \`${leave.endDate}\`\nDurasi: **${leave.totalDays} Hari Kalender**`,
+      inline: true,
+    },
+    {
+      name: '📝 Alasan Izin Cuti (Reason)',
+      value: `>>> ${leave.reason}`,
+      inline: false,
+    }
+  ];
+
+  if (isApproved && leave.approvedBy) {
+    fields.push({
+      name: '✍️ Pengesahan / ACC Atasan',
+      value: `Telah disetujui resmi oleh: **${leave.approvedBy}** (\`${leave.approvedRank || 'High Command'}\`)\nCatatan: *${leave.approvalNotes || 'Disetujui'}*`,
+      inline: false,
+    });
+  } else if (isRejected && leave.rejectedBy) {
+    fields.push({
+      name: '❌ Keterangan Penolakan',
+      value: `Ditolak oleh: **${leave.rejectedBy}**\nAlasan: *${leave.rejectionReason || 'Ditolak'}*`,
+      inline: false,
+    });
+  }
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD Leave Dispatch',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
+    content: rawFormatted,
+    embeds: [
+      {
+        title: titleText,
+        description: `Pengajuan dan status berkas perizinan cuti resmi aparatur Kepolisian San Andreas (SAPD / HSPD).`,
+        color: embedColor,
+        fields,
+        footer: {
+          text: `HSPD Personnel & Leave Bureau • San Andreas • ${dateStr}`,
+          icon_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
+        },
+        timestamp: new Date().toISOString(),
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    return {
+      success: true,
+      message: `Izin cuti atas nama ${leave.officerName} berhasil dikirim ke Discord Webhook!`
+    };
+  } catch (err: any) {
+    console.error('Leave Webhook Error:', err);
+    return {
+      success: false,
+      message: `Gagal mengirim Webhook Cuti ke Discord: ${err.message || 'Cek URL Webhook'}`
     };
   }
 }
