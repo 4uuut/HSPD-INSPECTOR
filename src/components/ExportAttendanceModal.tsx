@@ -629,7 +629,7 @@ export const ExportAttendanceModal: React.FC<Props> = ({
                     else if (s.attendanceStatus === 'KURANG AKTIF') badgeColor = 'bg-rose-950 text-rose-300 border-rose-800';
 
                     return (
-                      <tr key={s.badge + idx} className="hover:bg-gray-800/40 transition">
+                      <tr key={`${s.badge}-${s.name}-${idx}`} className="hover:bg-gray-800/40 transition">
                         <td className="py-2 px-3 text-gray-500 text-[11px]">{idx + 1}</td>
                         <td className="py-2 px-3 font-bold text-amber-400">{s.badge}</td>
                         <td className="py-2 px-3 font-bold text-gray-200">

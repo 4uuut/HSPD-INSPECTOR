@@ -1717,8 +1717,8 @@ export const RosterManagement: React.FC<Props> = ({
                         (entry.reason && entry.reason.toLowerCase().includes(q))
                       );
                     })
-                    .map(entry => (
-                      <tr key={entry.id || entry.badge} className="hover:bg-rose-950/20 transition">
+                    .map((entry, idx) => (
+                      <tr key={entry.id ? `${entry.id}-${idx}` : `${entry.badge || entry.name}-${idx}`} className="hover:bg-rose-950/20 transition">
                         <td className="py-2.5 px-3">
                           <div className="flex items-center gap-2">
                             <div className="w-6 h-6 rounded bg-rose-950 text-rose-400 border border-rose-800/80 flex items-center justify-center font-bold text-[10px] shrink-0">
@@ -1830,7 +1830,7 @@ export const RosterManagement: React.FC<Props> = ({
                   </td>
                 </tr>
               ) : (
-                filteredRoster.map((officer) => {
+                filteredRoster.map((officer, idx) => {
                   const isHigh = isOfficerHighRank(officer.rank);
                   const isSelf = Boolean(currentOfficerName && officer.name && officer.name.toLowerCase() === currentOfficerName.toLowerCase());
                   const warningsCount = officer.warnings?.length || 0;
@@ -1839,7 +1839,7 @@ export const RosterManagement: React.FC<Props> = ({
                   const activeLeave = getActiveLeaveForOfficer(officer.badge, officer.name);
 
                   return (
-                    <tr key={officer.id || officer.name} className="hover:bg-gray-800/30 transition">
+                    <tr key={officer.id ? `${officer.id}-${idx}` : `${officer.name || officer.badge}-${idx}`} className="hover:bg-gray-800/30 transition">
                       <td className="py-2.5 px-3">
                         <div className="flex items-center gap-2">
                           <div className={`w-6 h-6 rounded flex items-center justify-center font-bold text-[10px] ${

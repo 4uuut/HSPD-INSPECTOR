@@ -385,7 +385,7 @@ export const ExportAccountsModal: React.FC<Props> = ({
 
                     return (
                       <tr 
-                        key={officer.id || `${officer.badge}-${idx}`}
+                        key={officer.id ? `${officer.id}-${idx}` : `${officer.badge}-${idx}`}
                         className="hover:bg-gray-800/30 transition-colors"
                       >
                         <td className="py-2 px-3 text-center text-gray-500 font-mono text-[11px]">

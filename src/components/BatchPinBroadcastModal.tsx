@@ -556,13 +556,13 @@ export const BatchPinBroadcastModal: React.FC<Props> = ({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800/60 font-mono text-[11px]">
-                  {filteredOfficers.map((officer) => {
+                  {filteredOfficers.map((officer, idx) => {
                     const raw = (officer.discordTag || '').trim();
                     const cleanId = raw.replace(/\D/g, '');
                     const hasValidId = cleanId.length >= 16;
 
                     return (
-                      <tr key={officer.id || officer.badge} className="hover:bg-gray-800/40">
+                      <tr key={officer.id ? `${officer.id}-${idx}` : `${officer.badge}-${idx}`} className="hover:bg-gray-800/40">
                         <td className="p-2 font-bold text-gray-200">
                           <span className="text-sky-400 mr-1.5">[{officer.badge}]</span>
                           <span className="font-sans font-medium">{officer.name}</span>

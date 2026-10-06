@@ -544,9 +544,9 @@ export const GovernmentRequestPinModal: React.FC<Props> = ({
                     <div className="p-1.5 bg-[#0D1117] border-b border-gray-800 text-[10px] text-gray-400 font-mono">
                       HASIL PENCARIAN DATABASE APARATUR PEMERINTAHAN:
                     </div>
-                    {matchingOfficials.map((r) => (
+                    {matchingOfficials.map((r, idx) => (
                       <button
-                        key={r.id}
+                        key={r.id ? `${r.id}-${idx}` : `${r.badge}-${idx}`}
                         type="button"
                         onClick={() => {
                           setOfficialName(r.name);

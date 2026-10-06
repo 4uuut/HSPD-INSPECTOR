@@ -1512,6 +1512,17 @@ export async function sendDutyReportToDiscord(
   }
 }
 
+function formatIndoDateDisplay(dateStr: string): string {
+  if (!dateStr) return '-';
+  try {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+  } catch {}
+  return dateStr;
+}
+
 /**
  * Sends Officer Leave (Izin Cuti SAPD) to Discord Webhook
  * Formatted matching user's requested template:

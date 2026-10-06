@@ -312,8 +312,8 @@ export const OtpGeneratorModal: React.FC<Props> = ({
                         className="w-full bg-[#0D1117] border border-gray-700 focus:border-amber-400 rounded-lg px-3 py-2 text-xs text-gray-200 focus:outline-none"
                       >
                         <option value="">-- Pilih Petugas dari Roster HSPD ({roster.length} Personel) --</option>
-                        {roster.map(officer => (
-                          <option key={officer.id} value={officer.id}>
+                        {roster.map((officer, idx) => (
+                          <option key={officer.id ? `${officer.id}-${idx}` : `${officer.badge}-${idx}`} value={officer.id || officer.badge}>
                             {officer.badge} - {officer.name} ({officer.rank}) • {officer.division}
                           </option>
                         ))}

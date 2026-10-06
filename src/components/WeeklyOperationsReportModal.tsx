@@ -587,7 +587,7 @@ export const WeeklyOperationsReportModal: React.FC<WeeklyOperationsReportModalPr
                 </thead>
                 <tbody className="divide-y divide-gray-800/60 font-mono">
                   {filteredBreakdown.map((o, idx) => (
-                    <tr key={o.badge + idx} className="hover:bg-gray-800/40 transition">
+                    <tr key={`${o.badge}-${o.name}-${idx}`} className="hover:bg-gray-800/40 transition">
                       <td className="py-2 px-3 text-gray-500 text-[11px]">{idx + 1}</td>
                       <td className="py-2 px-3 font-bold text-cyan-400">{o.badge}</td>
                       <td className="py-2 px-3 font-bold text-gray-200">

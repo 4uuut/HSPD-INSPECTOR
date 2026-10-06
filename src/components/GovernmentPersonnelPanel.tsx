@@ -571,11 +571,11 @@ export const GovernmentPersonnelPanel: React.FC<GovernmentPersonnelPanelProps> =
                   </td>
                 </tr>
               ) : (
-                filteredRoster.map((official) => {
+                filteredRoster.map((official, idx) => {
                   const isPresident = official.name.toLowerCase().includes('momo hatakeyama') || official.badge === '#GOV-01' || official.rank.includes('RANK 6');
                   return (
                     <tr 
-                      key={official.id} 
+                      key={official.id ? `${official.id}-${idx}` : `${official.badge}-${idx}`} 
                       className={`hover:bg-gray-800/40 transition ${
                         isPresident ? 'bg-amber-950/20' : ''
                       }`}

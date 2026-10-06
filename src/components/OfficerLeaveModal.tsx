@@ -354,8 +354,8 @@ Total Durasi Cuti  : ${calculatedDays} Hari${accPreview}
                     onChange={(e) => handleOfficerSelect(e.target.value)}
                     className="w-full bg-[#161B22] border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-100 focus:border-amber-500 focus:outline-hidden"
                   >
-                    {roster.map(r => (
-                      <option key={r.badge} value={r.badge}>
+                    {roster.map((r, idx) => (
+                      <option key={`${r.id || r.badge}-${r.name}-${idx}`} value={r.badge}>
                         [{r.badge}] {r.name} - {r.rank} ({r.division || 'Patrol'})
                       </option>
                     ))}
@@ -580,7 +580,7 @@ Total Durasi Cuti  : ${calculatedDays} Hari${accPreview}
 
             {/* List items */}
             <div className="space-y-2.5 max-h-[55vh] overflow-y-auto pr-1">
-              {filteredLeaves.map((leave) => {
+              {filteredLeaves.map((leave, idx) => {
                 const isPending = leave.status === 'PENDING';
                 const isApproved = leave.status === 'APPROVED';
                 const isRejected = leave.status === 'REJECTED';
@@ -588,7 +588,7 @@ Total Durasi Cuti  : ${calculatedDays} Hari${accPreview}
 
                 return (
                   <div
-                    key={leave.id}
+                    key={leave.id ? `${leave.id}-${idx}` : `leave-${idx}`}
                     className={`p-3.5 rounded-xl border transition space-y-2 ${
                       isPending
                         ? 'bg-[#1C1613] border-amber-600/70 shadow-md'

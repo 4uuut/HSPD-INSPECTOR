@@ -502,7 +502,7 @@ export const GovernmentRosterManagement: React.FC<Props> = ({
 
       {/* Roster Grid Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
-        {filteredRoster.map(officer => {
+        {filteredRoster.map((officer, idx) => {
           const isChief = officer.rank.includes('RANK 6') || officer.rank.includes('RANK 5');
           const isLeader = officer.rank.includes('RANK 4') || officer.rank.includes('RANK 3');
           const isCurrent = officer.name.toLowerCase() === currentOfficer.name.toLowerCase() || officer.badge === currentOfficer.badge;
@@ -510,7 +510,7 @@ export const GovernmentRosterManagement: React.FC<Props> = ({
 
           return (
             <div 
-              key={officer.id}
+              key={officer.id ? `${officer.id}-${idx}` : `${officer.badge}-${idx}`}
               className={`rounded-xl border p-4 shadow-lg transition duration-200 flex flex-col justify-between relative overflow-hidden ${
                 isChief
                   ? 'bg-gradient-to-br from-[#1C160B] via-[#14120D] to-[#0E0C09] border-amber-500/80 ring-1 ring-amber-500/40'

@@ -1040,7 +1040,42 @@ export function mergeWithOfficialRoster(
     nameRegistry.set('jackiexianlao', { ...jackieOfficial });
   }
 
-  const uniqueOfficers = Array.from(nameRegistry.values());
+  const rawUniqueOfficers = Array.from(nameRegistry.values());
+
+  // 5. Ensure badge #001 is strictly reserved for Jackie Xianlao, and no duplicate badges exist
+  const seenBadges = new Set<string>();
+  const uniqueOfficers: OfficerAccount[] = [];
+
+  const jackie = rawUniqueOfficers.find(o => (o.name || '').toLowerCase().replace(/[^a-z0-9]/g, '') === 'jackiexianlao');
+  if (jackie) {
+    seenBadges.add('#001');
+    uniqueOfficers.push({
+      ...jackie,
+      id: jackie.id || 'roster-jackie-xianlao-001',
+      badge: '#001'
+    });
+  }
+
+  for (const officer of rawUniqueOfficers) {
+    const norm = (officer.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (norm === 'jackiexianlao') continue;
+
+    let b = (officer.badge || '').trim();
+    if (!b || b === '#001' || seenBadges.has(b.toLowerCase())) {
+      let nextNum = 100;
+      while (seenBadges.has(`#${nextNum.toString().padStart(3, '0')}`)) {
+        nextNum++;
+      }
+      b = `#${nextNum.toString().padStart(3, '0')}`;
+    }
+    seenBadges.add(b.toLowerCase());
+    uniqueOfficers.push({
+      ...officer,
+      badge: b,
+      id: officer.id || `roster-${norm || 'officer'}-${b.replace(/[^0-9]/g, '')}`
+    });
+  }
+
   const finalOfficers = applyCustomPinOverrides(uniqueOfficers);
   
   // Sort cleanly by numerical badge number (e.g. #001 -> #002 -> #101 -> #201 -> #301 -> #401)

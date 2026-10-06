@@ -650,9 +650,9 @@ export const RequestPinDiscordModal: React.FC<Props> = ({
                       </span>
                       <span>Klik untuk pilih</span>
                     </div>
-                    {matchingOfficers.map((officer) => (
+                    {matchingOfficers.map((officer, idx) => (
                       <button
-                        key={officer.id}
+                        key={officer.id ? `${officer.id}-${idx}` : `${officer.badge}-${idx}`}
                         type="button"
                         onClick={() => handleSelectOfficer(officer)}
                         className="w-full text-left px-3 py-2 hover:bg-blue-900/30 border-b border-gray-800/50 last:border-0 flex items-center justify-between transition group cursor-pointer"
