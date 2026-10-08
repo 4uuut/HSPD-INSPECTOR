@@ -1261,6 +1261,97 @@ export interface TedTrafficRecord {
 }
 
 // ========================================================
+// 🗂️ BERKAS KASUS OPERASIONAL SELURUH DIVISI (CASE FILES)
+// ========================================================
+export type DivisionType = 
+  | 'SWAT'          // Special Weapons and Tactics / Metro
+  | 'ASD'           // Air Support Division (Helikopter Taktis)
+  | 'K9'            // Canine Squad (Satwa K-9 Pelacak)
+  | 'TED'           // Traffic Enforcement Division (Satlantas & Patwal)
+  | 'IAD'           // Internal Affairs Division (Propam / Etik Disiplin)
+  | 'ACADEMY'       // Police Academy & Field Training (FTO)
+  | 'PATROL'        // Regular Patrol & Highway Patrol
+  | 'DETECTIVE'     // Detective Bureau / CID
+  | 'HIGH_COMMAND'; // Staf Komando Mabes
+
+export type CaseFileCategory = 
+  | 'BANK_ROBBERY_CENTRAL'   // Perampokan Bank Pusat (Pacific Standard)
+  | 'BANK_ROBBERY_RURAL'     // Perampokan Bank Pedesaan (Paleto / Fleeca)
+  | 'STORE_ROBBERY'          // Perampokan Toko / Minimarket / Vangelico
+  | 'HOSTAGE_RESCUE'         // Pembebasan Sandera / Barricaded Hostage
+  | 'HIGH_RISK_RAID'         // Penggerebekan Gudang Senjata / Markas Kartel
+  | 'HIGH_SPEED_PURSUIT'     // Pengejaran Kecepatan Tinggi (10-80) & Air Tracking
+  | 'NARCOTICS_SWEEP'        // Penyisiran Narkoba Satwa K-9
+  | 'TRAFFIC_CRACKDOWN'      // Razia Balap Liar / Operasi Patwal / DUI Checkpoint
+  | 'INTERNAL_INVESTIGATION' // Investigasi Kode Etik / Disiplin Internal
+  | 'TACTICAL_TRAINING'      // Simulasi & Uji Lapangan Kadet Akademi
+  | 'SPECIAL_OPERATION';     // Operasi Khusus Gabungan Lainnya
+
+export type CaseOutcomeStatus = 
+  | 'BERHASIL'            // CODE 4: Berhasil Penuh (Sandera Selamat & Suspect Diamankan)
+  | 'SEBAGIAN_BERHASIL'   // Sebagian Berhasil (Suspect Dilumpuhkan, Sebagian Dampak)
+  | 'GAGAL'               // Gagal / Code 0 (Suspect Kabur / Korban Jiwa)
+  | 'DALAM_PENANGANAN';   // Dalam Penanganan Aktif (Code 3 In-Progress)
+
+export interface CaseFilePhotoStage {
+  url: string;            // URL / Base64 foto
+  caption: string;        // Judul / Keterangan foto
+  stageNotes: string;     // Rincian narasi kejadian pada tahap ini
+}
+
+export interface DivisionCaseFile {
+  id: string;
+  caseNumber: string;                 // e.g. "CASE-SWAT-2026-001"
+  caseTitle: string;                  // e.g. "Penanganan Perampokan Bank Pusat Pacific Standard"
+  division: DivisionType;             // SWAT, ASD, K9, TED, IAD, ACADEMY, PATROL, DETECTIVE, HIGH_COMMAND
+  category: CaseFileCategory;
+  location: string;                   // Lokasi kejadian / TKP
+  incidentDate: string;               // YYYY-MM-DD
+  incidentTime: string;               // HH:MM WIB
+  
+  // Incident Commander & Tim Terlibat
+  commanderName: string;              // Komandan Operasi
+  commanderBadge: string;             // Badge Komandan
+  commanderRank: string;              // Pangkat Komandan
+  officersCount: number;              // Jumlah anggota yang ikut
+  participatingOfficers: string[];    // Daftar nama & badge personel yang ikut
+  tacticalVehicles: string[];         // Kendaraan taktis yang diturunkan
+  
+  // Suspects & Hostages
+  suspectsCount: number;              // Jumlah suspect / perampok
+  suspectAffiliation?: string;        // Afiliasi geng / sindikat
+  suspectStatusSummary: string;       // e.g. "3 Dilumpuhkan Fatal, 1 Ditangkap Hidup-Hidup"
+  hostagesCount: number;              // Jumlah sandera / warga
+  hostageStatus: string;              // e.g. "2 Sandera Selamat Tanpa Cidera"
+  policeCasualties: string;           // e.g. "Nihil Korban Jiwa, 1 Anggota Luka Ringan"
+  
+  // Persenjataan yang Digunakan
+  policeWeapons: string[];            // Senjata polisi (Carbine Mk II, Tactical Shotgun, Flashbang, dll)
+  suspectWeapons: string[];           // Senjata pelaku (AK-47, Micro SMG, Sawn-off, Thermite C4, dll)
+  
+  // 3 Bukti Dokumentasi Foto Penanganan (Wajib sesuai SOP)
+  photoNegotiation: CaseFilePhotoStage; // Foto 1: Tahap Awal / Saat Negosiasi
+  photoSetupShooting: CaseFilePhotoStage; // Foto 2: Lokasi Penembakan / Setup Barikade Perampok
+  photoFinalOutcome: CaseFilePhotoStage; // Foto 3: Selesai Penanganan & Hasil Akhir (Berhasil/Tidak)
+  
+  // Outcome & Rampokan
+  outcomeStatus: CaseOutcomeStatus;
+  lootRecovered?: string;             // Uang/Barang yang diselamatkan (e.g. "$750,000 Uang Tunai Bank")
+  lootLoss?: string;                  // Kerugian (e.g. "Nihil Kerugian Finansial")
+  confiscatedEvidences?: string[];    // Barang bukti yang disita
+  
+  // Rincian Narasi & Evaluasi
+  chronologySummary: string;          // Kronologi Lengkap Operasi
+  tacticalEvaluation: string;         // Evaluasi Taktis & Rekomendasi Pimpinan
+  
+  // Tanda Tangan & Timestamp
+  signedByCommander: boolean;
+  signedTimestamp?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// ========================================================
 // 🔍 DMV & CITIZEN DATABASE TYPES
 // ========================================================
 export type DriverLicenseStatus = 'VALID' | 'SUSPENDED' | 'REVOKED' | 'NONE';

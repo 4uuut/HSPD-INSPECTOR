@@ -1161,7 +1161,7 @@ export const DetectiveCaseBoard: React.FC<Props> = ({
                               </div>
 
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {tierGroup.data.map(suspect => {
+                                {tierGroup.data.map((suspect, sIdx) => {
                                   const roleCfg = getRoleConfig(suspect.role, suspect.hierarchyLevel);
                                   const RoleIcon = roleCfg.icon;
                                   const parentSuspect = suspect.parentId ? selectedCase.suspects.find(s => s.id === suspect.parentId) : null;
@@ -1169,7 +1169,7 @@ export const DetectiveCaseBoard: React.FC<Props> = ({
 
                                   return (
                                     <div 
-                                      key={suspect.id} 
+                                      key={`${suspect.id}-${sIdx}`} 
                                       className={`rounded-xl border p-3.5 space-y-3 transition shadow-lg relative ${roleCfg.cardBorder} hover:border-indigo-500`}
                                     >
                                       {/* Top Row: Mugshot + Name + Status */}
@@ -1805,10 +1805,10 @@ export const DetectiveCaseBoard: React.FC<Props> = ({
                     <option value="">(Tidak Ada - Puncak Pimpinan / Mandiri)</option>
                     {selectedCase?.suspects
                       .filter(s => s.id !== editingSuspectId)
-                      .map(s => {
+                      .map((s, idx) => {
                         const rCfg = getRoleConfig(s.role, s.hierarchyLevel);
                         return (
-                          <option key={s.id} value={s.id}>
+                          <option key={`${s.id}-${idx}`} value={s.id}>
                             [{rCfg.short}] {s.name} {s.alias ? `("${s.alias}")` : ''}
                           </option>
                         );
@@ -2194,8 +2194,8 @@ export const DetectiveCaseBoard: React.FC<Props> = ({
                       <div className="border border-red-800/80 bg-red-950/30 p-2 rounded-lg">
                         <div className="text-[10px] font-bold text-red-400 uppercase mb-1">👑 TIER 1: PEMIMPIN TERTINGGI / BOSS / ATASAN</div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {groupedTiers.tier1.map(s => (
-                            <div key={s.id} className="flex items-center gap-2 bg-[#0D1117] p-2 rounded border border-red-900/60">
+                          {groupedTiers.tier1.map((s, idx) => (
+                            <div key={`${s.id}-${idx}`} className="flex items-center gap-2 bg-[#0D1117] p-2 rounded border border-red-900/60">
                               {s.photoUrl ? (
                                 <img src={s.photoUrl} alt={s.name} className="w-10 h-10 object-cover rounded border border-red-600" />
                               ) : (
@@ -2217,8 +2217,8 @@ export const DetectiveCaseBoard: React.FC<Props> = ({
                       <div className="border border-orange-800/80 bg-orange-950/30 p-2 rounded-lg">
                         <div className="text-[10px] font-bold text-orange-400 uppercase mb-1">⭐ TIER 2: WAKIL / UNDERBOSS / ORANG KEPERCAYAAN</div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {groupedTiers.tier2.map(s => (
-                            <div key={s.id} className="flex items-center gap-2 bg-[#0D1117] p-2 rounded border border-orange-900/60">
+                          {groupedTiers.tier2.map((s, idx) => (
+                            <div key={`${s.id}-${idx}`} className="flex items-center gap-2 bg-[#0D1117] p-2 rounded border border-orange-900/60">
                               {s.photoUrl ? (
                                 <img src={s.photoUrl} alt={s.name} className="w-10 h-10 object-cover rounded border border-orange-600" />
                               ) : (
@@ -2239,8 +2239,8 @@ export const DetectiveCaseBoard: React.FC<Props> = ({
                       <div className="border border-yellow-800/80 bg-yellow-950/30 p-2 rounded-lg">
                         <div className="text-[10px] font-bold text-yellow-400 uppercase mb-1">🎖️ TIER 3: KAPTIEN / MANDOR LAPANGAN</div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {groupedTiers.tier3.map(s => (
-                            <div key={s.id} className="flex items-center gap-2 bg-[#0D1117] p-2 rounded border border-yellow-900/60">
+                          {groupedTiers.tier3.map((s, idx) => (
+                            <div key={`${s.id}-${idx}`} className="flex items-center gap-2 bg-[#0D1117] p-2 rounded border border-yellow-900/60">
                               {s.photoUrl ? (
                                 <img src={s.photoUrl} alt={s.name} className="w-9 h-9 object-cover rounded border border-yellow-600" />
                               ) : (
@@ -2261,8 +2261,8 @@ export const DetectiveCaseBoard: React.FC<Props> = ({
                       <div className="border border-blue-900/80 bg-blue-950/20 p-2 rounded-lg">
                         <div className="text-[10px] font-bold text-blue-400 uppercase mb-1">👥 TIER 4 & 5: ANGGOTA / PRAJURIT / REKANAN</div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          {[...groupedTiers.tier4, ...groupedTiers.tier5].map(s => (
-                            <div key={s.id} className="bg-[#0D1117] p-1.5 rounded border border-gray-800 text-[9px]">
+                          {[...groupedTiers.tier4, ...groupedTiers.tier5].map((s, idx) => (
+                            <div key={`${s.id}-${idx}`} className="bg-[#0D1117] p-1.5 rounded border border-gray-800 text-[9px]">
                               <div className="font-bold text-gray-200">{s.name}</div>
                               <div className="text-gray-400">{s.role || 'ANGGOTA'} • <span className="text-blue-300 font-bold">{s.status}</span></div>
                             </div>
@@ -2282,7 +2282,7 @@ export const DetectiveCaseBoard: React.FC<Props> = ({
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                       {selectedCase.evidences.map((ev, i) => (
-                        <div key={ev.id || i} className="bg-[#0D1117] p-2 rounded border border-gray-800 text-[10px] space-y-0.5">
+                        <div key={ev.id ? `${ev.id}-${i}` : `ev-${i}`} className="bg-[#0D1117] p-2 rounded border border-gray-800 text-[10px] space-y-0.5">
                           <div className="font-bold text-gray-200 flex items-center gap-1">
                             <Paperclip className="w-3 h-3 text-emerald-400" />
                             <span>[{ev.type}] {ev.title}</span>

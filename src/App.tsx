@@ -53,7 +53,7 @@ import {
   Users, ShieldAlert, KeyRound, Power, Clock, CheckCircle2, Sliders,
   Search, Car, Crosshair, Landmark, Flame, Stamp as StampIcon,
   UserCheck, Microscope, Cloud, Database, Palette, Smartphone, Monitor, Settings,
-  Building2, Crown, Globe, Activity, Zap
+  Building2, Crown, Globe, Activity, Zap, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from './assets/logo';
 import { 
@@ -353,6 +353,7 @@ export default function App() {
   // Track initial mount to avoid spamming Firestore writes on page load
   const isRosterFirstMount = useRef(true);
   const isRecordsFirstMount = useRef(true);
+  const subNavRef = useRef<HTMLDivElement>(null);
 
   // Persist roster to local storage immediately without heavy recurring cloud rewrites
   useEffect(() => {
@@ -1109,110 +1110,138 @@ export default function App() {
           </header>
 
           {/* High Density Sub-Navigation Strip */}
-          <div className="bg-[#11141A] border-b border-gray-800 px-4 py-1.5 flex items-center justify-between overflow-x-auto no-scrollbar">
-            <nav className="flex items-center gap-1 text-[11px] font-medium">
-              {(isGovernment ? [
-                { id: 'gov_suite', label: '🏛️ Layanan & Operasional Negara', icon: Crown, code: 'EXEC', moduleKey: undefined },
-                { id: 'citizen_portal', label: '🌐 Layanan Warga (SKCK & Izin Usaha)', icon: Globe, code: 'WARGA', moduleKey: undefined },
-                { id: 'documents', label: '📄 Surat & Dokumen Kenegaraan', icon: StampIcon, code: 'DOC', moduleKey: undefined },
-                { id: 'dmv', label: '👤 Sipil & DMV Kependudukan', icon: UserCheck, code: 'DMV', moduleKey: undefined },
-                { id: 'history', label: `📁 Catatan Kasus & Kriminal (${records.length})`, icon: FileText, code: 'LOG', moduleKey: undefined },
-                { id: 'gov_roster', label: `👥 Roster Pejabat (${govRosterCount})`, icon: Building2, code: 'GOV', moduleKey: undefined },
-                { id: 'gov_settings', label: '⚙️ Setting & Otoritas', icon: Settings, code: 'CFG', moduleKey: undefined },
-              ] : [
-                { id: 'calc', label: 'Kalkulator Pasal', icon: Calculator, code: 'CALC', moduleKey: undefined },
-                { id: 'citizen_portal', label: '🌐 Layanan Warga (SKCK & Izin)', icon: Globe, code: 'WARGA', moduleKey: undefined },
-                { id: 'dmv', label: '👤 Sipil & DMV', icon: UserCheck, code: 'DMV', moduleKey: 'DMV_CITIZEN' as ModuleAccessKey },
-                { id: 'divisions', label: '🎖️ Divisi Khusus', icon: Award, code: 'DIV', moduleKey: 'SPECIAL_DIVISIONS' as ModuleAccessKey },
-                { id: 'forensics', label: '🔬 Lab Forensik', icon: Microscope, code: 'LAB', moduleKey: 'FORENSICS' as ModuleAccessKey },
-                { id: 'documents', label: '📄 Surat & Dokumen', icon: StampIcon, code: 'DOC', moduleKey: 'OFFICIAL_DOCS' as ModuleAccessKey },
-                { id: 'detective', label: `🔍 Kasus Detektif (${detectiveCases.length})`, icon: Search, code: 'DB', moduleKey: 'DETECTIVE' as ModuleAccessKey },
-                { id: 'traffic', label: `🚗 BOLO & Sitaan (${boloList.length})`, icon: Car, code: 'BOLO', moduleKey: 'BOLO' as ModuleAccessKey },
-                { id: 'vault', label: '🏦 Brankas & Audit', icon: Landmark, code: 'VAULT', moduleKey: 'VAULT' as ModuleAccessKey },
-                { id: 'destruction', label: '💥 Peleburan Sitaan', icon: Flame, code: 'LEBUR', moduleKey: 'DESTRUCTION' as ModuleAccessKey },
-                { id: 'megaphone', label: 'Megaphone Studio', icon: Megaphone, code: '/M', moduleKey: undefined },
-                { id: 'rp', label: 'Hak Miranda & RP', icon: BookOpen, code: 'RP', moduleKey: undefined },
-                { id: 'sop', label: 'SOP & Ten-Codes', icon: Radio, code: 'SOP', moduleKey: undefined },
-                { 
-                  id: 'history', 
-                  label: `📁 Riwayat Kasus (${records.length})`, 
-                  icon: FileText, 
-                  code: 'LOG',
-                  moduleKey: 'CASE_HISTORY' as ModuleAccessKey,
-                  isHighRankOnly: true
-                },
-                ...(isHighRank ? [
-                  {
-                    id: 'roster',
-                    label: `👑 Roster Anggota (${roster.length})`,
-                    icon: Users,
-                    code: 'ROSTER',
-                    moduleKey: undefined,
+          <div className="bg-[#11141A] border-b border-gray-800 px-2 sm:px-4 py-1.5 flex items-center justify-between gap-1.5 relative">
+            <button
+              type="button"
+              onClick={() => subNavRef.current?.scrollBy({ left: -220, behavior: 'smooth' })}
+              className="p-1 rounded bg-gray-800/80 hover:bg-gray-700 text-gray-300 hover:text-white transition shrink-0 cursor-pointer"
+              title="Geser menu navigasi ke kiri"
+              aria-label="Geser ke kiri"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+
+            <div
+              ref={subNavRef}
+              onWheel={(e) => {
+                if (e.deltaY !== 0 && !e.shiftKey && subNavRef.current) {
+                  subNavRef.current.scrollLeft += e.deltaY;
+                }
+              }}
+              className="flex-1 overflow-x-auto no-scrollbar scroll-smooth flex items-center gap-1"
+            >
+              <nav className="flex items-center gap-1 text-[11px] font-medium shrink-0">
+                {(isGovernment ? [
+                  { id: 'gov_suite', label: '🏛️ Layanan & Operasional Negara', icon: Crown, code: 'EXEC', moduleKey: undefined },
+                  { id: 'citizen_portal', label: '🌐 Layanan Warga (SKCK & Izin Usaha)', icon: Globe, code: 'WARGA', moduleKey: undefined },
+                  { id: 'documents', label: '📄 Surat & Dokumen Kenegaraan', icon: StampIcon, code: 'DOC', moduleKey: undefined },
+                  { id: 'dmv', label: '👤 Sipil & DMV Kependudukan', icon: UserCheck, code: 'DMV', moduleKey: undefined },
+                  { id: 'history', label: `📁 Catatan Kasus & Kriminal (${records.length})`, icon: FileText, code: 'LOG', moduleKey: undefined },
+                  { id: 'gov_roster', label: `👥 Roster Pejabat (${govRosterCount})`, icon: Building2, code: 'GOV', moduleKey: undefined },
+                  { id: 'gov_settings', label: '⚙️ Setting & Otoritas', icon: Settings, code: 'CFG', moduleKey: undefined },
+                ] : [
+                  { id: 'calc', label: 'Kalkulator Pasal', icon: Calculator, code: 'CALC', moduleKey: undefined },
+                  { id: 'citizen_portal', label: '🌐 Layanan Warga (SKCK & Izin)', icon: Globe, code: 'WARGA', moduleKey: undefined },
+                  { id: 'dmv', label: '👤 Sipil & DMV', icon: UserCheck, code: 'DMV', moduleKey: 'DMV_CITIZEN' as ModuleAccessKey },
+                  { id: 'divisions', label: '🗂️ Case Files & Divisi', icon: Award, code: 'CASE', moduleKey: 'SPECIAL_DIVISIONS' as ModuleAccessKey },
+                  { id: 'forensics', label: '🔬 Lab Forensik', icon: Microscope, code: 'LAB', moduleKey: 'FORENSICS' as ModuleAccessKey },
+                  { id: 'documents', label: '📄 Surat & Dokumen', icon: StampIcon, code: 'DOC', moduleKey: 'OFFICIAL_DOCS' as ModuleAccessKey },
+                  { id: 'detective', label: `🔍 Kasus Detektif (${detectiveCases.length})`, icon: Search, code: 'DB', moduleKey: 'DETECTIVE' as ModuleAccessKey },
+                  { id: 'traffic', label: `🚗 BOLO & Sitaan (${boloList.length})`, icon: Car, code: 'BOLO', moduleKey: 'BOLO' as ModuleAccessKey },
+                  { id: 'vault', label: '🏦 Brankas & Audit', icon: Landmark, code: 'VAULT', moduleKey: 'VAULT' as ModuleAccessKey },
+                  { id: 'destruction', label: '💥 Peleburan Sitaan', icon: Flame, code: 'LEBUR', moduleKey: 'DESTRUCTION' as ModuleAccessKey },
+                  { id: 'megaphone', label: 'Megaphone Studio', icon: Megaphone, code: '/M', moduleKey: undefined },
+                  { id: 'rp', label: 'Hak Miranda & RP', icon: BookOpen, code: 'RP', moduleKey: undefined },
+                  { id: 'sop', label: 'SOP & Ten-Codes', icon: Radio, code: 'SOP', moduleKey: undefined },
+                  { 
+                    id: 'history', 
+                    label: `📁 Riwayat Kasus (${records.length})`, 
+                    icon: FileText, 
+                    code: 'LOG',
+                    moduleKey: 'CASE_HISTORY' as ModuleAccessKey,
                     isHighRankOnly: true
                   },
-                  {
-                    id: 'settings',
-                    label: 'Setting & Otoritas',
-                    icon: Settings,
-                    code: 'CFG',
-                    moduleKey: undefined,
-                    isHighRankOnly: true
+                  ...(isHighRank ? [
+                    {
+                      id: 'roster',
+                      label: `👑 Roster Anggota (${roster.length})`,
+                      icon: Users,
+                      code: 'ROSTER',
+                      moduleKey: undefined,
+                      isHighRankOnly: true
+                    },
+                    {
+                      id: 'settings',
+                      label: 'Setting & Otoritas',
+                      icon: Settings,
+                      code: 'CFG',
+                      moduleKey: undefined,
+                      isHighRankOnly: true
+                    }
+                  ] : []),
+                ]).map((tab, tabIdx) => {
+                  const Icon = tab.icon;
+                  const isActive = activeNav === tab.id;
+                  
+                  // Calculate real-time clearance status
+                  let isLocked = false;
+                  let hasOtpActive = false;
+                  if (tab.moduleKey) {
+                    const clearance = checkDirectRankClearance(tab.moduleKey, currentOfficer);
+                    hasOtpActive = Boolean(hasActiveUnlockedSession(tab.moduleKey, currentOfficer?.badge));
+                    isLocked = !clearance.hasClearance && !hasOtpActive;
                   }
-                ] : []),
-              ]).map(tab => {
-                const Icon = tab.icon;
-                const isActive = activeNav === tab.id;
-                
-                // Calculate real-time clearance status
-                let isLocked = false;
-                let hasOtpActive = false;
-                if (tab.moduleKey) {
-                  const clearance = checkDirectRankClearance(tab.moduleKey, currentOfficer);
-                  hasOtpActive = Boolean(hasActiveUnlockedSession(tab.moduleKey, currentOfficer?.badge));
-                  isLocked = !clearance.hasClearance && !hasOtpActive;
-                }
 
-                return (
-                  <button
-                    key={tab.id}
-                    id={`nav-btn-${tab.id}`}
-                    onClick={() => setActiveNav(tab.id as any)}
-                    className={`px-2.5 py-1.5 rounded flex items-center gap-1.5 transition whitespace-nowrap text-xs ${
-                      isActive
-                        ? (isGovernment ? 'bg-amber-600 text-white font-bold shadow-sm shadow-amber-600/30 ring-1 ring-amber-400/50' : 'bg-blue-600 text-white font-bold shadow-sm shadow-blue-600/30 ring-1 ring-blue-400/40')
-                        : isLocked
-                          ? 'text-gray-400 hover:text-amber-300 hover:bg-amber-950/20 border border-transparent hover:border-amber-700/40'
-                          : hasOtpActive
-                            ? 'text-emerald-300 hover:text-emerald-200 hover:bg-emerald-950/30'
-                            : 'text-gray-300 hover:text-gray-100 hover:bg-gray-800/60'
-                    }`}
-                    title={isLocked ? 'Memerlukan Otorisasi Pangkat / Divisi atau Kode OTP Atasan' : undefined}
-                  >
-                    <Icon className={`w-3.5 h-3.5 ${isLocked ? 'text-gray-500' : hasOtpActive ? 'text-emerald-400' : ''}`} />
-                    <span>{tab.label}</span>
-                    {isLocked && (
-                      <span className="text-[9px] bg-gray-800/90 text-amber-400 px-1 py-0.2 rounded border border-amber-800/50 flex items-center gap-0.5">
-                        <Lock className="w-2.5 h-2.5 inline" />
-                      </span>
-                    )}
-                    {hasOtpActive && !isLocked && (
-                      <span className="text-[9px] bg-emerald-950 text-emerald-300 px-1 py-0.2 rounded border border-emerald-700/60 font-mono">
-                        OTP
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </nav>
+                  return (
+                    <button
+                      key={`${tab.id}-${tabIdx}`}
+                      id={`nav-btn-${tab.id}`}
+                      onClick={() => setActiveNav(tab.id as any)}
+                      className={`px-2.5 py-1.5 rounded flex items-center gap-1.5 transition whitespace-nowrap text-xs ${
+                        isActive
+                          ? (isGovernment ? 'bg-amber-600 text-white font-bold shadow-sm shadow-amber-600/30 ring-1 ring-amber-400/50' : 'bg-blue-600 text-white font-bold shadow-sm shadow-blue-600/30 ring-1 ring-blue-400/40')
+                          : isLocked
+                            ? 'text-gray-400 hover:text-amber-300 hover:bg-amber-950/20 border border-transparent hover:border-amber-700/40'
+                            : hasOtpActive
+                              ? 'text-emerald-300 hover:text-emerald-200 hover:bg-emerald-950/30'
+                              : 'text-gray-300 hover:text-gray-100 hover:bg-gray-800/60'
+                      }`}
+                      title={isLocked ? 'Memerlukan Otorisasi Pangkat / Divisi atau Kode OTP Atasan' : undefined}
+                    >
+                      <Icon className={`w-3.5 h-3.5 ${isLocked ? 'text-gray-500' : hasOtpActive ? 'text-emerald-400' : ''}`} />
+                      <span>{tab.label}</span>
+                      {isLocked && (
+                        <span className="text-[9px] bg-gray-800/90 text-amber-400 px-1 py-0.2 rounded border border-amber-800/50 flex items-center gap-0.5">
+                          <Lock className="w-2.5 h-2.5 inline" />
+                        </span>
+                      )}
+                      {hasOtpActive && !isLocked && (
+                        <span className="text-[9px] bg-emerald-950 text-emerald-300 px-1 py-0.2 rounded border border-emerald-700/60 font-mono">
+                          OTP
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+            </div>
 
-            <div className="hidden md:flex items-center gap-2 text-[10px] font-mono text-gray-500">
+            <button
+              type="button"
+              onClick={() => subNavRef.current?.scrollBy({ left: 220, behavior: 'smooth' })}
+              className="p-1 rounded bg-gray-800/80 hover:bg-gray-700 text-gray-300 hover:text-white transition shrink-0 cursor-pointer"
+              title="Geser menu navigasi ke kanan"
+              aria-label="Geser ke kanan"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+
+            <div className="hidden lg:flex items-center gap-2 text-[10px] font-mono text-gray-500 pl-2 shrink-0 border-l border-gray-800">
               {isGovernment ? (
-                <span>WILAYAH: <strong className="text-amber-400">STATE OF HIGHSTATE (PEMERINTAHAN RESMI)</strong></span>
+                <span>WILAYAH: <strong className="text-amber-400">STATE OF HIGHSTATE</strong></span>
               ) : (
                 <>
                   <span>STATUS: <strong className={isDuty ? 'text-emerald-400' : 'text-rose-400'}>{isDuty ? '10-8 ON DUTY' : '10-7 OFF DUTY'}</strong></span>
-                  <span className="text-gray-700">|</span>
-                  <span>CLEARANCE: <strong className={isHighRank ? 'text-amber-400' : 'text-blue-400'}>{isHighRank ? 'HIGH COMMAND (AKSES PENUH)' : 'PATROL'}</strong></span>
                 </>
               )}
             </div>

@@ -277,11 +277,11 @@ export const ForensicsLabBoard: React.FC<Props> = ({ currentOfficer }) => {
 
       {/* Analysis Records Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {filteredAnalyses.map((item) => {
+        {filteredAnalyses.map((item, idx) => {
           const isMatch = item.matchResult === 'POSITIVE_MATCH' || item.matchResult === 'CONFIRMED_CONTRABAND';
           return (
             <div
-              key={item.id}
+              key={item.id ? `${item.id}-${idx}` : `lab-${idx}`}
               className="p-4 bg-[#141820] border border-gray-800 rounded-2xl space-y-3 hover:border-gray-700 transition flex flex-col justify-between"
             >
               <div className="space-y-2">

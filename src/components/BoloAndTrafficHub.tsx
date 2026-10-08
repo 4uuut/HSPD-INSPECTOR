@@ -775,12 +775,12 @@ export const BoloAndTrafficHub: React.FC<Props> = ({
                     </td>
                   </tr>
                 ) : (
-                  filteredCitations.map(cit => {
+                  filteredCitations.map((cit, idx) => {
                     const hasBukti = cit.hasEvidence || (cit.evidenceImage && cit.evidenceImage.length > 0);
                     const isPaid = cit.status === 'PAID';
 
                     return (
-                      <tr key={cit.id} className="hover:bg-[#1c222b] transition">
+                      <tr key={cit.id ? `${cit.id}-${idx}` : `cit-${idx}`} className="hover:bg-[#1c222b] transition">
                         {/* Plat & Vehicle */}
                         <td className="py-2.5 px-3">
                           <div className="flex items-center gap-2">
@@ -1041,14 +1041,14 @@ export const BoloAndTrafficHub: React.FC<Props> = ({
                     </td>
                   </tr>
                 ) : (
-                  filteredImpounds.map(imp => {
+                  filteredImpounds.map((imp, idx) => {
                     const hasBukti = imp.hasEvidence || (imp.evidenceImage && imp.evidenceImage.length > 0) || (imp.evidenceImage2 && imp.evidenceImage2.length > 0);
                     const isImpounded = imp.status === 'IMPOUNDED';
                     const hasFoto1 = Boolean(imp.evidenceImage);
                     const hasFoto2 = Boolean(imp.evidenceImage2);
 
                     return (
-                      <tr key={imp.id} className="hover:bg-[#1c222b] transition">
+                      <tr key={imp.id ? `${imp.id}-${idx}` : `imp-${idx}`} className="hover:bg-[#1c222b] transition">
                         {/* Plate & Vehicle */}
                         <td className="py-2.5 px-3">
                           <div className="flex items-center gap-2">
@@ -1257,8 +1257,8 @@ export const BoloAndTrafficHub: React.FC<Props> = ({
                 Tidak ada peringatan BOLO aktif saat ini.
               </div>
             ) : (
-              filteredBolos.map(b => (
-                <div key={b.id} className="bg-[#161B22] border border-rose-900/60 rounded-xl p-4 space-y-3 relative overflow-hidden shadow-lg flex flex-col justify-between">
+              filteredBolos.map((b, idx) => (
+                <div key={b.id ? `${b.id}-${idx}` : `bolo-${idx}`} className="bg-[#161B22] border border-rose-900/60 rounded-xl p-4 space-y-3 relative overflow-hidden shadow-lg flex flex-col justify-between">
                   <div className="space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold bg-rose-950 text-rose-300 border border-rose-700 px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">

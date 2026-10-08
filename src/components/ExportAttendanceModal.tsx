@@ -435,8 +435,8 @@ export const ExportAttendanceModal: React.FC<Props> = ({
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
               >
                 <option value="ALL">Semua Divisi Kepolisian</option>
-                {divisionsList.map(div => (
-                  <option key={div} value={div}>{div}</option>
+                {divisionsList.map((div, idx) => (
+                  <option key={`${div}-${idx}`} value={div}>{div}</option>
                 ))}
               </select>
             </div>

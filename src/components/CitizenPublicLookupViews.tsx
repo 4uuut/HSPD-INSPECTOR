@@ -387,8 +387,8 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
 
                   {/* DETAILS OF THE MATCHED BOLO */}
                   <div className="space-y-3 pt-1">
-                    {wantedResults.map((bolo) => (
-                      <div key={bolo.id} className="bg-[#0B0D13] border border-red-800/80 rounded-xl p-4 space-y-2.5">
+                    {wantedResults.map((bolo, idx) => (
+                      <div key={bolo.id ? `${bolo.id}-${idx}` : idx} className="bg-[#0B0D13] border border-red-800/80 rounded-xl p-4 space-y-2.5">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <span className="font-bold text-sm text-red-300 flex items-center gap-2">
                             <BadgeAlert className="w-4 h-4 text-red-500" />
@@ -466,9 +466,9 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {allActiveDpoList.map((bolo) => (
+              {allActiveDpoList.map((bolo, idx) => (
                 <div 
-                  key={bolo.id}
+                  key={bolo.id ? `${bolo.id}-${idx}` : idx}
                   className="p-3.5 bg-[#0A0D14] border border-gray-800 hover:border-red-600/70 rounded-xl transition space-y-2"
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -642,9 +642,9 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
 
                   {/* CITATION CARDS */}
                   <div className="space-y-3">
-                    {citationResults.map((cit) => (
+                    {citationResults.map((cit, idx) => (
                       <div 
-                        key={cit.id}
+                        key={cit.id ? `${cit.id}-${idx}` : idx}
                         className="bg-[#131823] border border-amber-900/60 rounded-xl p-5 shadow-xl space-y-3"
                       >
                         <div className="flex flex-wrap items-start justify-between gap-2 border-b border-gray-800 pb-3">
@@ -769,9 +769,9 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
             </div>
 
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-              {effectiveCitations.map((cit) => (
+              {effectiveCitations.map((cit, idx) => (
                 <div 
-                  key={cit.id}
+                  key={cit.id ? `${cit.id}-${idx}` : idx}
                   onClick={() => {
                     setCitationQuery(cit.violatorName);
                     setHasSearchedCitation(true);

@@ -349,8 +349,8 @@ export const VaultAuditBoard: React.FC<Props> = ({ currentOfficer }) => {
           </div>
         ) : (
           <div className="divide-y divide-gray-800/60">
-            {filteredAudits.map((item) => (
-              <div key={item.id} className="p-4 hover:bg-gray-800/30 transition flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {filteredAudits.map((item, idx) => (
+              <div key={item.id ? `${item.id}-${idx}` : `audit-${idx}`} className="p-4 hover:bg-gray-800/30 transition flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1.5 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs font-bold text-amber-400 bg-amber-950/60 border border-amber-800 px-2 py-0.5 rounded">

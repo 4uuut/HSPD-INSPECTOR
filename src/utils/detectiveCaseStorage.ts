@@ -170,7 +170,7 @@ export const INITIAL_DETECTIVE_CASES: DetectiveCase[] = [
     location: 'Fleeca Bank, Market Blvd Los Santos',
     suspects: [
       {
-        id: 'susp-03',
+        id: 'susp-201',
         name: 'Antonio Morales',
         alias: 'El Scorpio',
         gangAffiliation: 'Los Santos Vagos',

@@ -830,7 +830,7 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
 
         {/* Category Pills Header Bar */}
         <div id="pasal-category-filter" className="flex flex-wrap gap-1 p-1.5 bg-[#161B22] border border-gray-800 rounded-md">
-          {availableCategories.map((cat) => {
+          {availableCategories.map((cat, catIdx) => {
             const isSelected = selectedCategory === cat.key;
             const countInCat = cat.key === 'ALL' 
               ? pasalList.length 
@@ -838,7 +838,7 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
 
             return (
               <button
-                key={cat.key}
+                key={`${cat.key}-${catIdx}`}
                 id={`cat-btn-${cat.key}`}
                 onClick={() => setSelectedCategory(cat.key)}
                 className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider transition whitespace-nowrap flex items-center gap-1.5 ${
@@ -894,11 +894,11 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
               </button>
             </div>
           ) : (
-            filteredPasal.map((item) => {
+            filteredPasal.map((item, idx) => {
               const isChecked = selectedCodes.includes(item.code);
               return (
                 <div
-                  key={item.code}
+                  key={`${item.code}-${idx}`}
                   id={`pasal-row-${item.code}`}
                   onClick={() => toggleSelect(item.code)}
                   className={`group p-2 rounded border cursor-pointer transition flex items-center justify-between gap-3 ${
@@ -1242,9 +1242,9 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
               {selectedCodes.length === 0 ? (
                 <span className="text-[11px] text-gray-600 italic p-1">Klik pasal pada daftar sebelah kiri untuk menghitung denda/penjara...</span>
               ) : (
-                selectedCodes.map(code => (
+                selectedCodes.map((code, idx) => (
                   <button
-                    key={code}
+                    key={`${code}-${idx}`}
                     onClick={() => toggleSelect(code)}
                     className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-900/30 hover:bg-red-950/60 border border-blue-700/50 hover:border-red-700 rounded text-[10px] font-mono text-blue-300 hover:text-red-300 transition"
                   >

@@ -2275,7 +2275,7 @@ export const RosterManagement: React.FC<Props> = ({
                       <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                         {warningOfficer.warnings.map((warn, idx) => (
                           <div 
-                            key={warn.id || idx}
+                            key={warn.id ? `${warn.id}-${idx}` : `warn-${idx}`}
                             className="p-3 bg-[#0D1117] border border-gray-800 rounded-lg space-y-2 relative group hover:border-gray-700 transition"
                           >
                             <div className="flex items-start justify-between gap-2">
@@ -2346,8 +2346,8 @@ export const RosterManagement: React.FC<Props> = ({
                           onChange={(e) => setWarningPresetReason(e.target.value)}
                           className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-100 outline-none"
                         >
-                          {PRESET_WARNING_REASONS.map((reason) => (
-                            <option key={reason} value={reason}>{reason}</option>
+                          {PRESET_WARNING_REASONS.map((reason, idx) => (
+                            <option key={`${reason}-${idx}`} value={reason}>{reason}</option>
                           ))}
                         </select>
                       </div>
@@ -2591,8 +2591,8 @@ export const RosterManagement: React.FC<Props> = ({
                         onChange={(e) => setDeletePresetReason(e.target.value)}
                         className="w-full px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-rose-500 rounded-lg text-xs text-gray-100 outline-none"
                       >
-                        {PRESET_DISCHARGE_REASONS.map((r) => (
-                          <option key={r} value={r}>{r}</option>
+                        {PRESET_DISCHARGE_REASONS.map((r, idx) => (
+                          <option key={`${r}-${idx}`} value={r}>{r}</option>
                         ))}
                       </select>
                     </div>
@@ -3119,8 +3119,8 @@ export const RosterManagement: React.FC<Props> = ({
                             onChange={(e) => setPromotionPresetReason(e.target.value)}
                             className="w-full px-3 py-1.5 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-200 outline-none"
                           >
-                            {PRESET_PROMOTION_REASONS.map((r) => (
-                              <option key={r} value={r}>{r}</option>
+                            {PRESET_PROMOTION_REASONS.map((r, idx) => (
+                              <option key={`${r}-${idx}`} value={r}>{r}</option>
                             ))}
                           </select>
 
@@ -3335,8 +3335,8 @@ export const RosterManagement: React.FC<Props> = ({
                   className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-100 outline-none font-mono"
                   required
                 >
-                  {ALL_RANKS.map((r) => (
-                    <option key={r} value={r}>
+                  {ALL_RANKS.map((r, idx) => (
+                    <option key={`${r}-${idx}`} value={r}>
                       {isOfficerHighRank(r) ? `★ ${r} [HIGH COMMAND]` : r}
                     </option>
                   ))}
@@ -3354,8 +3354,8 @@ export const RosterManagement: React.FC<Props> = ({
                   onChange={(e) => setAddDivision(e.target.value)}
                   className="w-full px-3 py-2 bg-[#0D1117] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-100 outline-none font-mono"
                 >
-                  {PRESET_DIVISIONS.map((div) => (
-                    <option key={div} value={div}>{div}</option>
+                  {PRESET_DIVISIONS.map((div, idx) => (
+                    <option key={`${div}-${idx}`} value={div}>{div}</option>
                   ))}
                   <option value="CUSTOM">+ Divisi Kustom (Input Manual)...</option>
                 </select>

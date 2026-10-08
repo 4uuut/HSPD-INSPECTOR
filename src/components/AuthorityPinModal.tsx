@@ -432,7 +432,7 @@ export const AuthorityPinModal: React.FC<Props> = ({
                 <div className="space-y-2 max-h-[360px] overflow-y-auto">
                   {config.history.map((log, idx) => (
                     <div
-                      key={log.id || idx}
+                      key={log.id ? `${log.id}-${idx}` : idx}
                       className="p-3 bg-[#0D1117] border border-gray-800 hover:border-gray-700 rounded-lg flex items-center justify-between gap-3 text-xs"
                     >
                       <div className="space-y-1">

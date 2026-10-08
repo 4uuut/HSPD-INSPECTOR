@@ -475,8 +475,8 @@ export const DestructionRegistryBoard: React.FC<Props> = ({ currentOfficer }) =>
           </div>
         ) : (
           <div className="divide-y divide-gray-800/60">
-            {filteredItems.map((item) => (
-              <div key={item.id} className="p-4 hover:bg-gray-800/30 transition flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {filteredItems.map((item, idx) => (
+              <div key={item.id ? `${item.id}-${idx}` : `destr-${idx}`} className="p-4 hover:bg-gray-800/30 transition flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1.5 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-mono text-xs font-bold text-orange-400 bg-orange-950/60 border border-orange-800 px-2 py-0.5 rounded">

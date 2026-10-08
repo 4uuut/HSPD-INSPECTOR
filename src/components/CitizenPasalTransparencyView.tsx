@@ -537,7 +537,7 @@ export const CitizenPasalTransparencyView: React.FC<Props> = ({
             <div className="divide-y divide-gray-800/80 max-h-60 overflow-y-auto">
               {selectedItems.map((item, idx) => (
                 <div 
-                  key={item.code} 
+                  key={`${item.code}-${idx}`} 
                   className="px-4 py-2.5 flex items-center justify-between gap-3 text-xs hover:bg-[#111722] transition"
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -817,13 +817,13 @@ export const CitizenPasalTransparencyView: React.FC<Props> = ({
         {/* ARTICLES GRID */}
         {filteredPasal.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {filteredPasal.map(item => {
+            {filteredPasal.map((item, idx) => {
               const isChecked = selectedCodes.includes(item.code);
               const catInfo = availableCategories.find(c => c.key === item.cat);
 
               return (
                 <div
-                  key={item.code}
+                  key={`${item.code}-${idx}`}
                   id={`citizen-pasal-card-${item.code}`}
                   onClick={() => handleTogglePasal(item.code)}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer select-none flex flex-col justify-between gap-3 ${

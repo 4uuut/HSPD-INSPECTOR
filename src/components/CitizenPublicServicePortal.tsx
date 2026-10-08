@@ -3,7 +3,7 @@ import {
   FileText, Shield, Building2, Search, CheckCircle2, AlertTriangle, 
   Printer, Download, Copy, Check, QrCode, ArrowRight, User, KeyRound, 
   Building, MapPin, Phone, Calendar, Briefcase, Stamp as StampIcon, 
-  Sparkles, RefreshCw, X, ShieldAlert, Award, ChevronRight, Eye,
+  Sparkles, RefreshCw, X, ShieldAlert, Award, ChevronLeft, ChevronRight, Eye,
   ExternalLink, FileCheck, HelpCircle, BadgeCheck, Zap, DollarSign,
   Car, Lock, Coffee, Wrench, GlassWater, ShoppingBag, Truck, Crosshair,
   Camera, Upload, Image as ImageIcon, ZoomIn, Trash2, Maximize2, PenTool,
@@ -78,6 +78,61 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
   const [isExporting, setIsExporting] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<OfficialDocument | null>(null);
   const [selectedSignatoryDoc, setSelectedSignatoryDoc] = useState<OfficialDocument | null>(null);
+
+  // Navigation tabs horizontal scroll state
+  const tabScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const checkTabScroll = () => {
+    const el = tabScrollRef.current;
+    if (!el) return;
+    const hasOverflow = el.scrollWidth > el.clientWidth;
+    setCanScrollLeft(el.scrollLeft > 6);
+    setCanScrollRight(hasOverflow && el.scrollLeft < el.scrollWidth - el.clientWidth - 6);
+  };
+
+  useEffect(() => {
+    const el = tabScrollRef.current;
+    if (!el) return;
+    checkTabScroll();
+    const handleScroll = () => checkTabScroll();
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', checkTabScroll);
+    return () => {
+      el.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', checkTabScroll);
+    };
+  }, [officialDocs, boloList, citations, impounds]);
+
+  useEffect(() => {
+    const el = tabScrollRef.current;
+    if (!el) return;
+    const activeBtn = el.querySelector<HTMLElement>(`[data-tab-id="${activeTab}"]`);
+    if (activeBtn) {
+      activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+    checkTabScroll();
+  }, [activeTab]);
+
+  const scrollTabs = (direction: 'left' | 'right') => {
+    const el = tabScrollRef.current;
+    if (!el) return;
+    const amount = Math.max(260, Math.floor(el.clientWidth * 0.6));
+    el.scrollBy({
+      left: direction === 'left' ? -amount : amount,
+      behavior: 'smooth'
+    });
+  };
+
+  const handleTabsWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.deltaY !== 0 && !e.shiftKey) {
+      const el = tabScrollRef.current;
+      if (el) {
+        el.scrollLeft += e.deltaY;
+      }
+    }
+  };
 
   // Load all databases from localStorage
   const loadDatabases = () => {
@@ -940,145 +995,212 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* NAVIGATION SLIDE TABS */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex overflow-x-auto gap-2 border-t border-gray-800/80 pt-1.5 pb-2 text-xs scrollbar-none font-medium">
-          {/* TAB 0: DATA DOKUMEN & PERIZINAN TERDAFTAR RESMI (PRIMARY FOR HSPD / PEMERINTAHAN) */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('registered')}
-            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition ${
-              activeTab === 'registered'
-                ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-900/40 ring-1 ring-blue-400/50'
-                : 'text-blue-300 hover:text-white hover:bg-blue-950/60 border border-blue-800/40'
-            }`}
-          >
-            <FileCheck className="w-4 h-4 text-blue-400" />
-            <span>{currentOfficer ? '📋 Data Surat Terdaftar & TTD (HSPD / Gov)' : '📄 Lacak & Unduh Surat Saya'}</span>
-            <span className="text-[10px] font-mono bg-blue-950 text-blue-300 px-1.5 py-0.2 rounded border border-blue-700">
-              {(officialDocs || []).length}
-            </span>
-          </button>
+        {/* NAVIGATION SLIDE TABS DENGAN KONTROL SCROLL KANAN & KIRI */}
+        <div className="relative border-t border-gray-800/80 bg-[#0d121c]/95">
+          <div className="max-w-7xl mx-auto px-2 sm:px-4 flex items-center relative gap-1.5 py-1.5">
+            {/* Tombol Geser Kiri */}
+            <button
+              type="button"
+              onClick={() => scrollTabs('left')}
+              disabled={!canScrollLeft}
+              className={`shrink-0 z-20 px-2 py-1.5 rounded-lg border transition-all flex items-center gap-1 text-[11px] font-bold ${
+                canScrollLeft
+                  ? 'bg-[#161D2B] text-blue-300 border-blue-800/80 hover:bg-blue-900/50 hover:text-white hover:border-blue-400 shadow-md cursor-pointer active:scale-95'
+                  : 'bg-gray-900/40 text-gray-600 border-gray-800/40 opacity-40 cursor-not-allowed'
+              }`}
+              title="Geser menu layanan ke kiri"
+              aria-label="Geser ke kiri"
+            >
+              <ChevronLeft className="w-4 h-4 stroke-[2.5]" />
+              <span className="hidden sm:inline font-mono text-[10px]">Kiri</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('skck')}
-            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition ${
-              activeTab === 'skck'
-                ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-900/40'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
-            }`}
-          >
-            <Shield className="w-4 h-4" />
-            <span>{currentOfficer ? '➕ Input SKCK Walk-In' : 'Penerbitan SKCK Online (HSPD)'}</span>
-          </button>
+            {/* Fade overlay Kiri saat ada tab tersembunyi di kiri */}
+            {canScrollLeft && (
+              <div className="pointer-events-none absolute left-14 sm:left-18 top-0 bottom-0 w-8 bg-gradient-to-r from-[#0d121c] to-transparent z-10" />
+            )}
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('business')}
-            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition ${
-              activeTab === 'business'
-                ? 'bg-amber-600 text-white font-bold shadow-lg shadow-amber-950/40'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
-            }`}
-          >
-            <Building2 className="w-4 h-4" />
-            <span>{currentOfficer ? '➕ Input Izin Usaha Walk-In' : 'Surat Izin Usaha / NIB (Pemerintah)'}</span>
-          </button>
+            {/* Scrollable Container Tab Menu */}
+            <div
+              ref={tabScrollRef}
+              onWheel={handleTabsWheel}
+              className="flex-1 flex overflow-x-auto gap-2 py-1 px-1 text-xs font-medium scroll-smooth scrollbar-thin scrollbar-thumb-gray-700/80 hover:scrollbar-thumb-blue-500 scrollbar-track-transparent"
+              style={{ scrollBehavior: 'smooth' }}
+            >
+              {/* TAB 0: DATA DOKUMEN & PERIZINAN TERDAFTAR RESMI */}
+              <button
+                type="button"
+                data-tab-id="registered"
+                onClick={() => setActiveTab('registered')}
+                className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition cursor-pointer shrink-0 ${
+                  activeTab === 'registered'
+                    ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-900/40 ring-1 ring-blue-400/50'
+                    : 'text-blue-300 hover:text-white hover:bg-blue-950/60 border border-blue-800/40'
+                }`}
+              >
+                <FileCheck className="w-4 h-4 text-blue-400" />
+                <span>{currentOfficer ? '📋 Data Surat Terdaftar & TTD (HSPD / Gov)' : '📄 Lacak & Unduh Surat Saya'}</span>
+                <span className="text-[10px] font-mono bg-blue-950 text-blue-300 px-1.5 py-0.2 rounded border border-blue-700 font-bold">
+                  {(officialDocs || []).length}
+                </span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('other')}
-            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition ${
-              activeTab === 'other'
-                ? 'bg-emerald-600 text-white font-bold shadow-lg shadow-emerald-950/40'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            <span>{currentOfficer ? '➕ Input Izin Lain (WCL/STLK)' : 'Layanan Lain (WCL, STLK, Acara)'}</span>
-          </button>
+              {/* TAB 1: SKCK ONLINE */}
+              <button
+                type="button"
+                data-tab-id="skck"
+                onClick={() => setActiveTab('skck')}
+                className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition cursor-pointer shrink-0 ${
+                  activeTab === 'skck'
+                    ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-900/40'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
+                }`}
+              >
+                <Shield className="w-4 h-4" />
+                <span>{currentOfficer ? '➕ Input SKCK Walk-In' : 'Penerbitan SKCK Online (HSPD)'}</span>
+              </button>
 
-          {/* TAB 5: CEK BURONAN / DPO (BOLO) */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('wanted')}
-            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition ${
-              activeTab === 'wanted'
-                ? 'bg-red-600 text-white font-bold shadow-lg shadow-red-950/50 ring-1 ring-red-400'
-                : 'text-red-300 hover:text-white hover:bg-red-950/50 border border-red-900/50'
-            }`}
-          >
-            <ShieldAlert className="w-4 h-4 text-red-400" />
-            <span>🚨 Cek Status Buronan (DPO)</span>
-            <span className="text-[10px] font-mono bg-red-950 text-red-300 px-1.5 py-0.2 rounded border border-red-800">
-              {(boloList || []).filter(b => b.active).length}
-            </span>
-          </button>
+              {/* TAB 2: IZIN USAHA */}
+              <button
+                type="button"
+                data-tab-id="business"
+                onClick={() => setActiveTab('business')}
+                className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition cursor-pointer shrink-0 ${
+                  activeTab === 'business'
+                    ? 'bg-amber-600 text-white font-bold shadow-lg shadow-amber-950/40'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
+                }`}
+              >
+                <Building2 className="w-4 h-4" />
+                <span>{currentOfficer ? '➕ Input Izin Usaha Walk-In' : 'Surat Izin Usaha / NIB (Pemerintah)'}</span>
+              </button>
 
-          {/* TAB 6: CEK NAMA KENA TILANG */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('citations')}
-            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition ${
-              activeTab === 'citations'
-                ? 'bg-amber-600 text-white font-bold shadow-lg shadow-amber-950/50 ring-1 ring-amber-400'
-                : 'text-amber-300 hover:text-white hover:bg-amber-950/50 border border-amber-900/50'
-            }`}
-          >
-            <FileText className="w-4 h-4 text-amber-400" />
-            <span>🚦 Cek Tilang Warga</span>
-            <span className="text-[10px] font-mono bg-amber-950 text-amber-300 px-1.5 py-0.2 rounded border border-amber-800">
-              {(citations || []).length}
-            </span>
-          </button>
+              {/* TAB 3: LAYANAN LAIN */}
+              <button
+                type="button"
+                data-tab-id="other"
+                onClick={() => setActiveTab('other')}
+                className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition cursor-pointer shrink-0 ${
+                  activeTab === 'other'
+                    ? 'bg-emerald-600 text-white font-bold shadow-lg shadow-emerald-950/40'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                <span>{currentOfficer ? '➕ Input Izin Lain (WCL/STLK)' : 'Layanan Lain (WCL, STLK, Acara)'}</span>
+              </button>
 
-          {/* TAB 7: CEK KENDARAAN IMPOUND (SENJATA ILEGAL / MERAMPOK) */}
-          <button
-            type="button"
-            onClick={() => setActiveTab('impounds')}
-            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition ${
-              activeTab === 'impounds'
-                ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-950/50 ring-1 ring-blue-400'
-                : 'text-blue-300 hover:text-white hover:bg-blue-950/50 border border-blue-900/50'
-            }`}
-          >
-            <Car className="w-4 h-4 text-blue-400" />
-            <span>🚗 Kendaraan Impound (Senjata/Rampok)</span>
-            <span className="text-[10px] font-mono bg-blue-950 text-blue-300 px-1.5 py-0.2 rounded border border-blue-800">
-              {(impounds || []).length}
-            </span>
-          </button>
+              {/* TAB 4: CEK BURONAN / DPO (BOLO) */}
+              <button
+                type="button"
+                data-tab-id="wanted"
+                onClick={() => setActiveTab('wanted')}
+                className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition cursor-pointer shrink-0 ${
+                  activeTab === 'wanted'
+                    ? 'bg-red-600 text-white font-bold shadow-lg shadow-red-950/50 ring-1 ring-red-400'
+                    : 'text-red-300 hover:text-white hover:bg-red-950/50 border border-red-900/50'
+                }`}
+              >
+                <ShieldAlert className="w-4 h-4 text-red-400" />
+                <span>🚨 Cek Status Buronan (DPO)</span>
+                <span className="text-[10px] font-mono bg-red-950 text-red-300 px-1.5 py-0.2 rounded border border-red-800 font-bold">
+                  {(boloList || []).filter(b => b.active).length}
+                </span>
+              </button>
 
-          {/* TAB 8: PASAL KUHP & KALKULATOR DENDA WARGA */}
-          <button
-            type="button"
-            id="tab-btn-citizen-pasal"
-            onClick={() => setActiveTab('pasal')}
-            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition ${
-              activeTab === 'pasal'
-                ? 'bg-cyan-600 text-white font-bold shadow-lg shadow-cyan-950/50 ring-1 ring-cyan-400'
-                : 'text-cyan-300 hover:text-white hover:bg-cyan-950/50 border border-cyan-900/50'
-            }`}
-          >
-            <Scale className="w-4 h-4 text-cyan-400" />
-            <span>⚖️ KUHP & Hitung Denda Warga</span>
-            <span className="text-[10px] font-mono bg-cyan-950 text-cyan-300 px-1.5 py-0.2 rounded border border-cyan-800">
-              {pasalCount}
-            </span>
-          </button>
+              {/* TAB 5: CEK NAMA KENA TILANG */}
+              <button
+                type="button"
+                data-tab-id="citations"
+                onClick={() => setActiveTab('citations')}
+                className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition cursor-pointer shrink-0 ${
+                  activeTab === 'citations'
+                    ? 'bg-amber-600 text-white font-bold shadow-lg shadow-amber-950/50 ring-1 ring-amber-400'
+                    : 'text-amber-300 hover:text-white hover:bg-amber-950/50 border border-amber-900/50'
+                }`}
+              >
+                <FileText className="w-4 h-4 text-amber-400" />
+                <span>🚦 Cek Tilang Warga</span>
+                <span className="text-[10px] font-mono bg-amber-950 text-amber-300 px-1.5 py-0.2 rounded border border-amber-800 font-bold">
+                  {(citations || []).length}
+                </span>
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('verify')}
-            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition ${
-              activeTab === 'verify'
-                ? 'bg-purple-600 text-white font-bold shadow-lg shadow-purple-950/40'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
-            }`}
-          >
-            <Search className="w-4 h-4" />
-            <span>Cek Keaslian & Status Surat</span>
-          </button>
+              {/* TAB 6: CEK KENDARAAN IMPOUND (SENJATA ILEGAL / MERAMPOK) */}
+              <button
+                type="button"
+                data-tab-id="impounds"
+                onClick={() => setActiveTab('impounds')}
+                className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition cursor-pointer shrink-0 ${
+                  activeTab === 'impounds'
+                    ? 'bg-blue-600 text-white font-bold shadow-lg shadow-blue-950/50 ring-1 ring-blue-400'
+                    : 'text-blue-300 hover:text-white hover:bg-blue-950/50 border border-blue-900/50'
+                }`}
+              >
+                <Car className="w-4 h-4 text-blue-400" />
+                <span>🚗 Kendaraan Impound (Senjata/Rampok)</span>
+                <span className="text-[10px] font-mono bg-blue-950 text-blue-300 px-1.5 py-0.2 rounded border border-blue-800 font-bold">
+                  {(impounds || []).length}
+                </span>
+              </button>
+
+              {/* TAB 7: PASAL KUHP & KALKULATOR DENDA WARGA */}
+              <button
+                type="button"
+                id="tab-btn-citizen-pasal"
+                data-tab-id="pasal"
+                onClick={() => setActiveTab('pasal')}
+                className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition cursor-pointer shrink-0 ${
+                  activeTab === 'pasal'
+                    ? 'bg-cyan-600 text-white font-bold shadow-lg shadow-cyan-950/50 ring-1 ring-cyan-400'
+                    : 'text-cyan-300 hover:text-white hover:bg-cyan-950/50 border border-cyan-900/50'
+                }`}
+              >
+                <Scale className="w-4 h-4 text-cyan-400" />
+                <span>⚖️ KUHP & Hitung Denda Warga</span>
+                <span className="text-[10px] font-mono bg-cyan-950 text-cyan-300 px-1.5 py-0.2 rounded border border-cyan-800 font-bold">
+                  {pasalCount}
+                </span>
+              </button>
+
+              {/* TAB 8: CEK KEASLIAN & STATUS SURAT */}
+              <button
+                type="button"
+                data-tab-id="verify"
+                onClick={() => setActiveTab('verify')}
+                className={`px-3.5 py-1.5 rounded-lg flex items-center gap-2 whitespace-nowrap transition cursor-pointer shrink-0 ${
+                  activeTab === 'verify'
+                    ? 'bg-purple-600 text-white font-bold shadow-lg shadow-purple-950/40'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800/60'
+                }`}
+              >
+                <Search className="w-4 h-4" />
+                <span>Cek Keaslian & Status Surat</span>
+              </button>
+            </div>
+
+            {/* Fade overlay Kanan saat ada tab tersembunyi di kanan */}
+            {canScrollRight && (
+              <div className="pointer-events-none absolute right-16 sm:right-24 top-0 bottom-0 w-8 bg-gradient-to-l from-[#0d121c] to-transparent z-10" />
+            )}
+
+            {/* Tombol Geser Kanan */}
+            <button
+              type="button"
+              onClick={() => scrollTabs('right')}
+              disabled={!canScrollRight}
+              className={`shrink-0 z-20 px-2.5 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 text-[11px] font-bold ${
+                canScrollRight
+                  ? 'bg-gradient-to-r from-blue-700 to-indigo-600 hover:from-blue-600 hover:to-indigo-500 text-white border-blue-400 shadow-lg shadow-blue-950/60 cursor-pointer active:scale-95 ring-1 ring-blue-400/50 animate-pulse-subtle'
+                  : 'bg-gray-900/40 text-gray-600 border-gray-800/40 opacity-40 cursor-not-allowed'
+              }`}
+              title="Geser menu layanan ke kanan (DPO, Tilang, Impound, KUHP, dll)"
+              aria-label="Geser ke kanan"
+            >
+              <span className="font-mono text-[10px]">Kanan</span>
+              <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -1471,8 +1593,8 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
 
                       {/* ARREST LIST */}
                       <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                        {skckBackgroundCheck.arrests.slice(0, 4).map((arr) => (
-                          <div key={arr.id} className="p-2 bg-[#090C11] border border-gray-800 rounded text-[11px]">
+                        {skckBackgroundCheck.arrests.slice(0, 4).map((arr, idx) => (
+                          <div key={arr.id ? `${arr.id}-${idx}` : `arr-${idx}`} className="p-2 bg-[#090C11] border border-gray-800 rounded text-[11px]">
                             <div className="flex justify-between font-mono text-gray-400">
                               <span>{new Date(arr.timestamp).toLocaleDateString('id-ID')}</span>
                               <span className="text-amber-400 font-bold">{arr.pasalCodes.join(', ') || 'Pelanggaran'}</span>
@@ -2023,9 +2145,9 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
                   <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                     {govPermits
                       .filter(p => p.category === 'BUSINESS')
-                      .map((p) => (
+                      .map((p, idx) => (
                         <div
-                          key={p.id}
+                          key={p.id ? `${p.id}-${idx}` : `pmt-${idx}`}
                           className="p-3 bg-[#0A0D14] border border-gray-800 hover:border-amber-700/60 rounded-lg transition-colors text-xs space-y-1"
                         >
                           <div className="flex items-center justify-between">
@@ -2352,9 +2474,9 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
               )}
 
               {/* DOCUMENT RESULTS */}
-              {verificationResults.docs.map((doc) => (
+              {verificationResults.docs.map((doc, idx) => (
                 <div
-                  key={doc.id}
+                  key={doc.id ? `${doc.id}-${idx}` : `doc-${idx}`}
                   className="bg-[#131823] border border-gray-800 hover:border-purple-700/60 rounded-xl p-4 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-colors"
                 >
                   <div className="space-y-1">
@@ -2386,9 +2508,9 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
               ))}
 
               {/* PERMIT RESULTS */}
-              {verificationResults.permits.map((pmt) => (
+              {verificationResults.permits.map((pmt, idx) => (
                 <div
-                  key={pmt.id}
+                  key={pmt.id ? `${pmt.id}-${idx}` : `pmt-${idx}`}
                   className="bg-[#131823] border border-gray-800 hover:border-amber-700/60 rounded-xl p-4 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-colors"
                 >
                   <div className="space-y-1">
@@ -2595,7 +2717,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
                 {/* CLAUSES / ISI SURAT */}
                 <div className="space-y-2 mb-4 relative z-10">
                   {previewDoc.clauses.map((clause, idx) => (
-                    <div key={clause.id || idx} className="text-justify">
+                    <div key={clause.id ? `${clause.id}-${idx}` : `clause-${idx}`} className="text-justify">
                       <span className="font-bold font-sans">{clause.clauseNumber || `${idx + 1}.`} {clause.title ? `${clause.title}: ` : ''}</span>
                       <span>{clause.content}</span>
                     </div>

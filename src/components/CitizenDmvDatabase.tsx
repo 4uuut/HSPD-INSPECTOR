@@ -251,11 +251,11 @@ export const CitizenDmvDatabase: React.FC<Props> = ({ currentOfficer }) => {
 
           {/* Citizens List */}
           <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
-            {filteredCitizens.map((cit) => {
+            {filteredCitizens.map((cit, idx) => {
               const isSelected = selectedCitizen?.id === cit.id;
               return (
                 <div
-                  key={cit.id}
+                  key={cit.id ? `${cit.id}-${idx}` : `cit-${idx}`}
                   onClick={() => setSelectedCitizen(cit)}
                   className={`p-3 rounded-xl border cursor-pointer transition flex items-center justify-between gap-3 ${
                     isSelected

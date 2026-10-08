@@ -950,7 +950,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
                 </p>
               </div>
             ) : (
-              filteredRequests.map((req) => {
+              filteredRequests.map((req, idx) => {
                 const isPending = req.status === 'PENDING';
                 const isAutoGranted = req.status === 'RESOLVED' && Boolean(req.autoGranted);
                 const isManualResolved = req.status === 'RESOLVED' && !req.autoGranted;
@@ -967,7 +967,7 @@ export const PinResetAuditModal: React.FC<Props> = ({
 
                 return (
                   <div
-                    key={req.id}
+                    key={req.id ? `${req.id}-${idx}` : `req-${idx}`}
                     className={`p-3.5 sm:p-4 rounded-xl border transition space-y-3 ${
                       isPending
                         ? 'bg-amber-950/20 border-amber-600/70 hover:border-amber-500 shadow-md shadow-amber-950/20'
@@ -1455,8 +1455,8 @@ export const PinResetAuditModal: React.FC<Props> = ({
                     required
                   >
                     <option value="">-- Pilih Pejabat dari Roster Pemerintahan --</option>
-                    {govRoster.map(g => (
-                      <option key={g.id} value={g.id}>
+                    {govRoster.map((g, idx) => (
+                      <option key={g.id ? `${g.id}-${idx}` : `${g.badge}-${idx}`} value={g.id || g.badge}>
                         {g.badge} - {g.name} ({g.rank} - {g.division})
                       </option>
                     ))}
@@ -1473,8 +1473,8 @@ export const PinResetAuditModal: React.FC<Props> = ({
                     required
                   >
                     <option value="">-- Pilih Petugas dari Roster --</option>
-                    {roster.map(o => (
-                      <option key={o.id} value={o.id}>
+                    {roster.map((o, idx) => (
+                      <option key={o.id ? `${o.id}-${idx}` : `${o.badge}-${idx}`} value={o.id || o.badge}>
                         {o.badge} - {o.name} ({o.rank})
                       </option>
                     ))}

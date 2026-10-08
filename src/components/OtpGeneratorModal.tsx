@@ -538,7 +538,7 @@ export const OtpGeneratorModal: React.FC<Props> = ({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {otps.map((otp) => {
+                  {otps.map((otp, idx) => {
                     const isExpired = otp.status === 'EXPIRED' || (otp.expiresAt > 0 && Date.now() > otp.expiresAt);
                     const isUsed = otp.status === 'USED';
                     const isRevoked = otp.status === 'REVOKED';
@@ -546,7 +546,7 @@ export const OtpGeneratorModal: React.FC<Props> = ({
 
                     return (
                       <div
-                        key={otp.id}
+                        key={otp.id ? `${otp.id}-${idx}` : `otp-${idx}`}
                         className={`p-3 rounded-xl border transition flex flex-col md:flex-row md:items-center justify-between gap-3 ${
                           isActive
                             ? 'bg-[#141820] border-amber-500/40 text-gray-200'

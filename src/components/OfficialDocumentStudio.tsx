@@ -1285,7 +1285,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
 
                   <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
                     {activeDoc.clauses.map((clause, idx) => (
-                      <div key={clause.id} className="bg-[#0D1117] border border-gray-800 rounded-lg p-2.5 space-y-1.5">
+                      <div key={clause.id ? `${clause.id}-${idx}` : `clause-${idx}`} className="bg-[#0D1117] border border-gray-800 rounded-lg p-2.5 space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
                           <input
                             type="text"
@@ -3049,7 +3049,7 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                   layoutDensity === 'tight' ? 'space-y-1 my-1' : layoutDensity === 'compact' ? 'space-y-1.5 my-1.5' : 'space-y-2 my-2'
                 }`}>
                   {activeDoc.clauses.map((clause, idx) => (
-                    <div key={clause.id} className={`${
+                    <div key={clause.id ? `${clause.id}-${idx}` : `clause-${idx}`} className={`${
                       layoutDensity === 'tight' ? 'text-[10px] leading-tight' : layoutDensity === 'compact' ? 'text-[10.5px] leading-snug' : 'text-[11px] leading-normal'
                     }`}>
                       <div className="flex items-start gap-1.5">
@@ -3545,9 +3545,9 @@ export const OfficialDocumentStudio: React.FC<OfficialDocumentStudioProps> = ({
                   Tidak ada dokumen yang sesuai pencarian.
                 </div>
               ) : (
-                filteredArchive.map((doc) => (
+                filteredArchive.map((doc, idx) => (
                   <div
-                    key={doc.id}
+                    key={doc.id ? `${doc.id}-${idx}` : idx}
                     onClick={() => handleLoadFromArchive(doc)}
                     className="p-3.5 bg-[#0D1117] border border-gray-800 hover:border-blue-500 rounded-xl transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
                   >

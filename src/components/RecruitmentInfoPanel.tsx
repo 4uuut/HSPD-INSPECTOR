@@ -186,7 +186,7 @@ export const RecruitmentInfoPanel: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 font-mono text-[11px]">
                 {portal.coreValues.map((val, i) => (
                   <div 
-                    key={val.id || i} 
+                    key={val.id ? `${val.id}-${i}` : `val-${i}`} 
                     className={`p-2 bg-[#161B22] border rounded-lg text-center ${
                       val.color === 'amber' ? 'border-amber-800/40' :
                       val.color === 'blue' ? 'border-blue-800/40' :
@@ -213,7 +213,7 @@ export const RecruitmentInfoPanel: React.FC = () => {
             {/* Quick Stats / Highlights */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               {portal.quickStats.map((stat, i) => (
-                <div key={stat.id || i} className="p-3 bg-[#0D1117] border border-gray-800 rounded-lg text-center space-y-0.5">
+                <div key={stat.id ? `${stat.id}-${i}` : `stat-${i}`} className="p-3 bg-[#0D1117] border border-gray-800 rounded-lg text-center space-y-0.5">
                   <div className="text-[10px] text-gray-500 font-mono">{stat.label}</div>
                   <div className={`text-xs font-bold ${
                     stat.color === 'emerald' ? 'text-emerald-400' :
@@ -311,7 +311,7 @@ export const RecruitmentInfoPanel: React.FC = () => {
 
             {/* Selection Steps Loop */}
             {portal.phases.map((phase, idx) => (
-              <div key={phase.id || idx} className="p-3.5 bg-[#0D1117] border border-gray-800 rounded-xl space-y-1.5">
+              <div key={phase.id ? `${phase.id}-${idx}` : `phase-${idx}`} className="p-3.5 bg-[#0D1117] border border-gray-800 rounded-xl space-y-1.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 font-bold text-gray-200">
                     <span className="w-5 h-5 rounded-full bg-blue-900/80 text-blue-300 border border-blue-600 flex items-center justify-center text-[10px] font-mono">
@@ -344,7 +344,7 @@ export const RecruitmentInfoPanel: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {portal.divisions.map((div, idx) => (
-                <div key={div.id || idx} className="p-3 bg-[#0D1117] border border-gray-800 rounded-xl space-y-1">
+                <div key={div.id ? `${div.id}-${idx}` : `div-${idx}`} className="p-3 bg-[#0D1117] border border-gray-800 rounded-xl space-y-1">
                   <div className="flex items-center justify-between">
                     <div className="font-bold text-blue-300 text-xs flex items-center gap-1.5">
                       <Shield className="w-3.5 h-3.5 text-blue-400" />
@@ -369,7 +369,7 @@ export const RecruitmentInfoPanel: React.FC = () => {
               </div>
               <div className="flex flex-wrap gap-1.5 text-[10px] font-mono">
                 {portal.rankHierarchy.map((rank, idx) => (
-                  <React.Fragment key={idx}>
+                  <React.Fragment key={`${rank}-${idx}`}>
                     <span className={`px-2 py-0.5 rounded border ${
                       idx >= portal.rankHierarchy.length - 6
                         ? 'bg-amber-950 text-amber-300 border-amber-700 font-bold'

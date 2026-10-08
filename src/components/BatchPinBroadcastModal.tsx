@@ -465,7 +465,7 @@ export const BatchPinBroadcastModal: React.FC<Props> = ({
 
               {/* Live Terminal Log */}
               <div className="h-44 overflow-y-auto bg-black/60 border border-gray-800 rounded p-2.5 font-mono text-[11px] space-y-1">
-                {logs.map((log) => {
+                {logs.map((log, idx) => {
                   let colorClass = 'text-gray-300';
                   if (log.type === 'success') colorClass = 'text-emerald-400';
                   if (log.type === 'warning') colorClass = 'text-amber-400';
@@ -473,7 +473,7 @@ export const BatchPinBroadcastModal: React.FC<Props> = ({
                   if (log.type === 'info') colorClass = 'text-sky-300';
 
                   return (
-                    <div key={log.id} className="flex items-start gap-2 leading-tight">
+                    <div key={log.id ? `${log.id}-${idx}` : `log-${idx}`} className="flex items-start gap-2 leading-tight">
                       <span className="text-gray-600 select-none shrink-0">[{log.time}]</span>
                       <span className={colorClass}>{log.message}</span>
                     </div>

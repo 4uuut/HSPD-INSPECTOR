@@ -682,7 +682,7 @@ export const GovernmentExecutiveHub: React.FC<GovernmentExecutiveHubProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {filteredPermits.map(permit => {
+              {filteredPermits.map((permit, idx) => {
                 const isApproved = permit.status === 'APPROVED';
                 const isPending = permit.status === 'PENDING';
                 const isRejected = permit.status === 'REJECTED';
@@ -693,7 +693,7 @@ export const GovernmentExecutiveHub: React.FC<GovernmentExecutiveHubProps> = ({
 
                 return (
                   <div 
-                    key={permit.id}
+                    key={permit.id ? `${permit.id}-${idx}` : `permit-${idx}`}
                     className="bg-[#161B22] border border-gray-800 hover:border-amber-500/40 rounded-xl p-4 flex flex-col justify-between transition-all shadow-md group"
                   >
                     <div>
@@ -903,7 +903,7 @@ export const GovernmentExecutiveHub: React.FC<GovernmentExecutiveHubProps> = ({
             </div>
           ) : (
             <div className="space-y-3.5">
-              {announcements.map(anc => {
+              {announcements.map((anc, idx) => {
                 // In-Game chat formats
                 const inGameAnnouncement = `/announcement [MAKLUMAT PRESIDEN] ${anc.title.toUpperCase()}! ${anc.summary} (Berlaku: ${anc.targetScope})`;
                 const inGameGov = `/gov [PEMERINTAH HIGHSTATE] No: ${anc.decreeNumber} - ${anc.summary}`;
@@ -911,7 +911,7 @@ export const GovernmentExecutiveHub: React.FC<GovernmentExecutiveHubProps> = ({
 
                 return (
                   <div
-                    key={anc.id}
+                    key={anc.id ? `${anc.id}-${idx}` : `anc-${idx}`}
                     className="bg-[#161B22] border border-amber-500/30 rounded-xl p-4 sm:p-5 shadow-lg relative overflow-hidden"
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-gray-800">
@@ -1163,7 +1163,7 @@ export const GovernmentExecutiveHub: React.FC<GovernmentExecutiveHubProps> = ({
                       </td>
                     </tr>
                   ) : (
-                    filteredTreasury.map(tx => {
+                    filteredTreasury.map((tx, idx) => {
                       const isIncome = tx.type === 'INCOME';
                       const dateStr = new Date(tx.timestamp).toLocaleDateString('id-ID', {
                         day: 'numeric',
@@ -1172,7 +1172,7 @@ export const GovernmentExecutiveHub: React.FC<GovernmentExecutiveHubProps> = ({
                       });
 
                       return (
-                        <tr key={tx.id} className="hover:bg-gray-800/40 transition">
+                        <tr key={tx.id ? `${tx.id}-${idx}` : `tx-${idx}`} className="hover:bg-gray-800/40 transition">
                           <td className="p-3">
                             <div className="font-bold text-amber-400">{tx.receiptNumber}</div>
                             <div className="text-[10px] text-gray-500">{dateStr}</div>

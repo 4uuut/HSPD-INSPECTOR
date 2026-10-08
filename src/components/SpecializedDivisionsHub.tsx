@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Radio, Shield, Flame, Scale, BookOpen, 
-  Car, RefreshCw, Sparkles, Layers, ShieldAlert
+  Car, RefreshCw, Sparkles, Layers, ShieldAlert,
+  FolderArchive, Plus, FileText, CheckCircle
 } from 'lucide-react';
 import { 
   OfficerProfile, 
@@ -13,6 +14,7 @@ import {
   IadComplaint, 
   CadetEvaluation,
   TedTrafficRecord,
+  DivisionCaseFile,
   isSupervisorOrAbove
 } from '../types';
 import { 
@@ -22,8 +24,11 @@ import {
   getSavedSwatOps,
   getSavedIadComplaints,
   getSavedCadetEvals,
-  getSavedTedRecords
+  getSavedTedRecords,
+  getSavedDivisionCaseFiles,
+  saveDivisionCaseFiles
 } from '../utils/specializedDivisionsStorage';
+import { DivisionCaseFilesBoard } from './divisions/DivisionCaseFilesBoard';
 import { AsdTacticalPanel } from './divisions/AsdTacticalPanel';
 import { K9DeploymentPanel } from './divisions/K9DeploymentPanel';
 import { SwatTacticalPanel } from './divisions/SwatTacticalPanel';
@@ -37,10 +42,11 @@ interface Props {
 }
 
 export const SpecializedDivisionsHub: React.FC<Props> = ({ currentOfficer, roster = [] }) => {
-  // Navigation tabs
-  const [activeDivisionTab, setActiveDivisionTab] = useState<'asd' | 'k9' | 'swat' | 'iad' | 'academy' | 'ted'>('asd');
+  // Navigation tabs - Default to 'case_files' as requested by user
+  const [activeDivisionTab, setActiveDivisionTab] = useState<'case_files' | 'swat' | 'asd' | 'k9' | 'ted' | 'iad' | 'academy'>('case_files');
 
   // State
+  const [caseFiles, setCaseFiles] = useState<DivisionCaseFile[]>(() => getSavedDivisionCaseFiles());
   const [helis, setHelis] = useState<AsdHelicopter[]>(() => getSavedAsdHelis());
   const [k9Partners, setK9Partners] = useState<K9Partner[]>(() => getSavedK9Partners());
   const [k9Logs, setK9Logs] = useState<K9DeploymentLog[]>(() => getSavedK9Logs());
@@ -54,6 +60,7 @@ export const SpecializedDivisionsHub: React.FC<Props> = ({ currentOfficer, roste
   // Sync listener across storage events
   useEffect(() => {
     const syncAll = () => {
+      setCaseFiles(getSavedDivisionCaseFiles());
       setHelis(getSavedAsdHelis());
       setK9Partners(getSavedK9Partners());
       setK9Logs(getSavedK9Logs());
@@ -63,6 +70,7 @@ export const SpecializedDivisionsHub: React.FC<Props> = ({ currentOfficer, roste
       setTedRecords(getSavedTedRecords());
     };
 
+    window.addEventListener('hspd-case-files-updated', syncAll);
     window.addEventListener('hspd-asd-updated', syncAll);
     window.addEventListener('hspd-k9-updated', syncAll);
     window.addEventListener('hspd-k9-logs-updated', syncAll);
@@ -72,6 +80,7 @@ export const SpecializedDivisionsHub: React.FC<Props> = ({ currentOfficer, roste
     window.addEventListener('hspd-ted-updated', syncAll);
 
     return () => {
+      window.removeEventListener('hspd-case-files-updated', syncAll);
       window.removeEventListener('hspd-asd-updated', syncAll);
       window.removeEventListener('hspd-k9-updated', syncAll);
       window.removeEventListener('hspd-k9-logs-updated', syncAll);
@@ -82,7 +91,28 @@ export const SpecializedDivisionsHub: React.FC<Props> = ({ currentOfficer, roste
     };
   }, []);
 
+  const handleUpdateCaseFiles = (updated: DivisionCaseFile[]) => {
+    setCaseFiles(updated);
+    saveDivisionCaseFiles(updated);
+  };
+
   const tabs = [
+    {
+      id: 'case_files' as const,
+      label: 'Berkas Kasus Operasi',
+      icon: FolderArchive,
+      badge: `${caseFiles.length} Berkas`,
+      color: 'from-blue-600 to-indigo-600',
+      activeBorder: 'border-blue-500 text-blue-400 bg-blue-950/40'
+    },
+    {
+      id: 'swat' as const,
+      label: 'SWAT / METRO',
+      icon: Flame,
+      badge: `${caseFiles.filter(c => c.division === 'SWAT').length} Kasus SWAT`,
+      color: 'from-red-600 to-rose-700',
+      activeBorder: 'border-red-500 text-red-400 bg-red-950/40'
+    },
     {
       id: 'asd' as const,
       label: 'ASD (Air Support)',
@@ -100,12 +130,12 @@ export const SpecializedDivisionsHub: React.FC<Props> = ({ currentOfficer, roste
       activeBorder: 'border-amber-500 text-amber-400 bg-amber-950/40'
     },
     {
-      id: 'swat' as const,
-      label: 'SWAT / METRO',
-      icon: Flame,
-      badge: `${swatOps.filter(o => o.status === 'EXECUTING').length} Operasi`,
-      color: 'from-red-600 to-rose-700',
-      activeBorder: 'border-red-500 text-red-400 bg-red-950/40'
+      id: 'ted' as const,
+      label: 'TED (Satlantas / Radar)',
+      icon: Car,
+      badge: `${tedRecords.length} Tilang/DUI`,
+      color: 'from-sky-600 to-cyan-600',
+      activeBorder: 'border-sky-500 text-sky-400 bg-sky-950/40'
     },
     {
       id: 'iad' as const,
@@ -122,14 +152,6 @@ export const SpecializedDivisionsHub: React.FC<Props> = ({ currentOfficer, roste
       badge: `${cadetEvals.length} Rapor`,
       color: 'from-emerald-600 to-teal-600',
       activeBorder: 'border-emerald-500 text-emerald-400 bg-emerald-950/40'
-    },
-    {
-      id: 'ted' as const,
-      label: 'TED (Satlantas / Radar)',
-      icon: Car,
-      badge: `${tedRecords.length} Tilang/DUI`,
-      color: 'from-sky-600 to-cyan-600',
-      activeBorder: 'border-sky-500 text-sky-400 bg-sky-950/40'
     }
   ];
 
@@ -143,13 +165,13 @@ export const SpecializedDivisionsHub: React.FC<Props> = ({ currentOfficer, roste
           </div>
           <div>
             <h2 className="text-base font-extrabold text-gray-100 flex items-center gap-2">
-              <span>PUSAT PENANGANAN OPERASIONAL & DIVISI KHUSUS HSPD</span>
+              <span>PUSAT BERKAS KASUS OPERASIONAL & DIVISI KHUSUS HSPD</span>
               <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800">
-                TACTICAL & SPECIAL OPS
+                CASE FILES & TACTICAL OPS
               </span>
             </h2>
             <p className="text-xs text-gray-400 font-sans mt-0.5">
-              Fasilitas penanganan misi taktis terpadu: Patroli Udara FLIR ASD, Simulator Penyisiran Satwa K-9, Incident Commander SWAT, Garrity Warning IAD, Scorecard FTO Akademi, dan Radar Penindakan TED.
+              Pusat pencatatan berkas kasus operasional (Case Files) seluruh divisi kepolisian (SWAT, ASD, K-9, TED, IAD, Academy): Dokumentasi 3 foto penanganan (Negosiasi, Lokasi Penembakan/Barikade, Selesai Penanganan), inventaris senjata polisi & suspect, kekuatan personel, sandera, sitaan kas, dan laporan resmi Discord.
             </p>
           </div>
         </div>
@@ -164,13 +186,13 @@ export const SpecializedDivisionsHub: React.FC<Props> = ({ currentOfficer, roste
       </div>
 
       {/* Division Navigation Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        {tabs.map((t) => {
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+        {tabs.map((t, tIdx) => {
           const Icon = t.icon;
           const isActive = activeDivisionTab === t.id;
           return (
             <button
-              key={t.id}
+              key={`${t.id}-${tIdx}`}
               type="button"
               onClick={() => setActiveDivisionTab(t.id)}
               className={`p-2.5 rounded-xl border text-left transition relative flex flex-col justify-between gap-2 cursor-pointer ${
@@ -195,54 +217,143 @@ export const SpecializedDivisionsHub: React.FC<Props> = ({ currentOfficer, roste
 
       {/* Sub-Panel Content Router */}
       <div className="pt-1">
-        {activeDivisionTab === 'asd' && (
-          <AsdTacticalPanel
-            helis={helis}
-            onUpdateHelis={setHelis}
+        {/* TAB 1: CENTRAL CASE FILES BOARD (SEMUA DIVISI) */}
+        {activeDivisionTab === 'case_files' && (
+          <DivisionCaseFilesBoard
+            caseFiles={caseFiles}
+            onUpdateCaseFiles={handleUpdateCaseFiles}
             currentOfficer={currentOfficer}
+            activeFilterDivision="ALL"
           />
         )}
 
-        {activeDivisionTab === 'k9' && (
-          <K9DeploymentPanel
-            k9Partners={k9Partners}
-            k9Logs={k9Logs}
-            onUpdatePartners={setK9Partners}
-            onUpdateLogs={setK9Logs}
-            currentOfficer={currentOfficer}
-          />
-        )}
-
+        {/* TAB 2: SWAT / METRO */}
         {activeDivisionTab === 'swat' && (
-          <SwatTacticalPanel
-            swatOps={swatOps}
-            onUpdateOps={setSwatOps}
-            currentOfficer={currentOfficer}
-          />
+          <div className="space-y-4">
+            <div className="p-3 bg-red-950/30 border border-red-900/50 rounded-xl flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-red-300 text-xs">BERKAS KASUS OPERASIONAL SWAT (BANK PUSAT, BANK DESA & HOSTAGE)</h3>
+                <p className="text-[11px] text-gray-400">Arsip khusus penanganan perampokan bank dan pembebasan sandera tim taktis SWAT.</p>
+              </div>
+            </div>
+
+            <DivisionCaseFilesBoard
+              caseFiles={caseFiles}
+              onUpdateCaseFiles={handleUpdateCaseFiles}
+              currentOfficer={currentOfficer}
+              activeFilterDivision="SWAT"
+            />
+
+            <div className="pt-4 border-t border-gray-800">
+              <SwatTacticalPanel
+                swatOps={swatOps}
+                onUpdateOps={setSwatOps}
+                currentOfficer={currentOfficer}
+              />
+            </div>
+          </div>
         )}
 
-        {activeDivisionTab === 'iad' && (
-          <IadHearingPanel
-            iadComplaints={iadComplaints}
-            onUpdateComplaints={setIadComplaints}
-            currentOfficer={currentOfficer}
-          />
+        {/* TAB 3: ASD (AIR SUPPORT) */}
+        {activeDivisionTab === 'asd' && (
+          <div className="space-y-4">
+            <DivisionCaseFilesBoard
+              caseFiles={caseFiles}
+              onUpdateCaseFiles={handleUpdateCaseFiles}
+              currentOfficer={currentOfficer}
+              activeFilterDivision="ASD"
+            />
+
+            <div className="pt-4 border-t border-gray-800">
+              <AsdTacticalPanel
+                helis={helis}
+                onUpdateHelis={setHelis}
+                currentOfficer={currentOfficer}
+              />
+            </div>
+          </div>
         )}
 
-        {activeDivisionTab === 'academy' && (
-          <AcademyFtoPanel
-            cadetEvals={cadetEvals}
-            onUpdateEvals={setCadetEvals}
-            currentOfficer={currentOfficer}
-          />
+        {/* TAB 4: K-9 CANINE SQUAD */}
+        {activeDivisionTab === 'k9' && (
+          <div className="space-y-4">
+            <DivisionCaseFilesBoard
+              caseFiles={caseFiles}
+              onUpdateCaseFiles={handleUpdateCaseFiles}
+              currentOfficer={currentOfficer}
+              activeFilterDivision="K9"
+            />
+
+            <div className="pt-4 border-t border-gray-800">
+              <K9DeploymentPanel
+                k9Partners={k9Partners}
+                k9Logs={k9Logs}
+                onUpdatePartners={setK9Partners}
+                onUpdateLogs={setK9Logs}
+                currentOfficer={currentOfficer}
+              />
+            </div>
+          </div>
         )}
 
+        {/* TAB 5: TED (SATLANTAS / TRAFFIC) */}
         {activeDivisionTab === 'ted' && (
-          <TedTrafficPanel
-            tedRecords={tedRecords}
-            onUpdateRecords={setTedRecords}
-            currentOfficer={currentOfficer}
-          />
+          <div className="space-y-4">
+            <DivisionCaseFilesBoard
+              caseFiles={caseFiles}
+              onUpdateCaseFiles={handleUpdateCaseFiles}
+              currentOfficer={currentOfficer}
+              activeFilterDivision="TED"
+            />
+
+            <div className="pt-4 border-t border-gray-800">
+              <TedTrafficPanel
+                tedRecords={tedRecords}
+                onUpdateRecords={setTedRecords}
+                currentOfficer={currentOfficer}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: IAD (PROPAM / INTERNAL AFFAIRS) */}
+        {activeDivisionTab === 'iad' && (
+          <div className="space-y-4">
+            <DivisionCaseFilesBoard
+              caseFiles={caseFiles}
+              onUpdateCaseFiles={handleUpdateCaseFiles}
+              currentOfficer={currentOfficer}
+              activeFilterDivision="IAD"
+            />
+
+            <div className="pt-4 border-t border-gray-800">
+              <IadHearingPanel
+                iadComplaints={iadComplaints}
+                onUpdateComplaints={setIadComplaints}
+                currentOfficer={currentOfficer}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* TAB 7: ACADEMY / FTO */}
+        {activeDivisionTab === 'academy' && (
+          <div className="space-y-4">
+            <DivisionCaseFilesBoard
+              caseFiles={caseFiles}
+              onUpdateCaseFiles={handleUpdateCaseFiles}
+              currentOfficer={currentOfficer}
+              activeFilterDivision="ACADEMY"
+            />
+
+            <div className="pt-4 border-t border-gray-800">
+              <AcademyFtoPanel
+                cadetEvals={cadetEvals}
+                onUpdateEvals={setCadetEvals}
+                currentOfficer={currentOfficer}
+              />
+            </div>
+          </div>
         )}
       </div>
     </div>

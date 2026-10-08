@@ -926,9 +926,9 @@ ${r.evidenceUrl ? `\n[b]Bukti / Evidence (Foto / Video):[/b]\n${isImage ? `[img]
               { id: 'all', label: 'SEMUA' },
               { id: 'coop', label: 'KOOPERATIF (-20%)' },
               { id: 'normal', label: 'NON-KOOPERATIF' }
-            ].map(f => (
+            ].map((f, idx) => (
               <button
-                key={f.id}
+                key={`${f.id}-${idx}`}
                 onClick={() => setFilterCooperative(f.id as any)}
                 className={`px-2 py-0.5 rounded transition ${
                   filterCooperative === f.id
@@ -960,7 +960,7 @@ ${r.evidenceUrl ? `\n[b]Bukti / Evidence (Foto / Video):[/b]\n${isImage ? `[img]
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {filteredRecords.map((r) => {
+          {filteredRecords.map((r, idx) => {
             const reportStr = formatReport(r);
             const bbCodeStr = formatBBCodeReport(r);
             const isCopied = copiedId === r.id;
@@ -980,7 +980,7 @@ ${r.evidenceUrl ? `\n[b]Bukti / Evidence (Foto / Video):[/b]\n${isImage ? `[img]
 
             return (
               <div
-                key={r.id}
+                key={r.id ? `${r.id}-${idx}` : `rec-${idx}`}
                 className="bg-[#161B22] border border-gray-800 rounded-md p-3 space-y-2.5 hover:border-gray-700 transition shadow flex flex-col justify-between"
               >
                 <div className="space-y-2">
@@ -1103,8 +1103,8 @@ ${r.evidenceUrl ? `\n[b]Bukti / Evidence (Foto / Video):[/b]\n${isImage ? `[img]
                   <div>
                     <div className="text-[9px] font-mono uppercase text-gray-500 mb-1 font-bold">Pasal Pelanggaran:</div>
                     <div className="flex flex-wrap gap-1">
-                      {r.pasalCodes.map(c => (
-                        <span key={c} className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-[#0D0F14] border border-gray-800 text-blue-300 font-bold">
+                      {r.pasalCodes.map((c, cIdx) => (
+                        <span key={`${c}-${cIdx}`} className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-[#0D0F14] border border-gray-800 text-blue-300 font-bold">
                           {c}
                         </span>
                       ))}
@@ -1345,8 +1345,8 @@ ${r.evidenceUrl ? `\n[b]Bukti / Evidence (Foto / Video):[/b]\n${isImage ? `[img]
                     <span className="text-gray-400 font-mono text-[10px]">{selectedPrintRecord.pasalCodes.length} Pasal Terbukti</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5 pt-1">
-                    {selectedPrintRecord.pasalCodes.map(code => (
-                      <span key={code} className="px-2 py-0.5 bg-blue-950 border border-blue-700/70 text-blue-300 rounded font-bold text-[10px]">
+                    {selectedPrintRecord.pasalCodes.map((code, cIdx) => (
+                      <span key={`${code}-${cIdx}`} className="px-2 py-0.5 bg-blue-950 border border-blue-700/70 text-blue-300 rounded font-bold text-[10px]">
                         {code}
                       </span>
                     ))}
