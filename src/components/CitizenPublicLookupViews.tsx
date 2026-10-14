@@ -5,7 +5,10 @@ import {
   Clock, Check, X, Eye, ZoomIn, Lock, HelpCircle, Flame,
   Camera, ChevronRight, RefreshCw, BadgeAlert, AlertOctagon, Scale
 } from 'lucide-react';
-import { BoloAlert, TrafficCitationRecord, ImpoundRecord, OfficerProfile } from '../types';
+import { BoloAlert, TrafficCitationRecord, ImpoundRecord, OfficerProfile, CitizenProfile } from '../types';
+import { getSavedCitizens } from '../utils/citizenDmvStorage';
+import { getSavedBoloAlerts } from '../utils/boloImpoundStorage';
+import { getSavedDetectiveCases } from '../utils/detectiveCaseStorage';
 import { ErrorBoundary } from './ErrorBoundary';
 
 interface Props {
@@ -17,6 +20,7 @@ interface Props {
   citations?: TrafficCitationRecord[];
   impoundRecords?: ImpoundRecord[];
   impounds?: ImpoundRecord[];
+  citizens?: CitizenProfile[];
   currentOfficer?: OfficerProfile | null;
   onOpenLightbox?: (item: { url: string; title: string; subtitle?: string }) => void;
   onSwitchView?: (mode: 'wanted' | 'citations' | 'impounds') => void;
@@ -45,6 +49,7 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
   citations,
   impoundRecords,
   impounds,
+  citizens,
   currentOfficer,
   onOpenLightbox,
   onSwitchView,
@@ -56,13 +61,48 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
     activeSubTab || viewMode || 'wanted'
   );
 
+  const [liveCitizens, setLiveCitizens] = useState<CitizenProfile[]>(() => {
+    if (citizens && citizens.length > 0) return citizens;
+    return getSavedCitizens();
+  });
+
+  useEffect(() => {
+    const syncCitizens = () => setLiveCitizens(getSavedCitizens());
+    window.addEventListener('hspd-citizens-updated', syncCitizens);
+    return () => window.removeEventListener('hspd-citizens-updated', syncCitizens);
+  }, []);
+
+  useEffect(() => {
+    if (citizens && citizens.length > 0) {
+      setLiveCitizens(citizens);
+    }
+  }, [citizens]);
+
   useEffect(() => {
     if (activeSubTab) setInternalMode(activeSubTab);
     else if (viewMode) setInternalMode(viewMode);
   }, [activeSubTab, viewMode]);
 
+  const [liveBolos, setLiveBolos] = useState<BoloAlert[]>(() => {
+    const saved = getSavedBoloAlerts();
+    if (saved && saved.length > 0) return saved;
+    return (boloAlerts || boloList || []).filter(Boolean);
+  });
+
+  useEffect(() => {
+    const syncBolos = () => setLiveBolos(getSavedBoloAlerts());
+    window.addEventListener('hspd-bolo-updated', syncBolos);
+    return () => window.removeEventListener('hspd-bolo-updated', syncBolos);
+  }, []);
+
+  useEffect(() => {
+    if (boloAlerts && boloAlerts.length > 0) {
+      setLiveBolos(boloAlerts);
+    }
+  }, [boloAlerts]);
+
   const currentMode = activeSubTab || internalMode;
-  const effectiveBoloAlerts = (boloAlerts || boloList || []).filter(Boolean);
+  const effectiveBoloAlerts = (liveBolos && liveBolos.length > 0 ? liveBolos : (boloAlerts || boloList || [])).filter(Boolean);
   const effectiveCitations = (trafficCitations || citations || []).filter(Boolean);
   const effectiveImpounds = (impoundRecords || impounds || []).filter(Boolean);
 
@@ -119,25 +159,116 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
   };
 
   // -------------------------------------------------------------
-  // 1. WANTED / BURONAN CALCULATION
+  // 1. WANTED / BURONAN CALCULATION (UNIFIED BOLO + CITIZENS DPO + CID CASES)
   // -------------------------------------------------------------
+  // Unified list of all active DPOs from official BOLOs AND Citizen database AND CID Detective cases
+  const allActiveDpoList = useMemo(() => {
+    const list: any[] = [];
+    const addedNames = new Set<string>();
+
+    // 1. Official Active BOLO alerts (Person & Critical APB)
+    effectiveBoloAlerts.forEach(b => {
+      if (b && b.active !== false) {
+        const titleLow = safeStr(b.title).toLowerCase().trim();
+        const rawName = b.title.split('-')[0].replace(/\(.*?\)/g, '').trim().toLowerCase();
+        
+        list.push({
+          ...b,
+          fullName: rawName || b.title,
+          targetName: rawName || b.title,
+          citizenId: (b as any).citizenId || (b as any).targetId || '',
+          phoneNumber: (b as any).phoneNumber || '',
+          wantedReason: b.description || '10-99 DPO Buronan Aktif Kepolisian HSPD'
+        });
+        addedNames.add(titleLow);
+        if (rawName) addedNames.add(rawName);
+      }
+    });
+
+    // 2. Citizens marked as isWantedBolo === true in Dukcapil
+    liveCitizens.forEach(c => {
+      if (c && c.isWantedBolo) {
+        const citName = safeStr(c.fullName).toLowerCase().trim();
+        const citId = safeStr(c.citizenId || c.id).toLowerCase().trim();
+        const alreadyIn = Array.from(addedNames).some(k => k.includes(citName) || (citName && citName.includes(k)));
+        
+        if (!alreadyIn) {
+          list.push({
+            id: `DPO-CIT-${c.id}`,
+            type: 'PERSON' as const,
+            title: `${c.fullName} - DPO / BURONAN WARGA RESMI (ID: ${c.citizenId || c.id})`,
+            fullName: c.fullName,
+            targetName: c.fullName,
+            citizenId: c.citizenId || c.id,
+            phoneNumber: c.phoneNumber || '',
+            registeredPlate: c.registeredVehicles?.[0]?.plate || '',
+            description: c.wantedReason || '10-99 DPO Buronan Aktif Kepolisian HSPD. Terdaftar resmi di sistem Dukcapil. Waspadai saat berinteraksi.',
+            wantedReason: c.wantedReason || '10-99 DPO Buronan Aktif Kepolisian HSPD',
+            dangerLevel: (c.priorArrests && c.priorArrests.length > 2) ? 'EXTREME_ARMED_DANGEROUS' : 'HIGH',
+            lastSeenLocation: c.address || 'Los Santos City Area',
+            issuedBy: 'HSPD CAD/MDT Terpadu',
+            issuedByBadge: '#HSPD-HQ',
+            active: true,
+            timestamp: Date.now()
+          });
+          addedNames.add(citName);
+        }
+      }
+    });
+
+    // 3. CID Detective Cases Suspects with WARRANT_ACTIVE (Buron/DPO)
+    try {
+      const detectiveCases = getSavedDetectiveCases();
+      detectiveCases.forEach(dc => {
+        (dc.suspects || []).forEach(s => {
+          if (s.status === 'WARRANT_ACTIVE') {
+            const sNameLow = safeStr(s.name).toLowerCase().trim();
+            const alreadyIn = Array.from(addedNames).some(k => k.includes(sNameLow) || (sNameLow && sNameLow.includes(k)));
+            if (!alreadyIn) {
+              list.push({
+                id: `DPO-CID-${s.id}`,
+                type: 'PERSON' as const,
+                title: `${s.name} - DPO BURONAN KASUS CID: ${dc.title}`,
+                fullName: s.name,
+                targetName: s.name,
+                citizenId: s.id,
+                phoneNumber: '',
+                description: `Tersangka dalam kasus ${dc.title} (No: ${dc.caseNumber}). Pasal: ${(s.charges || []).join(', ') || 'Pelanggaran Pidana Berat'}.`,
+                wantedReason: `Buron Kasus Detektif: ${dc.title}`,
+                dangerLevel: 'EXTREME_ARMED_DANGEROUS',
+                lastSeenLocation: 'Kota Los Santos Area',
+                issuedBy: dc.leadDetective || 'Mabes HSPD CID',
+                issuedByBadge: dc.leadDetectiveBadge || '#CID',
+                active: true,
+                timestamp: Date.now()
+              });
+              addedNames.add(sNameLow);
+            }
+          }
+        });
+      });
+    } catch {}
+
+    return list;
+  }, [effectiveBoloAlerts, liveCitizens]);
+
   const wantedResults = useMemo(() => {
     if (!wantedQuery.trim()) return [];
     const q = wantedQuery.toLowerCase().trim();
-    return effectiveBoloAlerts.filter(b => {
+    return allActiveDpoList.filter(b => {
       if (!b) return false;
       const matchTitle = safeStr(b.title).toLowerCase().includes(q);
-      const matchDesc = safeStr(b.description).toLowerCase().includes(q);
-      return matchTitle || matchDesc;
+      const matchName = safeStr(b.targetName || b.fullName).toLowerCase().includes(q);
+      const matchNik = safeStr(b.citizenId || b.id || b.targetId).toLowerCase().includes(q);
+      const matchPhone = safeStr(b.phoneNumber).toLowerCase().includes(q);
+      const matchPlate = safeStr(b.registeredPlate).toLowerCase().includes(q);
+      const matchDesc = safeStr(b.description || b.wantedReason).toLowerCase().includes(q);
+      const matchLoc = safeStr(b.lastSeenLocation || b.address).toLowerCase().includes(q);
+      return matchTitle || matchName || matchNik || matchPhone || matchPlate || matchDesc || matchLoc;
     });
-  }, [wantedQuery, effectiveBoloAlerts]);
+  }, [wantedQuery, allActiveDpoList]);
 
   const isExactWantedFound = wantedResults.length > 0;
-
-  // Active DPO list (all person-type or robbery active BOLOs)
-  const allActiveDpoList = useMemo(() => {
-    return effectiveBoloAlerts.filter(b => Boolean(b && b.active));
-  }, [effectiveBoloAlerts]);
 
   // -------------------------------------------------------------
   // 2. CITATIONS CALCULATION
@@ -325,22 +456,12 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setWantedQuery('Franklin Clinton');
-                  setHasSearchedWanted(true);
-                }}
-                className="px-2.5 py-1 bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-800 text-emerald-300 rounded text-xs font-mono transition"
-              >
-                Franklin Clinton (Bukan Buronan)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
                   setWantedQuery('Trevor Philips');
                   setHasSearchedWanted(true);
                 }}
-                className="px-2.5 py-1 bg-red-950/80 hover:bg-red-900 border border-red-700 text-red-300 rounded text-xs font-mono transition"
+                className="px-2.5 py-1 bg-red-950/80 hover:bg-red-900 border border-red-700 text-red-300 rounded text-xs font-mono transition flex items-center gap-1 shadow-sm"
               >
-                Trevor Philips (DPO Buronan)
+                <span>🚨 Trevor Philips (DPO Buronan)</span>
               </button>
               <button
                 type="button"
@@ -348,9 +469,37 @@ export const CitizenPublicLookupViews: React.FC<Props> = ({
                   setWantedQuery('Antonio Morales');
                   setHasSearchedWanted(true);
                 }}
-                className="px-2.5 py-1 bg-red-950/80 hover:bg-red-900 border border-red-700 text-red-300 rounded text-xs font-mono transition"
+                className="px-2.5 py-1 bg-red-950/80 hover:bg-red-900 border border-red-700 text-red-300 rounded text-xs font-mono transition flex items-center gap-1 shadow-sm"
               >
-                Antonio Morales (DPO Buronan)
+                <span>🚨 Antonio Morales (DPO Buronan)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setWantedQuery('Franklin Clinton');
+                  setHasSearchedWanted(true);
+                }}
+                className={`px-2.5 py-1 rounded text-xs font-mono transition flex items-center gap-1 border shadow-sm ${
+                  liveCitizens.some(c => c.fullName.toLowerCase().includes('franklin') && c.isWantedBolo)
+                    ? 'bg-red-950/80 hover:bg-red-900 border-red-700 text-red-300'
+                    : 'bg-emerald-950/60 hover:bg-emerald-900 border-emerald-800 text-emerald-300'
+                }`}
+              >
+                <span>{liveCitizens.some(c => c.fullName.toLowerCase().includes('franklin') && c.isWantedBolo) ? '🚨 Franklin Clinton (DPO Aktif)' : '✓ Franklin Clinton (Bukan Buronan)'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setWantedQuery('Michael De Santa');
+                  setHasSearchedWanted(true);
+                }}
+                className={`px-2.5 py-1 rounded text-xs font-mono transition flex items-center gap-1 border shadow-sm ${
+                  liveCitizens.some(c => c.fullName.toLowerCase().includes('michael') && c.isWantedBolo)
+                    ? 'bg-red-950/80 hover:bg-red-900 border-red-700 text-red-300'
+                    : 'bg-emerald-950/60 hover:bg-emerald-900 border-emerald-800 text-emerald-300'
+                }`}
+              >
+                <span>{liveCitizens.some(c => c.fullName.toLowerCase().includes('michael') && c.isWantedBolo) ? '🚨 Michael De Santa (DPO Aktif)' : '✓ Michael De Santa (Bukan Buronan)'}</span>
               </button>
             </div>
           </div>

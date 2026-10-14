@@ -139,6 +139,7 @@ export interface OfficerAccount {
   dutyStartTime?: number;
   dutyStatus?: DutyStatusCode;
   accountType?: 'POLICE' | 'GOVERNMENT';
+  isDeveloper?: boolean;
   _updatedAt?: number;
 }
 
@@ -155,6 +156,7 @@ export interface OfficerProfile {
   dutyStatus?: DutyStatusCode;
   accountType?: 'POLICE' | 'GOVERNMENT';
   govRank?: GovernmentRankLevel;
+  isDeveloper?: boolean;
 }
 
 // ==========================================
@@ -1405,6 +1407,38 @@ export interface ForensicAnalysis {
   findings: string;
   matchResult: ForensicMatchResult;
   matchTarget?: string;             // e.g. "Matched to Glock 19 (Serial: HSPD-9921)" or "Citizen ID LS-90142"
+  timestamp: number;
+}
+
+// ========================================================
+// 💻 DEVELOPER SYSTEM MONITORING & AUDIT LOG TYPES
+// ========================================================
+export type ActivityEntity = 'HSPD' | 'GOVERNMENT' | 'CITIZEN' | 'SYSTEM';
+export type ActivityActionType = 
+  | 'ARREST_CASE'
+  | 'BOLO_ALERT'
+  | 'CITATION'
+  | 'IMPOUND'
+  | 'DIVISION_OP'
+  | 'FORENSIC'
+  | 'GOV_PERMIT'
+  | 'OFFICIAL_DOC'
+  | 'DUTY_LOG'
+  | 'PIN_AUDIT'
+  | 'CITIZEN_REGISTRATION'
+  | 'SYSTEM_SYNC';
+
+export interface SystemActivityLog {
+  id: string;
+  entity: ActivityEntity;
+  module: string;
+  action: ActivityActionType;
+  title: string;
+  description: string;
+  actor: string;
+  actorBadge?: string;
+  target?: string;
+  severity: 'INFO' | 'SUCCESS' | 'WARNING' | 'CRITICAL';
   timestamp: number;
 }
 

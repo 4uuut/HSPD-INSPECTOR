@@ -22,6 +22,8 @@ import {
   getCurrentIndonesianTimeString 
 } from '../utils/trafficCitationStorage';
 import { processAndCompressImage } from '../utils/imageCompressor';
+import { getSavedCitizens, saveCitizens } from '../utils/citizenDmvStorage';
+import { logDeveloperSystemActivity } from '../utils/activityMonitoringStorage';
 
 interface Props {
   boloList: BoloAlert[];
@@ -460,6 +462,57 @@ export const BoloAndTrafficHub: React.FC<Props> = ({
     setBoloDesc('');
     setBoloLocation('');
 
+    // If BOLO is PERSON, sync to Dukcapil Citizens database
+    if (boloType === 'PERSON') {
+      try {
+        const liveCits = getSavedCitizens();
+        const rawName = newBolo.title.split('-')[0].replace(/\(.*?\)/g, '').trim();
+        const citIdx = liveCits.findIndex(c => 
+          c.fullName.toLowerCase().includes(rawName.toLowerCase()) || 
+          rawName.toLowerCase().includes(c.fullName.toLowerCase())
+        );
+
+        if (citIdx >= 0) {
+          liveCits[citIdx].isWantedBolo = true;
+          liveCits[citIdx].wantedReason = newBolo.description || '10-99 DPO Buronan Aktif Kepolisian';
+        } else {
+          liveCits.push({
+            id: `cit-bolo-${Date.now()}`,
+            citizenId: `LS-${Math.floor(10000 + Math.random() * 90000)}`,
+            fullName: rawName,
+            dateOfBirth: '1988-01-01',
+            gender: 'MALE',
+            phoneNumber: '555-0199',
+            address: newBolo.lastSeenLocation || 'Los Santos City Area',
+            driverLicenseStatus: 'REVOKED',
+            driverPoints: 12,
+            gunLicenseStatus: 'REVOKED',
+            isWantedBolo: true,
+            wantedReason: newBolo.description || '10-99 DPO Buronan Aktif Kepolisian',
+            registeredVehicles: [],
+            priorArrests: [],
+            notes: `DPO Buronan terdaftar dari Siaran BOLO: ${newBolo.title}`
+          });
+        }
+        saveCitizens(liveCits);
+        window.dispatchEvent(new Event('hspd-citizens-updated'));
+      } catch (err) {
+        console.warn('Sync BOLO to citizens error:', err);
+      }
+    }
+
+    logDeveloperSystemActivity({
+      entity: 'HSPD',
+      module: 'Siaga BOLO & DPO',
+      action: 'BOLO_ALERT',
+      title: `Penerbitan BOLO [${newBolo.type}]: ${newBolo.title}`,
+      description: newBolo.description,
+      actor: currentOfficer.name,
+      actorBadge: currentOfficer.badge,
+      target: newBolo.title,
+      severity: 'CRITICAL'
+    });
+
     const cfg = getSavedBoloWebhookConfig();
     if (cfg.webhookUrl && cfg.autoSendOnSave !== false) {
       sendBoloAlertToDiscord(newBolo, 'PUBLISHED', currentOfficer).then(res => {
@@ -470,7 +523,40 @@ export const BoloAndTrafficHub: React.FC<Props> = ({
   };
 
   const handleDeleteBolo = (boloId: string) => {
+    const targetBolo = boloList.find(b => b.id === boloId);
     onSaveBolo(boloList.filter(b => b.id !== boloId));
+
+    if (targetBolo && targetBolo.type === 'PERSON') {
+      try {
+        const liveCits = getSavedCitizens();
+        const rawName = targetBolo.title.split('-')[0].replace(/\(.*?\)/g, '').trim();
+        const citIdx = liveCits.findIndex(c => 
+          c.fullName.toLowerCase().includes(rawName.toLowerCase()) || 
+          rawName.toLowerCase().includes(c.fullName.toLowerCase())
+        );
+        if (citIdx >= 0) {
+          liveCits[citIdx].isWantedBolo = false;
+          saveCitizens(liveCits);
+          window.dispatchEvent(new Event('hspd-citizens-updated'));
+        }
+      } catch (err) {
+        console.warn('Sync BOLO delete to citizens error:', err);
+      }
+    }
+
+    if (targetBolo) {
+      logDeveloperSystemActivity({
+        entity: 'HSPD',
+        module: 'Siaga BOLO & DPO',
+        action: 'BOLO_ALERT',
+        title: `Pencabutan BOLO: ${targetBolo.title}`,
+        description: `Peringatan BOLO [${targetBolo.type}] resmi ditutup / dicabut oleh petugas.`,
+        actor: currentOfficer.name,
+        actorBadge: currentOfficer.badge,
+        target: targetBolo.title,
+        severity: 'SUCCESS'
+      });
+    }
   };
 
   const handleManualSendBolo = async (bolo: BoloAlert) => {

@@ -24,6 +24,9 @@ import {
 import { sendDetectiveCaseToDiscord, getSavedDetectiveWebhookConfig } from '../utils/discordWebhook';
 import { processAndCompressImage } from '../utils/imageCompressor';
 import { exportElementAsImage } from '../utils/exportDocumentAsImage';
+import { getSavedCitizens, saveCitizens } from '../utils/citizenDmvStorage';
+import { getSavedBoloAlerts, saveBoloAlerts } from '../utils/boloImpoundStorage';
+import { logDeveloperSystemActivity } from '../utils/activityMonitoringStorage';
 
 interface Props {
   cases: DetectiveCase[];
@@ -506,6 +509,106 @@ export const DetectiveCaseBoard: React.FC<Props> = ({
     };
     onSaveCase(updated);
     setSelectedCase(updated);
+
+    // 100% BIDIRECTIONAL SYNC WITH CITIZENS DUKCAPIL & BOLO ALERTS
+    try {
+      const liveCits = getSavedCitizens();
+      const liveBolos = getSavedBoloAlerts();
+      const boloSuspectId = `BOLO-CID-${target.id}`;
+
+      if (newStatus === 'WARRANT_ACTIVE') {
+        // 1. Mark or register citizen as isWantedBolo
+        const citIdx = liveCits.findIndex(c => c.fullName.toLowerCase().includes(target.name.toLowerCase()));
+        if (citIdx >= 0) {
+          liveCits[citIdx].isWantedBolo = true;
+          liveCits[citIdx].wantedReason = `10-99 DPO Buron Kasus CID: ${selectedCase.title} (${(target.charges || []).join(', ') || 'Pelanggaran KUHP'})`;
+        } else {
+          liveCits.push({
+            id: `cit-cid-${Date.now()}`,
+            citizenId: `LS-${Math.floor(10000 + Math.random() * 90000)}`,
+            fullName: target.name,
+            dateOfBirth: '1987-04-12',
+            gender: 'MALE',
+            phoneNumber: target.phone || '555-0899',
+            address: 'Kota Los Santos Area',
+            driverLicenseStatus: 'REVOKED',
+            driverPoints: 12,
+            gunLicenseStatus: 'REVOKED',
+            isWantedBolo: true,
+            wantedReason: `10-99 DPO Buron Kasus CID: ${selectedCase.title}`,
+            registeredVehicles: [],
+            priorArrests: [],
+            notes: `DPO Buronan terdaftar dari Kasus CID: ${selectedCase.title}`
+          });
+        }
+        saveCitizens(liveCits);
+
+        // 2. Add or activate BOLO alert
+        const boloIdx = liveBolos.findIndex(b => b.id === boloSuspectId || b.title.toLowerCase().includes(target.name.toLowerCase()));
+        if (boloIdx >= 0) {
+          liveBolos[boloIdx].active = true;
+          liveBolos[boloIdx].timestamp = Date.now();
+        } else {
+          liveBolos.unshift({
+            id: boloSuspectId,
+            type: 'PERSON',
+            title: `${target.name} - DPO BURONAN KASUS CID: ${selectedCase.title}`,
+            description: `Tersangka dalam investigasi ${selectedCase.title} (No: ${selectedCase.caseNumber}). Pasal: ${(target.charges || []).join(', ') || 'Tindak Pidana Berat'}. Ciri: ${target.notes || 'Waspadai saat berinteraksi'}.`,
+            dangerLevel: 'EXTREME_ARMED_DANGEROUS',
+            lastSeenLocation: 'Los Santos City Area',
+            issuedBy: currentOfficer.name,
+            issuedByBadge: currentOfficer.badge,
+            active: true,
+            timestamp: Date.now()
+          });
+        }
+        saveBoloAlerts(liveBolos);
+
+        logDeveloperSystemActivity({
+          entity: 'HSPD',
+          module: 'CID Detective Cases',
+          action: 'BOLO_ALERT',
+          title: `Penerbitan DPO Kasus Detektif: ${target.name}`,
+          description: `Tersangka ${target.name} dinaikkan status menjadi Buronan Aktif (WARRANT_ACTIVE) pada berkas ${selectedCase.title}.`,
+          actor: currentOfficer.name,
+          actorBadge: currentOfficer.badge,
+          target: target.name,
+          severity: 'CRITICAL'
+        });
+      } else {
+        // Status changed away from WARRANT_ACTIVE (e.g. ARRESTED, CLEARED)
+        const citIdx = liveCits.findIndex(c => c.fullName.toLowerCase().includes(target.name.toLowerCase()));
+        if (citIdx >= 0) {
+          liveCits[citIdx].isWantedBolo = false;
+          saveCitizens(liveCits);
+        }
+
+        const updatedBolos = liveBolos.map(b => {
+          if (b.id === boloSuspectId || b.title.toLowerCase().includes(target.name.toLowerCase())) {
+            return { ...b, active: false };
+          }
+          return b;
+        });
+        saveBoloAlerts(updatedBolos);
+
+        logDeveloperSystemActivity({
+          entity: 'HSPD',
+          module: 'CID Detective Cases',
+          action: 'BOLO_ALERT',
+          title: `Pembaruan Status Suspect: ${target.name}`,
+          description: `Status DPO ${target.name} disesuaikan menjadi [${newStatus}].`,
+          actor: currentOfficer.name,
+          actorBadge: currentOfficer.badge,
+          target: target.name,
+          severity: 'SUCCESS'
+        });
+      }
+
+      window.dispatchEvent(new Event('hspd-citizens-updated'));
+      window.dispatchEvent(new Event('hspd-bolo-updated'));
+    } catch (e) {
+      console.warn('Sync suspect warrant error:', e);
+    }
   };
 
   // Add evidence to selected case

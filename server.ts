@@ -54,7 +54,11 @@ async function startServer() {
   app.use('/api', apiRouter);
 
   // Vite middleware for dev or Static Files for prod
-  if (process.env.NODE_ENV !== 'production') {
+  const distPath = path.join(process.cwd(), 'dist');
+  const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
+  const isDev = (process.env.npm_lifecycle_event === 'dev' || !hasDist) && process.env.NODE_ENV !== 'production';
+
+  if (isDev) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -62,9 +66,6 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = fs.existsSync(path.join(process.cwd(), 'dist'))
-      ? path.join(process.cwd(), 'dist')
-      : (fs.existsSync(path.join(__dirname, 'index.html')) ? __dirname : path.join(process.cwd(), 'dist'));
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       const indexPath = path.join(distPath, 'index.html');

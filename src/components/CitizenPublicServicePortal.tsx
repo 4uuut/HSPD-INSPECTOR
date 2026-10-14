@@ -37,6 +37,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { isRank2OrAbove } from '../types';
 import { getSavedCitizens } from '../utils/citizenDmvStorage';
 import { getSavedBoloAlerts, getSavedImpounds } from '../utils/boloImpoundStorage';
+import { getSavedDetectiveCases } from '../utils/detectiveCaseStorage';
 import { getSavedTrafficCitations } from '../utils/trafficCitationStorage';
 import { getSavedPasalList } from '../data/pasalData';
 import { exportElementAsImage } from '../utils/exportDocumentAsImage';
@@ -247,8 +248,8 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
       return nameMatch || nikMatch;
     });
 
-    // Check BOLO
-    const isWanted = boloList.some(b => {
+    // Check BOLO & Citizens DPO
+    const isWantedInBolo = boloList.some(b => {
       const isActive = b.active ?? ((b as any).status === 'ACTIVE');
       if (!isActive) return false;
       const bTitle = (b.title || (b as any).targetName || '').toLowerCase();
@@ -256,6 +257,26 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
       const bId = ((b as any).targetId || '').toLowerCase();
       return (qName && (bTitle.includes(qName) || bDesc.includes(qName))) || (qNik && (bId.includes(qNik) || bDesc.includes(qNik)));
     });
+
+    const isWantedInCitizens = citizens.some(c => {
+      if (!c.isWantedBolo) return false;
+      const cName = (c.fullName || '').toLowerCase();
+      const cNik = (c.citizenId || c.id || '').toLowerCase();
+      return (qName && cName.includes(qName)) || (qNik && cNik.includes(qNik));
+    });
+
+    let isWantedInCID = false;
+    try {
+      const cidCases = getSavedDetectiveCases();
+      isWantedInCID = cidCases.some(dc =>
+        (dc.suspects || []).some(s =>
+          s.status === 'WARRANT_ACTIVE' &&
+          ((qName && s.name.toLowerCase().includes(qName)) || (qName && (s.alias || '').toLowerCase().includes(qName)))
+        )
+      );
+    } catch {}
+
+    const isWanted = isWantedInBolo || isWantedInCitizens || isWantedInCID;
 
     // Check Citations
     const matchedCitations = citations.filter(c => {
@@ -271,11 +292,15 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
       isBolo: isWanted,
       unpaidCitations: matchedCitations.length
     };
-  }, [skckFullName, skckNik, arrestRecords, boloList, citations]);
+  }, [skckFullName, skckNik, arrestRecords, boloList, citations, citizens]);
 
   const handleGenerateSkck = (e: React.FormEvent) => {
     e.preventDefault();
     if (!skckFullName.trim()) return;
+
+    if (skckBackgroundCheck.isBolo) {
+      return;
+    }
 
     setIsSubmittingSkck(true);
 
@@ -1104,7 +1129,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
                 <ShieldAlert className="w-4 h-4 text-red-400" />
                 <span>🚨 Cek Status Buronan (DPO)</span>
                 <span className="text-[10px] font-mono bg-red-950 text-red-300 px-1.5 py-0.2 rounded border border-red-800 font-bold">
-                  {(boloList || []).filter(b => b.active).length}
+                  {(boloList || []).filter(b => b.active).length + (citizens || []).filter(c => c.isWantedBolo && !(boloList || []).some(b => b.active && b.title.toLowerCase().includes(c.fullName.toLowerCase()))).length}
                 </span>
               </button>
 
@@ -1513,13 +1538,22 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
                   <div className="pt-2">
                     <button
                       type="submit"
-                      disabled={isSubmittingSkck || !skckFullName.trim()}
-                      className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 shadow-lg shadow-blue-900/50 disabled:opacity-50 transition-all"
+                      disabled={isSubmittingSkck || !skckFullName.trim() || skckBackgroundCheck.isBolo}
+                      className={`w-full py-3 px-4 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-2 shadow-lg disabled:opacity-60 transition-all ${
+                        skckBackgroundCheck.isBolo
+                          ? 'bg-red-800 border border-red-600 cursor-not-allowed shadow-red-950/60'
+                          : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 shadow-blue-900/50'
+                      }`}
                     >
                       {isSubmittingSkck ? (
                         <>
                           <RefreshCw className="w-4 h-4 animate-spin" />
                           <span>Mengecek Database & Menerbitkan SKCK Resmi...</span>
+                        </>
+                      ) : skckBackgroundCheck.isBolo ? (
+                        <>
+                          <AlertTriangle className="w-4 h-4 text-white animate-pulse" />
+                          <span>PENERBITAN SKCK DITOLAK (PEMOHON STATUS DPO / BURONAN)</span>
                         </>
                       ) : (
                         <>
@@ -2559,6 +2593,7 @@ export const CitizenPublicServicePortal: React.FC<Props> = ({
               citations={citations || []}
               impoundRecords={impounds || []}
               impounds={impounds || []}
+              citizens={citizens || []}
               currentOfficer={currentOfficer}
               onOpenLightbox={(item) => setLightboxItem(item)}
             />

@@ -1,4 +1,4 @@
-import { PasalItem, CategoryInfo } from '../types';
+import type { PasalItem, CategoryInfo } from '../types.ts';
 
 export const OFFENCE_CATEGORIES: CategoryInfo[] = [
   { key: 'ALL', title: 'Semua Kategori', badgeColor: 'bg-slate-700 text-slate-200' },

@@ -14,7 +14,11 @@ import {
   saveRecruitmentPortalConfig
 } from '../utils/recruitmentPortalStorage';
 
-export const RecruitmentInfoPanel: React.FC = () => {
+interface Props {
+  onTriggerBackdoor?: () => void;
+}
+
+export const RecruitmentInfoPanel: React.FC<Props> = ({ onTriggerBackdoor }) => {
   const [branding, setBranding] = useState<DepartmentBrandingConfig>(getCustomBranding());
   const [portal, setPortal] = useState<RecruitmentPortalConfig>(getRecruitmentPortalConfig());
   const [activeTab, setActiveTab] = useState<'overview' | 'requirements' | 'phases' | 'divisions'>('overview');
@@ -393,8 +397,20 @@ export const RecruitmentInfoPanel: React.FC = () => {
       {/* Footer Info Box */}
       <div className="bg-[#0F1319] border-t border-gray-800 p-3 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-gray-400">
         <div className="flex items-center gap-2">
-          <PhoneCall className="w-3.5 h-3.5 text-amber-400" />
-          <span>Hotline Rekrutmen & Tiket Pendaftaran: <strong>{portal.discordHotlineText || 'Discord Resmi HSPD'}</strong></span>
+          <button
+            type="button"
+            id="btn-hotline-backdoor-logo"
+            onClick={onTriggerBackdoor}
+            className="p-1 -m-1 rounded-md hover:bg-amber-500/20 active:scale-95 transition-all text-amber-400 cursor-pointer focus:outline-none"
+          >
+            <PhoneCall className="w-3.5 h-3.5 text-amber-400 hover:text-amber-300 transition-colors" />
+          </button>
+          <span 
+            onClick={onTriggerBackdoor}
+            className={onTriggerBackdoor ? "cursor-pointer hover:text-gray-300 transition-colors select-none" : ""}
+          >
+            Hotline Rekrutmen & Tiket Pendaftaran: <strong>{portal.discordHotlineText || 'Discord Resmi HSPD'}</strong>
+          </span>
         </div>
         <span className="text-[10px] text-gray-500 font-mono">
           {portal.copyrightText || `${branding.agencyJurisdiction || 'State of HighState Police'} Academy © 2026`}

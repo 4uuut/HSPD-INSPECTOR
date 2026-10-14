@@ -7,6 +7,8 @@ import {
 } from 'lucide-react';
 import { OfficerProfile, CitizenProfile, DriverLicenseStatus, GunLicenseStatus } from '../types';
 import { getSavedCitizens, saveCitizens } from '../utils/citizenDmvStorage';
+import { getSavedBoloAlerts, saveBoloAlerts } from '../utils/boloImpoundStorage';
+import { logDeveloperSystemActivity } from '../utils/activityMonitoringStorage';
 
 interface Props {
   currentOfficer: OfficerProfile | null;
@@ -104,23 +106,93 @@ export const CitizenDmvDatabase: React.FC<Props> = ({ currentOfficer }) => {
   };
 
   // Toggle BOLO / Wanted
-  const handleToggleBolo = (citizenId: string) => {
-    const updated = citizens.map(c => {
+  const handleToggleBolo = (citizenId: string, customReason?: string) => {
+    const target = citizens.find(c => c.id === citizenId);
+    if (!target) return;
+    const nextBolo = !target.isWantedBolo;
+    const reason = nextBolo ? (customReason?.trim() || target.wantedReason || '10-99 BOLO BURONAN: DPO Kepolisian Aktif Atas Kasus Kriminal') : undefined;
+
+    const updatedCitizens = citizens.map(c => {
       if (c.id === citizenId) {
-        const nextBolo = !c.isWantedBolo;
         return {
           ...c,
           isWantedBolo: nextBolo,
-          wantedReason: nextBolo ? '10-99 BOLO BURONAN: DPO Kepolisian Aktif' : undefined
+          wantedReason: reason
         };
       }
       return c;
     });
-    setCitizens(updated);
-    saveCitizens(updated);
+
+    setCitizens(updatedCitizens);
+    saveCitizens(updatedCitizens);
+
     if (selectedCitizen?.id === citizenId) {
-      setSelectedCitizen(updated.find(c => c.id === citizenId) || null);
+      setSelectedCitizen(updatedCitizens.find(c => c.id === citizenId) || null);
     }
+
+    // 100% BIDIRECTIONAL SYNC WITH BOLO ALERTS
+    const currentBolos = getSavedBoloAlerts();
+    const boloCitId = `BOLO-CIT-${target.id}`;
+
+    if (nextBolo) {
+      // Add or reactivate BOLO
+      const existingIdx = currentBolos.findIndex(b => b.id === boloCitId || b.title.toLowerCase().includes(target.fullName.toLowerCase()));
+      if (existingIdx >= 0) {
+        currentBolos[existingIdx].active = true;
+        currentBolos[existingIdx].description = reason || '10-99 BOLO BURONAN: DPO Kepolisian Aktif';
+        currentBolos[existingIdx].timestamp = Date.now();
+      } else {
+        currentBolos.unshift({
+          id: boloCitId,
+          type: 'PERSON',
+          title: `${target.fullName} (${target.citizenId || target.id}) - BURONAN / DPO RESMI KEPOLISIAN`,
+          description: reason || `Tersangka berstatus 10-99 DPO Buronan Aktif Kepolisian HSPD. Terdaftar di sistem Sipil Dukcapil. Kendaraan: ${target.registeredVehicles?.[0]?.model || '-'} (Plat: ${target.registeredVehicles?.[0]?.plate || '-'}).`,
+          dangerLevel: (target.priorArrests && target.priorArrests.length > 2) ? 'EXTREME_ARMED_DANGEROUS' : 'HIGH',
+          lastSeenLocation: target.address || 'Los Santos City Area',
+          issuedBy: currentOfficer?.name || 'Mabes HSPD',
+          issuedByBadge: currentOfficer?.badge || '#001',
+          active: true,
+          timestamp: Date.now()
+        });
+      }
+      saveBoloAlerts(currentBolos);
+
+      logDeveloperSystemActivity({
+        entity: 'HSPD',
+        module: 'Sipil & DPO BOLO',
+        action: 'BOLO_ALERT',
+        title: `Penerbitan DPO Buronan: ${target.fullName}`,
+        description: `Warga ${target.fullName} (NIK: ${target.citizenId}) resmi ditetapkan sebagai DPO / Buronan Aktif. Alasan: ${reason}`,
+        actor: currentOfficer?.name || 'Petugas Kepolisian',
+        actorBadge: currentOfficer?.badge || '#HSPD',
+        target: target.fullName,
+        severity: 'CRITICAL'
+      });
+    } else {
+      // Deactivate BOLO
+      const updatedBolos = currentBolos.map(b => {
+        if (b.id === boloCitId || b.title.toLowerCase().includes(target.fullName.toLowerCase())) {
+          return { ...b, active: false };
+        }
+        return b;
+      });
+      saveBoloAlerts(updatedBolos);
+
+      logDeveloperSystemActivity({
+        entity: 'HSPD',
+        module: 'Sipil & DPO BOLO',
+        action: 'BOLO_ALERT',
+        title: `Pencabutan DPO Buronan: ${target.fullName}`,
+        description: `Status DPO warga ${target.fullName} resmi dicabut oleh petugas. Nama kembali bersih.`,
+        actor: currentOfficer?.name || 'Petugas Kepolisian',
+        actorBadge: currentOfficer?.badge || '#HSPD',
+        target: target.fullName,
+        severity: 'SUCCESS'
+      });
+    }
+
+    window.dispatchEvent(new Event('hspd-citizens-updated'));
+    window.dispatchEvent(new Event('hspd-bolo-updated'));
   };
 
   // Add Arrest Record

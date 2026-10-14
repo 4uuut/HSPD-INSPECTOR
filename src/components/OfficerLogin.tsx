@@ -5,8 +5,8 @@ import {
 import { 
   Shield, Lock, User, KeyRound, CheckCircle2, 
   AlertTriangle, ArrowRight, Eye, EyeOff, HelpCircle, 
-  LogIn, BookOpen, MessageSquare, ShieldAlert,
-  Sparkles, Crown, Building2, Globe, FileText
+  LogIn, BookOpen, MessageSquare, ShieldAlert, ShieldCheck,
+  Sparkles, Crown, Building2, Globe, FileText, Terminal, PhoneCall
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from '../assets/logo';
 import { RecruitmentInfoPanel } from './RecruitmentInfoPanel';
@@ -15,6 +15,7 @@ import { RequestPinDiscordModal } from './RequestPinDiscordModal';
 import { GovernmentRequestPinModal } from './GovernmentRequestPinModal';
 import { CaptchaVerification } from './CaptchaVerification';
 import { CitizenPublicServicePortal } from './CitizenPublicServicePortal';
+import { DeveloperBackdoorModal } from './DeveloperBackdoorModal';
 import { getCustomBranding, subscribeToBranding, DepartmentBrandingConfig } from '../utils/brandingStorage';
 import { isOfficerMatch, getPinResetRequests, updateOfficerPinInRoster, getRosterFromStorage, saveRosterToStorage } from '../utils/pinResetStorage';
 import { getOfficerCustomPin } from '../utils/officerPinRegistry';
@@ -23,6 +24,7 @@ import { isOfficerDischarged } from '../utils/dischargeStorage';
 import { pullLatestFromFirestore } from '../services/firebaseRealtimeSync';
 import { buildApiUrl, safeFetchJson } from '../utils/discordWebhook';
 import { getGovernmentRoster, isGovernmentMatch } from '../utils/governmentStorage';
+import { DEVELOPER_MASTER_PASSCODES, logDeveloperSystemActivity } from '../utils/activityMonitoringStorage';
 
 interface Props {
   onLogin: (officer: OfficerProfile) => void;
@@ -60,6 +62,7 @@ export const OfficerLogin: React.FC<Props> = ({
   // DISCORD PIN REQUEST MODAL STATE
   const [isDiscordModalOpen, setIsDiscordModalOpen] = useState(false);
   const [isGovPinModalOpen, setIsGovPinModalOpen] = useState(false);
+  const [isBackdoorModalOpen, setIsBackdoorModalOpen] = useState(false);
 
   // Live roster tracking so new members auto-appear immediately without refresh
   const [liveRoster, setLiveRoster] = useState<OfficerAccount[]>(() => {
@@ -90,6 +93,43 @@ export const OfficerLogin: React.FC<Props> = ({
     const trimmedIdentifier = loginIdentifier.trim().toLowerCase();
     const cleanBadge = trimmedIdentifier.startsWith('#') ? trimmedIdentifier : `#${trimmedIdentifier}`;
     const trimmedPin = loginPin.trim();
+
+    // ================= BRANCH 0: DEVELOPER BACKDOOR AUTHENTICATION =================
+    const isDevPasscode = DEVELOPER_MASTER_PASSCODES.some(
+      code => code.toLowerCase() === trimmedPin.toLowerCase() || code.toLowerCase() === trimmedIdentifier
+    );
+    const isDevIdentifier = ['dev', 'developer', 'pengembang', 'root', 'admin', '#dev-001'].includes(trimmedIdentifier);
+
+    if (isDevPasscode || (isDevIdentifier && (trimmedPin === '10-4' || trimmedPin === 'admin' || DEVELOPER_MASTER_PASSCODES.some(code => code.toLowerCase() === trimmedPin.toLowerCase())))) {
+      setLoginSuccess('💻 BACKDOOR PENGEMBANG WEB TERVERIFIKASI! Menginisialisasi konsol pemantauan aktivitas...');
+      logDeveloperSystemActivity({
+        entity: 'SYSTEM',
+        module: 'Developer Backdoor',
+        action: 'SYSTEM_SYNC',
+        title: 'Login Pengembang Web (Backdoor)',
+        description: 'Otorisasi akses developer overseer berhasil. Konsol telemetri pemantauan HSPD & Government aktif.',
+        actor: 'Lead Web Developer',
+        actorBadge: '#DEV-001',
+        severity: 'SUCCESS'
+      });
+
+      setTimeout(() => {
+        const devProfile: OfficerProfile = {
+          name: 'Lead System Developer',
+          badge: '#DEV-001',
+          rank: 'CHIEF OF POLICE [CHIEF]',
+          division: 'EXECUTIVE',
+          loginTime: Date.now(),
+          accountType: 'POLICE',
+          isDeveloper: true,
+          isDuty: true,
+          dutyStartTime: Date.now(),
+          dutyStatus: '10-8'
+        };
+        onLogin(devProfile);
+      }, 500);
+      return;
+    }
 
     if (!trimmedIdentifier) {
       setLoginError(authPortalTab === 'GOVERNMENT' ? 'Silakan masukkan Nama Pejabat atau Callsign (#GOV)!' : 'Silakan masukkan Nama Petugas atau Nomor Badge!');
@@ -382,7 +422,7 @@ export const OfficerLogin: React.FC<Props> = ({
           </div>
 
           {/* Right Status Badge & Citizen Service Button */}
-          <div className="flex items-center gap-2.5 font-mono text-xs">
+          <div className="flex items-center gap-2 font-mono text-xs">
             <button
               type="button"
               id="btn-nav-citizen-portal"
@@ -391,7 +431,7 @@ export const OfficerLogin: React.FC<Props> = ({
               title="Buka Portal Layanan Warga Sipil (SKCK & Izin Usaha)"
             >
               <Globe className="w-3.5 h-3.5 text-emerald-400" />
-              <span>🌐 Layanan Warga (SKCK & Izin Usaha)</span>
+              <span>🌐 Layanan Warga</span>
             </button>
 
             <div className="hidden md:flex flex-col items-end text-right">
@@ -445,9 +485,9 @@ export const OfficerLogin: React.FC<Props> = ({
           {/* ================= LEFT SIDE: RECRUITMENT INFO PANEL (~7 cols on desktop) ================= */}
           <div className={`lg:col-span-7 h-full ${mobileView === 'recruitment' ? 'block' : 'hidden lg:block'}`}>
             {authPortalTab === 'GOVERNMENT' ? (
-              <GovernmentRecruitmentInfoPanel />
+              <GovernmentRecruitmentInfoPanel onTriggerBackdoor={() => setIsBackdoorModalOpen(true)} />
             ) : (
-              <RecruitmentInfoPanel />
+              <RecruitmentInfoPanel onTriggerBackdoor={() => setIsBackdoorModalOpen(true)} />
             )}
           </div>
 
@@ -688,8 +728,13 @@ export const OfficerLogin: React.FC<Props> = ({
 
               {/* Terminal Footer Info */}
               <div className="bg-[#0F1319] border-t border-gray-800 px-4 py-2 flex items-center justify-between text-[10px] text-gray-500 font-mono">
-                <span>HSPD SECURE MDT v3</span>
-                <span>CENTRALIZED AUTHENTICATION</span>
+                <span className="flex items-center gap-1.5 text-gray-400">
+                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                  <span>HSPD SECURE MDT v3.5 • SECURE CAD/RMS</span>
+                </span>
+                <span className="text-[9px] text-gray-600">
+                  TERMINAL_STATION #HQ-01
+                </span>
               </div>
             </div>
           </div>
@@ -723,6 +768,16 @@ export const OfficerLogin: React.FC<Props> = ({
             setLoginIdentifier(officialName);
           }
           setLoginSuccess(`✅ PIN baru (${appliedPin}) untuk pejabat ${officialName} berhasil diterapkan & log dikirim ke Discord! Silakan selesaikan verifikasi untuk masuk.`);
+        }}
+      />
+
+      {/* DEVELOPER BACKDOOR MONITORING AUTH MODAL */}
+      <DeveloperBackdoorModal
+        isOpen={isBackdoorModalOpen}
+        onClose={() => setIsBackdoorModalOpen(false)}
+        onDeveloperLogin={(devProfile) => {
+          setIsBackdoorModalOpen(false);
+          onLogin(devProfile);
         }}
       />
     </div>

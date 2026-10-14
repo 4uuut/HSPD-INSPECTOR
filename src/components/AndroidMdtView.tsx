@@ -7,7 +7,7 @@ import {
   UserCheck, Microscope, Cloud, Palette, Bell, Battery,
   Wifi, Signal, Smartphone, Monitor, ChevronRight, X, AlertTriangle,
   FileSpreadsheet, Zap, Volume2, ShieldCheck, Grid, Settings,
-  Building2, Crown, Globe
+  Building2, Crown, Globe, Activity
 } from 'lucide-react';
 import { 
   OfficerProfile, OfficerAccount, OfficerRankLevel,

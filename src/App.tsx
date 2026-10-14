@@ -33,6 +33,8 @@ import { SettingsView } from './components/SettingsView';
 import { CitizenPublicServicePortal } from './components/CitizenPublicServicePortal';
 import { DiscordReleaseAnnouncementModal } from './components/DiscordReleaseAnnouncementModal';
 import { SystemPingModal } from './components/SystemPingModal';
+import { DeveloperWorkspacePortal } from './components/DeveloperWorkspacePortal';
+import { synchronizeDpoAndDmvIntegrity } from './utils/activityMonitoringStorage';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
 import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch, isSameOfficerAccount, saveRosterToStorage, updateOfficerPinInRoster, updateOfficerAccountInRoster } from './utils/pinResetStorage';
 import { getSavedDetectiveCases, saveDetectiveCases } from './utils/detectiveCaseStorage';
@@ -53,7 +55,7 @@ import {
   Users, ShieldAlert, KeyRound, Power, Clock, CheckCircle2, Sliders,
   Search, Car, Crosshair, Landmark, Flame, Stamp as StampIcon,
   UserCheck, Microscope, Cloud, Database, Palette, Smartphone, Monitor, Settings,
-  Building2, Crown, Globe, Activity, Zap, ChevronLeft, ChevronRight
+  Building2, Crown, Globe, Activity, Zap, ChevronLeft, ChevronRight, Terminal
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from './assets/logo';
 import { 
@@ -153,6 +155,13 @@ export default function App() {
       if (botCfg.botToken && botCfg.botToken.trim()) {
         startDiscordBotGateway(botCfg.botToken.trim()).catch(() => {});
       }
+    } catch {}
+  }, []);
+
+  // Auto-sync DPO Buronan & DMV Citizen integrity on startup
+  useEffect(() => {
+    try {
+      synchronizeDpoAndDmvIntegrity();
     } catch {}
   }, []);
 
@@ -259,7 +268,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const [activeNav, setActiveNav] = useState<'calc' | 'dmv' | 'divisions' | 'forensics' | 'documents' | 'detective' | 'traffic' | 'vault' | 'destruction' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster' | 'settings' | 'gov_roster' | 'gov_suite' | 'gov_settings' | 'citizen_portal' | 'dispatch'>('calc');
+  const [activeNav, setActiveNav] = useState<'calc' | 'dmv' | 'divisions' | 'forensics' | 'documents' | 'detective' | 'traffic' | 'vault' | 'destruction' | 'megaphone' | 'rp' | 'sop' | 'history' | 'roster' | 'settings' | 'gov_roster' | 'gov_suite' | 'gov_settings' | 'citizen_portal' | 'dispatch' | 'dev_monitor'>('calc');
   const [govRosterCount, setGovRosterCount] = useState<number>(() => getGovernmentRoster().length);
 
   // Subscribe to government roster updates
@@ -530,9 +539,13 @@ export default function App() {
 
   // Save officer to localStorage and load their individual duty state
   const handleLogin = (officer: OfficerProfile) => {
-    const isGov = officer.accountType === 'GOVERNMENT' || isGovernmentRank(officer.rank);
-    if (isGov) {
-      setActiveNav('documents');
+    if (officer.isDeveloper) {
+      setActiveNav('dev_monitor' as any);
+    } else {
+      const isGov = officer.accountType === 'GOVERNMENT' || isGovernmentRank(officer.rank);
+      if (isGov) {
+        setActiveNav('documents');
+      }
     }
     const dutyState = getOfficerDutyState(officer.badge, roster, officer.name);
     setIsDuty(dutyState.isDuty);
@@ -807,16 +820,17 @@ export default function App() {
   // Guard: if current logged-in officer is Government, restrict to government suite, documents, dmv, history, and gov_roster
   useEffect(() => {
     if (currentOfficer) {
+      if (activeNav === 'dev_monitor') return; // Developer monitor is accessible
       const isGov = currentOfficer.accountType === 'GOVERNMENT' || isGovernmentRank(currentOfficer.rank);
       if (isGov) {
-        const allowedGovTabs = ['gov_suite', 'documents', 'dmv', 'history', 'gov_roster', 'gov_settings', 'citizen_portal'];
+        const allowedGovTabs = ['gov_suite', 'documents', 'dmv', 'history', 'gov_roster', 'gov_settings', 'citizen_portal', 'dev_monitor'];
         if (!allowedGovTabs.includes(activeNav)) {
           setActiveNav('gov_suite');
         }
       } else {
         if (activeNav === 'gov_roster' || activeNav === 'gov_suite') {
           setActiveNav('calc');
-        } else if (!isOfficerHighRank(currentOfficer.rank)) {
+        } else if (!isOfficerHighRank(currentOfficer.rank) && !currentOfficer.isDeveloper) {
           if (activeNav === 'settings' || activeNav === 'roster') {
             setActiveNav('calc');
           }
@@ -867,8 +881,18 @@ export default function App() {
         />
       )}
 
-      {/* Top Header & Navigation: Android MDT Mode vs Desktop Mode */}
-      {isAndroidMode ? (
+      {/* Top Header & Navigation: Dedicated Developer Portal vs Android MDT Mode vs Desktop Mode */}
+      {currentOfficer?.isDeveloper && activeNav === 'dev_monitor' ? (
+        <DeveloperWorkspacePortal
+          currentOfficer={currentOfficer}
+          onSwitchPortal={(portal) => {
+            if (portal === 'POLICE') setActiveNav('calc');
+            else if (portal === 'GOVERNMENT') setActiveNav('gov_suite');
+            else if (portal === 'CITIZEN') setActiveNav('citizen_portal');
+          }}
+          onLogout={handleLogout}
+        />
+      ) : isAndroidMode ? (
         <AndroidMdtView
           currentOfficer={currentOfficer}
           roster={roster}
@@ -901,6 +925,26 @@ export default function App() {
         />
       ) : (
         <>
+          {/* Floating Dev Mode Inspection Bar */}
+          {currentOfficer?.isDeveloper && activeNav !== 'dev_monitor' && (
+            <div className="bg-emerald-950/95 border-b border-emerald-500/80 px-4 py-2 flex items-center justify-between text-xs font-mono text-emerald-200 sticky top-0 z-50 shadow-lg">
+              <div className="flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-emerald-400 animate-pulse" />
+                <span>
+                  <strong>[MODE INSPEKSI PENGEMBANG]:</strong> Anda sedang menginspeksi antarmuka {isGovernment ? 'Pemerintahan / Balai Kota' : 'Kepolisian HSPD'}.
+                </span>
+              </div>
+              <button
+                type="button"
+                id="btn-floating-return-dev"
+                onClick={() => setActiveNav('dev_monitor')}
+                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-md transition shadow flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>💻 Kembali ke Konsol Pengembang</span>
+              </button>
+            </div>
+          )}
+
           {/* Top High-Density Header Bar */}
           <header id="main-header" className="h-14 border-b border-gray-800 flex items-center px-4 justify-between bg-[#161B22]/95 backdrop-blur-md sticky top-0 z-40 shadow-xl">
             <div className="flex items-center gap-3">
@@ -989,6 +1033,25 @@ export default function App() {
                   <span className="hidden sm:inline">📡 PING STATUS</span>
                   <span className="sm:hidden">PING</span>
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                </button>
+              )}
+
+              {/* DEV MONITOR TELEMETRY BUTTON (KHUSUS DEVELOPER) */}
+              {currentOfficer?.isDeveloper && (
+                <button
+                  id="btn-header-dev-monitor"
+                  type="button"
+                  onClick={() => setActiveNav('dev_monitor')}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm ${
+                    activeNav === 'dev_monitor'
+                      ? 'bg-emerald-600 text-white border border-emerald-400 shadow-emerald-950/60'
+                      : 'bg-[#081714] hover:bg-[#0e2722] text-emerald-300 hover:text-emerald-200 border border-emerald-500/70 shadow-emerald-950/40'
+                  }`}
+                  title="Buka Konsol Utama Pengembang Sistem & Audit Log"
+                >
+                  <Terminal className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                  <span className="hidden sm:inline">💻 KONSOL DEV</span>
+                  <span className="sm:hidden">DEV</span>
                 </button>
               )}
 
@@ -1157,7 +1220,7 @@ export default function App() {
                     id: 'history', 
                     label: `📁 Riwayat Kasus (${records.length})`, 
                     icon: FileText, 
-                    code: 'LOG',
+                    code: 'LOG', 
                     moduleKey: 'CASE_HISTORY' as ModuleAccessKey,
                     isHighRankOnly: true
                   },
@@ -1527,6 +1590,17 @@ export default function App() {
             onToggleViewMode={handleToggleViewMode}
             isAndroidMode={isAndroidMode}
             onNavigateToTab={(tab) => setActiveNav(tab as any)}
+          />
+        )}
+        {activeNav === 'dev_monitor' && (
+          <DeveloperWorkspacePortal
+            currentOfficer={currentOfficer}
+            onSwitchPortal={(portal) => {
+              if (portal === 'POLICE') setActiveNav('calc');
+              else if (portal === 'GOVERNMENT') setActiveNav('gov_suite');
+              else if (portal === 'CITIZEN') setActiveNav('citizen_portal');
+            }}
+            onLogout={handleLogout}
           />
         )}
       </main>

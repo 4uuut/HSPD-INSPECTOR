@@ -110,6 +110,35 @@ export const INITIAL_CITIZENS: CitizenProfile[] = [
       }
     ],
     notes: 'SIM ditangguhkan (Suspended) akibat akumulasi poin tilang balap liar di area Strawberry.'
+  },
+  {
+    id: 'cit-5',
+    citizenId: 'LS-66912',
+    fullName: 'Antonio Morales',
+    dateOfBirth: '1982-03-25',
+    gender: 'MALE',
+    phoneNumber: '555-0177',
+    address: 'Las Colinas / Los Flores area, Los Santos',
+    avatarUrl: '',
+    driverLicenseStatus: 'REVOKED',
+    driverPoints: 12,
+    gunLicenseStatus: 'REVOKED',
+    isWantedBolo: true,
+    wantedReason: '10-99 CODE RED DPO: Penyerangan Terhadap Petugas Patroli di East Beach, Kepemilikan AK-47 & Rompi Berat Ilegal',
+    registeredVehicles: [
+      { plate: 'SCORP01', model: 'Declasse Tampa Gangster', color: 'Matte Grey', status: 'STOLEN' }
+    ],
+    priorArrests: [
+      {
+        recordId: 'ARR-2025-112',
+        charges: 'Pasal 5.1 (Baku Tembak dengan Petugas) & Pasal 3.4 (Pemberontakan Bersenjata)',
+        jailSentenceMinutes: 60,
+        fineAmount: 50000,
+        arrestingOfficer: 'Leoarnd Neave (#001)',
+        timestamp: Date.now() - 1000 * 60 * 60 * 24 * 30
+      }
+    ],
+    notes: 'PERINGATAN RESMI: Alias "El Scorpio". DPO bersenjata api otomatis. Tembak di tempat jika membahayakan nyawa petugas.'
   }
 ];
 
