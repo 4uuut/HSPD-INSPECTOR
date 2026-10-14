@@ -82,15 +82,13 @@ interface Props {
 }
 
 const PRESET_DIVISIONS = [
-  'Field Training Bureau / Patrol',
-  'Traffic Enforcement Unit (TEU)',
-  'Detective Bureau / CID',
-  'Special Weapons and Tactics (SWAT)',
-  'K-9 Canine Division',
-  'Air Support Division (ASD)',
-  'Internal Affairs Division (IAD)',
-  'High Command Staff / Executive Office',
-  'Police Academy Division',
+  'Patrol Division Unit',
+  'Metro Division Unit',
+  'Special Weapon and Tactical (SWAT)',
+  'Detective Bureau',
+  'Evidence Cell Management',
+  'Air Support Unit',
+  'Professional Standards Division',
 ];
 
 const PRESET_WARNING_REASONS = [
@@ -173,6 +171,7 @@ export const RosterManagement: React.FC<Props> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRank, setFilterRank] = useState<'ALL' | 'DUTY' | 'COMMAND' | 'PATROL' | 'WARNED' | 'DISCHARGED'>('ALL');
+  const [filterDivision, setFilterDivision] = useState<string>('ALL');
   const [rosterSortBy, setRosterSortBy] = useState<'badge_asc' | 'badge_desc' | 'name_asc' | 'rank_desc'>('badge_asc');
   const [editingOfficer, setEditingOfficer] = useState<OfficerAccount | null>(null);
   const [showPurgeNonAtasanModal, setShowPurgeNonAtasanModal] = useState(false);
@@ -785,6 +784,7 @@ export const RosterManagement: React.FC<Props> = ({
         Boolean(officer.pin && officer.pin.includes(searchQuery));
       
       if (!matchesSearch) return false;
+      if (filterDivision !== 'ALL' && (officer.division || '') !== filterDivision) return false;
       if (filterRank === 'DUTY') {
         const duty = getOfficerDutyState(officer.badge, roster);
         return duty.isDuty;
@@ -1235,7 +1235,7 @@ export const RosterManagement: React.FC<Props> = ({
         name: entryToRehire.name,
         badge: entryToRehire.badge,
         rank: (entryToRehire.rank as OfficerRankLevel) || 'POLICE OFFICER I [PO I]',
-        division: entryToRehire.division || 'Field Training Bureau / Patrol',
+        division: entryToRehire.division || 'Patrol Division Unit',
         pin: '10-4',
         registeredAt: Date.now(),
         promotedBy: `Dipulihkan / Direkrut Kembali oleh ${currentOfficerName || 'High Command'}`
@@ -1601,6 +1601,23 @@ export const RosterManagement: React.FC<Props> = ({
               <option value="badge_desc" className="bg-[#161B22] text-gray-200">Badge (#999 → #001)</option>
               <option value="name_asc" className="bg-[#161B22] text-gray-200">Nama (A - Z)</option>
               <option value="rank_desc" className="bg-[#161B22] text-gray-200">Pangkat (Command → Patrol)</option>
+            </select>
+          </div>
+
+          {/* Division Filter Selector */}
+          <div className="flex items-center gap-1.5 px-2 py-0.5 border-r border-gray-800 mr-1 shrink-0">
+            <Shield className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            <span className="text-[11px] text-gray-400 hidden lg:inline">Divisi:</span>
+            <select
+              value={filterDivision}
+              onChange={(e) => setFilterDivision(e.target.value)}
+              className="bg-transparent text-blue-300 font-bold text-[11px] border-none outline-none cursor-pointer pr-1"
+              title="Filter personel berdasarkan divisi penugasan resmi"
+            >
+              <option value="ALL" className="bg-[#161B22] text-gray-200">Semua Divisi</option>
+              {PRESET_DIVISIONS.map((div) => (
+                <option key={div} value={div} className="bg-[#161B22] text-gray-200">{div}</option>
+              ))}
             </select>
           </div>
 
@@ -2891,17 +2908,28 @@ export const RosterManagement: React.FC<Props> = ({
                           Divisi / Unit Penugasan:
                         </label>
                         <select
-                          value={newDivision}
-                          onChange={(e) => setNewDivision(e.target.value)}
-                          className="w-full px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-100 outline-none"
+                          value={PRESET_DIVISIONS.includes(newDivision) ? newDivision : (newDivision ? 'CUSTOM' : PRESET_DIVISIONS[0])}
+                          onChange={(e) => {
+                            if (e.target.value !== 'CUSTOM') {
+                              setNewDivision(e.target.value);
+                            }
+                          }}
+                          className="w-full px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-amber-500 rounded-lg text-xs text-gray-100 outline-none font-mono"
                         >
-                          <option value="Patrol Division">Patrol Division (General Patrol)</option>
-                          <option value="Traffic Enforcement Division">Traffic Enforcement Division (TED)</option>
-                          <option value="Detective Bureau / CID">Detective Bureau / Investigation (CID)</option>
-                          <option value="Special Enforcement Bureau (SEB/SWAT)">Special Enforcement Bureau (SEB / SWAT)</option>
-                          <option value="Air Support Division (ASD)">Air Support Division (ASD)</option>
-                          <option value="High Command Staff">High Command Staff (HQ)</option>
+                          {PRESET_DIVISIONS.map((div) => (
+                            <option key={div} value={div}>{div}</option>
+                          ))}
+                          <option value="CUSTOM">+ Divisi Kustom / Lainnya...</option>
                         </select>
+                        {(!PRESET_DIVISIONS.includes(newDivision) || newDivision === '') && (
+                          <input
+                            type="text"
+                            value={newDivision}
+                            onChange={(e) => setNewDivision(e.target.value)}
+                            placeholder="Ketik nama divisi kustom..."
+                            className="w-full mt-1.5 px-3 py-1.5 bg-[#161B22] border border-amber-600 focus:border-amber-400 rounded-lg text-xs text-gray-100 outline-none font-mono"
+                          />
+                        )}
                       </div>
 
                       <div>

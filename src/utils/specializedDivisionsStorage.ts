@@ -10,6 +10,7 @@ import {
   DivisionType
 } from '../types';
 import { pushToFirestore } from '../services/firebaseRealtimeSync';
+import { normalizeDivisionKey } from './divisionAccess';
 
 export const ASD_KEY = 'hspd_asd_helicopters_v1';
 export const K9_KEY = 'hspd_k9_partners_v1';
@@ -407,10 +408,10 @@ export const INITIAL_DIVISION_CASE_FILES: DivisionCaseFile[] = [
     updatedAt: Date.now() - 1000 * 60 * 60 * 42
   },
   {
-    id: 'case-asd-003',
-    caseNumber: 'CASE-ASD-2026-003',
+    id: 'case-air_support-001',
+    caseNumber: 'CASE-AIR_SUPPORT-2026-001',
     caseTitle: 'Pengejaran Taktis Udara & Pelarian Pembobol Toko Perhiasan Vangelico (Air Tracking 10-80)',
-    division: 'ASD',
+    division: 'AIR_SUPPORT',
     category: 'HIGH_SPEED_PURSUIT',
     location: 'Vangelico Jewelers Rockford Hills hingga Kanal Los Santos River Basin',
     incidentDate: '2026-10-04',
@@ -479,10 +480,10 @@ export const INITIAL_DIVISION_CASE_FILES: DivisionCaseFile[] = [
     updatedAt: Date.now() - 1000 * 60 * 60 * 68
   },
   {
-    id: 'case-k9-004',
-    caseNumber: 'CASE-K9-2026-004',
-    caseTitle: 'Penyisiran K-9 Narkotika & Senjata Sindikat Kontainer Ocean Docks',
-    division: 'K9',
+    id: 'case-metro-001',
+    caseNumber: 'CASE-METRO-2026-001',
+    caseTitle: 'Penyisiran Taktis Metro & Unit Satwa K-9 Kontainer Ocean Docks',
+    division: 'METRO',
     category: 'NARCOTICS_SWEEP',
     location: 'Ocean Docks Terminal, Gudang Kontainer Unit 14B, South Los Santos',
     incidentDate: '2026-10-03',
@@ -551,10 +552,10 @@ export const INITIAL_DIVISION_CASE_FILES: DivisionCaseFile[] = [
     updatedAt: Date.now() - 1000 * 60 * 60 * 90
   },
   {
-    id: 'case-ted-005',
-    caseNumber: 'CASE-TED-2026-005',
-    caseTitle: 'Penindakan Balap Liar Massal & Penyekatan Tol Del Perro Freeway (Midnight Crackdown)',
-    division: 'TED',
+    id: 'case-patrol-001',
+    caseNumber: 'CASE-PATROL-2026-001',
+    caseTitle: 'Penindakan Patroli Jalan Raya & Penyekatan Tol Del Perro Freeway (Midnight Crackdown)',
+    division: 'PATROL',
     category: 'TRAFFIC_CRACKDOWN',
     location: 'Del Perro Freeway Exit 4 s/d Jembatan Overpass La Puerta',
     incidentDate: '2026-10-02',
@@ -624,10 +625,10 @@ export const INITIAL_DIVISION_CASE_FILES: DivisionCaseFile[] = [
     updatedAt: Date.now() - 1000 * 60 * 60 * 115
   },
   {
-    id: 'case-iad-006',
-    caseNumber: 'CASE-IAD-2026-006',
-    caseTitle: 'Investigasi Disiplin Pelanggaran Tembakan Senpi Tanpa SOP Lapangan (Internal Investigation)',
-    division: 'IAD',
+    id: 'case-psd-001',
+    caseNumber: 'CASE-PSD-2026-001',
+    caseTitle: 'Investigasi Standar Profesi & Sidang Disiplin Internal Pelanggaran SOP Senpi',
+    division: 'PSD',
     category: 'INTERNAL_INVESTIGATION',
     location: 'Ruang Sidang Komisi Etik Mabes HSPD Mission Row, Los Santos',
     incidentDate: '2026-10-01',
@@ -681,12 +682,146 @@ export const INITIAL_DIVISION_CASE_FILES: DivisionCaseFile[] = [
       'Kaset Rekaman Bodycam Disegel ke Arsip IAD',
       'Surat Penetapan Disiplin Bermaterai'
     ],
-    chronologySummary: 'Laporan keberatan warga ditindaklanjuti secara transparan dan independen oleh Divisi Propam IAD. Melalui sidang etik resmi, putusan adil dijatuhkan untuk menegakkan standar integritas kepolisian tertinggi.',
+    chronologySummary: 'Laporan keberatan warga ditindaklanjuti secara transparan dan independen oleh Divisi Propam PSD. Melalui sidang etik resmi, putusan adil dijatuhkan untuk menegakkan standar integritas kepolisian tertinggi.',
     tacticalEvaluation: 'Penegakan disiplin tegas ini membuktikan komitmen HSPD terhadap profesionalisme dan akuntabilitas mutlak bagi seluruh jajaran personel.',
     signedByCommander: true,
     signedTimestamp: 1788613200000,
     createdAt: Date.now() - 1000 * 60 * 60 * 144,
     updatedAt: Date.now() - 1000 * 60 * 60 * 140
+  },
+  {
+    id: 'case-detective-001',
+    caseNumber: 'CASE-DETECTIVE-2026-001',
+    caseTitle: 'Penyelidikan Sindikat Pengedar Senjata Gelap & Rekening Samaran (CID Warrant Operation)',
+    division: 'DETECTIVE',
+    category: 'SPECIAL_OPERATION',
+    location: 'Gudang Ekspedisi Murrieta Heights & Safehouse Mirror Park',
+    incidentDate: '2026-10-07',
+    incidentTime: '13:00 WIB',
+    commanderName: 'Raymond Holt',
+    commanderBadge: '#401',
+    commanderRank: 'CAPTAIN [CPT]',
+    officersCount: 4,
+    participatingOfficers: [
+      'Raymond Holt (#401 - Lead Detective CID)',
+      'Ezio Silliwangi (#403 - Detective Investigator)',
+      'Deren Askara (#411 - Undercover Analyst)',
+      'Grakiel Romanov (#421 - Surveillance Officer)'
+    ],
+    tacticalVehicles: [
+      '2x Unmarked Detective Albany Cruiser',
+      '1x Mobile Forensics Van'
+    ],
+    suspectsCount: 3,
+    suspectAffiliation: 'Sindikat Penyelundup Senjata Otomatis Pasifik Barat',
+    suspectStatusSummary: '3 Target Utama Berhasil Diringkus Berdasarkan Surat Perintah Penggeledahan Pengadilan',
+    hostagesCount: 0,
+    hostageStatus: 'Nihil Sandera',
+    policeCasualties: 'Nihil Korban',
+    policeWeapons: [
+      'Pistol Combat Mk II Tersembunyi (Concealed)',
+      'Alat Penyadapan Audio Forensik',
+      'Surat Perintah Penggeledahan Bersegel Hakim'
+    ],
+    suspectWeapons: [
+      '8 Pucuk Micro SMG Belum Terdaftar',
+      'Amunisi 9mm Hollow Point (500 Butir)',
+      'Buku Catatan Transaksi Kripto Samaran'
+    ],
+    photoNegotiation: {
+      url: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=800&auto=format&fit=crop&q=80',
+      caption: 'Tahap 1: Pengawasan Intelijen Menyamar (Undercover Surveillance)',
+      stageNotes: 'Tim penyelidik memotret serah terima koper mencurigakan antara target utama dan kurir di basement parkir Murrieta Heights.'
+    },
+    photoSetupShooting: {
+      url: 'https://images.unsplash.com/photo-1517649763962-0c623266ddc0?w=800&auto=format&fit=crop&q=80',
+      caption: 'Tahap 2: Eksekusi Surat Perintah Penggeledahan Resmi Pengadilan',
+      stageNotes: 'Penyelidik didukung tim taktis mengetuk dan mengamankan safehouse tanpa ada tembakan perlawanan.'
+    },
+    photoFinalOutcome: {
+      url: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&auto=format&fit=crop&q=80',
+      caption: 'Tahap 3: Penyitaan Dokumen Finansial & Pembekuan Dana Transaksi Ilegal',
+      stageNotes: 'Barang bukti dokumen perbankan dan senjata berhasil diamankan ke ruang bukti Detective CID.'
+    },
+    outcomeStatus: 'BERHASIL',
+    lootRecovered: '$480,000 Dana Transaksi Ilegal Berhasil Dibekukan',
+    lootLoss: 'Nihil Kerugian',
+    confiscatedEvidences: [
+      '8 Pucuk Senjata Otomatis Tanpa Nomor Seri',
+      'Laptop Enkripsi Bukti Transaksi Samaran',
+      'Flashdisk Rekening Samaran Offshore'
+    ],
+    chronologySummary: 'Operasi intelijen selama 3 minggu mengungkap jaringan transaksi senjata ilegal di kawasan industri timur kota. Eksekusi penggeledahan berhasil melumpuhkan operasional sindikat seutuhnya.',
+    tacticalEvaluation: 'Koordinasi penyamaran minim jejak berhasil mengumpulkan bukti materil tak terbantahkan untuk penuntutan kejaksaan tinggi.',
+    signedByCommander: true,
+    signedTimestamp: 1789128000000,
+    createdAt: Date.now() - 1000 * 60 * 60 * 12,
+    updatedAt: Date.now() - 1000 * 60 * 60 * 8
+  },
+  {
+    id: 'case-evidence-001',
+    caseNumber: 'CASE-EVIDENCE-2026-001',
+    caseTitle: 'Pencatatan Rantai Pengawasan & Pemusnahan Narkotika Sitaan Brankas Vault (Chain of Custody)',
+    division: 'EVIDENCE',
+    category: 'SPECIAL_OPERATION',
+    location: 'Brankas Pusat Barang Bukti HSPD & Fasilitas Insinerator San Chianski',
+    incidentDate: '2026-10-08',
+    incidentTime: '09:30 WIB',
+    commanderName: 'Matteo Stratton',
+    commanderBadge: '#401',
+    commanderRank: 'CAPTAIN [CPT]',
+    officersCount: 5,
+    participatingOfficers: [
+      'Matteo Stratton (#401 - Evidence Cell Vault Supervisor)',
+      'Drego Tadashima (#402 - Vault Security Officer)',
+      'Alex Mercer (#199 - Escort Convoy Lead)',
+      'Tommy Ross (#142 - Audit Verification Officer)'
+    ],
+    tacticalVehicles: [
+      '1x Brute Armored Evidence Van',
+      '2x Police Cruiser Escort Convoy'
+    ],
+    suspectsCount: 0,
+    suspectAffiliation: 'Arsip Sitaan Gabungan Kasus Narkotika & Senjata Triwulan III',
+    suspectStatusSummary: 'Seluruh Barang Sitaan Telah Ditetapkan Berita Acara Pemusnahan Sah',
+    hostagesCount: 0,
+    hostageStatus: 'Nihil Sandera',
+    policeCasualties: 'Nihil Korban',
+    policeWeapons: [
+      'Segel Barcode RFID Anti-Pemalsuan',
+      'Timbangan Analitik Terkalibrasi Laboratorium Forensik',
+      'Berita Acara Sitaan Bersertifikasi Pengadilan'
+    ],
+    suspectWeapons: [],
+    photoNegotiation: {
+      url: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=800&auto=format&fit=crop&q=80',
+      caption: 'Tahap 1: Verifikasi Berat & Nomor Segel Brankas Vault',
+      stageNotes: 'Pemeriksaan silang barcode barang bukti narkoba dan senjata tajam sebelum dikeluarkan dari brankas isolasi berkeamanan tinggi.'
+    },
+    photoSetupShooting: {
+      url: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=800&auto=format&fit=crop&q=80',
+      caption: 'Tahap 2: Pengawalan Konvoi Bersenjata ke Fasilitas Insinerator',
+      stageNotes: 'Iring-iringan mobil lapis baja mengangkut 60 kg barang sitaan menuju fasilitas insinerator industri dengan pengamanan penuh.'
+    },
+    photoFinalOutcome: {
+      url: 'https://images.unsplash.com/photo-1589994965851-a8f479c573a9?w=800&auto=format&fit=crop&q=80',
+      caption: 'Tahap 3: Pemusnahan ke Tungku Pembakaran Suhu Tinggi & Penandatanganan BAP',
+      stageNotes: 'Seluruh paket narkotika musnah menjadi abu pada suhu 1.200°C di hadapan perwakilan komisi integritas dan saksi publik.'
+    },
+    outcomeStatus: 'BERHASIL',
+    lootRecovered: 'Nihil Kehilangan / 100% Rantai Bukti Terjaga Utuh Tanpa Kebocoran',
+    lootLoss: 'Nihil Kerugian',
+    confiscatedEvidences: [
+      '60 Kg Kokain & Sabu Kemasan Bata Musnah',
+      '12 Unit Sajam & Senjata Modifikasi Dipotong Mesin Hidrolik',
+      'Berita Acara Pemusnahan Bernomor BAP-EV-2026-091'
+    ],
+    chronologySummary: 'Pemusnahan resmi triwulan barang sitaan narkoba dan senjata ilegal yang telah berkekuatan hukum tetap (inkracht). Dilaksanakan dengan rantai pengawasan (chain of custody) tanpa cela.',
+    tacticalEvaluation: 'SOP penguncian barcode ganda dan pengawalan bersenjata memastikan integritas barang bukti tetap terjaga 100% dari potensi kontaminasi atau sabotase.',
+    signedByCommander: true,
+    signedTimestamp: 1789201800000,
+    createdAt: Date.now() - 1000 * 60 * 60 * 6,
+    updatedAt: Date.now() - 1000 * 60 * 60 * 2
   }
 ];
 
@@ -695,7 +830,12 @@ export const getSavedDivisionCaseFiles = (): DivisionCaseFile[] => {
     const raw = localStorage.getItem(DIVISION_CASE_FILES_KEY);
     if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((c: any) => ({
+          ...c,
+          division: normalizeDivisionKey(c.division)
+        }));
+      }
     }
   } catch (e) {}
   return INITIAL_DIVISION_CASE_FILES;
@@ -703,7 +843,11 @@ export const getSavedDivisionCaseFiles = (): DivisionCaseFile[] => {
 
 export const saveDivisionCaseFiles = (cases: DivisionCaseFile[]) => {
   try {
-    localStorage.setItem(DIVISION_CASE_FILES_KEY, JSON.stringify(cases));
+    const normalized = cases.map(c => ({
+      ...c,
+      division: normalizeDivisionKey(c.division)
+    }));
+    localStorage.setItem(DIVISION_CASE_FILES_KEY, JSON.stringify(normalized));
     window.dispatchEvent(new Event('hspd-case-files-updated'));
     syncSpecializedDivisionsToCloud();
   } catch (e) {
@@ -714,13 +858,17 @@ export const saveDivisionCaseFiles = (cases: DivisionCaseFile[]) => {
 export const saveSingleDivisionCaseFile = (caseFile: DivisionCaseFile) => {
   try {
     const current = getSavedDivisionCaseFiles();
-    const idx = current.findIndex(c => c.id === caseFile.id);
+    const normalizedCase = {
+      ...caseFile,
+      division: normalizeDivisionKey(caseFile.division)
+    };
+    const idx = current.findIndex(c => c.id === normalizedCase.id);
     let updated: DivisionCaseFile[];
     if (idx >= 0) {
       updated = [...current];
-      updated[idx] = { ...caseFile, updatedAt: Date.now() };
+      updated[idx] = { ...normalizedCase, updatedAt: Date.now() };
     } else {
-      updated = [caseFile, ...current];
+      updated = [normalizedCase, ...current];
     }
     saveDivisionCaseFiles(updated);
   } catch (e) {
@@ -740,14 +888,15 @@ export const deleteDivisionCaseFile = (id: string) => {
 
 /**
  * Automatically generates the next sequential Case File Number for a given division
- * Example: CASE-SWAT-2026-003, CASE-ASD-2026-004, CASE-K9-2026-005
+ * Example: CASE-SWAT-2026-003, CASE-PATROL-2026-004, CASE-METRO-2026-005
  */
 export function generateNextCaseNumber(division: DivisionType): string {
   try {
+    const normDiv = normalizeDivisionKey(division);
     const currentCases = getSavedDivisionCaseFiles();
     const year = new Date().getFullYear();
-    const prefix = `CASE-${division}-${year}-`;
-    const regex = new RegExp(`^CASE-${division}-${year}-(\\d+)`, 'i');
+    const prefix = `CASE-${normDiv}-${year}-`;
+    const regex = new RegExp(`^CASE-${normDiv}-${year}-(\\d+)`, 'i');
 
     let maxNum = 0;
     currentCases.forEach(c => {

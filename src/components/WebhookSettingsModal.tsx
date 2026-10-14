@@ -42,6 +42,7 @@ import { checkAndBroadcastLatestRelease, LATEST_APP_RELEASE, sendSystemPingToDis
 import { ALL_SYSTEM_RELEASES, CURRENT_SYSTEM_RELEASE, SystemReleaseNote } from '../data/systemReleaseNotes';
 import { OfficerProfile, isOfficerHighRank } from '../types';
 import { HSPD_LOGO_URL } from '../assets/logo';
+import { DiscordBotInviteCard } from './DiscordBotInviteCard';
 
 interface Props {
   isOpen: boolean;
@@ -3145,6 +3146,13 @@ Bukti : Ada`}
                   </div>
                 </div>
               </div>
+
+              {/* OAuth2 Bot Invite Link Generator (Allow Developer) */}
+              <DiscordBotInviteCard
+                botToken={botConfig.botToken}
+                botName={botConfig.botName || 'Bot MDT HSPD'}
+                theme="sky"
+              />
 
               {/* Step-by-Step Interactive Guide */}
               <div className="p-3.5 bg-gray-900/90 border border-gray-800 rounded-lg space-y-2 text-[11px]">

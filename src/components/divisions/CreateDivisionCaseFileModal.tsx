@@ -21,6 +21,7 @@ import {
 import { processAndCompressImage } from '../../utils/imageCompressor';
 import { sendDivisionCaseFileToDiscord } from '../../utils/divisionCaseWebhook';
 import { generateNextCaseNumber } from '../../utils/specializedDivisionsStorage';
+import { isHighCommandOfficer, normalizeDivisionKey } from '../../utils/divisionAccess';
 
 interface Props {
   initialData?: DivisionCaseFile | null;
@@ -68,7 +69,11 @@ export const CreateDivisionCaseFileModal: React.FC<Props> = ({
   const isEditing = Boolean(initialData);
 
   // Form States - Automatically generated sequential case number
-  const initialDivision: DivisionType = initialData?.division || defaultDivision || 'SWAT';
+  const isHighCmd = isHighCommandOfficer(currentOfficer);
+  const officerDivKey = currentOfficer?.division ? normalizeDivisionKey(currentOfficer.division) : 'PATROL';
+  const initialDivision: DivisionType = initialData?.division 
+    || defaultDivision 
+    || (isHighCmd ? 'PATROL' : officerDivKey);
   const [division, setDivision] = useState<DivisionType>(initialDivision);
   const [category, setCategory] = useState<CaseFileCategory>(initialData?.category || 'BANK_ROBBERY_CENTRAL');
   const [caseNumber, setCaseNumber] = useState<string>(
@@ -367,9 +372,15 @@ export const CreateDivisionCaseFileModal: React.FC<Props> = ({
               <div>
                 <label className="block text-[11px] font-bold text-gray-300 mb-1">
                   Divisi Penanggung Jawab <span className="text-rose-400">*</span>
+                  {!isHighCmd && !isEditing && (
+                    <span className="ml-1 text-[10px] text-amber-400 font-normal">
+                      (🔒 Divisi Anda)
+                    </span>
+                  )}
                 </label>
                 <select
                   value={division}
+                  disabled={!isHighCmd && !isEditing}
                   onChange={(e) => {
                     const newDiv = e.target.value as DivisionType;
                     setDivision(newDiv);
@@ -377,17 +388,18 @@ export const CreateDivisionCaseFileModal: React.FC<Props> = ({
                       setCaseNumber(generateNextCaseNumber(newDiv));
                     }
                   }}
-                  className="w-full bg-[#161D2A] border border-gray-700 rounded-lg p-2 text-xs text-white font-bold outline-none focus:border-blue-500"
+                  className={`w-full bg-[#161D2A] border border-gray-700 rounded-lg p-2 text-xs text-white font-bold outline-none focus:border-blue-500 ${!isHighCmd && !isEditing ? 'opacity-90 bg-[#121722] cursor-not-allowed' : ''}`}
                 >
-                  <option value="SWAT">🛡️ SWAT / METRO (Special Weapons & Tactics)</option>
-                  <option value="ASD">🚁 ASD (Air Support Division)</option>
-                  <option value="K9">🐕 K-9 (Canine Unit Squad)</option>
-                  <option value="TED">🚔 TED (Satlantas / Traffic Enforcement)</option>
-                  <option value="IAD">⚖️ IAD (Propam / Internal Affairs)</option>
-                  <option value="ACADEMY">🎓 POLICE ACADEMY / FTO</option>
-                  <option value="PATROL">🚓 PATROLI REGULER & HIGHWAY</option>
-                  <option value="DETECTIVE">🔍 DETECTIVE BUREAU / CID</option>
-                  <option value="HIGH_COMMAND">👑 HIGH COMMAND MABES</option>
+                  <option value="PATROL">🚓 Patrol Division Unit</option>
+                  <option value="METRO">🛡️ Metro Division Unit</option>
+                  <option value="SWAT">💥 Special Weapon and Tactical (SWAT)</option>
+                  <option value="DETECTIVE">🔍 Detective Bureau</option>
+                  <option value="EVIDENCE">📦 Evidence Cell Management</option>
+                  <option value="AIR_SUPPORT">🚁 Air Support Unit</option>
+                  <option value="PSD">⚖️ Professional Standards Division</option>
+                  {isHighCmd && (
+                    <option value="HIGH_COMMAND">👑 High Command / Mabes Eksekutif</option>
+                  )}
                 </select>
               </div>
 

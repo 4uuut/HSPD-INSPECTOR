@@ -1266,15 +1266,19 @@ export interface TedTrafficRecord {
 // 🗂️ BERKAS KASUS OPERASIONAL SELURUH DIVISI (CASE FILES)
 // ========================================================
 export type DivisionType = 
-  | 'SWAT'          // Special Weapons and Tactics / Metro
-  | 'ASD'           // Air Support Division (Helikopter Taktis)
-  | 'K9'            // Canine Squad (Satwa K-9 Pelacak)
-  | 'TED'           // Traffic Enforcement Division (Satlantas & Patwal)
-  | 'IAD'           // Internal Affairs Division (Propam / Etik Disiplin)
-  | 'ACADEMY'       // Police Academy & Field Training (FTO)
-  | 'PATROL'        // Regular Patrol & Highway Patrol
-  | 'DETECTIVE'     // Detective Bureau / CID
-  | 'HIGH_COMMAND'; // Staf Komando Mabes
+  | 'PATROL'        // Patrol Division Unit
+  | 'METRO'         // Metro Division Unit
+  | 'SWAT'          // Special Weapon and Tactical (SWAT)
+  | 'DETECTIVE'     // Detective Bureau
+  | 'EVIDENCE'      // Evidence Cell Management
+  | 'AIR_SUPPORT'   // Air Support Unit
+  | 'PSD'           // Professional Standards Division
+  | 'HIGH_COMMAND'  // High Command Mabes
+  | 'ASD'           // Legacy alias for Air Support
+  | 'K9'            // Legacy alias for Metro/Canine
+  | 'TED'           // Legacy alias for Traffic/Patrol
+  | 'IAD'           // Legacy alias for PSD
+  | 'ACADEMY';      // Legacy alias
 
 export type CaseFileCategory = 
   | 'BANK_ROBBERY_CENTRAL'   // Perampokan Bank Pusat (Pacific Standard)

@@ -1,7 +1,11 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { initializeFirestore, collection, doc, setDoc, getDocs, getDoc, deleteDoc } from 'firebase/firestore';
+import { initializeFirestore, collection, doc, setDoc, getDocs, getDoc, deleteDoc, setLogLevel } from 'firebase/firestore';
 import fs from 'fs';
 import path from 'path';
+
+try {
+  setLogLevel('silent');
+} catch {}
 
 export function isAtasanRank(rank?: string): boolean {
   if (!rank) return false;
@@ -958,6 +962,21 @@ class DiscordRosterService {
 
   constructor() {
     this.initDb();
+    try {
+      const initialMap = new Map<string, OfficerRecord>();
+      const getOfficerKey = (o: { id?: string; name?: string; badge?: string }) => {
+        const normName = (o.name || '').toLowerCase().trim().replace(/\s+/g, ' ');
+        return normName || (o.badge || '').toLowerCase().trim() || o.id || 'unknown';
+      };
+      OFFICIAL_ROSTER_BASELINE.forEach(o => {
+        if (o) initialMap.set(getOfficerKey(o), o);
+      });
+      this.getLocalBackups().forEach(o => {
+        if (o) initialMap.set(getOfficerKey(o), o);
+      });
+      this.cachedOfficers = Array.from(initialMap.values());
+      this.lastCacheFetchTime = Date.now();
+    } catch {}
   }
 
   private isQuotaError(err: any): boolean {
@@ -1099,7 +1118,7 @@ class DiscordRosterService {
       const colRef = collection(this.db, 'roster');
       const fetchPromise = getDocs(colRef);
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Firestore read timeout: 800ms limit exceeded for Discord latency')), 800);
+        setTimeout(() => reject(new Error('Firestore read timeout: network latency limit reached')), 5000);
       });
       const snap = await Promise.race([fetchPromise, timeoutPromise]);
       snap.forEach(d => {
@@ -1112,11 +1131,13 @@ class DiscordRosterService {
       // Reading succeeded, clear any quota cooldown
       this.quotaExceededUntil = 0;
     } catch (err: any) {
-      this.quotaExceededUntil = Date.now() + 30 * 60 * 1000; // 30 minute cooldown
       if (this.isQuotaError(err)) {
-        console.info('[Discord Roster Service] ℹ️ Firestore quota limit reached. Falling back safely to local database & cache (30m cooldown).');
+        this.quotaExceededUntil = Date.now() + 10 * 60 * 1000; // 10 minute cooldown for actual quota exhaustion
+        console.info('[Discord Roster Service] ℹ️ Firestore quota limit reached. Falling back safely to local database & cache (10m cooldown).');
       } else {
-        console.warn('[Discord Roster Service] Firestore read timed out or failed, using local database:', err?.message || err);
+        // Transient timeout or initial connection latency: brief 5s cooldown before retry, serve local database safely
+        this.quotaExceededUntil = Date.now() + 5 * 1000;
+        console.info('[Discord Roster Service] Notice: Firestore sync timed out or connection deferred; serving local database backup.');
       }
     }
 

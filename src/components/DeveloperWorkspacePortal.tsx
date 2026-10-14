@@ -30,6 +30,7 @@ import { getRosterFromStorage, saveRosterToStorage, updateOfficerPinInRoster } f
 import { getGovernmentRoster } from '../utils/governmentStorage';
 import { getSavedDiscordBotConfig, getSavedChangelogWebhookConfig, getSavedWebhookConfig, sendDiscordLog } from '../utils/discordWebhook';
 import { pullLatestFromFirestore } from '../services/firebaseRealtimeSync';
+import { DiscordBotInviteCard } from './DiscordBotInviteCard';
 
 interface Props {
   currentOfficer: OfficerProfile | null;
@@ -950,6 +951,13 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
                 <div className="text-xs text-emerald-300 font-bold">{webhookStatus}</div>
               )}
             </div>
+
+            {/* Dedicated Bot OAuth2 Allow Developer Generator */}
+            <DiscordBotInviteCard
+              botToken={botConfig.botToken}
+              botName="HSPD MDT Official Bot"
+              theme="emerald"
+            />
           </div>
         )}
 

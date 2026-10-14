@@ -203,35 +203,56 @@ export const DEFAULT_RECRUITMENT_PORTAL_CONFIG: RecruitmentPortalConfig = {
   ],
 
   divisionsHeaderTitle: 'STRUKTUR DIVISI & JENJANG KARIR KEPOLISIAN',
-  divisionsHeaderTag: '5 DIVISI UTAMA',
+  divisionsHeaderTag: '7 DIVISI UTAMA',
   divisions: [
     {
       id: 'div_patrol',
-      name: 'Patrol Division (PD)',
-      tag: 'CORE UNIT',
-      description: 'Tulang punggung kepolisian untuk patroli perkotaan 24 jam, respon panggilan darurat 911, dan pengamanan pertama di TKP.',
+      name: 'Patrol Division Unit',
+      tag: 'CORE PATROL',
+      description: 'Tulang punggung kepolisian untuk patroli perkotaan 24 jam, respon panggilan darurat 911, penanganan laporan warga, dan pengamanan pertama di TKP.',
       color: 'blue'
     },
     {
-      id: 'div_traffic',
-      name: 'Traffic Enforcement (TEU)',
-      tag: 'LALU LINTAS',
-      description: 'Unit pengawasan lalu lintas, operasi razia kelayakan berkendara, penindakan balap liar, dan pengawalan V.I.P.',
-      color: 'amber'
-    },
-    {
-      id: 'div_detective',
-      name: 'Detective / CID',
-      tag: 'INVESTIGASI',
-      description: 'Penyelidikan kasus kejahatan besar, sindikat narkotika, perdagangan senjata ilegal, serta operasi penyamaran rahasia (undercover).',
-      color: 'emerald'
+      id: 'div_metro',
+      name: 'Metro Division Unit',
+      tag: 'METROPOLITAN',
+      description: 'Unit penegakan hukum intensif perkotaan, pengamanan area berisiko tinggi, pengendalian massa, dan operasi taktis cepat kota.',
+      color: 'cyan'
     },
     {
       id: 'div_swat',
-      name: 'S.W.A.T Tactical Unit',
-      tag: 'ELITE FORCE',
-      description: 'Unit taktis penanganan krisis berbahaya tingkat tinggi, pembebasan sandera, penjinakan bahan peledak, dan raid properti bersenjata berat.',
+      name: 'Special Weapon and Tactical (SWAT)',
+      tag: 'TACTICAL UNIT',
+      description: 'Unit taktis elit penanganan krisis berbahaya tingkat tinggi, pembebasan sandera, penjinakan ancaman teror, dan raid markas senjata berat.',
       color: 'rose'
+    },
+    {
+      id: 'div_detective',
+      name: 'Detective Bureau',
+      tag: 'INVESTIGASI CID',
+      description: 'Penyelidikan kasus kejahatan besar, sindikat kriminalitas & narkotika, pencarian buronan, serta operasi pengintaian intelijen.',
+      color: 'amber'
+    },
+    {
+      id: 'div_evidence',
+      name: 'Evidence Cell Management',
+      tag: 'FORENSIK & BARBUK',
+      description: 'Penyimpanan, pencatatan rantai barang bukti (chain of custody), audit sitaan senjata dan zat terlarang, serta analisis forensik laboratorium.',
+      color: 'emerald'
+    },
+    {
+      id: 'div_air',
+      name: 'Air Support Unit',
+      tag: 'AIRBORNE HELI',
+      description: 'Unit helikopter pengintaian udara, pelacakan visual kecepatan tinggi (10-80 Airborne), koordinasi perimeter, dan SAR evakuasi medis darurat.',
+      color: 'blue'
+    },
+    {
+      id: 'div_psd',
+      name: 'Professional Standards Division',
+      tag: 'INTERNAL & ETIKA',
+      description: 'Pengawasan disiplin internal anggota kepolisian, penegakan integritas dan etika korps, audit SOP operasional, serta sidang investigasi aduan warga.',
+      color: 'purple'
     }
   ],
   rankHierarchy: [

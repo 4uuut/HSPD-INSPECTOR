@@ -37,15 +37,19 @@ export async function sendDivisionCaseFileToDiscord(
     }
 
     const divisionEmojiMap: Record<string, string> = {
-      SWAT: '🛡️ SWAT / METRO',
-      ASD: '🚁 ASD (AIR SUPPORT)',
-      K9: '🐕 K-9 CANINE SQUAD',
-      TED: '🚔 TED (SATLANTAS)',
-      IAD: '⚖️ IAD (PROPAM / ETIK)',
-      ACADEMY: '🎓 POLICE ACADEMY / FTO',
-      PATROL: '🚓 PATROLI REGULER',
+      PATROL: '🚓 PATROL DIVISION UNIT',
+      METRO: '🛡️ METRO DIVISION UNIT',
+      SWAT: '💥 SPECIAL WEAPON AND TACTICAL (SWAT)',
       DETECTIVE: '🔍 DETECTIVE BUREAU',
-      HIGH_COMMAND: '👑 HIGH COMMAND HQ'
+      EVIDENCE: '📦 EVIDENCE CELL MANAGEMENT',
+      AIR_SUPPORT: '🚁 AIR SUPPORT UNIT',
+      PSD: '⚖️ PROFESSIONAL STANDARDS DIVISION',
+      HIGH_COMMAND: '👑 HIGH COMMAND HQ',
+      ASD: '🚁 AIR SUPPORT UNIT (ASD)',
+      K9: '🐕 K-9 CANINE SQUAD',
+      TED: '🚔 SATLANTAS (TED)',
+      IAD: '⚖️ PROPAM / IAD',
+      ACADEMY: '🎓 POLICE ACADEMY'
     };
 
     const divisionLabel = divisionEmojiMap[caseFile.division] || caseFile.division;

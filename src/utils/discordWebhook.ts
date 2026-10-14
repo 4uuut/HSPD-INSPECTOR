@@ -448,6 +448,42 @@ export async function startDiscordBotGateway(token?: string): Promise<{ success:
 }
 
 /**
+ * Extract Client / Application ID from Discord Bot Token
+ * Discord bot tokens start with base64-encoded Client ID (Snowflake)
+ */
+export function extractClientIdFromToken(token?: string): string {
+  if (!token) return '';
+  try {
+    const segment = token.trim().split('.')[0];
+    if (segment) {
+      const decoded = atob(segment);
+      if (/^\d{16,21}$/.test(decoded)) {
+        return decoded;
+      }
+    }
+  } catch {}
+  return '';
+}
+
+/**
+ * Generate Discord OAuth2 Bot Invite URL
+ * Default scopes: 'bot', 'applications.commands'
+ */
+export function generateDiscordBotInviteUrl(params: {
+  clientId: string;
+  scopes?: string[];
+  permissions?: number | string;
+}): string {
+  const cleanId = (params.clientId || '').trim();
+  if (!cleanId) return '';
+  const scopes = params.scopes && params.scopes.length > 0 
+    ? params.scopes.join(' ') 
+    : 'bot applications.commands';
+  const perms = params.permissions !== undefined ? params.permissions : 8; // 8 = Administrator
+  return `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(cleanId)}&permissions=${perms}&scope=${encodeURIComponent(scopes)}`;
+}
+
+/**
  * Disconnect Discord Gateway
  */
 export async function stopDiscordBotGateway(): Promise<{ success: boolean; message: string }> {

@@ -6,6 +6,12 @@ import {
 } from 'lucide-react';
 import { DivisionCaseFile, OfficerProfile } from '../../types';
 import { sendDivisionCaseFileToDiscord } from '../../utils/divisionCaseWebhook';
+import { 
+  canOfficerAccessCaseFile, 
+  getDivisionTheme, 
+  getDivisionDisplayName 
+} from '../../utils/divisionAccess';
+import { ShieldAlert } from 'lucide-react';
 
 interface Props {
   caseFile: DivisionCaseFile;
@@ -25,19 +31,51 @@ export const DivisionCaseFileDetailModal: React.FC<Props> = ({
   const [discordFeedback, setDiscordFeedback] = useState<string | null>(null);
   const [copiedReport, setCopiedReport] = useState(false);
 
-  const getDivisionColor = (div: string) => {
-    switch (div) {
-      case 'SWAT': return { bg: 'bg-red-950/60', text: 'text-red-400', border: 'border-red-600/60', badge: 'bg-red-600 text-white' };
-      case 'ASD': return { bg: 'bg-blue-950/60', text: 'text-blue-400', border: 'border-blue-600/60', badge: 'bg-blue-600 text-white' };
-      case 'K9': return { bg: 'bg-amber-950/60', text: 'text-amber-400', border: 'border-amber-600/60', badge: 'bg-amber-600 text-white' };
-      case 'TED': return { bg: 'bg-sky-950/60', text: 'text-sky-400', border: 'border-sky-600/60', badge: 'bg-sky-600 text-white' };
-      case 'IAD': return { bg: 'bg-purple-950/60', text: 'text-purple-400', border: 'border-purple-600/60', badge: 'bg-purple-600 text-white' };
-      case 'ACADEMY': return { bg: 'bg-emerald-950/60', text: 'text-emerald-400', border: 'border-emerald-600/60', badge: 'bg-emerald-600 text-white' };
-      default: return { bg: 'bg-indigo-950/60', text: 'text-indigo-400', border: 'border-indigo-600/60', badge: 'bg-indigo-600 text-white' };
-    }
-  };
+  const hasAccess = canOfficerAccessCaseFile(currentOfficer, caseFile);
+  const divTheme = getDivisionTheme(caseFile.division);
 
-  const divTheme = getDivisionColor(caseFile.division);
+  if (!hasAccess) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="bg-[#0D121D] border border-red-600/70 rounded-2xl w-full max-w-md p-6 shadow-2xl text-center space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-red-600/20 border border-red-500/50 flex items-center justify-center text-red-400 mx-auto shadow-lg shadow-red-500/10">
+            <ShieldAlert className="w-8 h-8 stroke-[2.5]" />
+          </div>
+          <div>
+            <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase bg-red-950 text-red-300 border border-red-800">
+              KLASIFIKASI INTERNAL • AKSES TERKUNCI
+            </span>
+            <h2 className="text-base font-black text-white mt-2">
+              BERKAS KASUS DIRAHASIAKAN
+            </h2>
+            <p className="text-xs text-gray-300 mt-2 leading-relaxed">
+              Berkas <span className="font-mono font-bold text-amber-300">{caseFile.caseNumber}</span> merupakan arsip internal khusus divisi <strong className="text-white">{getDivisionDisplayName(caseFile.division)}</strong>.
+            </p>
+            <div className="p-3 bg-black/50 rounded-xl border border-gray-800 text-left text-[11px] space-y-1.5 mt-3">
+              <div className="flex justify-between">
+                <span className="text-gray-400">Divisi Petugas:</span>
+                <span className="font-bold text-white">{currentOfficer?.division || 'Divisi Reguler'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-400">Otorisasi Berkas:</span>
+                <span className="font-bold text-amber-400">{getDivisionDisplayName(caseFile.division)}</span>
+              </div>
+              <div className="text-[10px] text-red-400/90 pt-1 border-t border-gray-800/80">
+                🔒 Berkas kasus hanya dapat dibuka oleh personel yang bertugas di divisi tersebut atau Pimpinan High Command Mabes.
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-white rounded-xl font-bold text-xs transition cursor-pointer border border-gray-700"
+          >
+            Tutup & Kembali
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleSendDiscord = async () => {
     setIsSendingDiscord(true);

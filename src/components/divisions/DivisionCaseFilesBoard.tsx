@@ -3,12 +3,19 @@ import {
   Shield, Plus, Search, Filter, MapPin, Calendar, Clock, 
   Users, AlertTriangle, CheckCircle, Crosshair, Sparkles, 
   Flame, Radio, Send, Eye, Edit3, Trash2, Printer, ExternalLink,
-  ChevronRight, Award, Image as ImageIcon
+  ChevronRight, Award, Image as ImageIcon, ShieldAlert, Lock
 } from 'lucide-react';
 import { DivisionCaseFile, OfficerProfile } from '../../types';
 import { sendDivisionCaseFileToDiscord } from '../../utils/divisionCaseWebhook';
 import { DivisionCaseFileDetailModal } from './DivisionCaseFileDetailModal';
 import { CreateDivisionCaseFileModal } from './CreateDivisionCaseFileModal';
+import { 
+  canOfficerAccessCaseFile, 
+  isHighCommandOfficer, 
+  normalizeDivisionKey, 
+  getDivisionDisplayName, 
+  getDivisionTheme 
+} from '../../utils/divisionAccess';
 
 interface Props {
   caseFiles: DivisionCaseFile[];
@@ -37,6 +44,9 @@ export const DivisionCaseFilesBoard: React.FC<Props> = ({
   const [sendingDiscordId, setSendingDiscordId] = useState<string | null>(null);
   const [discordNotification, setDiscordNotification] = useState<string | null>(null);
 
+  const isHighCmd = isHighCommandOfficer(currentOfficer);
+  const officerDivKey = currentOfficer?.division ? normalizeDivisionKey(currentOfficer.division) : 'PATROL';
+
   // Sync with prop if provided
   const currentDivFilter = onFilterDivisionChange ? activeFilterDivision : selectedDivision;
   const setDivFilter = (div: string) => {
@@ -44,9 +54,17 @@ export const DivisionCaseFilesBoard: React.FC<Props> = ({
     setSelectedDivision(div);
   };
 
+  // Enforce strict division isolation:
+  // Non-High Command officers can ONLY access case files of their own division!
+  const accessibleCases = caseFiles.filter(c => canOfficerAccessCaseFile(currentOfficer, c));
+
   // Filter logic
-  const filteredCases = caseFiles.filter(c => {
-    if (currentDivFilter !== 'ALL' && c.division !== currentDivFilter) return false;
+  const filteredCases = accessibleCases.filter(c => {
+    if (currentDivFilter !== 'ALL') {
+      const targetDivKey = normalizeDivisionKey(currentDivFilter);
+      const caseDivKey = normalizeDivisionKey(c.division);
+      if (caseDivKey !== targetDivKey) return false;
+    }
     if (selectedStatus !== 'ALL' && c.outcomeStatus !== selectedStatus) return false;
     if (selectedCategory !== 'ALL' && c.category !== selectedCategory) return false;
 
@@ -64,25 +82,15 @@ export const DivisionCaseFilesBoard: React.FC<Props> = ({
     return true;
   });
 
-  // Calculate Metrics
-  const totalCases = caseFiles.length;
-  const totalSuccess = caseFiles.filter(c => c.outcomeStatus === 'BERHASIL').length;
+  // Calculate Metrics based on accessible cases
+  const totalCases = accessibleCases.length;
+  const totalSuccess = accessibleCases.filter(c => c.outcomeStatus === 'BERHASIL').length;
   const successRate = totalCases > 0 ? Math.round((totalSuccess / totalCases) * 100) : 100;
-  const totalOfficersInvolved = caseFiles.reduce((acc, curr) => acc + (curr.officersCount || 0), 0);
-  const totalSuspectsHandled = caseFiles.reduce((acc, curr) => acc + (curr.suspectsCount || 0), 0);
+  const totalOfficersInvolved = accessibleCases.reduce((acc, curr) => acc + (curr.officersCount || 0), 0);
+  const totalSuspectsHandled = accessibleCases.reduce((acc, curr) => acc + (curr.suspectsCount || 0), 0);
 
   const getDivisionBadgeColor = (div: string) => {
-    switch (div) {
-      case 'SWAT': return 'bg-red-600 text-white border-red-500';
-      case 'ASD': return 'bg-blue-600 text-white border-blue-500';
-      case 'K9': return 'bg-amber-600 text-white border-amber-500';
-      case 'TED': return 'bg-sky-600 text-white border-sky-500';
-      case 'IAD': return 'bg-purple-600 text-white border-purple-500';
-      case 'ACADEMY': return 'bg-emerald-600 text-white border-emerald-500';
-      case 'PATROL': return 'bg-indigo-600 text-white border-indigo-500';
-      case 'DETECTIVE': return 'bg-teal-600 text-white border-teal-500';
-      default: return 'bg-gray-700 text-white border-gray-600';
-    }
+    return getDivisionTheme(div).badgeClass;
   };
 
   const handleSaveCase = (newOrUpdated: DivisionCaseFile) => {
@@ -221,29 +229,32 @@ export const DivisionCaseFilesBoard: React.FC<Props> = ({
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
           <span className="text-[10px] text-gray-500 uppercase font-mono font-bold mr-1 shrink-0">Divisi:</span>
           {[
-            { id: 'ALL', label: '🌐 Semua Divisi' },
-            { id: 'SWAT', label: '🛡️ SWAT / Metro' },
-            { id: 'ASD', label: '🚁 ASD Air Support' },
-            { id: 'K9', label: '🐕 K-9 Canine' },
-            { id: 'TED', label: '🚔 TED Satlantas' },
-            { id: 'IAD', label: '⚖️ IAD Propam' },
-            { id: 'ACADEMY', label: '🎓 Academy FTO' },
-            { id: 'PATROL', label: '🚓 Patroli' },
-            { id: 'DETECTIVE', label: '🔍 Detective' }
+            { id: 'ALL', label: isHighCmd ? '🌐 Semua Divisi' : '📁 Divisi Saya' },
+            { id: 'PATROL', label: '🚓 Patrol Division' },
+            { id: 'METRO', label: '🛡️ Metro Division' },
+            { id: 'SWAT', label: '💥 SWAT' },
+            { id: 'DETECTIVE', label: '🔍 Detective Bureau' },
+            { id: 'EVIDENCE', label: '📦 Evidence Cell' },
+            { id: 'AIR_SUPPORT', label: '🚁 Air Support' },
+            { id: 'PSD', label: '⚖️ Professional Standards' }
           ].map(tab => {
             const isActive = currentDivFilter === tab.id;
+            const isRestrictedForMe = !isHighCmd && tab.id !== 'ALL' && tab.id !== officerDivKey;
             return (
               <button
                 key={tab.id}
                 type="button"
                 onClick={() => setDivFilter(tab.id)}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition cursor-pointer flex items-center gap-1.5 ${
                   isActive
                     ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
+                    : isRestrictedForMe
+                    ? 'bg-[#121620] text-gray-500 hover:text-gray-400 border border-gray-800/80'
                     : 'bg-[#161D2B] text-gray-400 hover:text-gray-200 hover:bg-[#1E2738] border border-gray-800'
                 }`}
               >
-                {tab.label}
+                <span>{tab.label}</span>
+                {isRestrictedForMe && <span className="text-[9px] opacity-70">🔒</span>}
               </button>
             );
           })}
@@ -277,6 +288,31 @@ export const DivisionCaseFilesBoard: React.FC<Props> = ({
           })}
         </div>
       </div>
+
+      {/* Non-High Command Privacy Notice */}
+      {!isHighCmd && (
+        <div className="p-3 bg-blue-950/30 border border-blue-900/60 rounded-xl text-xs text-blue-200 flex flex-wrap items-center justify-between gap-2 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-blue-400 shrink-0" />
+            <span>
+              <strong>Protokol Kerahasiaan Divisi:</strong> Anda bertugas di <strong className="text-white">{currentOfficer?.division || 'Divisi Resmi'}</strong>. Sistem secara otomatis hanya menampilkan berkas kasus operasional divisi Anda. Berkas divisi lain dirahasiakan.
+            </span>
+          </div>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-900/50 text-blue-300 border border-blue-700/60 font-bold">
+            🔒 DIVISI TERISOLASI
+          </span>
+        </div>
+      )}
+
+      {/* Warning if attempting to filter to another division */}
+      {!isHighCmd && currentDivFilter !== 'ALL' && currentDivFilter !== officerDivKey && (
+        <div className="p-3 bg-amber-950/40 border border-amber-800/60 rounded-xl text-xs text-amber-200 flex items-center gap-2">
+          <ShieldAlert className="w-4 h-4 text-amber-400 shrink-0" />
+          <div>
+            <strong>Akses Terbatas:</strong> Anda sedang memfilter divisi <strong>{getDivisionDisplayName(currentDivFilter)}</strong>. Sesuai aturan, berkas kasus divisi lain dirahasiakan dan tidak dapat dibuka kecuali oleh anggota divisi tersebut atau Pimpinan Mabes.
+          </div>
+        </div>
+      )}
 
       {/* Case Files Cards List */}
       {filteredCases.length === 0 ? (
