@@ -163,7 +163,7 @@ export const INITIAL_DETECTIVE_CASES: DetectiveCase[] = [
     leadDetective: 'Terry Jeffords',
     leadDetectiveBadge: '#302',
     assistingDetectives: ['Charles Boyle (#220)'],
-    division: 'Detective Bureau / CID',
+    division: 'Special Weapon and Tactical (SWAT)',
     status: 'WARRANT_ISSUED',
     priority: 'CRITICAL',
     incidentDate: '2026-08-22',

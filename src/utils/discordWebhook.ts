@@ -2697,6 +2697,7 @@ export async function sendNewOfficerRegistrationToDiscord(params: {
   officerDivision: string;
   officerPhone?: string;
   discordTag?: string;
+  bankAccount?: string;
   initialPin: string;
   registeredBy: string;
   registeredByBadge: string;
@@ -2770,6 +2771,11 @@ export async function sendNewOfficerRegistrationToDiscord(params: {
       value: `${params.officerDivision}`,
       inline: true,
     },
+    ...(params.bankAccount && params.bankAccount.trim() ? [{
+      name: 'No. Rekening Bank',
+      value: `\`${params.bankAccount.trim()}\``,
+      inline: true,
+    }] : []),
     {
       name: 'Diresmikan Oleh',
       value: `${params.registeredByRank} ${params.registeredBy} (\`${params.registeredByBadge}\`)`,
@@ -2843,6 +2849,7 @@ export async function sendOfficerLoginCredentialsToDiscord(params: {
   officerDivision: string;
   pin: string;
   discordTag?: string;
+  bankAccount?: string;
   sentBy: string;
   sentByBadge: string;
   sentByRank: string;
@@ -2911,6 +2918,11 @@ export async function sendOfficerLoginCredentialsToDiscord(params: {
       value: `${params.officerDivision}`,
       inline: true,
     },
+    ...(params.bankAccount && params.bankAccount.trim() ? [{
+      name: 'No. Rekening Bank',
+      value: `\`${params.bankAccount.trim()}\``,
+      inline: true,
+    }] : []),
     {
       name: 'Note',
       value: 'Jangan beritahu informasi ini kepada orang lain!\n*Gunakan nama UCP / Badge dan Pin Code di atas untuk login ke Terminal MDT Kepolisian.*',

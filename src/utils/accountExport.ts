@@ -39,6 +39,7 @@ export function exportAccountsToExcel(
       'Pangkat (Rank)': off.rank || '-',
       'Divisi (Division)': off.division || 'Patrol Division',
       'PIN Login': includePin ? (off.pin || '10-4') : '****** (Dirahasiakan)',
+      'No. Rekening Bank': off.bankAccount || '-',
       'No. Telepon': off.phone || '-',
       'Tag Discord': off.discordTag || '-',
       'Jumlah Warn': warnCount > 0 ? `${warnCount} Strike` : '0',
@@ -58,6 +59,7 @@ export function exportAccountsToExcel(
     { wch: 28 }, // Pangkat
     { wch: 32 }, // Divisi
     { wch: 18 }, // PIN
+    { wch: 20 }, // Rekening Bank
     { wch: 14 }, // Phone
     { wch: 22 }, // Discord
     { wch: 14 }, // Warn Count
@@ -89,6 +91,7 @@ export function exportAccountsToCSV(
     'Pangkat',
     'Divisi',
     'PIN Login',
+    'No Rekening Bank',
     'No Telepon',
     'Discord Tag',
     'Jumlah Warn',
@@ -120,6 +123,7 @@ export function exportAccountsToCSV(
       escapeCSV(off.rank),
       escapeCSV(off.division),
       escapeCSV(includePin ? off.pin : '******'),
+      escapeCSV(off.bankAccount || '-'),
       escapeCSV(off.phone),
       escapeCSV(off.discordTag),
       warnCount,
@@ -257,8 +261,9 @@ export function formatAccountsToDiscordText(
       list.forEach((o, i) => {
         const warnTag = (o.warnings && o.warnings.length > 0) ? ` *(WARN ${o.warnings.length})*` : '';
         const pinTag = includePin ? ` — PIN: \`${o.pin || '10-4'}\`` : '';
+        const bankTag = o.bankAccount ? ` — Rek: \`${o.bankAccount}\`` : '';
         const badgeTag = o.badge ? `(\`${o.badge}\`) ` : '';
-        text += `> ${i + 1}. ${badgeTag}**${o.name}**${warnTag}${pinTag}\n`;
+        text += `> ${i + 1}. ${badgeTag}**${o.name}**${bankTag}${warnTag}${pinTag}\n`;
       });
       text += `\n`;
     }
@@ -302,6 +307,7 @@ export function printAccountsDocument(
         <td style="padding: 6px 8px;">${off.rank || '-'}</td>
         <td style="padding: 6px 8px;">${off.division || '-'}</td>
         ${includePin ? `<td style="padding: 6px 8px; font-family: monospace; font-weight: bold; color: #b45309;">${off.pin || '10-4'}</td>` : ''}
+        <td style="padding: 6px 8px; font-family: monospace; color: #047857;">${off.bankAccount || '-'}</td>
         <td style="padding: 6px 8px; font-family: monospace;">${off.phone || '-'}</td>
         <td style="padding: 6px 8px; text-align: center; color: ${warnCount > 0 ? '#b91c1c' : '#15803d'}; font-weight: bold;">
           ${warnCount > 0 ? `${warnCount} Strike` : 'Bebas SP'}
@@ -355,6 +361,7 @@ export function printAccountsDocument(
               <th>Pangkat</th>
               <th>Divisi</th>
               ${includePin ? '<th style="width: 70px;">PIN</th>' : ''}
+              <th style="width: 110px;">Rek. Bank</th>
               <th style="width: 90px;">Telepon</th>
               <th style="width: 80px; text-align: center;">Peringatan</th>
             </tr>

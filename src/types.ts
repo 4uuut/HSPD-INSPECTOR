@@ -131,6 +131,7 @@ export interface OfficerAccount {
   pin: string; // Personal login PIN
   phone?: string;
   discordTag?: string; // Discord Username / Tag / User ID (e.g. @nexia, 842019..., or nexia#1234)
+  bankAccount?: string; // Nomor Rekening Bank (Payroll / Gaji)
   registeredAt: number;
   promotedBy?: string;
   lastLogin?: number;
@@ -151,6 +152,7 @@ export interface OfficerProfile {
   loginTime: number;
   discordTag?: string;
   phone?: string;
+  bankAccount?: string;
   isDuty?: boolean;
   dutyStartTime?: number;
   dutyStatus?: DutyStatusCode;
@@ -225,6 +227,7 @@ export interface GovernmentAccount {
   pin: string;
   phone?: string;
   discordTag?: string;
+  bankAccount?: string; // Nomor Rekening Bank
   registeredAt: number;
   registeredBy?: string;
   lastLogin?: number;

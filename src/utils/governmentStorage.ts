@@ -143,6 +143,7 @@ export function addGovernmentAccount(
     pin: trimmedPin,
     phone: newOfficer.phone?.trim() || '',
     discordTag: newOfficer.discordTag?.trim() || '',
+    bankAccount: newOfficer.bankAccount?.trim() || '',
     registeredAt: Date.now(),
     registeredBy: newOfficer.registeredBy || 'Presidential Appointment',
     _updatedAt: Date.now()

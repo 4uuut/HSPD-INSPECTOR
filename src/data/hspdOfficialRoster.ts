@@ -17,6 +17,7 @@ export const HSPD_OFFICIAL_ROSTER: OfficerAccount[] = [
     "division": "Executive Office / High Command",
     "pin": "846201",
     "phone": "555-0001",
+    "bankAccount": "001-846-9201",
     "registeredAt": 1783079932799,
     "promotedBy": "SK Pengangkatan Markas Besar Kepolisian High State"
   },
@@ -28,6 +29,7 @@ export const HSPD_OFFICIAL_ROSTER: OfficerAccount[] = [
     "division": "High Command Staff / Executive Office",
     "pin": "201982",
     "phone": "555-0002",
+    "bankAccount": "002-201-9821",
     "registeredAt": 1784375932799,
     "promotedBy": "SK Kepolisian HighState / Chief of Police"
   },
@@ -39,6 +41,7 @@ export const HSPD_OFFICIAL_ROSTER: OfficerAccount[] = [
     "division": "High Command Staff / Executive Office",
     "pin": "203841",
     "phone": "555-0003",
+    "bankAccount": "003-203-8419",
     "registeredAt": 1784807932799,
     "promotedBy": "SK Kepolisian HighState / Chief of Police"
   },
@@ -1000,6 +1003,9 @@ export function mergeWithOfficialRoster(
           discordTag: ('discordTag' in item && item.discordTag !== undefined)
             ? String(item.discordTag).trim() 
             : (existing.discordTag || ''),
+          bankAccount: ('bankAccount' in item && item.bankAccount !== undefined)
+            ? String(item.bankAccount).trim()
+            : (existing.bankAccount || ''),
           promotedBy: item.promotedBy || existing.promotedBy,
           warnings: Array.isArray(item.warnings) && item.warnings.length > 0 ? item.warnings : (existing.warnings || []),
           _updatedAt: item._updatedAt || Date.now()
@@ -1011,6 +1017,7 @@ export function mergeWithOfficialRoster(
           ...item,
           pin: item.pin ? String(item.pin).trim() : '10-4',
           discordTag: item.discordTag ? String(item.discordTag).trim() : undefined,
+          bankAccount: item.bankAccount ? String(item.bankAccount).trim() : undefined,
           warnings: item.warnings || []
         });
       }

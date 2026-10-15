@@ -9,7 +9,7 @@ import {
   UserX, Trash2, AlertOctagon, Send, RotateCcw, AlertCircle, FileText, RefreshCw,
   UserPlus, Phone, Sliders, Eye, EyeOff, Radio, Activity, FileSpreadsheet, Download, Archive,
   MessageSquare, Bot, Upload, Image, Palette, Save, Bookmark, Settings, Globe, ExternalLink,
-  Maximize2, Minimize2, ArrowUpDown, Calendar
+  Maximize2, Minimize2, ArrowUpDown, Calendar, CreditCard
 } from 'lucide-react';
 import { ExportAttendanceModal } from './ExportAttendanceModal';
 import { WeeklyOperationsReportModal } from './WeeklyOperationsReportModal';
@@ -353,6 +353,7 @@ export const RosterManagement: React.FC<Props> = ({
   const [newPin, setNewPin] = useState('');
   const [editDiscordTag, setEditDiscordTag] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editBankAccount, setEditBankAccount] = useState('');
   const [editSendDmOnSave, setEditSendDmOnSave] = useState(true);
   const [isSendingDm, setIsSendingDm] = useState(false);
   const [isSendingCredentials, setIsSendingCredentials] = useState(false);
@@ -461,6 +462,7 @@ export const RosterManagement: React.FC<Props> = ({
   const [addPin, setAddPin] = useState<string>(() => generateRandomMdtPin());
   const [addDiscordTag, setAddDiscordTag] = useState('');
   const [addPhone, setAddPhone] = useState('');
+  const [addBankAccount, setAddBankAccount] = useState('');
   const [addPromotedBy, setAddPromotedBy] = useState(() => 
     `SK Pengangkatan oleh ${currentOfficerRank || 'High Command'} ${currentOfficerName || ''}`
   );
@@ -624,6 +626,7 @@ export const RosterManagement: React.FC<Props> = ({
       division: finalDivision,
       phone: addPhone.trim() || undefined,
       discordTag: addDiscordTag.trim() || undefined,
+      bankAccount: addBankAccount.trim() || undefined,
       pin: trimmedPin,
       registeredAt: Date.now(),
       promotedBy: addPromotedBy.trim() || `SK Pengangkatan oleh ${currentOfficerRank || 'High Command'} ${currentOfficerName || ''}`,
@@ -676,6 +679,7 @@ export const RosterManagement: React.FC<Props> = ({
         setAddName('');
         setAddDiscordTag('');
         setAddPhone('');
+        setAddBankAccount('');
         setAddOfficerSuccessMsg(`⚡ Personel ${trimmedName} (${trimmedBadge}) langsung aktif di Roster & Database! PIN: ${trimmedPin}. Nomor badge berikutnya: ${nextSequentialBadge}.`);
         setSuccessNotice(`⚡ Personel Baru ${trimmedName} (${trimmedBadge}) berhasil ditambahkan ke Roster!`);
         setTimeout(() => setSuccessNotice(''), 5000);
@@ -723,6 +727,7 @@ export const RosterManagement: React.FC<Props> = ({
                   officerDivision: finalDivision,
                   officerPhone: addPhone.trim() || undefined,
                   discordTag: addDiscordTag.trim() || undefined,
+                  bankAccount: newAccount.bankAccount,
                   initialPin: trimmedPin,
                   registeredBy: currentOfficerName || 'High Command',
                   registeredByBadge: currentOfficerBadge || '#001',
@@ -781,7 +786,8 @@ export const RosterManagement: React.FC<Props> = ({
         Boolean(officer.division && officer.division.toLowerCase().includes(q)) ||
         Boolean(officer.discordTag && officer.discordTag.toLowerCase().includes(q)) ||
         Boolean(officer.phone && officer.phone.includes(searchQuery)) ||
-        Boolean(officer.pin && officer.pin.includes(searchQuery));
+        Boolean(officer.pin && officer.pin.includes(searchQuery)) ||
+        Boolean(officer.bankAccount && officer.bankAccount.toLowerCase().includes(q));
       
       if (!matchesSearch) return false;
       if (filterDivision !== 'ALL' && (officer.division || '') !== filterDivision) return false;
@@ -838,6 +844,7 @@ export const RosterManagement: React.FC<Props> = ({
     setNewPin(officer.pin || '10-4');
     setEditDiscordTag(officer.discordTag || '');
     setEditPhone(officer.phone || '');
+    setEditBankAccount(officer.bankAccount || '');
     setShowEditPin(false);
     setEditSendDmOnSave(true);
     setPromotionPresetReason(PRESET_PROMOTION_REASONS[0]);
@@ -1092,6 +1099,7 @@ export const RosterManagement: React.FC<Props> = ({
       pin: finalPin,
       discordTag: editDiscordTag.trim(),
       phone: editPhone.trim(),
+      bankAccount: editBankAccount.trim() || undefined,
       promotedBy: promotedByText,
       _updatedAt: Date.now()
     };
@@ -1200,6 +1208,7 @@ export const RosterManagement: React.FC<Props> = ({
         officerDivision: officer.division,
         pin: officer.pin || '10-4',
         discordTag: officer.discordTag,
+        bankAccount: officer.bankAccount,
         sentBy: currentOfficerName || 'High Command',
         sentByBadge: currentOfficerBadge || '#001',
         sentByRank: currentOfficerRank || 'HIGH COMMAND'
@@ -1881,6 +1890,21 @@ export const RosterManagement: React.FC<Props> = ({
                                   <span>{officer.discordTag}</span>
                                 </span>
                               )}
+                              {officer.bankAccount && (
+                                <span 
+                                  className="text-emerald-300 font-mono bg-emerald-950/70 border border-emerald-700/60 px-1.5 py-0.2 rounded text-[9px] flex items-center gap-1 cursor-pointer hover:bg-emerald-900/60 transition" 
+                                  title={`Nomor Rekening Bank (Klik untuk salin): ${officer.bankAccount}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(officer.bankAccount || '');
+                                    setSuccessNotice(`📋 No. Rekening ${officer.name} (${officer.bankAccount}) berhasil disalin!`);
+                                    setTimeout(() => setSuccessNotice(''), 3000);
+                                  }}
+                                >
+                                  <CreditCard className="w-2.5 h-2.5 text-emerald-400" />
+                                  <span>Rek: {officer.bankAccount}</span>
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -2227,6 +2251,15 @@ export const RosterManagement: React.FC<Props> = ({
                         <span className="text-gray-500 block text-[10px]">Divisi Operasional:</span>
                         <span className="font-bold text-gray-300">{warningOfficer.division || 'Patrol Bureau'}</span>
                       </div>
+                      {warningOfficer.bankAccount && (
+                        <div className="col-span-2 pt-1 border-t border-gray-800/60">
+                          <span className="text-gray-500 block text-[10px] flex items-center gap-1">
+                            <CreditCard className="w-3 h-3 text-emerald-400" />
+                            <span>No. Rekening Bank:</span>
+                          </span>
+                          <span className="font-bold text-emerald-300 font-mono">{warningOfficer.bankAccount}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -2582,6 +2615,15 @@ export const RosterManagement: React.FC<Props> = ({
                         <span className="text-gray-500 block text-[10px]">Divisi Terakhir:</span>
                         <span className="font-bold text-gray-300">{deletingOfficer.division || 'Patrol Bureau'}</span>
                       </div>
+                      {deletingOfficer.bankAccount && (
+                        <div className="pt-1 border-t border-gray-800/80">
+                          <span className="text-gray-500 block text-[10px] flex items-center gap-1">
+                            <CreditCard className="w-3 h-3 text-emerald-400" />
+                            <span>No. Rekening Bank:</span>
+                          </span>
+                          <span className="font-bold text-emerald-300 font-mono">{deletingOfficer.bankAccount}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -3024,6 +3066,23 @@ export const RosterManagement: React.FC<Props> = ({
                         />
                       </div>
 
+                      <div>
+                        <label className="text-xs font-bold text-gray-300 uppercase flex items-center gap-1.5 mb-1.5">
+                          <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Nomor Rekening Bank (Payroll / Gaji):</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={editBankAccount}
+                          onChange={(e) => setEditBankAccount(e.target.value)}
+                          placeholder="Contoh: 0092-8172-4412 (Maze Bank / Fleeca)"
+                          className="w-full px-3 py-2 bg-[#161B22] border border-gray-700 focus:border-emerald-500 rounded-lg text-xs text-emerald-300 placeholder-gray-500 outline-none font-mono font-medium"
+                        />
+                        <span className="text-[10px] text-gray-400 mt-1 block">
+                          Nomor rekening bank anggota untuk penyaluran gaji dinas, tunjangan operasi, atau insentif patroli.
+                        </span>
+                      </div>
+
                       {/* Fast Send Shortcuts */}
                       <div className="pt-2 border-t border-gray-800/80 flex flex-wrap items-center justify-between gap-2">
                         <span className="text-[10px] text-gray-400 font-bold uppercase">Kirim Kredensial Sekarang:</span>
@@ -3096,6 +3155,7 @@ export const RosterManagement: React.FC<Props> = ({
                                   officerDivision: newDivision || editingOfficer.division,
                                   pin: newPin.trim() || editingOfficer.pin || '10-4',
                                   discordTag: editDiscordTag.trim() || undefined,
+                                  bankAccount: editBankAccount.trim() || undefined,
                                   sentBy: currentOfficerName || 'High Command',
                                   sentByBadge: currentOfficerBadge || '#001',
                                   sentByRank: currentOfficerRank || 'HIGH COMMAND'
@@ -3483,6 +3543,23 @@ export const RosterManagement: React.FC<Props> = ({
                   />
                   <span className="text-[9px] text-gray-500 block">
                     Frekuensi radio patroli atau telepon IC
+                  </span>
+                </div>
+
+                <div className="sm:col-span-12 space-y-1.5 pt-2 border-t border-indigo-900/50">
+                  <label className="text-[10.5px] font-bold text-emerald-300 uppercase flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Nomor Rekening Bank (Payroll / Penggajian Dinas - Opsional):</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={addBankAccount}
+                    onChange={(e) => setAddBankAccount(e.target.value)}
+                    placeholder="Contoh: 0092-8172-4412 (Maze Bank / Fleeca Bank)"
+                    className="w-full px-3 py-2 bg-[#0D1117] border border-emerald-600/70 focus:border-emerald-400 rounded-lg text-xs text-emerald-200 placeholder:text-gray-500 outline-none font-mono font-medium"
+                  />
+                  <span className="text-[9px] text-gray-400 block">
+                    Nomor rekening perbankan untuk transfer gaji bulanan, bonus operasional, atau insentif penanganan kasus.
                   </span>
                 </div>
               </div>

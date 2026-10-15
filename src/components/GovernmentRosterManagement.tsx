@@ -14,7 +14,7 @@ import {
   Award, Trash2, Edit3, CheckCircle2, AlertTriangle, X, 
   Crown, Sparkles, Filter, RefreshCw, Eye, EyeOff, FileText,
   User, Check, AlertCircle, Copy, ShieldAlert, BadgeCheck,
-  Bot, Send
+  Bot, Send, CreditCard
 } from 'lucide-react';
 import { 
   getGovernmentRoster, 
@@ -62,6 +62,7 @@ export const GovernmentRosterManagement: React.FC<Props> = ({
     pin: string;
     phone: string;
     discordTag: string;
+    bankAccount: string;
   }>({
     name: '',
     badge: '',
@@ -69,7 +70,8 @@ export const GovernmentRosterManagement: React.FC<Props> = ({
     division: 'Government Affairs Official',
     pin: '10-4',
     phone: '',
-    discordTag: ''
+    discordTag: '',
+    bankAccount: ''
   });
 
   const [formError, setFormError] = useState<string | null>(null);
@@ -98,7 +100,8 @@ export const GovernmentRosterManagement: React.FC<Props> = ({
       division: 'Government Affairs Official',
       pin: '10-4',
       phone: '',
-      discordTag: ''
+      discordTag: '',
+      bankAccount: ''
     });
     setFormError(null);
     setIsAddModalOpen(true);
@@ -129,6 +132,7 @@ export const GovernmentRosterManagement: React.FC<Props> = ({
       pin: assignedPin,
       phone: formData.phone.trim(),
       discordTag: targetDiscord,
+      bankAccount: formData.bankAccount.trim() || undefined,
       registeredBy: `${currentOfficer.name} (${currentOfficer.rank})`
     });
 
@@ -276,7 +280,8 @@ export const GovernmentRosterManagement: React.FC<Props> = ({
         const matchRank = (officer.rank || '').toLowerCase().includes(q);
         const matchDiv = (officer.division || '').toLowerCase().includes(q);
         const matchPhone = (officer.phone || '').toLowerCase().includes(q);
-        if (!matchName && !matchBadge && !matchRank && !matchDiv && !matchPhone) return false;
+        const matchBank = (officer.bankAccount || '').toLowerCase().includes(q);
+        if (!matchName && !matchBadge && !matchRank && !matchDiv && !matchPhone && !matchBank) return false;
       }
       // Rank filter
       if (filterRank !== 'ALL' && officer.rank !== filterRank) {
@@ -624,6 +629,25 @@ export const GovernmentRosterManagement: React.FC<Props> = ({
                     <span className="text-gray-500">Discord:</span>
                     <span className="text-gray-200">{officer.discordTag || '—'}</span>
                   </div>
+                  {officer.bankAccount && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 flex items-center gap-1">
+                        <CreditCard className="w-3 h-3 text-emerald-400" /> Rek. Bank:
+                      </span>
+                      <span 
+                        className="text-emerald-300 font-bold cursor-pointer hover:underline flex items-center gap-1"
+                        title="Klik untuk salin nomor rekening bank"
+                        onClick={() => {
+                          navigator.clipboard.writeText(officer.bankAccount || '');
+                          setActionSuccessMsg(`📋 No. Rekening ${officer.name} (${officer.bankAccount}) berhasil disalin!`);
+                          setTimeout(() => setActionSuccessMsg(null), 3000);
+                        }}
+                      >
+                        <span>{officer.bankAccount}</span>
+                        <Copy className="w-2.5 h-2.5 text-emerald-400 opacity-60" />
+                      </span>
+                    </div>
+                  )}
                   
                   {/* PIN Display (Supervisor / Self) */}
                   {(canManage || isCurrent) && (
@@ -874,6 +898,24 @@ export const GovernmentRosterManagement: React.FC<Props> = ({
                     <span>Bot Discord PM akan otomatis mengirimkan UCP Nama & PIN login langsung ke Discord ini.</span>
                   </p>
                 </div>
+
+                {/* Nomor Rekening Bank */}
+                <div className="sm:col-span-2">
+                  <label className="block text-emerald-300 font-bold mb-1 flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Nomor Rekening Bank (Payroll / Gaji Dinas - Opsional):</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.bankAccount}
+                    onChange={e => setFormData(prev => ({ ...prev, bankAccount: e.target.value }))}
+                    placeholder="Contoh: 0092-8172-4412 (Maze Bank / Fleeca)"
+                    className="w-full bg-[#161B22] border border-emerald-600/70 rounded-lg px-3 py-2 text-emerald-200 placeholder:text-gray-600 focus:outline-none focus:border-emerald-400 font-mono"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Nomor rekening perbankan untuk penyaluran gaji dinas, tunjangan jabatan, atau insentif operasional.
+                  </p>
+                </div>
               </div>
 
               <div className="pt-3 border-t border-gray-800 flex items-center justify-end gap-2.5">
@@ -1027,6 +1069,24 @@ export const GovernmentRosterManagement: React.FC<Props> = ({
                     onChange={e => setEditingOfficer(prev => prev ? { ...prev, discordTag: e.target.value } : null)}
                     className="w-full bg-[#161B22] border border-gray-700 rounded-lg px-3 py-2 text-gray-100 focus:outline-none focus:border-amber-500 font-mono"
                   />
+                </div>
+
+                {/* Nomor Rekening Bank */}
+                <div className="sm:col-span-2">
+                  <label className="block text-emerald-300 font-bold mb-1 flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Nomor Rekening Bank (Payroll / Gaji):</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editingOfficer.bankAccount || ''}
+                    onChange={e => setEditingOfficer(prev => prev ? { ...prev, bankAccount: e.target.value } : null)}
+                    placeholder="Contoh: 0092-8172-4412 (Maze Bank / Fleeca)"
+                    className="w-full bg-[#161B22] border border-emerald-600/70 rounded-lg px-3 py-2 text-emerald-200 placeholder:text-gray-600 focus:outline-none focus:border-emerald-400 font-mono"
+                  />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Nomor rekening perbankan untuk penyaluran gaji dinas, tunjangan jabatan, atau insentif operasional.
+                  </p>
                 </div>
               </div>
 
