@@ -1433,7 +1433,8 @@ export type ActivityActionType =
   | 'DUTY_LOG'
   | 'PIN_AUDIT'
   | 'CITIZEN_REGISTRATION'
-  | 'SYSTEM_SYNC';
+  | 'SYSTEM_SYNC'
+  | 'SYSTEM_ANNOUNCEMENT';
 
 export interface SystemActivityLog {
   id: string;

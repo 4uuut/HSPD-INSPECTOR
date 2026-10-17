@@ -3,7 +3,7 @@ import {
   X, FileSpreadsheet, Download, FileText, Printer, 
   Copy, Check, Search, Shield, Filter, KeyRound, 
   Users, AlertTriangle, Eye, EyeOff, Sparkles, Building2,
-  Lock, CheckCircle2, ChevronRight, Hash
+  Lock, CheckCircle2, ChevronRight, Hash, CreditCard
 } from 'lucide-react';
 import { OfficerAccount, isAtasanRank } from '../types';
 import { 
@@ -76,7 +76,8 @@ export const ExportAccountsModal: React.FC<Props> = ({
         const mBadge = (officer.badge || '').toLowerCase().includes(q);
         const mRank = (officer.rank || '').toLowerCase().includes(q);
         const mDiv = (officer.division || '').toLowerCase().includes(q);
-        if (!mName && !mBadge && !mRank && !mDiv) return false;
+        const mBank = (officer.bankAccount || '').toLowerCase().includes(q);
+        if (!mName && !mBadge && !mRank && !mDiv && !mBank) return false;
       }
 
       // 2. Rank Category Filter
@@ -368,13 +369,18 @@ export const ExportAccountsModal: React.FC<Props> = ({
                     </span>
                   </th>
                   <th className="py-2.5 px-3 w-28">Telepon</th>
+                  <th className="py-2.5 px-3 w-32 text-emerald-400">
+                    <span className="flex items-center gap-1">
+                      <CreditCard className="w-3.5 h-3.5" /> Rek. Bank
+                    </span>
+                  </th>
                   <th className="py-2.5 px-3 w-24 text-center">Status SP</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800/60 font-sans">
                 {filteredOfficers.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-gray-500 font-mono text-xs">
+                    <td colSpan={9} className="py-8 text-center text-gray-500 font-mono text-xs">
                       Tidak ada data akun anggota yang cocok dengan filter atau pencarian.
                     </td>
                   </tr>
@@ -427,6 +433,21 @@ export const ExportAccountsModal: React.FC<Props> = ({
                         </td>
                         <td className="py-2 px-3 font-mono text-gray-400 text-xs">
                           {officer.phone || '-'}
+                        </td>
+                        <td className="py-2 px-3 font-mono text-xs">
+                          {officer.bankAccount ? (
+                            <span 
+                              className="px-1.5 py-0.5 rounded bg-emerald-950/70 border border-emerald-700/70 text-emerald-300 font-bold cursor-pointer hover:bg-emerald-900/80 transition inline-block text-[11px]"
+                              title="Klik untuk menyalin nomor rekening bank"
+                              onClick={() => {
+                                navigator.clipboard.writeText(officer.bankAccount || '');
+                              }}
+                            >
+                              {officer.bankAccount}
+                            </span>
+                          ) : (
+                            <span className="text-gray-600 font-normal">-</span>
+                          )}
                         </td>
                         <td className="py-2 px-3 text-center font-mono">
                           {hasWarn ? (

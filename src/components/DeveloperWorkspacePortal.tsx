@@ -3,9 +3,10 @@ import {
   Terminal, Shield, Building2, Activity, Database, RefreshCw, 
   Search, Filter, Download, Upload, CheckCircle2, AlertTriangle, 
   Clock, Users, FileText, ShieldAlert, Car, Scale, Cpu, Lock, 
-  ExternalLink, Layers, Sparkles, Check, ChevronDown, BarChart2,
+  ExternalLink, Layers, Sparkles, Check, ChevronDown, ChevronUp, BarChart2,
   TrendingUp, Radio, Flame, Award, Globe, LogOut, KeyRound, 
-  MessageSquare, Wrench, ShieldCheck, Play, ArrowRight, Eye, User
+  MessageSquare, Wrench, ShieldCheck, Play, ArrowRight, Eye, User,
+  Megaphone, Bell, Volume2, ChevronLeft, ChevronRight, Send, Zap, X
 } from 'lucide-react';
 import { 
   OfficerProfile, 
@@ -30,7 +31,20 @@ import { getRosterFromStorage, saveRosterToStorage, updateOfficerPinInRoster } f
 import { getGovernmentRoster } from '../utils/governmentStorage';
 import { getSavedDiscordBotConfig, getSavedChangelogWebhookConfig, getSavedWebhookConfig, sendDiscordLog } from '../utils/discordWebhook';
 import { pullLatestFromFirestore } from '../services/firebaseRealtimeSync';
+import { 
+  SystemAnnouncement, 
+  getSystemAnnouncements,
+  publishSystemAnnouncement,
+  toggleAnnouncementBanner,
+  AnnouncementCategory,
+  AnnouncementSeverity,
+  AnnouncementAudience
+} from '../utils/systemAnnouncementStorage';
+import { playSystemNotificationChime } from '../utils/systemNotificationAudio';
+import { checkAndBroadcastLatestRelease } from '../utils/autoChangelogBroadcaster';
 import { DiscordBotInviteCard } from './DiscordBotInviteCard';
+import { LiveSystemAnnouncementsHub } from './LiveSystemAnnouncementsHub';
+import { DiscordReleaseAnnouncementModal } from './DiscordReleaseAnnouncementModal';
 
 interface Props {
   currentOfficer: OfficerProfile | null;
@@ -43,8 +57,25 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
   onSwitchPortal,
   onLogout
 }) => {
-  // Developer active tab
-  const [activeTab, setActiveTab] = useState<'analytics' | 'logs' | 'dpo_parity' | 'database' | 'discord_bot' | 'pin_manager'>('analytics');
+  // Developer active tab (defaults to system_broadcasts for live update transparency)
+  const [activeTab, setActiveTab] = useState<'system_broadcasts' | 'analytics' | 'logs' | 'dpo_parity' | 'database' | 'discord_bot' | 'pin_manager'>('system_broadcasts');
+  const [announcements, setAnnouncements] = useState<SystemAnnouncement[]>(() => getSystemAnnouncements());
+  const [isDiscordReleaseModalOpen, setIsDiscordReleaseModalOpen] = useState(false);
+
+  // Carousel & Flash Broadcast states for Core Developer Console
+  const [activeNoticeIndex, setActiveNoticeIndex] = useState(0);
+  const [isFlashModalOpen, setIsFlashModalOpen] = useState(false);
+  const [flashVersion, setFlashVersion] = useState('v4.2.4');
+  const [flashTitle, setFlashTitle] = useState('');
+  const [flashCategory, setFlashCategory] = useState<AnnouncementCategory>('UPDATE');
+  const [flashSeverity, setFlashSeverity] = useState<AnnouncementSeverity>('IMPORTANT');
+  const [flashAudience, setFlashAudience] = useState<AnnouncementAudience>('GLOBAL');
+  const [flashDescription, setFlashDescription] = useState('');
+  const [flashFeature1, setFlashFeature1] = useState('');
+  const [flashFeature2, setFlashFeature2] = useState('');
+  const [flashIsBanner, setFlashIsBanner] = useState(true);
+  const [flashDiscord, setFlashDiscord] = useState(true);
+  const [isPublishingFlash, setIsPublishingFlash] = useState(false);
 
   // Activity logs & telemetry
   const [activities, setActivities] = useState<SystemActivityLog[]>(() => getAllAggregatedActivities());
@@ -77,7 +108,7 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
   const [webhookTestMessage, setWebhookTestMessage] = useState('📡 [PING TEST] Pesan uji coba koneksi gateway pengembang MDT HSPD.');
   const [webhookStatus, setWebhookStatus] = useState<string | null>(null);
 
-  // Refresh activity data
+  // Refresh activity data & system announcements
   const refreshData = () => {
     setActivities(getAllAggregatedActivities());
     setBoloList(getSavedBoloAlerts());
@@ -85,16 +116,19 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
     setCidCases(getSavedDetectiveCases());
     setRosterList(getRosterFromStorage());
     setGovRosterList(getGovernmentRoster());
+    setAnnouncements(getSystemAnnouncements());
   };
 
   useEffect(() => {
     const handleStorageUpdate = () => refreshData();
     window.addEventListener('storage', handleStorageUpdate);
     window.addEventListener('hspd_activity_updated', handleStorageUpdate);
+    window.addEventListener('hspd-system-announcements-updated', handleStorageUpdate);
     const interval = setInterval(refreshData, 10000);
     return () => {
       window.removeEventListener('storage', handleStorageUpdate);
       window.removeEventListener('hspd_activity_updated', handleStorageUpdate);
+      window.removeEventListener('hspd-system-announcements-updated', handleStorageUpdate);
       clearInterval(interval);
     };
   }, []);
@@ -252,6 +286,152 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
     }
   };
 
+  // Notice Carousel Helpers
+  const currentNotice: SystemAnnouncement | undefined = announcements[activeNoticeIndex] || announcements[0];
+
+  const handleNextNotice = () => {
+    if (announcements.length === 0) return;
+    setActiveNoticeIndex(prev => (prev + 1) % announcements.length);
+  };
+
+  const handlePrevNotice = () => {
+    if (announcements.length === 0) return;
+    setActiveNoticeIndex(prev => (prev - 1 + announcements.length) % announcements.length);
+  };
+
+  const handleQuickToggleBanner = (id: string, currentState: boolean) => {
+    toggleAnnouncementBanner(id, !currentState);
+    refreshData();
+    setSyncNotice(!currentState ? '📢 Banner pemberitahuan sistem diaktifkan di seluruh portal!' : 'Banner berjalan dinonaktifkan.');
+    setTimeout(() => setSyncNotice(null), 3500);
+  };
+
+  const handleQuickDiscordPush = async (item: SystemAnnouncement) => {
+    try {
+      setSyncNotice('📡 Menyiarkan ke Discord Webhook...');
+      const res = await checkAndBroadcastLatestRelease(true, {
+        version: item.version,
+        title: item.title,
+        headerText: `[ SIARAN RESMI PEMBARUAN SISTEM ${item.version} ]`,
+        customDescription: item.description,
+        newFeatures: item.features,
+        improvements: item.improvements,
+        bugFixes: item.bugFixes
+      });
+      setSyncNotice(res.success ? `✅ Berhasil disiarkan ke Discord (#${item.version})!` : `❌ ${res.message}`);
+    } catch (e: any) {
+      setSyncNotice(`❌ Gagal siar: ${e?.message || e}`);
+    }
+    setTimeout(() => setSyncNotice(null), 4000);
+  };
+
+  const handleApplyFlashPreset = (type: 'bank' | 'isolation' | 'maintenance' | 'hotfix') => {
+    if (type === 'bank') {
+      setFlashVersion('v4.2.4');
+      setFlashTitle('Pembaruan Sistem: Integrasi Rekening Bank Dinas di Formulir Roster');
+      setFlashCategory('UPDATE');
+      setFlashSeverity('IMPORTANT');
+      setFlashAudience('GLOBAL');
+      setFlashDescription('Integrasi kolom nomor rekening bank resmi untuk seluruh personel dinas kepolisian & aparatur balai kota guna kemudahan verifikasi penggajian dan tunjangan dinas.');
+      setFlashFeature1('Kolom Nomor Rekening Bank pada Tambah & Edit Anggota Roster');
+      setFlashFeature2('Pencarian cepat & 1-click salin rekening bank dinas');
+      playSystemNotificationChime('IMPORTANT');
+    } else if (type === 'isolation') {
+      setFlashVersion('v4.2.4');
+      setFlashTitle('Pengamanan Hak Akses: Isolasi Berkas Perkara 7 Divisi Kepolisian');
+      setFlashCategory('UPDATE');
+      setFlashSeverity('IMPORTANT');
+      setFlashAudience('HSPD');
+      setFlashDescription('Penegakan kepatuhan privasi berkas perkara kepolisian: setiap personel hanya dapat mengakses berkas kasus milik divisinya sendiri.');
+      setFlashFeature1('Isolasi hak akses berkas 7 divisi resmi kepolisian');
+      setFlashFeature2('Audit akses berkas otomatis tercatat di log telemetri pengembang');
+      playSystemNotificationChime('IMPORTANT');
+    } else if (type === 'maintenance') {
+      setFlashVersion('v4.2.5');
+      setFlashTitle('Jadwal Pemeliharaan Server & Sinkronisasi Firestore Realtime');
+      setFlashCategory('MAINTENANCE');
+      setFlashSeverity('URGENT');
+      setFlashAudience('GLOBAL');
+      setFlashDescription('Pemberitahuan pemeliharaan terjadwal untuk optimalisasi bandwidth data dan peningkatan kapasitas realtime listener.');
+      setFlashFeature1('Optimalisasi bandwidth koneksi Firestore');
+      setFlashFeature2('Pembersihan cache telemetri sistem');
+      playSystemNotificationChime('URGENT');
+    } else if (type === 'hotfix') {
+      setFlashVersion('v4.2.4-hotfix');
+      setFlashTitle('Hotfix Darurat: Patch Stabilitas Sesi & Submisi Formulir');
+      setFlashCategory('ALERT');
+      setFlashSeverity('CRITICAL');
+      setFlashAudience('GLOBAL');
+      setFlashDescription('Penerapan perbaikan darurat untuk memastikan keandalan otentikasi login dan integritas pengiriman data.');
+      setFlashFeature1('Perbaikan validasi token otentikasi sesi');
+      setFlashFeature2('Optimalisasi recovery data offline');
+      playSystemNotificationChime('CRITICAL');
+    }
+  };
+
+  const handlePublishFlashNotice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!flashTitle.trim() || !flashDescription.trim()) {
+      alert('Judul dan deskripsi pengumuman wajib diisi!');
+      return;
+    }
+    setIsPublishingFlash(true);
+    try {
+      const feats = [flashFeature1.trim(), flashFeature2.trim()].filter(Boolean);
+      const pub = publishSystemAnnouncement({
+        version: flashVersion.trim() || 'v4.2.4',
+        title: flashTitle.trim(),
+        category: flashCategory,
+        severity: flashSeverity,
+        targetAudience: flashAudience,
+        description: flashDescription.trim(),
+        features: feats.length > 0 ? feats : ['Implementasi rilis kilat dari Core Developer System Console'],
+        improvements: ['Penyempurnaan performa dan sinkronisasi real-time lintas portal'],
+        bugFixes: [],
+        publishedBy: currentOfficer?.name || 'Lead Architect',
+        publishedByBadge: currentOfficer?.badge || 'DEV-001',
+        isBannerActive: flashIsBanner,
+        discordBroadcasted: flashDiscord
+      });
+
+      logDeveloperSystemActivity({
+        module: 'SYSTEM_ANNOUNCEMENT',
+        action: 'SYSTEM_ANNOUNCEMENT',
+        title: `Siaran Kilat Sistem: ${pub.version} - ${pub.title}`,
+        description: `Kategori: ${flashCategory} | Urgensi: ${flashSeverity} | Sasaran: ${flashAudience}`,
+        entity: 'SYSTEM',
+        actor: currentOfficer?.name || 'Lead Developer',
+        actorBadge: currentOfficer?.badge || 'DEV-001',
+        severity: 'INFO'
+      });
+
+      if (flashDiscord) {
+        checkAndBroadcastLatestRelease(true, {
+          version: pub.version,
+          title: pub.title,
+          headerText: `[ PEMBERITAHUAN KILAT SISTEM ${pub.version} ]`,
+          customDescription: pub.description,
+          newFeatures: pub.features,
+          improvements: pub.improvements,
+          bugFixes: pub.bugFixes
+        }).catch(() => {});
+      }
+
+      refreshData();
+      setIsFlashModalOpen(false);
+      setFlashTitle('');
+      setFlashDescription('');
+      setFlashFeature1('');
+      setFlashFeature2('');
+      setSyncNotice(`🚀 Siaran kilat sistem ${pub.version} berhasil diterbitkan secara live!`);
+      setTimeout(() => setSyncNotice(null), 5000);
+    } catch (err: any) {
+      alert(`Gagal menerbitkan siaran: ${err?.message || err}`);
+    } finally {
+      setIsPublishingFlash(false);
+    }
+  };
+
   const maxHourlyVal = Math.max(...hourlyData.map(d => d.totalCount), 1);
   const maxDailyVal = Math.max(...dailyData.map(d => d.totalCount), 1);
   const maxModuleVal = Math.max(...moduleBreakdown.map(d => d[1]), 1);
@@ -283,6 +463,23 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
                   FIREBASE CLOUD REALTIME LIVE
                 </span>
               </p>
+
+              {/* Live System Notification Pill in Header */}
+              {currentNotice && (
+                <div 
+                  onClick={() => setActiveTab('system_broadcasts')}
+                  className="mt-1.5 inline-flex items-center gap-2 px-2.5 py-0.5 rounded-md bg-emerald-950/70 border border-emerald-500/50 text-[10px] font-mono text-emerald-300 cursor-pointer hover:bg-emerald-900/70 transition shadow-sm"
+                  title="Buka Pusat Pemberitahuan Sistem Terbaru"
+                >
+                  <span className="flex h-1.5 w-1.5 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                  </span>
+                  <span className="font-bold text-white uppercase tracking-wider">LIVE UPDATE:</span>
+                  <span className="text-emerald-300 font-bold px-1.5 py-0.2 rounded bg-black/50 border border-emerald-500/40">{currentNotice.version}</span>
+                  <span className="text-gray-300 max-w-[200px] sm:max-w-md truncate">{currentNotice.title}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -344,6 +541,20 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
         {/* ================= DEVELOPER NAVIGATION TABS ================= */}
         <div className="bg-[#05080A] border-t border-gray-800/80 px-4">
           <div className="max-w-7xl mx-auto flex items-center gap-1 overflow-x-auto no-scrollbar py-1.5 text-xs font-mono">
+            <button
+              type="button"
+              id="tab-dev-system-broadcasts"
+              onClick={() => setActiveTab('system_broadcasts')}
+              className={`px-3 py-1.5 rounded-md flex items-center gap-2 transition whitespace-nowrap ${
+                activeTab === 'system_broadcasts'
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold shadow-md shadow-emerald-950/60 ring-1 ring-emerald-400/50'
+                  : 'text-gray-400 hover:text-emerald-300 hover:bg-emerald-950/30'
+              }`}
+            >
+              <Megaphone className="w-3.5 h-3.5" />
+              <span>📢 Live Pemberitahuan Sistem ({announcements.length})</span>
+            </button>
+
             <button
               type="button"
               id="tab-dev-analytics"
@@ -447,8 +658,223 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
       {/* ================= MAIN DEVELOPER CONTENT CONTAINER ================= */}
       <main className="max-w-7xl mx-auto px-4 mt-5 space-y-6">
 
+        {/* ================= CORE DEVELOPER LIVE UPDATE & SYSTEM BROADCAST COMMAND CENTER ================= */}
+        <section className="relative overflow-hidden rounded-2xl border border-emerald-500/50 bg-gradient-to-r from-[#06120D] via-[#0A1B14] to-[#08151D] p-4 sm:p-5 shadow-2xl shadow-emerald-950/40">
+          <div className="absolute -right-16 -top-16 w-56 h-56 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+          {/* Top Command Bar: Status, Stepper & Quick Actions */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-emerald-500/30">
+            <div className="flex items-center gap-3">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono font-black text-emerald-300 tracking-wider flex items-center gap-1.5 uppercase">
+                  <Megaphone className="w-4 h-4 text-emerald-400 animate-pulse" />
+                  LIVE UPDATE & PUSAT PEMBERITAHUAN SISTEM RESMI
+                </span>
+                <span className="hidden sm:inline-block px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-black/60 text-emerald-400 border border-emerald-500/40">
+                  REAL-TIME BROADCAST DISPATCH
+                </span>
+              </div>
+            </div>
+
+            {/* Stepper Carousel Controls & Fast Action Buttons */}
+            <div className="flex items-center gap-2 font-mono text-xs">
+              {announcements.length > 1 && (
+                <div className="flex items-center bg-[#070D12] border border-gray-700/80 rounded-lg p-0.5">
+                  <button
+                    type="button"
+                    onClick={handlePrevNotice}
+                    className="p-1 text-gray-400 hover:text-emerald-300 transition cursor-pointer"
+                    title="Pemberitahuan Sebelumnya"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="px-2 text-[10px] text-gray-300 font-bold">
+                    {activeNoticeIndex + 1} / {announcements.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleNextNotice}
+                    className="p-1 text-gray-400 hover:text-emerald-300 transition cursor-pointer"
+                    title="Pemberitahuan Selanjutnya"
+                  >
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => playSystemNotificationChime(currentNotice?.severity || 'IMPORTANT')}
+                className="px-2.5 py-1.5 rounded-lg bg-[#0E1A16] hover:bg-[#152B23] border border-emerald-500/50 text-emerald-300 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer active:scale-95 shadow"
+                title="Putar nada lonceng siaran sistem (Audio Chime Test)"
+              >
+                <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline">Tes Nada</span>
+              </button>
+
+              <button
+                type="button"
+                id="btn-flash-broadcast"
+                onClick={() => setIsFlashModalOpen(true)}
+                className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black text-[11px] transition flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-lg shadow-emerald-950/60"
+                title="Buka panel siaran kilat untuk langsung mengirimkan pengumuman ke seluruh sistem"
+              >
+                <Zap className="w-3.5 h-3.5 text-black stroke-[2.5]" />
+                <span>SIARAN KILAT</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('system_broadcasts')}
+                className="px-2.5 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 border border-emerald-600/70 text-emerald-200 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer"
+                title="Buka Pusat Manajemen Siaran Lengkap"
+              >
+                <span>Kelola Rilis</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Active Notice Highlight Card */}
+          {currentNotice ? (
+            <div className="mt-3.5 grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+              <div className="lg:col-span-8 space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2.5 py-0.5 rounded-md bg-emerald-500 text-black font-black font-mono text-xs shadow">
+                    {currentNotice.version}
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#0D1822] text-cyan-300 border border-cyan-500/50 uppercase">
+                    {currentNotice.category}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${
+                    currentNotice.severity === 'CRITICAL' ? 'bg-red-950 text-red-300 border-red-700' :
+                    currentNotice.severity === 'URGENT' ? 'bg-orange-950 text-orange-300 border-orange-700' :
+                    'bg-emerald-950 text-emerald-300 border-emerald-600'
+                  }`}>
+                    {currentNotice.severity}
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#141B24] text-gray-300 border border-gray-700">
+                    Sasaran: {currentNotice.targetAudience}
+                  </span>
+                  {currentNotice.isBannerActive && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-500 flex items-center gap-1 animate-pulse">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      BANNER ON-AIR
+                    </span>
+                  )}
+                  <span className="text-[11px] font-mono text-gray-400 flex items-center gap-1 ml-auto">
+                    <Clock className="w-3 h-3 text-emerald-400" />
+                    {new Date(currentNotice.publishedAt).toLocaleDateString('id-ID', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric'
+                    })}
+                  </span>
+                </div>
+
+                <h3 className="text-sm sm:text-base font-extrabold text-white tracking-wide leading-snug">
+                  {currentNotice.title}
+                </h3>
+                <p className="text-xs text-gray-300 font-sans leading-relaxed line-clamp-2">
+                  {currentNotice.description}
+                </p>
+
+                {/* Key Highlight Bullets */}
+                {currentNotice.features && currentNotice.features.length > 0 && (
+                  <div className="flex items-center gap-2 flex-wrap pt-1">
+                    {currentNotice.features.slice(0, 3).map((feat, fIdx) => (
+                      <span key={fIdx} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#0D1820] border border-emerald-900/60 text-[10px] text-gray-300 font-sans">
+                        <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                        <span className="truncate max-w-[220px] sm:max-w-xs">{feat}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Broadcast Controls for this Notice */}
+              <div className="lg:col-span-4 bg-[#090F14] border border-gray-800 rounded-xl p-3.5 space-y-2.5 font-mono text-xs">
+                <div className="flex items-center justify-between text-[11px] text-gray-400 pb-2 border-b border-gray-800">
+                  <span className="font-bold text-gray-300">Aksi Siaran Langsung:</span>
+                  <span className="text-emerald-400">ID: {currentNotice.id?.slice(-8)}</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickToggleBanner(currentNotice.id, currentNotice.isBannerActive)}
+                    className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      currentNotice.isBannerActive
+                        ? 'bg-emerald-950/90 border-emerald-500 text-emerald-300 hover:bg-emerald-900'
+                        : 'bg-[#121922] border-gray-700 text-gray-300 hover:text-emerald-300 hover:border-emerald-600'
+                    }`}
+                  >
+                    <Megaphone className="w-3.5 h-3.5" />
+                    <span>{currentNotice.isBannerActive ? 'Banner Aktif' : 'Pasang Banner'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleQuickDiscordPush(currentNotice)}
+                    className="px-2.5 py-1.5 rounded-lg bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-600/80 text-indigo-300 hover:text-white transition flex items-center justify-center gap-1.5 text-[11px] font-bold cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Push Discord</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between text-[10px] text-gray-400 pt-1">
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    Listener: <strong>{announcements.length} Versi Siap</strong>
+                  </span>
+                  <span 
+                    onClick={() => setActiveTab('system_broadcasts')}
+                    className="text-emerald-400 hover:underline cursor-pointer font-bold"
+                  >
+                    Buka Editor Penuh →
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-3 text-center text-xs text-gray-400 py-3">
+              Belum ada siaran sistem yang terdaftar.
+            </div>
+          )}
+        </section>
+
         {/* KPI OVERVIEW CARDS */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-mono">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 font-mono">
+          <div 
+            onClick={() => setActiveTab('system_broadcasts')}
+            className={`p-3.5 bg-[#0F141B] border rounded-xl shadow cursor-pointer transition select-none ${
+              activeTab === 'system_broadcasts'
+                ? 'border-emerald-500 ring-1 ring-emerald-500/50 bg-emerald-950/20'
+                : 'border-gray-800 hover:border-emerald-600/70 hover:bg-[#121A22]'
+            }`}
+          >
+            <div className="flex items-center justify-between text-gray-400 text-xs">
+              <span className="font-bold text-gray-300">Pemberitahuan Sistem</span>
+              <Megaphone className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="text-2xl font-bold text-emerald-400 mt-1">{announcements.length} Rilis</div>
+            <div className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-1">
+              {announcements.filter(a => a.isBannerActive).length > 0 ? (
+                <span className="text-emerald-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Banner Aktif
+                </span>
+              ) : (
+                <span>⚪ Standby / Siap Siar</span>
+              )}
+            </div>
+          </div>
+
           <div className="p-3.5 bg-[#0F141B] border border-gray-800 rounded-xl shadow">
             <div className="flex items-center justify-between text-gray-400 text-xs">
               <span>Total Operasi Hari Ini</span>
@@ -485,6 +911,16 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
             <div className="text-[10px] text-gray-500 mt-0.5">Distribusi beban kerja platform</div>
           </div>
         </div>
+
+        {/* ================= TAB 0: LIVE SYSTEM ANNOUNCEMENTS & RECENT UPDATES ================= */}
+        {activeTab === 'system_broadcasts' && (
+          <LiveSystemAnnouncementsHub
+            announcements={announcements}
+            onRefresh={refreshData}
+            currentOfficer={currentOfficer}
+            onOpenDiscordStudio={() => setIsDiscordReleaseModalOpen(true)}
+          />
+        )}
 
         {/* ================= TAB 1: ANALYTICS & CHARTS ================= */}
         {activeTab === 'analytics' && (
@@ -1022,6 +1458,219 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
         )}
 
       </main>
+
+      {/* Discord Release Studio Modal */}
+      {isDiscordReleaseModalOpen && (
+        <DiscordReleaseAnnouncementModal
+          isOpen={isDiscordReleaseModalOpen}
+          onClose={() => setIsDiscordReleaseModalOpen(false)}
+          currentUser={{
+            name: currentOfficer?.name,
+            badge: currentOfficer?.badge,
+            rank: currentOfficer?.rank
+          }}
+        />
+      )}
+
+      {/* ================= MODAL SIARAN KILAT PENGEMBANG ================= */}
+      {isFlashModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-[#0B1015] border border-emerald-500/70 rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-4 bg-gradient-to-r from-emerald-950 via-[#0E161F] to-black border-b border-emerald-500/40 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-400">
+                  <Zap className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-white font-mono flex items-center gap-1.5">
+                    SIARAN KILAT PEMBERITAHUAN SISTEM
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-600">
+                      FLASH DISPATCH
+                    </span>
+                  </h3>
+                  <p className="text-[10px] text-gray-400 font-mono">Langsung tersiar ke banner global, portal petugas, dan Discord</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsFlashModalOpen(false)}
+                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handlePublishFlashNotice} className="p-4 sm:p-5 space-y-3.5 text-xs font-mono">
+              {/* Presets */}
+              <div className="p-2.5 bg-[#080D12] border border-gray-800 rounded-xl space-y-1.5">
+                <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-emerald-400" /> Pilih Template Cepat:
+                </span>
+                <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => handleApplyFlashPreset('bank')}
+                    className="px-2 py-1 rounded bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-600 text-emerald-300 font-bold transition cursor-pointer active:scale-95"
+                  >
+                    💳 Rekening Bank Dinas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyFlashPreset('isolation')}
+                    className="px-2 py-1 rounded bg-blue-950/80 hover:bg-blue-900 border border-blue-600 text-blue-300 font-bold transition cursor-pointer active:scale-95"
+                  >
+                    🛡️ Isolasi 7 Divisi
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyFlashPreset('maintenance')}
+                    className="px-2 py-1 rounded bg-purple-950/80 hover:bg-purple-900 border border-purple-600 text-purple-300 font-bold transition cursor-pointer active:scale-95"
+                  >
+                    🛠️ Pemeliharaan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyFlashPreset('hotfix')}
+                    className="px-2 py-1 rounded bg-rose-950/80 hover:bg-rose-900 border border-rose-600 text-rose-300 font-bold transition cursor-pointer active:scale-95"
+                  >
+                    ⚡ Hotfix Bug
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="block text-[10px] text-gray-400 mb-1">Versi Rilis:</label>
+                  <input
+                    type="text"
+                    required
+                    value={flashVersion}
+                    onChange={e => setFlashVersion(e.target.value)}
+                    placeholder="v4.2.4"
+                    className="w-full bg-[#121922] border border-gray-700 rounded-lg px-2.5 py-1.5 text-emerald-300 font-bold outline-none focus:border-emerald-400 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 mb-1">Urgensi:</label>
+                  <select
+                    value={flashSeverity}
+                    onChange={e => setFlashSeverity(e.target.value as any)}
+                    className="w-full bg-[#121922] border border-gray-700 rounded-lg px-2 py-1.5 text-gray-200 outline-none focus:border-emerald-400 text-xs cursor-pointer"
+                  >
+                    <option value="NORMAL">NORMAL</option>
+                    <option value="IMPORTANT">IMPORTANT</option>
+                    <option value="URGENT">URGENT</option>
+                    <option value="CRITICAL">CRITICAL</option>
+                  </select>
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-[10px] text-gray-400 mb-1">Sasaran:</label>
+                  <select
+                    value={flashAudience}
+                    onChange={e => setFlashAudience(e.target.value as any)}
+                    className="w-full bg-[#121922] border border-gray-700 rounded-lg px-2 py-1.5 text-gray-200 outline-none focus:border-emerald-400 text-xs cursor-pointer"
+                  >
+                    <option value="GLOBAL">SEMUA PORTAL</option>
+                    <option value="HSPD">HSPD KEPOLISIAN</option>
+                    <option value="GOVERNMENT">BALAI KOTA</option>
+                    <option value="CITIZEN">WARGA SIPIL</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-gray-400 mb-1">Judul Siaran:</label>
+                <input
+                  type="text"
+                  required
+                  value={flashTitle}
+                  onChange={e => setFlashTitle(e.target.value)}
+                  placeholder="Contoh: Pembaruan Sistem - Penambahan Fitur & Keamanan Operasi"
+                  className="w-full bg-[#121922] border border-gray-700 rounded-lg px-3 py-1.5 text-white outline-none focus:border-emerald-400 font-sans text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-gray-400 mb-1">Deskripsi Ringkas:</label>
+                <textarea
+                  required
+                  rows={2}
+                  value={flashDescription}
+                  onChange={e => setFlashDescription(e.target.value)}
+                  placeholder="Uraian singkat pembaruan..."
+                  className="w-full bg-[#121922] border border-gray-700 rounded-lg px-3 py-1.5 text-gray-200 outline-none focus:border-emerald-400 font-sans text-xs"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] text-gray-400 mb-1">Poin Fitur 1 (Opsional):</label>
+                  <input
+                    type="text"
+                    value={flashFeature1}
+                    onChange={e => setFlashFeature1(e.target.value)}
+                    placeholder="Contoh: No. Rekening Bank Dinas"
+                    className="w-full bg-[#121922] border border-gray-700 rounded-lg px-2.5 py-1 text-gray-200 outline-none focus:border-emerald-400 text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-gray-400 mb-1">Poin Fitur 2 (Opsional):</label>
+                  <input
+                    type="text"
+                    value={flashFeature2}
+                    onChange={e => setFlashFeature2(e.target.value)}
+                    placeholder="Contoh: Isolasi 7 Divisi Kepolisian"
+                    className="w-full bg-[#121922] border border-gray-700 rounded-lg px-2.5 py-1 text-gray-200 outline-none focus:border-emerald-400 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-gray-800 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={flashIsBanner}
+                      onChange={e => setFlashIsBanner(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-emerald-500"
+                    />
+                    <span className="text-[11px] text-gray-300">Aktifkan Banner Global</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={flashDiscord}
+                      onChange={e => setFlashDiscord(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded text-indigo-500"
+                    />
+                    <span className="text-[11px] text-indigo-300">Siarkan ke Discord</span>
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsFlashModalOpen(false)}
+                    className="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-bold text-xs cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isPublishingFlash}
+                    className="px-4 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-black rounded-lg text-xs transition shadow flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    {isPublishingFlash ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    <span>SIARKAN SEKARANG</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

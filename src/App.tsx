@@ -34,6 +34,7 @@ import { CitizenPublicServicePortal } from './components/CitizenPublicServicePor
 import { DiscordReleaseAnnouncementModal } from './components/DiscordReleaseAnnouncementModal';
 import { SystemPingModal } from './components/SystemPingModal';
 import { DeveloperWorkspacePortal } from './components/DeveloperWorkspacePortal';
+import { GlobalSystemAnnouncementBanner } from './components/GlobalSystemAnnouncementBanner';
 import { synchronizeDpoAndDmvIntegrity } from './utils/activityMonitoringStorage';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
 import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch, isSameOfficerAccount, saveRosterToStorage, updateOfficerPinInRoster, updateOfficerAccountInRoster } from './utils/pinResetStorage';
