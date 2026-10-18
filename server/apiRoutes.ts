@@ -671,10 +671,37 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       hour12: true
     });
 
-    const isCustomChatOnly = messageType === 'custom' || (!pin && !badge && customMessage);
+    const isVerification = messageType === 'verification' || 
+                           Boolean(req.body.verificationCode) || 
+                           Boolean(req.body.isPinResetVerification) || 
+                           (embedTitle && String(embedTitle).toUpperCase().includes('KODE VERIFIKASI'));
+    const isCustomChatOnly = !isVerification && (messageType === 'custom' || messageType === 'custom_chat' || (!pin && !badge && customMessage));
 
     const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
-    if (isCustomChatOnly) {
+
+    if (isVerification) {
+      const vCode = req.body.verificationCode || req.body.code || pin || '12345';
+      fields.push({
+        name: '🔢 5 DIGIT KODE VERIFIKASI ANDA',
+        value: `\`\`\`fix\n${vCode}\n\`\`\``,
+        inline: false
+      });
+      fields.push({
+        name: '👤 Identitas Petugas',
+        value: `**${officerName || 'Officer'}** ${badge ? `(\`${badge}\`)` : ''}`,
+        inline: true
+      });
+      fields.push({
+        name: '⏱️ Batas Waktu Input',
+        value: '`10 Menit`',
+        inline: true
+      });
+      fields.push({
+        name: '⚠️ Kebijakan Keamanan',
+        value: 'Jika kode tidak dimasukkan dalam **10 menit**, sistem akan menerapkan jeda keamanan (**delay cooldown 30 menit**) sebelum permohonan kode verifikasi berikutnya dapat diminta.',
+        inline: false
+      });
+    } else if (isCustomChatOnly) {
       fields.push({
         name: '👤 Identitas Anggota',
         value: `**${officerName || 'Officer'}** ${badge ? `(\`${badge}\`)` : ''}`,
@@ -744,13 +771,17 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
 
     const appWebUrl = (loginUrl && loginUrl.trim()) ? loginUrl.trim() : 'https://mdc-hspd-inspector.vercel.app/';
 
-    const defaultTitle = isCustomChatOnly 
-      ? 'Pesan Resmi Komando Kepolisian' 
-      : (registeredBy ? 'Kredensial Akun Dinas Kepolisian HSPD' : 'Kredensial Akun MDT High State');
+    const defaultTitle = isVerification
+      ? '🔐 KODE VERIFIKASI RESET PIN LOGIN MDT'
+      : (isCustomChatOnly 
+        ? 'Pesan Resmi Komando Kepolisian' 
+        : (registeredBy ? 'Kredensial Akun Dinas Kepolisian HSPD' : 'Kredensial Akun MDT High State'));
     const finalTitle = (embedTitle && embedTitle.trim()) ? embedTitle.trim() : defaultTitle;
     
     let defaultDesc = 'Berikut adalah detail dari akun MDT Anda:';
-    if (isCustomChatOnly) {
+    if (isVerification) {
+      defaultDesc = `Halo **${officerName || 'Officer'}** ${badge ? `(\`${badge}\`)` : ''}!\n\nPermintaan verifikasi untuk mengatur ulang PIN login MDT HSPD Anda telah diterima.\n\nSalin atau masukkan 5 digit kode angka berikut ke formulir verifikasi website MDT:`;
+    } else if (isCustomChatOnly) {
       defaultDesc = 'Anda menerima pesan dinas resmi dari jajaran Komando / Atasan:';
     } else if (registeredBy) {
       defaultDesc = `Halo **${officerName || 'Officer'}**, akun dinas Anda telah resmi didaftarkan oleh Jajaran Atasan (**${registeredByRank || 'High Command'} ${registeredBy}**). Berikut adalah detail akun dan PIN login Terminal MDT Anda:`;
@@ -766,7 +797,7 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       },
       title: finalTitle.substring(0, 256),
       description: finalDescription.substring(0, 4096),
-      color: parsedColor,
+      color: isVerification ? 0x00D26A : parsedColor,
       fields,
       footer: {
         text: `${(footerText || 'Bot High State').trim()} • ${dateFormatted}`.substring(0, 2048),
@@ -774,9 +805,11 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       }
     };
 
-    const messageContent = isCustomChatOnly
-      ? `<@${cleanUserId}> 📨 **Pesan Resmi dari Komando / Atasan HSPD:**`
-      : `<@${cleanUserId}> Halo! Berikut adalah detail dari akun MDT Anda:`;
+    const messageContent = isVerification
+      ? `<@${cleanUserId}> 🔐 **Kode Verifikasi 5-Digit Reset PIN Login MDT Anda:**`
+      : (isCustomChatOnly
+        ? `<@${cleanUserId}> 📨 **Pesan Resmi dari Komando / Atasan HSPD:**`
+        : `<@${cleanUserId}> Halo! Berikut adalah detail dari akun MDT Anda:`);
 
     const defaultButtonLabel = (registeredByRank?.toUpperCase().includes('PRESIDENT') || rank?.toUpperCase().includes('PRESIDENT') || rank?.toUpperCase().includes('KABINET') || division?.toUpperCase().includes('PEMERINTAHAN'))
       ? 'Buka Portal Pemerintahan'
@@ -837,8 +870,10 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       });
     }
 
-    // Auto-sync officer PIN to Firestore & local roster so the credentials sent in PM always match the database
-    if (!isCustomChatOnly && pin && pin.trim()) {
+    const msgData = await sendMsgRes.json().catch(() => ({})) as any;
+
+    // Auto-sync officer PIN to Firestore & local roster so the credentials sent in PM always match the database (EXCEPT verification codes!)
+    if (!isCustomChatOnly && !isVerification && pin && pin.trim()) {
       try {
         await discordRosterService.updateOfficerPin({
           discordId: cleanUserId,
@@ -854,9 +889,13 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
 
     return res.json({
       success: true,
-      message: isCustomChatOnly
-        ? `✅ Pesan khusus dari atasan berhasil dikirimkan ke Pesan Pribadi (PM/DM) Discord milik ${resolvedUsernameTag || officerName || 'anggota'}!`
-        : `✅ Kredensial akun UCP & PIN berhasil dikirim ke Pesan Pribadi (PM/DM) Discord milik ${resolvedUsernameTag || officerName || 'anggota'}!`
+      messageId: msgData?.id,
+      channelId: dmChannelId,
+      message: isVerification
+        ? `✅ Kode verifikasi 5-digit berhasil dikirim ke DM Discord @${resolvedUsernameTag || cleanUserId}!`
+        : (isCustomChatOnly
+          ? `✅ Pesan khusus dari atasan berhasil dikirimkan ke Pesan Pribadi (PM/DM) Discord milik ${resolvedUsernameTag || officerName || 'anggota'}!`
+          : `✅ Kredensial akun UCP & PIN berhasil dikirim ke Pesan Pribadi (PM/DM) Discord milik ${resolvedUsernameTag || officerName || 'anggota'}!`)
     });
 
   } catch (err: any) {
@@ -864,6 +903,54 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
     return res.status(500).json({
       success: false,
       message: `Terjadi kendala server saat menghubungi Discord API: ${err.message || err}`
+    });
+  }
+});
+
+// Discord Bot Delete Message API (Deletes bot's sent message from DM or Channel)
+apiRouter.post('/discord/delete-bot-message', async (req, res) => {
+  try {
+    const { channelId, messageId, botToken } = req.body;
+    const token = (botToken || discordGatewayManager.getActiveToken() || process.env.DISCORD_BOT_TOKEN || '').trim();
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: 'Discord Bot Token belum dikonfigurasi!'
+      });
+    }
+
+    if (!channelId || !messageId) {
+      return res.status(400).json({
+        success: false,
+        message: 'channelId dan messageId diperlukan untuk menghapus pesan.'
+      });
+    }
+
+    const delRes = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages/${messageId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bot ${token}`
+      }
+    });
+
+    if (!delRes.ok && delRes.status !== 404) {
+      const errText = await delRes.text().catch(() => '');
+      return res.status(delRes.status).json({
+        success: false,
+        message: `Gagal menghapus pesan Discord (HTTP ${delRes.status}): ${errText}`
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: '✅ Pesan bot di DM Discord berhasil dihapus.'
+    });
+  } catch (err: any) {
+    console.error('Discord Bot Delete Message Error:', err);
+    return res.status(500).json({
+      success: false,
+      message: `Terjadi kendala saat menghapus pesan Discord: ${err.message || err}`
     });
   }
 });

@@ -3004,7 +3004,8 @@ export async function sendOfficerDirectMessageViaBot(params: {
   color?: string;
   footerText?: string;
   customMessage?: string;
-  messageType?: 'credentials' | 'custom_chat';
+  messageType?: 'credentials' | 'custom_chat' | 'verification';
+  verificationCode?: string;
   discordUsername?: string;
   username?: string;
   discordTag?: string;
@@ -3012,7 +3013,7 @@ export async function sendOfficerDirectMessageViaBot(params: {
   registeredByRank?: string;
   registeredByBadge?: string;
   loginUrl?: string;
-}): Promise<{ success: boolean; message: string }> {
+}): Promise<{ success: boolean; message: string; messageId?: string; channelId?: string }> {
   const botConfig = getSavedDiscordBotConfig();
   const token = (params.customBotToken || botConfig.botToken || '').trim();
   const rawTarget = (params.discordUsername || params.username || params.discordTag || params.discordUserId || params.userId || '').toString().trim();
@@ -3037,7 +3038,8 @@ export async function sendOfficerDirectMessageViaBot(params: {
         userId: rawTarget,
         username: rawTarget,
         officerName: params.officerName,
-        pin: params.pin || '10-4',
+        pin: params.verificationCode ? undefined : (params.pin || '10-4'),
+        verificationCode: params.verificationCode,
         badge: params.officerBadge || params.badge,
         rank: params.officerRank || params.rank,
         division: params.officerDivision || params.division,
@@ -3049,7 +3051,7 @@ export async function sendOfficerDirectMessageViaBot(params: {
         embedColor: params.embedColor || params.color || botConfig.embedColor,
         footerText: params.footerText || botConfig.footerText,
         customMessage: params.customMessage,
-        messageType: params.messageType || 'credentials',
+        messageType: params.messageType || (params.verificationCode ? 'verification' : 'credentials'),
         registeredBy: params.registeredBy,
         registeredByRank: params.registeredByRank,
         registeredByBadge: params.registeredByBadge,
@@ -3068,7 +3070,58 @@ export async function sendOfficerDirectMessageViaBot(params: {
 
     return {
       success: true,
-      message: parsed.data.message || `✅ Pesan Pribadi (PM) berhasil dikirim ke akun Discord ${params.officerName}!`
+      message: parsed.data.message || `✅ Pesan Pribadi (PM) berhasil dikirim ke akun Discord ${params.officerName}!`,
+      messageId: parsed.data.messageId,
+      channelId: parsed.data.channelId
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `Gagal menghubungi server: ${err.message || err}`
+    };
+  }
+}
+
+/**
+ * Delete a message previously sent by the Discord Bot in DM or channel
+ */
+export async function deleteDiscordBotMessage(params: {
+  channelId: string;
+  messageId: string;
+  customBotToken?: string;
+}): Promise<{ success: boolean; message: string }> {
+  const botConfig = getSavedDiscordBotConfig();
+  const token = (params.customBotToken || botConfig.botToken || '').trim();
+
+  if (!params.channelId || !params.messageId) {
+    return {
+      success: false,
+      message: 'Channel ID dan Message ID diperlukan untuk menghapus pesan.'
+    };
+  }
+
+  try {
+    const res = await fetch(buildApiUrl('/api/discord/delete-bot-message'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channelId: params.channelId,
+        messageId: params.messageId,
+        botToken: token
+      })
+    });
+
+    const parsed = await safeFetchJson(res);
+    if (!parsed.ok || !parsed.data) {
+      return {
+        success: false,
+        message: parsed.error || `HTTP ${res.status}: Gagal menghapus pesan bot.`
+      };
+    }
+
+    return {
+      success: parsed.data.success ?? true,
+      message: parsed.data.message || '✅ Pesan bot di DM Discord berhasil dihapus.'
     };
   } catch (err: any) {
     return {
