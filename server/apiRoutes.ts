@@ -683,12 +683,12 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       const vCode = req.body.verificationCode || req.body.code || pin || '12345';
       fields.push({
         name: '🔢 5 DIGIT KODE VERIFIKASI ANDA',
-        value: `\`\`\`fix\n${vCode}\n\`\`\``,
+        value: `\`\`\`\n${vCode}\n\`\`\``,
         inline: false
       });
       fields.push({
         name: '👤 Identitas Petugas',
-        value: `**${officerName || 'Officer'}** ${badge ? `(\`${badge}\`)` : ''}`,
+        value: `**${officerName || 'Officer'}** ( \`${badge || '#---'}\` )`,
         inline: true
       });
       fields.push({
@@ -780,19 +780,19 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
     
     let defaultDesc = 'Berikut adalah detail dari akun MDT Anda:';
     if (isVerification) {
-      defaultDesc = `Halo **${officerName || 'Officer'}** ${badge ? `(\`${badge}\`)` : ''}!\n\nPermintaan verifikasi untuk mengatur ulang PIN login MDT HSPD Anda telah diterima.\n\nSalin atau masukkan 5 digit kode angka berikut ke formulir verifikasi website MDT:`;
+      defaultDesc = 'Berikut adalah detail dari akun MDT Anda:';
     } else if (isCustomChatOnly) {
       defaultDesc = 'Anda menerima pesan dinas resmi dari jajaran Komando / Atasan:';
     } else if (registeredBy) {
       defaultDesc = `Halo **${officerName || 'Officer'}**, akun dinas Anda telah resmi didaftarkan oleh Jajaran Atasan (**${registeredByRank || 'High Command'} ${registeredBy}**). Berikut adalah detail akun dan PIN login Terminal MDT Anda:`;
     }
-    const finalDescription = (embedDescription && embedDescription.trim())
+    const finalDescription = (embedDescription && embedDescription.trim() && !isVerification)
       ? embedDescription.trim() 
       : defaultDesc;
 
     const embedObj: any = {
       author: {
-        name: (botName || 'Cek Akun | High State').trim().substring(0, 256),
+        name: (botName || (isVerification ? 'Cek Akun | High State Roleplay Asisten' : 'Cek Akun | High State')).trim().substring(0, 256),
         icon_url: safeAvatarUrl
       },
       title: finalTitle.substring(0, 256),
@@ -806,7 +806,7 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
     };
 
     const messageContent = isVerification
-      ? `<@${cleanUserId}> 🔐 **Kode Verifikasi 5-Digit Reset PIN Login MDT Anda:**`
+      ? ''
       : (isCustomChatOnly
         ? `<@${cleanUserId}> 📨 **Pesan Resmi dari Komando / Atasan HSPD:**`
         : `<@${cleanUserId}> Halo! Berikut adalah detail dari akun MDT Anda:`);
@@ -840,7 +840,7 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        content: messageContent,
+        ...(messageContent ? { content: messageContent } : {}),
         embeds: [embedObj],
         components: messageComponents
       })
@@ -870,10 +870,8 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
       });
     }
 
-    const msgData = await sendMsgRes.json().catch(() => ({})) as any;
-
-    // Auto-sync officer PIN to Firestore & local roster so the credentials sent in PM always match the database (EXCEPT verification codes!)
-    if (!isCustomChatOnly && !isVerification && pin && pin.trim()) {
+    // Auto-sync officer PIN to Firestore & local roster so the credentials sent in PM always match the database
+    if (!isCustomChatOnly && pin && pin.trim()) {
       try {
         await discordRosterService.updateOfficerPin({
           discordId: cleanUserId,
@@ -889,13 +887,9 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
 
     return res.json({
       success: true,
-      messageId: msgData?.id,
-      channelId: dmChannelId,
-      message: isVerification
-        ? `✅ Kode verifikasi 5-digit berhasil dikirim ke DM Discord @${resolvedUsernameTag || cleanUserId}!`
-        : (isCustomChatOnly
-          ? `✅ Pesan khusus dari atasan berhasil dikirimkan ke Pesan Pribadi (PM/DM) Discord milik ${resolvedUsernameTag || officerName || 'anggota'}!`
-          : `✅ Kredensial akun UCP & PIN berhasil dikirim ke Pesan Pribadi (PM/DM) Discord milik ${resolvedUsernameTag || officerName || 'anggota'}!`)
+      message: isCustomChatOnly
+        ? `✅ Pesan khusus dari atasan berhasil dikirimkan ke Pesan Pribadi (PM/DM) Discord milik ${resolvedUsernameTag || officerName || 'anggota'}!`
+        : `✅ Kredensial akun UCP & PIN berhasil dikirim ke Pesan Pribadi (PM/DM) Discord milik ${resolvedUsernameTag || officerName || 'anggota'}!`
     });
 
   } catch (err: any) {
@@ -903,54 +897,6 @@ apiRouter.post('/discord/send-bot-dm', async (req, res) => {
     return res.status(500).json({
       success: false,
       message: `Terjadi kendala server saat menghubungi Discord API: ${err.message || err}`
-    });
-  }
-});
-
-// Discord Bot Delete Message API (Deletes bot's sent message from DM or Channel)
-apiRouter.post('/discord/delete-bot-message', async (req, res) => {
-  try {
-    const { channelId, messageId, botToken } = req.body;
-    const token = (botToken || discordGatewayManager.getActiveToken() || process.env.DISCORD_BOT_TOKEN || '').trim();
-
-    if (!token) {
-      return res.status(400).json({
-        success: false,
-        message: 'Discord Bot Token belum dikonfigurasi!'
-      });
-    }
-
-    if (!channelId || !messageId) {
-      return res.status(400).json({
-        success: false,
-        message: 'channelId dan messageId diperlukan untuk menghapus pesan.'
-      });
-    }
-
-    const delRes = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages/${messageId}`, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bot ${token}`
-      }
-    });
-
-    if (!delRes.ok && delRes.status !== 404) {
-      const errText = await delRes.text().catch(() => '');
-      return res.status(delRes.status).json({
-        success: false,
-        message: `Gagal menghapus pesan Discord (HTTP ${delRes.status}): ${errText}`
-      });
-    }
-
-    return res.json({
-      success: true,
-      message: '✅ Pesan bot di DM Discord berhasil dihapus.'
-    });
-  } catch (err: any) {
-    console.error('Discord Bot Delete Message Error:', err);
-    return res.status(500).json({
-      success: false,
-      message: `Terjadi kendala saat menghapus pesan Discord: ${err.message || err}`
     });
   }
 });

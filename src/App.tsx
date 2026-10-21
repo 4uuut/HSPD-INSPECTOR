@@ -893,7 +893,9 @@ export default function App() {
           }}
           onLogout={handleLogout}
         />
-      ) : isAndroidMode ? (
+      ) : (
+        <>
+          {isAndroidMode ? (
         <AndroidMdtView
           currentOfficer={currentOfficer}
           roster={roster}
@@ -1593,18 +1595,9 @@ export default function App() {
             onNavigateToTab={(tab) => setActiveNav(tab as any)}
           />
         )}
-        {activeNav === 'dev_monitor' && (
-          <DeveloperWorkspacePortal
-            currentOfficer={currentOfficer}
-            onSwitchPortal={(portal) => {
-              if (portal === 'POLICE') setActiveNav('calc');
-              else if (portal === 'GOVERNMENT') setActiveNav('gov_suite');
-              else if (portal === 'CITIZEN') setActiveNav('citizen_portal');
-            }}
-            onLogout={handleLogout}
-          />
-        )}
       </main>
+    </>
+  )}
 
       {/* Duty Dispatch Modal */}
       <DutyControlModal

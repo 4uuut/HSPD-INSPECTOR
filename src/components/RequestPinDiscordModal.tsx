@@ -455,8 +455,6 @@ export const RequestPinDiscordModal: React.FC<Props> = ({
       digitInputRefs.current[0]?.focus();
     }, 100);
 
-    // 4. Dispatch DM via Bot asynchronously in background
-    setIsSendingCode(true);
     sendOfficerDirectMessageViaBot({
       officerName: targetOfficer.name,
       badge: currentTargetBadge,
@@ -464,16 +462,15 @@ export const RequestPinDiscordModal: React.FC<Props> = ({
       messageType: 'verification',
       verificationCode: code,
       pin: code,
-      title: '🔐 KODE VERIFIKASI RESET PIN LOGIN MDT',
-      customMessage: `Halo **${targetOfficer.name}** (\`${currentTargetBadge}\`)!\n\nBerikut adalah 5 digit kode verifikasi untuk reset PIN login MDT HSPD Anda:\n\n# 🔢 **\`${code}\`**\n\nMasukkan kode 5 digit di atas pada website MDT. Kode berlaku selama 10 menit (delay cooldown 30 menit jika tidak dimasukkan).`
+      title: '🔐 KODE VERIFIKASI RESET PIN LOGIN MDT'
     }).then((dmResult) => {
       if (dmResult.success) {
         setDmStatusNotice(`✅ Bot berhasil mengirimkan 5 digit kode verifikasi ke DM Discord @${resolvedDiscord}!`);
       } else {
-        setDmStatusNotice(`⚠️ Notifikasi Server: ${dmResult.message}. Anda tetap dapat menggunakan kode bantuan.`);
+        setDmStatusNotice(`⚠️ Notifikasi Server: ${dmResult.message}.`);
       }
     }).catch((err: any) => {
-      setDmStatusNotice(`Peringatan: Bot Discord mungkin offline atau DM tertutup. Kode bantuan tetap dapat digunakan.`);
+      setDmStatusNotice(`Peringatan: Bot Discord mungkin offline atau DM tertutup.`);
     }).finally(() => {
       setIsSendingCode(false);
     });

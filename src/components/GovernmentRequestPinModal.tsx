@@ -375,7 +375,6 @@ export const GovernmentRequestPinModal: React.FC<Props> = ({
       digitInputRefs.current[0]?.focus();
     }, 100);
 
-    // 4. Dispatch DM in background
     setIsSendingCode(true);
     sendOfficerDirectMessageViaBot({
       officerName: targetOfficial.name,
@@ -384,16 +383,15 @@ export const GovernmentRequestPinModal: React.FC<Props> = ({
       messageType: 'verification',
       verificationCode: code,
       pin: code,
-      title: '🏛️ KODE VERIFIKASI RESET PIN PEMERINTAHAN',
-      customMessage: `Halo Yang Terhormat **${targetOfficial.name}** (\`${currentBadge}\`)!\n\nBerikut adalah 5 digit kode verifikasi Anda:\n\n# 🔢 **\`${code}\`**\n\nMasukkan kode 5 digit di atas pada portal. Kode berlaku selama 10 menit (delay 30 menit jika tidak dimasukkan).`
+      title: '🔐 KODE VERIFIKASI RESET PIN LOGIN MDT'
     }).then((dmResult) => {
       if (dmResult.success) {
         setDmStatusNotice(`✅ Bot berhasil mengirimkan 5 digit kode verifikasi ke DM Discord @${resolvedDiscord}!`);
       } else {
-        setDmStatusNotice(`⚠️ Notifikasi Server: ${dmResult.message}. Anda dapat menggunakan kode bantuan.`);
+        setDmStatusNotice(`⚠️ Notifikasi Server: ${dmResult.message}.`);
       }
     }).catch(() => {
-      setDmStatusNotice('Peringatan: Bot Discord offline atau DM tertutup. Kode bantuan tetap aktif.');
+      setDmStatusNotice('Peringatan: Bot Discord offline atau DM tertutup.');
     }).finally(() => {
       setIsSendingCode(false);
     });
