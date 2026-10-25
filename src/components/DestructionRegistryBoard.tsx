@@ -333,7 +333,17 @@ export const DestructionRegistryBoard: React.FC<Props> = ({ currentOfficer }) =>
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event('switch-to-bonus-hub'))}
+              className="px-3 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black rounded-lg font-black text-xs flex items-center gap-1.5 shadow-lg shadow-amber-950 transition cursor-pointer active:scale-95"
+              title="Buka Pusat Perhitungan Bonus Peleburan Senjata & 6 Bonus Operasional"
+            >
+              <DollarSign className="w-4 h-4 stroke-[2.5]" />
+              <span>BONUS PELEBURAN SENJATA</span>
+            </button>
+
             <button
               onClick={() => {
                 resetForm();

@@ -132,6 +132,7 @@ export interface OfficerAccount {
   phone?: string;
   discordTag?: string; // Discord Username / Tag / User ID (e.g. @nexia, 842019..., or nexia#1234)
   bankAccount?: string; // Nomor Rekening Bank (Payroll / Gaji)
+  bankAccountNumber?: string; // Nomor Rekening Bank Alias
   registeredAt: number;
   promotedBy?: string;
   lastLogin?: number;
@@ -514,6 +515,7 @@ export type ModuleAccessKey =
   | 'FORENSICS'         // Laboratorium Forensik & Balistik
   | 'DMV_CITIZEN'       // Database Sipil & Kendaraan DMV
   | 'SPECIAL_DIVISIONS' // Hub Divisi Khusus (SWAT, ASD, K-9, IAD, Academy)
+  | 'BONUS'             // Kalkulator & Rekapitulasi Bonus Kinerja
   | 'UNIVERSAL';        // Master Access Sekali Pakai
 
 export interface OneTimePasscode {
@@ -903,6 +905,100 @@ export interface DestructionRegistryItem {
   afterPhotos: string[];       // Foto residu / setelah peleburan dari device
   notes?: string;
   timestamp: number;
+}
+
+// ==========================================
+// 💰 OFFICER BONUS & INCENTIVE SYSTEM TYPES
+// ==========================================
+export interface OfficerBonusRatesConfig {
+  arrestCaseRate: number;            // Bonus penanganan kasus penindakan ($/kasus)
+  evidenceItemRate: number;          // Bonus pemasukan efiden/barang bukti ($/item or batch)
+  trafficCitationRate: number;       // Bonus tilang flat ($/surat)
+  trafficCitationPercentage: number; // Bonus tilang persentase (% dari total denda)
+  trafficBonusMode: 'PERCENTAGE' | 'FLAT';
+  impoundRate: number;               // Bonus impound flat ($/unit)
+  impoundPercentage: number;         // Bonus impound persentase (% dari total biaya)
+  impoundBonusMode: 'PERCENTAGE' | 'FLAT';
+  weaponRestockSuccessRate: number;  // Bonus sukses perestokan persenjataan dinas ($/operasi sukses)
+  weaponSmeltingRate: number;        // Bonus peleburan senjata ilegal ke tungku smelter ($/pucuk)
+  departmentTaxPercentage: number;   // Potongan kas dinas HSPD (%)
+}
+
+export type ArmoryWeaponCategory = 'HANDGUN' | 'SHOTGUN' | 'SMG' | 'RIFLE' | 'AMMO' | 'TACTICAL';
+
+export interface ArmoryRestockItem {
+  name: string;
+  quantity: number;
+  category: ArmoryWeaponCategory;
+}
+
+export interface ArmoryRestockRecord {
+  id: string;
+  restockNumber: string;             // e.g. "HSPD-RESTOCK-26-001"
+  officerName: string;
+  officerBadge: string;
+  officerRank: string;
+  date: string;
+  armoryLocation: string;
+  supplierSource: string;
+  weaponsRestocked: ArmoryRestockItem[];
+  totalWeaponsCount: number;
+  ammoRoundsCount: number;
+  tacticalGearCount: number;
+  status: 'SUCCESS_VERIFIED' | 'PENDING_INSPECTION';
+  witnessSupervisor?: string;
+  notes: string;
+  proofPhotos: string[];
+  timestamp: number;
+}
+
+export type OfficerBonusClaimStatus = 
+  | 'DRAFT'
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'DISBURSED_PAID'
+  | 'REJECTED';
+
+export interface OfficerBonusBreakdown {
+  arrestCasesCount: number;
+  arrestCasesBonus: number;
+  evidenceCount: number;
+  evidenceBonus: number;
+  citationsCount: number;
+  citationsTotalFine: number;
+  citationsBonus: number;
+  impoundsCount: number;
+  impoundsTotalFee: number;
+  impoundsBonus: number;
+  weaponRestocksCount: number;
+  weaponRestocksBonus: number;
+  weaponSmeltingsCount: number;
+  weaponSmeltingsBonus: number;
+}
+
+export interface OfficerBonusClaim {
+  id: string;
+  claimNumber: string;               // e.g. "HSPD-BONUS-26-W39-001"
+  officerBadge: string;
+  officerName: string;
+  officerRank: string;
+  officerDivision: string;
+  bankAccountNumber: string;
+  periodLabel: string;
+  periodStart: number;
+  periodEnd: number;
+  breakdown: OfficerBonusBreakdown;
+  totalGrossBonus: number;
+  deductions: number;
+  totalNetBonus: number;
+  status: OfficerBonusClaimStatus;
+  submittedAt: number;
+  approvedBy?: string;
+  approvedAt?: number;
+  disbursedAt?: number;
+  disbursementReference?: string;
+  notes?: string;
+  discordDispatched?: boolean;
 }
 
 // ==========================================

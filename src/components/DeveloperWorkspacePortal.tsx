@@ -36,6 +36,7 @@ import {
   getSystemAnnouncements,
   publishSystemAnnouncement,
   toggleAnnouncementBanner,
+  forceSyncOfficialAnnouncements,
   AnnouncementCategory,
   AnnouncementSeverity,
   AnnouncementAudience
@@ -65,7 +66,7 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
   // Carousel & Flash Broadcast states for Core Developer Console
   const [activeNoticeIndex, setActiveNoticeIndex] = useState(0);
   const [isFlashModalOpen, setIsFlashModalOpen] = useState(false);
-  const [flashVersion, setFlashVersion] = useState('v4.2.4');
+  const [flashVersion, setFlashVersion] = useState('v4.3.0');
   const [flashTitle, setFlashTitle] = useState('');
   const [flashCategory, setFlashCategory] = useState<AnnouncementCategory>('UPDATE');
   const [flashSeverity, setFlashSeverity] = useState<AnnouncementSeverity>('IMPORTANT');
@@ -325,8 +326,45 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
     setTimeout(() => setSyncNotice(null), 4000);
   };
 
-  const handleApplyFlashPreset = (type: 'bank' | 'isolation' | 'maintenance' | 'hotfix') => {
-    if (type === 'bank') {
+  // Synchronize Official Announcements (v4.2.5, v4.2.4, etc.)
+  const handleForceSyncOfficialUpdates = () => {
+    setIsSyncing(true);
+    try {
+      const synced = forceSyncOfficialAnnouncements();
+      setAnnouncements(synced);
+      setActiveNoticeIndex(0);
+      playSystemNotificationChime('IMPORTANT');
+      setSyncNotice('✅ Berhasil menyinkronkan seluruh pembaruan sistem resmi terbaru (v4.2.5)!');
+    } catch (err: any) {
+      setSyncNotice(`❌ Gagal sinkronisasi: ${err?.message || err}`);
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncNotice(null), 5000);
+    }
+  };
+
+  const handleApplyFlashPreset = (type: 'bonus' | 'attendance' | 'bank' | 'isolation' | 'maintenance' | 'hotfix') => {
+    if (type === 'bonus') {
+      setFlashVersion('v4.3.0');
+      setFlashTitle('Pembaruan Sistem: Kalkulator & Rekapitulasi Bonus Kinerja 6 Komponen');
+      setFlashCategory('UPDATE');
+      setFlashSeverity('IMPORTANT');
+      setFlashAudience('GLOBAL');
+      setFlashDescription('Pembaruan resmi MDT HSPD v4.3.0: Menghadirkan Modul Kalkulator & Rekapitulasi Bonus Kinerja Operasional Petugas berbasis 6 komponen utama: Kasus Penindakan, Pemasukan Efiden, Pemasukan Tilang, Pemasukan Impound, Sukses Restok Persenjataan, dan Peleburan Senjata ke Tungku Smelter, terintegrasi rekening bank dinas & ekspor slip gambar.');
+      setFlashFeature1('Perhitungan otomatis 6 pilar kinerja dari data riil database kasus, bukti, tilang, impound, restok & lebur');
+      setFlashFeature2('Ekspor slip bonus resmi berwatermark lambang HSPD ke gambar PNG/JPG & Webhook Discord');
+      playSystemNotificationChime('IMPORTANT');
+    } else if (type === 'attendance') {
+      setFlashVersion('v4.2.5');
+      setFlashTitle('Pembaruan Sistem: Modul Absensi Manual Mingguan & Force On/Off Duty Atasan');
+      setFlashCategory('UPDATE');
+      setFlashSeverity('IMPORTANT');
+      setFlashAudience('GLOBAL');
+      setFlashDescription('Pembaruan resmi MDT HSPD v4.2.5: Menghadirkan modul rekap absensi dinas mingguan manual lengkap (✅, ❌, 📝, 🤒, 🌴, ⚪) dengan rotasi tanggal mingguan dinamis berkelanjutan, serta tombol langsung Force On/Off Duty di roster anggota untuk menertibkan anggota yang lupa off-duty.');
+      setFlashFeature1('Tabel Absensi Mingguan Atasan: 6 status resmi ✅ Hadir, ❌ Absen, 📝 Izin, 🤒 Sakit, 🌴 Cuti, ⚪ Libur');
+      setFlashFeature2('Tombol Force On/Off Duty Atasan di Roster Anggota & dialog konfirmasi aman');
+      playSystemNotificationChime('IMPORTANT');
+    } else if (type === 'bank') {
       setFlashVersion('v4.2.4');
       setFlashTitle('Pembaruan Sistem: Integrasi Rekening Bank Dinas di Formulir Roster');
       setFlashCategory('UPDATE');
@@ -705,6 +743,17 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
                   </button>
                 </div>
               )}
+
+              <button
+                type="button"
+                id="btn-sync-official-updates"
+                onClick={handleForceSyncOfficialUpdates}
+                className="px-2.5 py-1.5 rounded-lg bg-[#0E1F18] hover:bg-[#163025] border border-emerald-500/60 text-emerald-300 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer active:scale-95 shadow"
+                title="Tarik dan sinkronkan seluruh pembaruan sistem resmi terbaru (v4.2.5)"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Sinkron Update</span>
+              </button>
 
               <button
                 type="button"
@@ -1509,6 +1558,20 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
                   <Sparkles className="w-3 h-3 text-emerald-400" /> Pilih Template Cepat:
                 </span>
                 <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => handleApplyFlashPreset('bonus')}
+                    className="px-2 py-1 rounded bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-400 text-emerald-200 font-bold transition cursor-pointer active:scale-95 shadow"
+                  >
+                    💰 Bonus 6 Komponen (v4.3.0)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyFlashPreset('attendance')}
+                    className="px-2 py-1 rounded bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500 text-emerald-200 font-bold transition cursor-pointer active:scale-95 shadow"
+                  >
+                    📋 Absensi & Kontrol Dinas (v4.2.5)
+                  </button>
                   <button
                     type="button"
                     onClick={() => handleApplyFlashPreset('bank')}

@@ -710,6 +710,17 @@ export const BoloAndTrafficHub: React.FC<Props> = ({
             </button>
           )}
 
+          {/* Bonus Tilang & Impound Quick Jump */}
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event('switch-to-bonus-hub'))}
+            className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-black text-[11px] transition flex items-center gap-1 cursor-pointer shadow active:scale-95"
+            title="Buka Pusat Kalkulator Bonus Tilang, Impound & Operasional HSPD"
+          >
+            <DollarSign className="w-3.5 h-3.5 text-black stroke-[2.5]" />
+            <span>Bonus Tilang & Impound</span>
+          </button>
+
           {/* Primary Action Button */}
           {activeSubTab === 'tilang' ? (
             <button

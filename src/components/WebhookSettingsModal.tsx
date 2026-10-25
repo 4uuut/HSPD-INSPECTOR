@@ -36,6 +36,9 @@ import {
   testVaultDiscordWebhook,
   testDestructionDiscordWebhook,
   testDocumentDiscordWebhook,
+  getSavedBonusWebhookConfig,
+  saveBonusWebhookConfig,
+  testBonusClaimWebhook,
   WebhookConfig 
 } from '../utils/discordWebhook';
 import { checkAndBroadcastLatestRelease, LATEST_APP_RELEASE, sendSystemPingToDiscord } from '../utils/autoChangelogBroadcaster';
@@ -50,7 +53,7 @@ interface Props {
   currentOfficer?: OfficerProfile | null;
   onSaved?: () => void;
   onOpenBrandingModal?: () => void;
-  initialTab?: 'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'tilang' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm' | 'changelog';
+  initialTab?: 'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'tilang' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm' | 'changelog' | 'bonus';
 }
 
 export const WebhookSettingsModal: React.FC<Props> = ({
@@ -61,13 +64,18 @@ export const WebhookSettingsModal: React.FC<Props> = ({
   onOpenBrandingModal,
   initialTab
 }) => {
-  const [activeTab, setActiveTab] = useState<'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'tilang' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm' | 'changelog'>(initialTab || 'case');
+  const [activeTab, setActiveTab] = useState<'case' | 'duty' | 'promotion' | 'warning' | 'discharge' | 'pinReset' | 'roster' | 'detective' | 'bolo' | 'tilang' | 'impound' | 'vault' | 'destruction' | 'document' | 'botDm' | 'changelog' | 'bonus'>(initialTab || 'case');
 
   useEffect(() => {
     if (isOpen && initialTab) {
       setActiveTab(initialTab);
     }
   }, [isOpen, initialTab]);
+
+  // Dedicated Bonus Payroll Webhook State
+  const [bonusConfig, setBonusConfig] = useState<WebhookConfig>(() => getSavedBonusWebhookConfig());
+  const [isTestingBonus, setIsTestingBonus] = useState(false);
+  const [bonusTestResult, setBonusTestResult] = useState<{ success: boolean; message: string } | null>(null);
   
   // Case / Arrest Webhook State
   const [caseConfig, setCaseConfig] = useState<WebhookConfig>(() => getSavedWebhookConfig());
@@ -553,6 +561,23 @@ export const WebhookSettingsModal: React.FC<Props> = ({
     }
   };
 
+  // Test Bonus Claims Webhook
+  const handleTestBonusWebhook = async () => {
+    setIsTestingBonus(true);
+    setBonusTestResult(null);
+    try {
+      const res = await testBonusClaimWebhook(bonusConfig.webhookUrl, bonusConfig.botName);
+      setBonusTestResult(res);
+    } catch (err: any) {
+      setBonusTestResult({
+        success: false,
+        message: err.message || 'Gagal terhubung ke Webhook Rekapitulasi Bonus'
+      });
+    } finally {
+      setIsTestingBonus(false);
+    }
+  };
+
   // Test Changelog / System Release Webhook
   const handleTestChangelogWebhook = async () => {
     setIsTestingChangelog(true);
@@ -674,6 +699,7 @@ export const WebhookSettingsModal: React.FC<Props> = ({
     saveVaultWebhookConfig(vaultConfig);
     saveDestructionWebhookConfig(destructionConfig);
     saveDocumentWebhookConfig(documentConfig);
+    saveBonusWebhookConfig(bonusConfig);
     saveChangelogWebhookConfig(changelogConfig);
     saveDiscordBotConfig(botConfig);
     setSaveSuccessNotice('✅ Seluruh konfigurasi Discord Webhook & Bot Direct Message (PM) berhasil disimpan!');
@@ -961,6 +987,20 @@ export const WebhookSettingsModal: React.FC<Props> = ({
           >
             <Megaphone className="w-3 h-3 shrink-0 text-blue-400" />
             <span className="truncate">16. Rilis Otomatis</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('bonus')}
+            className={`py-2 px-1 flex items-center justify-center gap-1 font-bold transition border-b-2 ${
+              activeTab === 'bonus'
+                ? 'border-emerald-500 text-emerald-400 bg-[#161B22]'
+                : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/40'
+            }`}
+            title="Channel Pengajuan & Slip Rekapitulasi Bonus Kinerja HSPD"
+          >
+            <Coins className="w-3 h-3 shrink-0 text-emerald-400" />
+            <span className="truncate">17. Bonus HSPD</span>
           </button>
         </div>
 
@@ -3972,6 +4012,117 @@ Bukti : Ada`}
               })()}
             </div>
           )}
+
+          {/* TAB 17: OFFICER BONUS PAYROLL & COMPENSATIONS WEBHOOK */}
+          {activeTab === 'bonus' && (
+            <div className="space-y-4">
+              <div className="p-3 bg-emerald-950/30 border border-emerald-900/60 rounded-lg text-[11px] text-emerald-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-emerald-200">
+                  <Coins className="w-3.5 h-3.5" />
+                  <span>Channel Pengajuan Klaim & Slip Bonus Kinerja Petugas HSPD</span>
+                </div>
+                <p className="text-gray-400">
+                  Seluruh berkas pengajuan klaim dan slip bonus operasional petugas (Kasus Penindakan, Pemasukan Efiden, Pemasukan Tilang, Pemasukan Impound, Sukses Restok Senjata, dan Peleburan Senjata) akan disiarkan rapi lengkap dengan rincian breakdown dan nomor rekening bank dinas ke channel Discord ini.
+                </p>
+              </div>
+
+              {/* Webhook URL Input */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-300 uppercase block">
+                  URL Discord Webhook Rekapitulasi Bonus Kinerja:
+                </label>
+                <div className="relative">
+                  <input
+                    type="url"
+                    placeholder="https://discord.com/api/webhooks/..."
+                    value={bonusConfig.webhookUrl}
+                    onChange={(e) => setBonusConfig({ ...bonusConfig, webhookUrl: e.target.value })}
+                    className="w-full bg-[#0D1117] border border-gray-700 rounded p-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                  />
+                  {bonusConfig.webhookUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setBonusConfig({ ...bonusConfig, webhookUrl: '' })}
+                      className="absolute right-2 top-2 text-gray-500 hover:text-gray-300"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Bot Custom Name */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-300 uppercase block">
+                  Nama Tampilan Bot (Display Name):
+                </label>
+                <input
+                  type="text"
+                  placeholder="HSPD Finance & Bonus Payroll Bureau"
+                  value={bonusConfig.botName}
+                  onChange={(e) => setBonusConfig({ ...bonusConfig, botName: e.target.value })}
+                  className="w-full bg-[#0D1117] border border-gray-700 rounded p-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                />
+              </div>
+
+              {/* Bot Avatar URL */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-gray-300 uppercase block">
+                  URL Foto Profil Bot (Avatar URL):
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://..."
+                  value={bonusConfig.botAvatar}
+                  onChange={(e) => setBonusConfig({ ...bonusConfig, botAvatar: e.target.value })}
+                  className="w-full bg-[#0D1117] border border-gray-700 rounded p-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                />
+              </div>
+
+              {/* Auto Send Toggle */}
+              <div className="flex items-center gap-2 p-3 bg-[#0D1117] border border-gray-800 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="chk-auto-send-bonus"
+                  checked={bonusConfig.autoSendOnSave}
+                  onChange={(e) => setBonusConfig({ ...bonusConfig, autoSendOnSave: e.target.checked })}
+                  className="w-4 h-4 rounded text-emerald-600 bg-gray-900 border-gray-700 focus:ring-emerald-500"
+                />
+                <label htmlFor="chk-auto-send-bonus" className="text-xs text-gray-300 cursor-pointer">
+                  Kirim otomatis ke Discord saat pengajuan klaim bonus disetujui High Command
+                </label>
+              </div>
+
+              {/* Test Button & Result */}
+              <div className="space-y-2 pt-2 border-t border-gray-800">
+                <button
+                  type="button"
+                  onClick={handleTestBonusWebhook}
+                  disabled={isTestingBonus || !bonusConfig.webhookUrl.trim()}
+                  className="px-4 py-2 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/50 rounded font-bold transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Send className={`w-3.5 h-3.5 ${isTestingBonus ? 'animate-spin' : ''}`} />
+                  <span>{isTestingBonus ? 'Mengirim Sinyal Uji Coba...' : 'Kirim Pesan Uji Coba Webhook Bonus'}</span>
+                </button>
+
+                {bonusTestResult && (
+                  <div className={`p-2.5 rounded border text-xs flex items-center gap-2 ${
+                    bonusTestResult.success 
+                      ? 'bg-emerald-950/60 border-emerald-700 text-emerald-300' 
+                      : 'bg-rose-950/60 border-rose-700 text-rose-300'
+                  }`}>
+                    {bonusTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                    )}
+                    <span>{bonusTestResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="p-3 bg-gray-900/80 border border-gray-800 rounded-lg text-gray-400 text-[11px] flex items-start gap-2">
             <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
             <div>

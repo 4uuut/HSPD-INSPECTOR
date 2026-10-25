@@ -245,6 +245,15 @@ export const AndroidMdtView: React.FC<Props> = ({
       moduleKey: 'DESTRUCTION' as ModuleAccessKey
     },
     { 
+      id: 'bonus', 
+      title: 'Kalkulator Bonus Operasional', 
+      desc: 'Penindakan, Efiden, Tilang, Impound, Restok & Lebur',
+      icon: Landmark, 
+      color: 'from-amber-600 to-yellow-700',
+      badge: '6 BONUS',
+      badgeColor: 'bg-amber-950 text-amber-300 border-amber-600'
+    },
+    { 
       id: 'megaphone', 
       title: 'Megaphone Studio', 
       desc: 'Perintah Pengejaran & Pengumuman /M',

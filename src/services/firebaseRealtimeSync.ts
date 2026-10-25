@@ -195,6 +195,16 @@ export const SYNC_COLLECTIONS = {
     name: 'officer_leaves',
     storageKey: 'hspd_officer_leaves_history_v1',
     event: 'hspd-officer-leaves-updated'
+  },
+  BONUS_CLAIMS: {
+    name: 'bonus_claims',
+    storageKey: 'hspd_bonus_claims_v1',
+    event: 'hspd-bonus-claims-updated'
+  },
+  RESTOCK_MISSIONS: {
+    name: 'restock_missions',
+    storageKey: 'hspd_armory_restock_logs_v1',
+    event: 'hspd-restock-missions-updated'
   }
 } as const;
 

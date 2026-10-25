@@ -276,7 +276,17 @@ export const VaultAuditBoard: React.FC<Props> = ({ currentOfficer }) => {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event('switch-to-bonus-hub'))}
+              className="px-3 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black rounded-lg font-black text-xs flex items-center gap-1.5 shadow-lg shadow-emerald-950 transition cursor-pointer active:scale-95"
+              title="Buka Pusat Perhitungan Bonus Pemasukan Efiden & 6 Bonus Operasional"
+            >
+              <DollarSign className="w-4 h-4 stroke-[2.5]" />
+              <span>BONUS PEMASUKAN EFIDEN</span>
+            </button>
+
             <button
               onClick={() => {
                 resetForm();

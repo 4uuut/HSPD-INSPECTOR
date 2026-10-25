@@ -24,6 +24,102 @@ export interface SystemReleaseNote {
 
 export const ALL_SYSTEM_RELEASES: SystemReleaseNote[] = [
   {
+    version: 'v4.2.6',
+    releaseDate: '25 Oktober 2026',
+    title: 'Pembaruan Sistem MDT HSPD - Modul Perhitungan Bonus Operasional 6 Kategori Prestasi Dinas',
+    headerText: '[ PEMBERITAHUAN RESMI PEMBARUAN SISTEM MDT HSPD v4.2.6 ]',
+    customDescription: 'Sistem operasional MDT HSPD telah ditingkatkan ke versi v4.2.6. Menghadirkan modul kalkulator dan pusat perhitungan bonus prestasi dinas operasional lengkap untuk 6 kategori resmi: Kasus Penindakan, Pemasukan Efiden, Pemasukan Tilang, Pemasukan Impound, Sukses Perestokan Persenjataan, dan Peleburan Senjata:',
+    embedColorHex: '#F59E0B',
+    embedColorInt: 0xF59E0B,
+    newFeatures: [
+      '1️⃣ Perhitungan Bonus Kasus Penindakan: Reward dasar flat per kasus BAP, persentase dari total denda pidana, serta bonus tambahan penanganan tersangka kooperatif',
+      '2️⃣ Perhitungan Bonus Pemasukan Efiden: Insentif penyetoran barang bukti ke brankas/locker (foto BB sah, senpi ilegal disetor, narkotika per gram, dan persentase uang kas sitaan)',
+      '3️⃣ Perhitungan Bonus Pemasukan Tilang: Insentif penegakan pelanggaran lalu lintas (komisi persentase denda tilang dan reward flat per lembar tiket tilang sah)',
+      '4️⃣ Perhitungan Bonus Pemasukan Impound: Komisi derek dan penyitaan kendaraan pelanggar (persentase biaya impound dan reward flat per unit mobil/motor di-impound)',
+      '5️⃣ Perhitungan Bonus Sukses Perestokan Persenjataan: Misi logistik pengadaan dan pengawalan senjata dinas, suplai peti amunisi, dan rompi balistik markas',
+      '6️⃣ Perhitungan Bonus Peleburan Senjata: Nilai kompensasi scrap besi tua per pucuk senjata yang dimusnahkan di smelter serta insentif eksekutor Berita Acara resmi',
+      'Mode Komputasi Fleksibel: Pilihan Tarik Otomatis Data Sistem (Auto-Sync dari berkas riil) atau Mode Simulasi Bebas (Interactive Calculator)',
+      'Slip Berita Acara Bonus Resmi: Tampilan sertifikat slip berbingkai dinas lengkap dengan rincian per kategori, nomor rekening bank personel, dan tombol 1-click salin teks Discord / WhatsApp serta unduh gambar (PNG/JPEG)'
+    ],
+    removedOrAdjusted: [],
+    improvements: [
+      'Penyediaan tab navigasi "💰 Bonus Operasional" di bilah utama dan Android Mobile MDT Drawer',
+      'Widget perkiraan bonus langsung tersemat di panel Kalkulator Pasal, Hub Tilang/Impound, Brankas, dan Peleburan',
+      'Pusat pengaturan tarif reward dinas fleksibel untuk jajaran High Command'
+    ],
+    bugFixes: [
+      'Sinkronisasi otomatis rekening bank anggota dari Roster ke slip klaim bonus dinas'
+    ],
+    extraNotes: 'Seluruh personel dapat membuka kalkulator bonus melalui menu navigasi atas atau tombol pintas di menu operasional.',
+    mentionRole: 'none',
+    authorName: 'HSPD High Command',
+    authorBadge: 'HQ-01',
+    authorRank: 'Chief of Police'
+  },
+  {
+    version: 'v4.2.5',
+    releaseDate: '1 Oktober 2026',
+    title: 'Pembaruan Sistem MDT HSPD - Modul Absensi Manual Mingguan Atasan & Tombol Kontrol On/Off Duty Roster',
+    headerText: '[ PEMBERITAHUAN RESMI PEMBARUAN & PENYEMPURNAAN SISTEM MDT HSPD v4.2.5 ]',
+    customDescription: 'Sistem operasional MDT HSPD telah ditingkatkan ke versi v4.2.5. Pembaruan ini menghadirkan Modul Rekap Absensi Manual Mingguan untuk Atasan dengan ikon resmi dinas lengkap (✅ Hadir, ❌ Absen, 📝 Izin, 🤒 Sakit, 🌴 Cuti, ⚪ Off/Libur) yang otomatis berganti mengikuti tanggal dan minggu seterusnya, serta tombol khusus Force On/Off Duty di tabel roster anggota untuk menertibkan anggota yang sering lupa off-duty:',
+    embedColorHex: '#10B981',
+    embedColorInt: 0x10B981,
+    newFeatures: [
+      'Modul Absensi Manual Mingguan Atasan: Tabel rekap absensi lengkap 7 hari (Senin - Minggu) per anggota dengan indikator ikon resmi ✅ Hadir, ❌ Absen, 📝 Izin, 🤒 Sakit, 🌴 Cuti, ⚪ Off/Libur',
+      'Rotasi Tanggal Mingguan Otomatis & Berkelanjutan: Kalender mingguan otomatis berganti dinamis mengikuti hari dan minggu berjalan, serta kontrol navigasi minggu lalu, minggu ini, dan minggu berikutnya',
+      'Tombol Cepat Force On / Off Duty untuk Atasan: Tombol langsung di kolom Status Dinas tabel roster ([🔴 Paksa OFF DUTY] & [🟢 Nyalakan ON DUTY]) dan menu Tindakan High Command untuk menertibkan petugas yang lupa off-duty',
+      'Dialog Konfirmasi Aman & Bebas Iframe Freeze: Prosedur konfirmasi dinas via modal UI modern berperingatan jelas tanpa menggunakan popup browser yang rentan macet',
+      'Pusat Audit & Sinkronisasi Real-Time: Perubahan absensi manual dan status dinas otomatis tersimpan permanen di penyimpanan lokal serta disinkronkan ke Firestore Cloud dan log audit sistem'
+    ],
+    removedOrAdjusted: [
+      'Pembersihan Redundansi Alert & Confirm: Menghilangkan alert/confirm bawaan browser demi kenyamanan antarmuka bebas freeze'
+    ],
+    improvements: [
+      'Penyelarasan hak akses atasan dan High Command untuk pembaharuan absensi serta kontrol dinas',
+      'Optimalisasi tampilan tabel absensi dinas mingguan di layar desktop dan mobile',
+      'Fitur filter divisi dan pencarian cepat anggota pada lembar absensi'
+    ],
+    bugFixes: [
+      'Solusi tuntas bagi anggota yang sering lupa mematikan status dinas (10-7) saat selesai bertugas',
+      'Mencegah duplikasi data absensi mingguan pada pergantian tanggal antar-periode'
+    ],
+    extraNotes: 'Atasan dan Perwira Komando dapat mengakses absensi melalui tab "Absensi Manual (Atasan)" di menu Roster.',
+    mentionRole: 'none',
+    authorName: 'HSPD High Command',
+    authorBadge: 'HQ-01',
+    authorRank: 'Chief of Police'
+  },
+  {
+    version: 'v4.2.4',
+    releaseDate: '29 September 2026',
+    title: 'Pembaruan Sistem MDT HSPD - Integrasi Rekening Bank Dinas di Roster & Live Broadcast System Console',
+    headerText: '[ PEMBERITAHUAN RESMI PEMBARUAN & PENYEMPURNAAN SISTEM MDT HSPD v4.2.4 ]',
+    customDescription: 'Sistem operasional MDT HSPD telah diperbarui ke versi v4.2.4. Pembaruan ini mengintegrasikan nomor rekening bank dinas untuk penggajian dan verifikasi resmi seluruh personel kepolisian & balai kota, pengamanan ketat hak akses berkas perkara 7 divisi resmi kepolisian, serta penyempurnaan konsol live update pemberitahuan sistem pengembang secara real-time:',
+    embedColorHex: '#00A8FF',
+    embedColorInt: 0x00A8FF,
+    newFeatures: [
+      'Integrasi Kolom Nomor Rekening Bank di Seluruh Roster: Mendukung BCA, Mandiri, BRI, BNI dll pada pendaftaran anggota baru, formulir edit, serta kartu profil',
+      'Fitur 1-Click Copy Rekening & Pencarian Cepat Anggota lewat Nomor Rekening',
+      'Isolasi Hak Akses 7 Divisi Resmi Kepolisian: Setiap personel hanya dapat membuka berkas kasus milik divisinya sendiri dengan penjagaan privasi ketat',
+      'Core Developer Live Update System Console: Dilengkapi ticker siaran sistem live real-time, audio alert chime, push banner berjalan, serta pengiriman instan ke Discord Webhook'
+    ],
+    removedOrAdjusted: [],
+    improvements: [
+      'Peningkatan enkripsi isolasi berkas perkara antar-divisi kepolisian',
+      'Optimalisasi performa pemfilteran dan pencarian anggota di perangkat mobile dan desktop',
+      'Sinkronisasi instan Firestore Cloud Realtime untuk seluruh siaran maklumat sistem'
+    ],
+    bugFixes: [
+      'Perbaikan formulir tambah anggota Balai Kota yang sebelumnya belum menyertakan kolom nomor rekening bank',
+      'Penyempurnaan validasi karakter pada input nomor rekening perbankan'
+    ],
+    extraNotes: '',
+    mentionRole: 'none',
+    authorName: 'HSPD High Command',
+    authorBadge: 'DEV-001',
+    authorRank: 'Chief of Police'
+  },
+  {
     version: 'v4.2.2',
     releaseDate: '27 September 2026',
     title: 'Pembaruan Sistem MDT HSPD - Sinkronisasi Instan Edit PIN Roster & Integrasi Penuh Otorisasi Reset PIN',

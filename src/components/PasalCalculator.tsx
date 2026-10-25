@@ -11,7 +11,8 @@ import {
   User, BadgeCheck, MapPin, Camera, Package, Link2, Image as ImageIcon, 
   ChevronDown, ChevronUp, Radio, Settings2, Globe, RefreshCw, X, SlidersHorizontal,
   Edit3, RotateCcw, PlusCircle, Save, FileSpreadsheet,
-  Lock, Unlock, KeyRound, Crown, ShieldAlert, Eye, Users, Scale, Calculator
+  Lock, Unlock, KeyRound, Crown, ShieldAlert, Eye, Users, Scale, Calculator,
+  Landmark, ArrowRight
 } from 'lucide-react';
 import { validateAuthorityPin } from '../utils/authorityPin';
 import { EvidenceUploader } from './EvidenceUploader';
@@ -1454,6 +1455,31 @@ export const PasalCalculator: React.FC<Props> = ({ onSaveRecord, currentOfficer 
                 {totalImpound} <span className="text-[10px] text-gray-500">Hari</span>
               </div>
             </div>
+          </div>
+
+          {/* Estimasi Bonus Insentif Kasus Ini */}
+          <div className="p-2.5 bg-gradient-to-r from-amber-950/40 via-[#101722] to-amber-950/20 rounded-xl border border-amber-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs font-mono shadow-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-400/50 flex items-center justify-center text-amber-400 shrink-0">
+                <Landmark className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <span className="text-[10px] text-gray-400 block font-bold">ESTIMASI BONUS KASUS INI:</span>
+                <span className="text-sm font-black text-amber-300">
+                  ${(1000 + Math.floor((finalDenda * 15) / 100) + (isCooperative ? 300 : 0)).toLocaleString()}
+                </span>
+                <span className="text-[9px] text-gray-400 ml-1.5">(Reward Flat + 15% Denda{isCooperative ? ' + Koop' : ''})</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event('switch-to-bonus-hub'))}
+              className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black text-[11px] font-black transition flex items-center justify-center gap-1 cursor-pointer shadow active:scale-95 shrink-0"
+              title="Buka Pusat Perhitungan 6 Kategori Bonus Dinas"
+            >
+              <span>Kalkulator 6 Bonus</span>
+              <ArrowRight className="w-3 h-3 stroke-[2.5]" />
+            </button>
           </div>
 
           {/* Webhook Auto-Send Toggle Switch */}

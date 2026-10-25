@@ -194,6 +194,28 @@ export const MODULE_CLEARANCE_RULES: Record<ModuleAccessKey, ModuleClearanceRule
     allowOtpBypass: true,
     iconName: 'Award'
   },
+  BONUS: {
+    key: 'BONUS',
+    title: 'Kalkulator & Rekapitulasi Bonus Kinerja (Payroll & Incentives)',
+    description: 'Akses rekapitulasi 6 komponen bonus operasional, pencatatan restok armory, dan pengajuan klaim.',
+    minimumRankTier: 5,
+    directAccessRanks: [
+      'CHIEF OF POLICE [COP]',
+      'ASSISTANT CHIEF [A/C]',
+      'DEPUTY CHIEF [D/C]',
+      'COMMANDER [CDR]',
+      'CAPTAIN [CPT]',
+      'LIEUTENANT [LT]',
+      'SERGEANT [SGT]',
+      'SENIOR LEAD OFFICER [SLO]',
+      'POLICE OFFICER III [PO III]',
+      'POLICE OFFICER II [PO II]',
+      'POLICE OFFICER I [PO I]',
+      'CADET POLICE'
+    ],
+    allowOtpBypass: true,
+    iconName: 'Coins'
+  },
   UNIVERSAL: {
     key: 'UNIVERSAL',
     title: 'Master Otorisasi Sekali Pakai (Universal Clearance)',
@@ -450,6 +472,7 @@ export const generateOtpCode = (module: ModuleAccessKey): string => {
     FORENSICS: 'OTP-LAB',
     DMV_CITIZEN: 'OTP-DMV',
     SPECIAL_DIVISIONS: 'OTP-DIV',
+    BONUS: 'OTP-BNS',
     UNIVERSAL: 'OTP-ALL'
   };
 

@@ -9,7 +9,7 @@ import {
   UserX, Trash2, AlertOctagon, Send, RotateCcw, AlertCircle, FileText, RefreshCw,
   UserPlus, Phone, Sliders, Eye, EyeOff, Radio, Activity, FileSpreadsheet, Download, Archive,
   MessageSquare, Bot, Upload, Image, Palette, Save, Bookmark, Settings, Globe, ExternalLink,
-  Maximize2, Minimize2, ArrowUpDown, Calendar, CreditCard, Zap
+  Maximize2, Minimize2, ArrowUpDown, Calendar, CreditCard, Zap, Coins
 } from 'lucide-react';
 import { ExportAttendanceModal } from './ExportAttendanceModal';
 import { WeeklyOperationsReportModal } from './WeeklyOperationsReportModal';
@@ -1526,6 +1526,18 @@ export const RosterManagement: React.FC<Props> = ({
             >
               <KeyRound className="w-4 h-4 text-amber-400" />
               <span>🔑 EXPORT AKUN ANGGOTA</span>
+            </button>
+
+            {/* KALKULATOR & REKAPITULASI BONUS KINERJA 6 KOMPONEN */}
+            <button
+              id="btn-open-bonus-calculator-roster"
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('switch-to-bonus-calculator'))}
+              className="px-3 py-2 bg-gradient-to-r from-emerald-950/90 via-teal-950/90 to-emerald-900/90 hover:from-emerald-900 hover:to-teal-800 border border-emerald-500/80 hover:border-emerald-400 text-emerald-200 rounded-lg font-mono font-bold text-xs flex items-center gap-1.5 transition shadow-md shadow-emerald-950/40 active:scale-95"
+              title="Buka Modul Perhitungan & Rekapitulasi Bonus Kinerja 6 Komponen (Kasus, Efiden, Tilang, Impound, Restok Senjata, Peleburan)"
+            >
+              <Coins className="w-4 h-4 text-emerald-400" />
+              <span>💰 HITUNG BONUS PETUGAS</span>
             </button>
 
             {/* STATUS OTOMATIS REAL-TIME SYNC */}

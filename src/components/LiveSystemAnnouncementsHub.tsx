@@ -15,7 +15,8 @@ import {
   publishSystemAnnouncement, 
   deleteSystemAnnouncement, 
   toggleAnnouncementBanner,
-  saveSystemAnnouncements
+  saveSystemAnnouncements,
+  forceSyncOfficialAnnouncements
 } from '../utils/systemAnnouncementStorage';
 import { playSystemNotificationChime } from '../utils/systemNotificationAudio';
 import { checkAndBroadcastLatestRelease } from '../utils/autoChangelogBroadcaster';
@@ -43,9 +44,10 @@ export const LiveSystemAnnouncementsHub: React.FC<Props> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [isBroadcastingId, setIsBroadcastingId] = useState<string | null>(null);
+  const [isSyncingOfficial, setIsSyncingOfficial] = useState(false);
 
   // New Announcement Form State
-  const [version, setVersion] = useState('v4.2.4');
+  const [version, setVersion] = useState('v4.3.0');
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<AnnouncementCategory>('UPDATE');
   const [severity, setSeverity] = useState<AnnouncementSeverity>('IMPORTANT');
@@ -62,8 +64,57 @@ export const LiveSystemAnnouncementsHub: React.FC<Props> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Quick preset template applicator
-  const applyPresetTemplate = (templateKey: 'bank_roster' | 'division_isolation' | 'maintenance' | 'hotfix' | 'directive') => {
-    if (templateKey === 'bank_roster') {
+  const applyPresetTemplate = (templateKey: 'bonus_calculator' | 'attendance_duty_control' | 'bank_roster' | 'division_isolation' | 'maintenance' | 'hotfix' | 'directive') => {
+    if (templateKey === 'bonus_calculator') {
+      setVersion('v4.3.0');
+      setTitle('Pembaruan Sistem: Kalkulator & Rekapitulasi Bonus Kinerja 6 Komponen');
+      setCategory('UPDATE');
+      setSeverity('IMPORTANT');
+      setTargetAudience('GLOBAL');
+      setDescription('Pembaruan resmi sistem MDT HSPD v4.3.0: Menghadirkan Modul Kalkulator & Rekapitulasi Bonus Kinerja Operasional Petugas berbasis 6 komponen utama: Kasus Penindakan, Pemasukan Efiden, Pemasukan Tilang, Pemasukan Impound, Sukses Restok Persenjataan, dan Peleburan Senjata ke Tungku Smelter, terintegrasi rekening bank dinas & ekspor slip gambar.');
+      setFeatures([
+        'Kalkulator Bonus Otomatis: Agregasi data riil kasus, brankas bukti, surat tilang, impound lot, restok persenjataan, dan peleburan sitaan',
+        'Integrasi Rekening Bank Dinas: Slip bonus langsung mencantumkan nomor rekening resmi personel dari database roster HSPD',
+        'Modul Pencatatan Berita Acara Sukses Restok Senjata: Dokumentasi logistik perestokan senjata, amunisi, dan rompi dinas armory lengkap dengan bukti foto',
+        'Ekspor Slip Bonus Resmi ke Gambar PNG / JPG: Fasilitas unduh slip kwitansi resmi berwatermark lambang HSPD untuk arsip digital dan laporan fisik',
+        'Salin Format Discord & Webhook Penggajian: Pengiriman berkas klaim bonus operasional lengkap dengan rincian breakdown ke channel Discord',
+        'Pengaturan Tarif & Pajak Kas Dinas (High Command): Konfigurasi tarif per kasus ($2,500), per efiden ($1,000), komisi tilang (20%), komisi impound (25%), restok senjata ($7,500), dan lebur senpi ($2,000)'
+      ]);
+      setImprovements([
+        'Tersedia tombol akses cepat di navigasi utama desktop dan menu drawer Android MDT',
+        'Mode simulator interaktif untuk simulasi estimasi proyeksi pendapatan bonus',
+        'Pelacakan status klaim (DRAFT, MENUNGGU VERIFIKASI, DISETUJUI, LUNAS DICAIRKAN)'
+      ]);
+      setBugFixes([
+        'Sinkronisasi otomatis Pusat Pemberitahuan dan Live Update Sistem Resmi tanpa tertahan cache browser',
+        'Pencegahan salah transfer dengan validasi nomor rekening bank dinas'
+      ]);
+      playSystemNotificationChime('IMPORTANT');
+    } else if (templateKey === 'attendance_duty_control') {
+      setVersion('v4.2.5');
+      setTitle('Pembaruan Sistem: Modul Absensi Manual Mingguan Atasan & Tombol Kontrol On/Off Duty Roster Anggota');
+      setCategory('UPDATE');
+      setSeverity('IMPORTANT');
+      setTargetAudience('GLOBAL');
+      setDescription('Pembaruan resmi sistem MDT HSPD v4.2.5: Menghadirkan Modul Rekap Absensi Manual Mingguan untuk Atasan dengan ikon resmi dinas lengkap (✅ Hadir, ❌ Absen, 📝 Izin, 🤒 Sakit, 🌴 Cuti, ⚪ Off/Libur) yang otomatis berganti mengikuti tanggal dan minggu kalender seterusnya, serta tombol khusus Force On/Off Duty di tabel roster anggota untuk menertibkan anggota yang sering lupa off-duty.');
+      setFeatures([
+        'Modul Absensi Manual Mingguan Atasan: Tabel rekap absensi lengkap 7 hari (Senin - Minggu) per anggota dengan indikator ikon resmi ✅ Hadir, ❌ Absen, 📝 Izin, 🤒 Sakit, 🌴 Cuti, ⚪ Off/Libur',
+        'Rotasi Tanggal Mingguan Otomatis & Berkelanjutan: Kalender mingguan otomatis berganti dinamis mengikuti hari dan minggu berjalan, serta kontrol navigasi minggu lalu, minggu ini, dan minggu berikutnya',
+        'Tombol Cepat Force On / Off Duty untuk Atasan: Tombol langsung di kolom Status Dinas tabel roster ([🔴 Paksa OFF DUTY] & [🟢 Nyalakan ON DUTY]) dan menu Tindakan High Command untuk menertibkan petugas yang lupa off-duty',
+        'Dialog Konfirmasi Aman & Bebas Iframe Freeze: Prosedur konfirmasi dinas via modal UI modern berperingatan jelas tanpa menggunakan popup browser yang rentan macet',
+        'Pusat Audit & Sinkronisasi Real-Time: Perubahan absensi manual dan status dinas otomatis tersimpan permanen di penyimpanan lokal serta disinkronkan ke Firestore Cloud dan log audit sistem'
+      ]);
+      setImprovements([
+        'Penyelarasan hak akses atasan dan High Command untuk pembaharuan absensi serta kontrol dinas',
+        'Optimalisasi tampilan tabel absensi dinas mingguan di layar desktop dan mobile',
+        'Fitur filter divisi dan pencarian cepat anggota pada lembar absensi'
+      ]);
+      setBugFixes([
+        'Solusi tuntas bagi anggota yang sering lupa mematikan status dinas (10-7) saat selesai bertugas',
+        'Mencegah duplikasi data absensi mingguan pada pergantian tanggal antar-periode'
+      ]);
+      playSystemNotificationChime('IMPORTANT');
+    } else if (templateKey === 'bank_roster') {
       setVersion('v4.2.4');
       setTitle('Pembaruan Sistem: Integrasi Nomor Rekening Bank Dinas di Seluruh Modul Roster');
       setCategory('UPDATE');
@@ -132,6 +183,22 @@ export const LiveSystemAnnouncementsHub: React.FC<Props> = ({
       setImprovements(['Penyelarasan nomor badge dan rekening perbankan terverifikasi']);
       setBugFixes(['Pencegahan data rekening ganda pada database dinas']);
       playSystemNotificationChime('IMPORTANT');
+    }
+  };
+
+  // Force Sync official system releases
+  const handleForceSyncOfficial = () => {
+    setIsSyncingOfficial(true);
+    try {
+      const synced = forceSyncOfficialAnnouncements();
+      playSystemNotificationChime('IMPORTANT');
+      onRefresh();
+      setActionNotice('✅ Berhasil menyinkronkan seluruh pembaruan sistem resmi terbaru (v4.2.5)!');
+      setTimeout(() => setActionNotice(null), 4000);
+    } catch (err: any) {
+      alert(`Gagal menyinkronkan pembaruan: ${err?.message || err}`);
+    } finally {
+      setIsSyncingOfficial(false);
     }
   };
 
@@ -429,6 +496,17 @@ export const LiveSystemAnnouncementsHub: React.FC<Props> = ({
 
           <button
             type="button"
+            id="btn-sync-official-releases"
+            onClick={handleForceSyncOfficial}
+            className="px-3.5 py-2 bg-[#091D15] hover:bg-[#122A1E] text-emerald-300 hover:text-emerald-200 border border-emerald-500/60 rounded-xl text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-950/40 cursor-pointer active:scale-95"
+            title="Tarik dan sinkronkan seluruh pembaruan sistem resmi terbaru (v4.2.5)"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncingOfficial ? 'animate-spin' : ''}`} />
+            <span>SINKRONKAN UPDATE RESMI</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleExportJson}
             className="px-3 py-2 bg-[#0F1720] hover:bg-[#152332] text-gray-300 hover:text-white border border-gray-700/80 rounded-xl text-xs font-mono transition flex items-center gap-1.5 shadow cursor-pointer active:scale-95"
             title="Cadangkan Maklumat Sistem ke Berkas JSON"
@@ -541,6 +619,20 @@ export const LiveSystemAnnouncementsHub: React.FC<Props> = ({
               <span className="text-[10px] text-gray-500 hidden sm:inline">Pilih template untuk mengisi otomatis seluruh formulir</span>
             </div>
             <div className="flex items-center gap-2 flex-wrap text-[11px] font-mono">
+              <button
+                type="button"
+                onClick={() => applyPresetTemplate('bonus_calculator')}
+                className="px-2.5 py-1 rounded bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-400 text-emerald-200 font-bold transition cursor-pointer flex items-center gap-1 active:scale-95 shadow"
+              >
+                💰 Bonus 6 Komponen (v4.3.0)
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPresetTemplate('attendance_duty_control')}
+                className="px-2.5 py-1 rounded bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500 text-emerald-200 font-bold transition cursor-pointer flex items-center gap-1 active:scale-95 shadow"
+              >
+                📋 Absensi Manual & On/Off Duty (v4.2.5)
+              </button>
               <button
                 type="button"
                 onClick={() => applyPresetTemplate('bank_roster')}

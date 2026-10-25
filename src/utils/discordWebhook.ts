@@ -1,10 +1,16 @@
 import { 
   ArrestRecord, DutyLog, OfficerAccount, OfficerWarning, DischargeRecord, PromotionRecord,
   DetectiveCase, BoloAlert, ImpoundRecord, OfficerProfile, VaultAuditLog, DestructionRegistryItem,
-  OfficialDocument, TrafficCitationRecord, GovernmentAccount, OfficerLeaveRecord
+  OfficialDocument, TrafficCitationRecord, GovernmentAccount, OfficerLeaveRecord, OfficerBonusClaim
 } from '../types';
 import { dataURLtoBlob } from './imageCompressor';
 import { pushToFirestore, syncAllWebhooksToFirestore } from '../services/firebaseRealtimeSync';
+
+// Dedicated Officer Performance Bonus Claims Webhook Keys
+export const BONUS_WEBHOOK_STORAGE_KEY = 'hspd_bonus_claims_webhook_url';
+export const BONUS_BOT_NAME_KEY = 'hspd_bonus_claims_bot_name';
+export const BONUS_BOT_AVATAR_KEY = 'hspd_bonus_claims_bot_avatar';
+export const BONUS_AUTO_SEND_KEY = 'hspd_bonus_claims_auto_send';
 
 // Case / Arrest Webhook Keys
 export const WEBHOOK_STORAGE_KEY = 'hspd_discord_webhook_url';
@@ -5046,6 +5052,179 @@ export async function sendDiscordLog(webhookUrl: string, payload: {
   } catch (e) {
     console.error('Error sending Discord log:', e);
     return false;
+  }
+}
+
+// ==========================================
+// 💰 OFFICER BONUS & INCENTIVE CLAIMS DISCORD WEBHOOK
+// ==========================================
+
+export function getSavedBonusWebhookConfig(): WebhookConfig {
+  try {
+    return {
+      webhookUrl: localStorage.getItem(BONUS_WEBHOOK_STORAGE_KEY) || localStorage.getItem(WEBHOOK_STORAGE_KEY) || '',
+      botName: localStorage.getItem(BONUS_BOT_NAME_KEY) || 'HSPD Finance & Bonus Payroll Bureau',
+      botAvatar: localStorage.getItem(BONUS_BOT_AVATAR_KEY) || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
+      autoSendOnSave: localStorage.getItem(BONUS_AUTO_SEND_KEY) === 'true'
+    };
+  } catch {
+    return {
+      webhookUrl: '',
+      botName: 'HSPD Finance & Bonus Payroll Bureau',
+      botAvatar: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
+      autoSendOnSave: false
+    };
+  }
+}
+
+export function saveBonusWebhookConfig(config: WebhookConfig): void {
+  try {
+    localStorage.setItem(BONUS_WEBHOOK_STORAGE_KEY, config.webhookUrl.trim());
+    localStorage.setItem(BONUS_BOT_NAME_KEY, config.botName.trim());
+    localStorage.setItem(BONUS_BOT_AVATAR_KEY, config.botAvatar.trim());
+    localStorage.setItem(BONUS_AUTO_SEND_KEY, String(config.autoSendOnSave));
+    try {
+      syncAllWebhooksToFirestore();
+    } catch {}
+  } catch (e) {
+    console.error('Failed to save bonus webhook config:', e);
+  }
+}
+
+export async function sendOfficerBonusClaimToDiscord(claim: OfficerBonusClaim): Promise<{ success: boolean; message: string }> {
+  const config = getSavedBonusWebhookConfig();
+  if (!config.webhookUrl || !config.webhookUrl.trim()) {
+    return {
+      success: false,
+      message: 'URL Discord Webhook Rekapitulasi Bonus belum dikonfigurasi!'
+    };
+  }
+
+  const b = claim.breakdown;
+  const fmt = (num: number) => `$${num.toLocaleString('id-ID')}`;
+
+  const statusColorMap: Record<string, number> = {
+    DRAFT: 0x9ca3af,
+    PENDING_APPROVAL: 0xf59e0b,
+    APPROVED: 0x10b981,
+    DISBURSED_PAID: 0x06b6d4,
+    REJECTED: 0xef4444
+  };
+
+  const statusLabelMap: Record<string, string> = {
+    DRAFT: '📝 Draft Pengajuan Bonus',
+    PENDING_APPROVAL: '⏳ Menunggu Verifikasi High Command',
+    APPROVED: '✅ Disetujui High Command (Siap Cair)',
+    DISBURSED_PAID: '💸 Telah Dicairkan ke Rekening Bank',
+    REJECTED: '❌ Pengajuan Ditolak'
+  };
+
+  const payload = {
+    username: config.botName.trim() || 'HSPD Finance & Bonus Payroll Bureau',
+    avatar_url: config.botAvatar.trim() || 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
+    embeds: [
+      {
+        title: `💰 REKAPITULASI & PENGAJUAN BONUS KINERJA [${claim.claimNumber}]`,
+        description: `Pengajuan klaim insentif bonus operasional petugas kepolisian HSPD untuk periode **${claim.periodLabel}**.`,
+        color: statusColorMap[claim.status] || 0x10b981,
+        fields: [
+          {
+            name: '👮 IDENTITAS PETUGAS',
+            value: `• Nama Lengkap: **${claim.officerName}**\n• Nomor Badge: **${claim.officerBadge}**\n• Pangkat: **${claim.officerRank}**\n• Divisi: **${claim.officerDivision}**`,
+            inline: true
+          },
+          {
+            name: '💳 REKENING PENCAIRAN',
+            value: `• No. Rekening Bank: **${claim.bankAccountNumber || 'Belum Diisi'}**\n• Status Klaim: **${statusLabelMap[claim.status] || claim.status}**\n• Verifikator: **${claim.approvedBy || 'Belum'}**`,
+            inline: true
+          },
+          {
+            name: '📊 6 KOMPONEN KINERJA & PERHITUNGAN BONUS',
+            value: [
+              `1️⃣ **Kasus Penindakan**: ${b.arrestCasesCount} Kasus ➔ **${fmt(b.arrestCasesBonus)}**`,
+              `2️⃣ **Pemasukan Efiden**: ${b.evidenceCount} Item/Batch ➔ **${fmt(b.evidenceBonus)}**`,
+              `3️⃣ **Pemasukan Tilang**: ${b.citationsCount} Tilang (Denda: ${fmt(b.citationsTotalFine)}) ➔ **${fmt(b.citationsBonus)}**`,
+              `4️⃣ **Pemasukan Impound**: ${b.impoundsCount} Kendaraan (Fee: ${fmt(b.impoundsTotalFee)}) ➔ **${fmt(b.impoundsBonus)}**`,
+              `5️⃣ **Sukses Restok Senjata**: ${b.weaponRestocksCount} Operasi ➔ **${fmt(b.weaponRestocksBonus)}**`,
+              `6️⃣ **Peleburan Senjata**: ${b.weaponSmeltingsCount} Pucuk ➔ **${fmt(b.weaponSmeltingsBonus)}**`
+            ].join('\n'),
+            inline: false
+          },
+          {
+            name: '💵 TOTAL PENDAPATAN BONUS',
+            value: `• Total Gross: **${fmt(claim.totalGrossBonus)}**\n• Potongan Kas: **-${fmt(claim.deductions)}**\n• **TOTAL NET BONUS CAIR**: 🟢 **${fmt(claim.totalNetBonus)}**`,
+            inline: false
+          },
+          ...(claim.disbursementReference ? [{
+            name: '🏦 REFERENSI TRANSAKSI BANK',
+            value: `\`${claim.disbursementReference}\``,
+            inline: true
+          }] : []),
+          ...(claim.notes ? [{
+            name: '📝 CATATAN OPERASIONAL',
+            value: claim.notes,
+            inline: false
+          }] : [])
+        ],
+        footer: {
+          text: `HSPD Treasury & Compensation Bureau • ID: ${claim.id} • ${new Date().toLocaleTimeString('id-ID')}`,
+          icon_url: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png'
+        },
+        timestamp: new Date().toISOString()
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(config.webhookUrl.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return { success: true, message: `✅ Berhasil mengirimkan berkas bonus ${claim.claimNumber} ke Discord!` };
+  } catch (err: any) {
+    return { success: false, message: `❌ Gagal mengirim ke Discord: ${err.message || 'Periksa koneksi'}` };
+  }
+}
+
+export async function testBonusClaimWebhook(url: string, botName?: string): Promise<{ success: boolean; message: string }> {
+  if (!url || !url.trim().startsWith('http')) {
+    return { success: false, message: 'Masukkan URL Discord Webhook Bonus yang valid.' };
+  }
+
+  const payload = {
+    username: botName?.trim() || 'HSPD Finance & Bonus Payroll Bureau',
+    avatar_url: 'https://cdn.discordapp.com/avatars/1544332281559130112/c28e32e12bc623e4bad1fabd02ef98d0.png',
+    embeds: [
+      {
+        title: '💰 UJI COBA INTEGRASI WEBHOOK BONUS KINERJA HSPD',
+        description: 'Sistem kalkulator dan rekapitulasi 6 komponen bonus operasional petugas kepolisian (Kasus, Efiden, Tilang, Impound, Restok Senjata, Peleburan) berhasil terhubung ke Discord!',
+        color: 0x10b981,
+        fields: [
+          { name: 'Status Kanal', value: '🟢 **Online & Terhubung Sempurna**', inline: true },
+          { name: 'Modul', value: '💰 **Payroll & Operational Incentive System**', inline: true }
+        ],
+        footer: {
+          text: `HSPD System Verification • ${new Date().toLocaleTimeString('id-ID')}`
+        },
+        timestamp: new Date().toISOString()
+      }
+    ]
+  };
+
+  try {
+    const res = await fetch(url.trim(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    return { success: true, message: '✅ Sinyal Webhook Bonus Kinerja Berhasil Terhubung!' };
+  } catch (err: any) {
+    return { success: false, message: `❌ Gagal uji coba webhook bonus: ${err.message}` };
   }
 }
 

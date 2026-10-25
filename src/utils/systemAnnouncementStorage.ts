@@ -30,6 +30,69 @@ export const DISMISSED_ANNOUNCEMENTS_KEY = 'hspd_dismissed_announcements_v1';
 
 export const INITIAL_SYSTEM_ANNOUNCEMENTS: SystemAnnouncement[] = [
   {
+    id: 'announcement-v4-2-6-operational-bonus-engine',
+    version: 'v4.2.6',
+    title: 'Pembaruan Sistem: Modul Perhitungan Bonus Operasional 6 Kategori Prestasi Dinas HSPD',
+    category: 'UPDATE',
+    severity: 'IMPORTANT',
+    targetAudience: 'GLOBAL',
+    description: 'Pembaruan resmi sistem MDT HSPD v4.2.6: Menghadirkan kalkulator dan pusat komputasi bonus prestasi operasional lengkap untuk 6 kategori resmi: Kasus Penindakan, Pemasukan Efiden, Pemasukan Tilang, Pemasukan Impound, Sukses Perestokan Persenjataan, dan Peleburan Senjata, dengan fitur tarik data otomatis, ekspor slip resmi PNG/JPG, dan pengajuan klaim.',
+    features: [
+      '1. Kasus Penindakan: Reward flat per kasus BAP, persentase total denda pidana, dan insentif kooperatif',
+      '2. Pemasukan Efiden: Reward foto barang bukti sah, senpi sitaan, narkotika per gram, dan persentase kas sitaan',
+      '3. Pemasukan Tilang: Insentif tiket tilang sah dan komisi persentase denda pelanggaran lalin',
+      '4. Pemasukan Impound: Insentif derek mobil/motor dan komisi tarif denda impound lot',
+      '5. Restok Persenjataan: Misi logistik pengadaan dan pengawalan senjata dinas, peti amunisi, dan rompi balistik',
+      '6. Peleburan Senjata: Nilai kompensasi scrap besi tua per senjata lebur dan reward Berita Acara resmi',
+      'Slip Berita Acara Gambar & Teks: Ekspor instan dokumen resmi berbingkai emas serta format Discord/WhatsApp'
+    ],
+    improvements: [
+      'Penyediaan tab navigasi "💰 Bonus Operasional" di desktop dan Android MDT Drawer',
+      'Pintasan kalkulator estimasi bonus di panel Kalkulator Pasal, Hub Tilang, Brankas, dan Peleburan'
+    ],
+    bugFixes: [
+      'Sinkronisasi nomor rekening bank personel langsung ke slip klaim bonus'
+    ],
+    publishedAt: Date.now(),
+    publishedBy: 'Head of Core Developer',
+    publishedByBadge: 'DEV-001',
+    isBannerActive: true,
+    discordBroadcasted: true,
+    viewCount: 1,
+    acknowledgedBy: []
+  },
+  {
+    id: 'announcement-v4-2-5-attendance-duty-control',
+    version: 'v4.2.5',
+    title: 'Pembaruan Sistem: Modul Absensi Manual Mingguan Atasan & Tombol Kontrol On/Off Duty Roster Anggota',
+    category: 'UPDATE',
+    severity: 'IMPORTANT',
+    targetAudience: 'GLOBAL',
+    description: 'Pembaruan resmi sistem MDT HSPD v4.2.5: Menghadirkan Modul Rekap Absensi Manual Mingguan untuk Atasan dengan ikon resmi dinas lengkap (✅ Hadir, ❌ Absen, 📝 Izin, 🤒 Sakit, 🌴 Cuti, ⚪ Off/Libur) yang otomatis berganti mengikuti tanggal dan minggu kalender seterusnya, serta tombol khusus Force On/Off Duty di tabel roster anggota untuk menertibkan anggota yang sering lupa off-duty.',
+    features: [
+      'Modul Absensi Manual Mingguan Atasan: Tabel rekap absensi lengkap 7 hari (Senin - Minggu) per anggota dengan indikator ikon resmi ✅ Hadir, ❌ Absen, 📝 Izin, 🤒 Sakit, 🌴 Cuti, ⚪ Off/Libur',
+      'Rotasi Tanggal Mingguan Otomatis & Berkelanjutan: Kalender mingguan otomatis berganti dinamis mengikuti hari dan minggu berjalan, serta kontrol navigasi minggu lalu, minggu ini, dan minggu berikutnya',
+      'Tombol Cepat Force On / Off Duty untuk Atasan: Tombol langsung di kolom Status Dinas tabel roster ([🔴 Paksa OFF DUTY] & [🟢 Nyalakan ON DUTY]) dan menu Tindakan High Command untuk menertibkan petugas yang lupa off-duty',
+      'Dialog Konfirmasi Aman & Bebas Iframe Freeze: Prosedur konfirmasi dinas via modal UI modern berperingatan jelas tanpa menggunakan popup browser yang rentan macet',
+      'Pusat Audit & Sinkronisasi Real-Time: Perubahan absensi manual dan status dinas otomatis tersimpan permanen di penyimpanan lokal serta disinkronkan ke Firestore Cloud dan log audit sistem'
+    ],
+    improvements: [
+      'Penyelarasan hak akses atasan dan High Command untuk pembaharuan absensi serta kontrol dinas',
+      'Optimalisasi tampilan tabel absensi dinas mingguan di layar desktop dan mobile',
+      'Fitur filter divisi dan pencarian cepat anggota pada lembar absensi'
+    ],
+    bugFixes: [
+      'Solusi tuntas bagi anggota yang sering lupa mematikan status dinas (10-7) saat selesai bertugas',
+      'Mencegah duplikasi data absensi mingguan pada pergantian tanggal antar-periode'
+    ],
+    publishedAt: Date.now(),
+    publishedBy: 'Head of Core Developer',
+    publishedByBadge: 'DEV-001',
+    isBannerActive: true,
+    discordBroadcasted: true,
+    viewCount: 195
+  },
+  {
     id: 'announcement-v4-2-4-live',
     version: 'v4.2.4',
     title: 'Live Update: Integrasi Nomor Rekening Bank Dinas di Seluruh Modul Roster & Live Broadcast System Console',
@@ -56,7 +119,7 @@ export const INITIAL_SYSTEM_ANNOUNCEMENTS: SystemAnnouncement[] = [
     publishedAt: Date.now() - 600000,
     publishedBy: 'Head of Core Developer',
     publishedByBadge: 'DEV-001',
-    isBannerActive: true,
+    isBannerActive: false,
     discordBroadcasted: true,
     viewCount: 168
   },
@@ -161,17 +224,75 @@ export function getSystemAnnouncements(): SystemAnnouncement[] {
       return INITIAL_SYSTEM_ANNOUNCEMENTS;
     }
 
-    // Ensure the latest v4.2.4 announcement is present so users immediately see recent updates
-    const hasLatestV424 = parsed.some(a => a.version === 'v4.2.4');
-    if (!hasLatestV424) {
-      const merged = [INITIAL_SYSTEM_ANNOUNCEMENTS[0], ...parsed.filter(a => a.id !== INITIAL_SYSTEM_ANNOUNCEMENTS[0].id)];
-      saveSystemAnnouncements(merged);
-      return merged;
+    // Merge any missing initial official announcements dynamically so user always gets the latest updates
+    let hasChanges = false;
+    let merged = [...parsed];
+
+    for (const initAnn of INITIAL_SYSTEM_ANNOUNCEMENTS) {
+      const existingIdx = merged.findIndex(a => a.id === initAnn.id || a.version === initAnn.version);
+      if (existingIdx === -1) {
+        merged.unshift(initAnn);
+        hasChanges = true;
+      } else {
+        // If initial announcement has newer publishedAt or update, merge its updated content
+        if (initAnn.publishedAt > (merged[existingIdx].publishedAt || 0)) {
+          merged[existingIdx] = {
+            ...merged[existingIdx],
+            title: initAnn.title,
+            description: initAnn.description,
+            features: initAnn.features,
+            improvements: initAnn.improvements,
+            bugFixes: initAnn.bugFixes,
+            publishedAt: initAnn.publishedAt,
+            isBannerActive: initAnn.isBannerActive ?? merged[existingIdx].isBannerActive
+          };
+          hasChanges = true;
+        }
+      }
     }
 
-    return parsed;
+    // Always sort by publishedAt descending so newest release is first
+    merged.sort((a, b) => (b.publishedAt || 0) - (a.publishedAt || 0));
+
+    // Ensure at least the top announcement has active banner if all banners were inactive
+    if (!merged.some(a => a.isBannerActive) && merged.length > 0) {
+      merged[0].isBannerActive = true;
+      hasChanges = true;
+    }
+
+    if (hasChanges) {
+      saveSystemAnnouncements(merged);
+    }
+
+    return merged;
   } catch (err) {
     console.error('Failed to parse system announcements:', err);
+    return INITIAL_SYSTEM_ANNOUNCEMENTS;
+  }
+}
+
+/**
+ * Force-sync official announcements from INITIAL_SYSTEM_ANNOUNCEMENTS
+ * Useful when users want to immediately pull the latest releases from system core.
+ */
+export function forceSyncOfficialAnnouncements(): SystemAnnouncement[] {
+  if (typeof window === 'undefined') return INITIAL_SYSTEM_ANNOUNCEMENTS;
+  try {
+    const raw = localStorage.getItem(SYSTEM_ANNOUNCEMENTS_STORAGE_KEY);
+    const existing: SystemAnnouncement[] = raw ? JSON.parse(raw) : [];
+    
+    // Filter out official IDs from existing so we get fresh official data
+    const officialIds = new Set(INITIAL_SYSTEM_ANNOUNCEMENTS.map(a => a.id));
+    const officialVersions = new Set(INITIAL_SYSTEM_ANNOUNCEMENTS.map(a => a.version));
+    
+    const userCustomOnly = existing.filter(a => !officialIds.has(a.id) && !officialVersions.has(a.version));
+    const merged = [...INITIAL_SYSTEM_ANNOUNCEMENTS, ...userCustomOnly];
+    merged.sort((a, b) => (b.publishedAt || 0) - (a.publishedAt || 0));
+
+    saveSystemAnnouncements(merged);
+    return merged;
+  } catch {
+    saveSystemAnnouncements(INITIAL_SYSTEM_ANNOUNCEMENTS);
     return INITIAL_SYSTEM_ANNOUNCEMENTS;
   }
 }
