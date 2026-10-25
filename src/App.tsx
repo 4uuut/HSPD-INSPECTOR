@@ -36,6 +36,11 @@ import { SystemPingModal } from './components/SystemPingModal';
 import { DeveloperWorkspacePortal } from './components/DeveloperWorkspacePortal';
 import { GlobalSystemAnnouncementBanner } from './components/GlobalSystemAnnouncementBanner';
 import { OfficerBonusHub } from './components/OfficerBonusHub';
+import { ComingSoonPortal } from './components/ComingSoonPortal';
+import { 
+  getComingSoonConfig, saveComingSoonConfig, isDeveloperBypassActive, 
+  setDeveloperBypass, SAWERIA_DONATION_URL, ComingSoonConfig 
+} from './utils/comingSoonStorage';
 import { synchronizeDpoAndDmvIntegrity } from './utils/activityMonitoringStorage';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
 import { getPendingPinResetCount, touchSuperiorHeartbeat, isOfficerMatch, isSameOfficerAccount, saveRosterToStorage, updateOfficerPinInRoster, updateOfficerAccountInRoster } from './utils/pinResetStorage';
@@ -57,7 +62,8 @@ import {
   Users, ShieldAlert, KeyRound, Power, Clock, CheckCircle2, Sliders,
   Search, Car, Crosshair, Landmark, Flame, Stamp as StampIcon,
   UserCheck, Microscope, Cloud, Database, Palette, Smartphone, Monitor, Settings,
-  Building2, Crown, Globe, Activity, Zap, ChevronLeft, ChevronRight, Terminal
+  Building2, Crown, Globe, Activity, Zap, ChevronLeft, ChevronRight, Terminal,
+  Coffee, ExternalLink, Heart
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from './assets/logo';
 import { 
@@ -185,6 +191,23 @@ export default function App() {
   const [isExportAttendanceModalOpen, setIsExportAttendanceModalOpen] = useState(false);
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
   const [isPingModalOpen, setIsPingModalOpen] = useState(false);
+
+  // Coming Soon & Pre-Launch Developer Lockout State
+  const [comingSoonConfig, setComingSoonConfig] = useState<ComingSoonConfig>(() => getComingSoonConfig());
+  const [isDevBypass, setIsDevBypass] = useState<boolean>(() => isDeveloperBypassActive());
+
+  useEffect(() => {
+    const handleComingSoonSync = () => setComingSoonConfig(getComingSoonConfig());
+    const handleBypassSync = () => setIsDevBypass(isDeveloperBypassActive());
+
+    window.addEventListener('hspd-coming-soon-updated', handleComingSoonSync);
+    window.addEventListener('hspd-developer-bypass-updated', handleBypassSync);
+
+    return () => {
+      window.removeEventListener('hspd-coming-soon-updated', handleComingSoonSync);
+      window.removeEventListener('hspd-developer-bypass-updated', handleBypassSync);
+    };
+  }, []);
 
   // Dedicated Android / Mobile View Mode State & Auto-detection
   const [isAndroidMode, setIsAndroidMode] = useState<boolean>(() => {
@@ -847,6 +870,22 @@ export default function App() {
     }
   }, [currentOfficer, activeNav]);
 
+  // ================= COMING SOON GATE =================
+  // Seluruh fitur dan portal login dinonaktifkan kecuali dalam Mode Pengembang
+  if (comingSoonConfig.isEnabled && !isDevBypass && !currentOfficer?.isDeveloper) {
+    return (
+      <ComingSoonPortal
+        onBypassSuccess={(devProfile) => {
+          setIsDevBypass(true);
+          setDeveloperBypass(true);
+          if (devProfile) {
+            handleLogin(devProfile);
+          }
+        }}
+      />
+    );
+  }
+
   // If no officer logged in, show Login / Register Portal
   if (!currentOfficer) {
     return (
@@ -873,6 +912,74 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0D0F14] text-gray-300 font-sans text-xs flex flex-col antialiased selection:bg-blue-600 selection:text-white relative">
+      {/* Developer Mode Floating Control Bar when Coming Soon or developer session active */}
+      {(isDevBypass || currentOfficer?.isDeveloper) && (
+        <div className="bg-gradient-to-r from-amber-950 via-[#0B0E15] to-amber-950 border-b border-amber-500/70 px-4 py-2 flex flex-wrap items-center justify-between text-xs font-mono text-amber-300 z-50 sticky top-0 shadow-2xl">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+            <span className="font-black tracking-wider uppercase flex items-center gap-1.5 text-white">
+              <Terminal className="w-4 h-4 text-amber-400" />
+              MODE PENGEMBANG WEB AKTIF
+            </span>
+            <span className={`text-[10px] px-2 py-0.5 rounded border font-bold ${
+              comingSoonConfig.isEnabled 
+                ? 'bg-rose-950/80 border-rose-600/70 text-rose-300' 
+                : 'bg-emerald-950/80 border-emerald-600/70 text-emerald-300'
+            }`}>
+              Status Coming Soon: {comingSoonConfig.isEnabled ? '🔴 AKTIF (Publik Terkunci)' : '🟢 NONAKTIF (Website Terbuka)'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap mt-1 sm:mt-0">
+            {/* Saweria Donation button */}
+            <a
+              href={SAWERIA_DONATION_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-black font-black text-[11px] flex items-center gap-1 shadow transition active:scale-95"
+              title="Donasi & Dukung Pengembang Website di Saweria"
+            >
+              <Coffee className="w-3.5 h-3.5" />
+              <span>Donasi: saweria.co/LinuxStore</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+
+            {/* Toggle Coming Soon ON/OFF */}
+            <button
+              type="button"
+              onClick={() => {
+                const updated = { ...comingSoonConfig, isEnabled: !comingSoonConfig.isEnabled };
+                setComingSoonConfig(updated);
+                saveComingSoonConfig(updated);
+              }}
+              className={`px-2.5 py-1 rounded-lg font-bold text-[11px] border transition cursor-pointer ${
+                comingSoonConfig.isEnabled 
+                  ? 'bg-emerald-950 hover:bg-emerald-900 border-emerald-600 text-emerald-200' 
+                  : 'bg-rose-950 hover:bg-rose-900 border-rose-600 text-rose-200'
+              }`}
+            >
+              {comingSoonConfig.isEnabled ? 'Buka Website untuk Publik (Matikan Coming Soon)' : 'Kunci Website (Nyalakan Coming Soon)'}
+            </button>
+
+            {/* Exit developer bypass */}
+            <button
+              type="button"
+              onClick={() => {
+                setDeveloperBypass(false);
+                setIsDevBypass(false);
+                if (currentOfficer?.isDeveloper) {
+                  handleLogout();
+                }
+              }}
+              className="px-2.5 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-[11px] font-bold cursor-pointer"
+              title="Kunci kembali website dan keluar dari mode pengembang"
+            >
+              Kunci & Keluar Mode Dev
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Dynamic Background Wallpaper with Custom Opacity and Blur */}
       {branding.backgroundWallpaper && (
         <div
