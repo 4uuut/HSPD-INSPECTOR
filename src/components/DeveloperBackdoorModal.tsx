@@ -37,7 +37,7 @@ export const DeveloperBackdoorModal: React.FC<Props> = ({
     const cleanInput = passcode.trim();
     const isValid = DEVELOPER_MASTER_PASSCODES.some(
       code => code.toLowerCase() === cleanInput.toLowerCase()
-    ) || cleanInput === '10-4' || cleanInput === 'admin' || cleanInput.toLowerCase() === 'linuxstore';
+    ) || cleanInput === '10-4' || cleanInput === 'admin';
 
     if (!isValid) {
       setErrorMsg('Kunci akses backdoor tidak valid! Masukkan passcode pengembang resmi.');

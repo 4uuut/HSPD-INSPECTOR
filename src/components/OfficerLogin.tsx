@@ -6,7 +6,7 @@ import {
   Shield, Lock, User, KeyRound, CheckCircle2, 
   AlertTriangle, ArrowRight, Eye, EyeOff, HelpCircle, 
   LogIn, BookOpen, MessageSquare, ShieldAlert, ShieldCheck,
-  Sparkles, Crown, Building2, Globe, FileText, Terminal, PhoneCall, Coffee
+  Sparkles, Crown, Building2, Globe, FileText, Terminal, PhoneCall
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from '../assets/logo';
 import { RecruitmentInfoPanel } from './RecruitmentInfoPanel';
@@ -423,19 +423,6 @@ export const OfficerLogin: React.FC<Props> = ({
 
           {/* Right Status Badge & Citizen Service Button */}
           <div className="flex items-center gap-2 font-mono text-xs">
-            {/* Saweria Developer Donation Button */}
-            <a
-              href="https://saweria.co/LinuxStore"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black rounded-lg text-xs font-black transition shadow-md active:scale-95"
-              title="Donasi & Dukung Pengembang Website: saweria.co/LinuxStore"
-            >
-              <Coffee className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span className="hidden sm:inline">Donasi Pengembang</span>
-              <span className="sm:hidden">Donasi</span>
-            </a>
-
             <button
               type="button"
               id="btn-nav-citizen-portal"
