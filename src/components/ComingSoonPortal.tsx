@@ -174,35 +174,12 @@ export const ComingSoonPortal: React.FC<Props> = ({ onBypassSuccess }) => {
             <button
               type="button"
               onClick={handleOpenSaweria}
-              className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-black font-black text-sm sm:text-base font-mono transition flex items-center justify-center gap-2.5 shadow-xl shadow-amber-950 cursor-pointer active:scale-95 group"
+              className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 text-black font-black text-sm sm:text-base font-mono transition flex items-center justify-center gap-2.5 shadow-xl shadow-amber-950 cursor-pointer active:scale-95 group"
             >
               <Coffee className="w-5 h-5 text-black group-hover:rotate-12 transition-transform stroke-[2.5]" />
               <span>Donasi Pengembang (Saweria)</span>
               <ExternalLink className="w-4 h-4 text-black stroke-[2.5]" />
             </button>
-
-            {/* Copy Link Button */}
-            <button
-              type="button"
-              onClick={handleCopyDonationUrl}
-              className="w-full sm:w-auto px-5 py-3.5 rounded-2xl bg-[#192233] hover:bg-[#202C42] border border-gray-700 hover:border-gray-500 text-gray-200 text-xs sm:text-sm font-mono font-bold transition flex items-center justify-center gap-2 cursor-pointer active:scale-95 shadow"
-            >
-              {copiedDonation ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-amber-400" />}
-              <span>{copiedDonation ? 'Link Tersalin!' : 'Salin Link Saweria'}</span>
-            </button>
-          </div>
-
-          <div className="pt-2 text-[11px] font-mono text-amber-300/80 flex items-center justify-center gap-1.5">
-            <span>Link Resmi:</span>
-            <a 
-              href={SAWERIA_DONATION_URL} 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="font-bold underline hover:text-amber-200 flex items-center gap-1"
-            >
-              {SAWERIA_DONATION_URL}
-              <ExternalLink className="w-3 h-3" />
-            </a>
           </div>
         </div>
 
@@ -328,7 +305,7 @@ export const ComingSoonPortal: React.FC<Props> = ({ onBypassSuccess }) => {
 
             <form onSubmit={handleDeveloperAuthSubmit} className="space-y-4 text-xs">
               <p className="text-[11px] text-gray-300 leading-relaxed font-sans">
-                Masukkan Passcode Pengembang Resmi (contoh: <code>LinuxStore</code>, <code>DEV-HSPD-2026</code>, atau <code>10-4</code>) untuk membuka kunci seluruh fitur dan menjelajahi sistem secara penuh.
+                Masukkan Passcode Otoritas Pengembang Resmi untuk membuka gerbang mode pengembang dan mengakses seluruh fitur sistem.
               </p>
 
               <div>
@@ -350,7 +327,7 @@ export const ComingSoonPortal: React.FC<Props> = ({ onBypassSuccess }) => {
                     autoFocus
                     value={passcodeInput}
                     onChange={(e) => setPasscodeInput(e.target.value)}
-                    placeholder="Masukkan Passcode (e.g. LinuxStore)"
+                    placeholder="Masukkan Passcode Pengembang..."
                     className="w-full bg-black/60 border border-amber-500/50 rounded-xl px-3 py-2.5 text-amber-300 font-bold outline-none focus:border-amber-400 font-mono text-sm tracking-wider"
                   />
                   <button

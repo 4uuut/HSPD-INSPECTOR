@@ -529,12 +529,11 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
                   type="button"
                   id="btn-inspect-hspd"
                   onClick={() => onSwitchPortal('POLICE')}
-                  className="px-2.5 py-1.5 rounded-lg bg-[#0F1722] hover:bg-[#162338] border border-blue-500/50 text-blue-300 hover:text-blue-200 transition flex items-center gap-1.5 shadow"
-                  title="Masuk ke tampilan operasional Kepolisian HSPD (Mode Inspeksi)"
+                  className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-600 hover:to-indigo-600 border border-blue-400 text-white transition flex items-center gap-1.5 shadow font-bold cursor-pointer"
+                  title="Beralih ke Tampilan Aplikasi Mode Normal (MDC Kepolisian)"
                 >
-                  <Shield className="w-3.5 h-3.5 text-blue-400" />
-                  <span className="hidden sm:inline">Inspeksi HSPD</span>
-                  <span className="sm:hidden">HSPD</span>
+                  <Shield className="w-3.5 h-3.5 text-white" />
+                  <span>Mode Normal</span>
                 </button>
                 <button
                   type="button"
@@ -566,11 +565,11 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
                 type="button"
                 id="btn-dev-logout"
                 onClick={onLogout}
-                className="px-3 py-1.5 rounded-lg bg-red-950/80 hover:bg-red-900 border border-red-700/60 text-red-200 hover:text-white transition flex items-center gap-1.5 shadow font-bold"
-                title="Keluar dari sesi Pengembang"
+                className="px-3 py-1.5 rounded-lg bg-red-950/80 hover:bg-red-900 border border-red-700/60 text-red-200 hover:text-white transition flex items-center gap-1.5 shadow font-bold cursor-pointer"
+                title="Keluar dari sesi Pengembang dan kunci kembali ke tampilan Coming Soon"
               >
                 <LogOut className="w-3.5 h-3.5 text-red-400" />
-                <span>Logout</span>
+                <span>Keluar Mode Dev (Coming Soon)</span>
               </button>
             )}
           </div>

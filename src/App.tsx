@@ -39,7 +39,7 @@ import { OfficerBonusHub } from './components/OfficerBonusHub';
 import { ComingSoonPortal } from './components/ComingSoonPortal';
 import { 
   getComingSoonConfig, saveComingSoonConfig, isDeveloperBypassActive, 
-  setDeveloperBypass, SAWERIA_DONATION_URL, ComingSoonConfig 
+  setDeveloperBypass, resetDeveloperModeAndLock, SAWERIA_DONATION_URL, ComingSoonConfig 
 } from './utils/comingSoonStorage';
 import { synchronizeDpoAndDmvIntegrity } from './utils/activityMonitoringStorage';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
@@ -63,7 +63,7 @@ import {
   Search, Car, Crosshair, Landmark, Flame, Stamp as StampIcon,
   UserCheck, Microscope, Cloud, Database, Palette, Smartphone, Monitor, Settings,
   Building2, Crown, Globe, Activity, Zap, ChevronLeft, ChevronRight, Terminal,
-  Coffee, ExternalLink, Heart
+  Coffee, ExternalLink, Heart, LogIn
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from './assets/logo';
 import { 
@@ -195,6 +195,7 @@ export default function App() {
   // Coming Soon & Pre-Launch Developer Lockout State
   const [comingSoonConfig, setComingSoonConfig] = useState<ComingSoonConfig>(() => getComingSoonConfig());
   const [isDevBypass, setIsDevBypass] = useState<boolean>(() => isDeveloperBypassActive());
+  const [previewNormalLogin, setPreviewNormalLogin] = useState<boolean>(false);
 
   useEffect(() => {
     const handleComingSoonSync = () => setComingSoonConfig(getComingSoonConfig());
@@ -599,11 +600,21 @@ export default function App() {
     setCurrentOfficer(null);
     setIsDuty(false);
     setDutyStartTime(0);
+    setIsDevBypass(false);
+    resetDeveloperModeAndLock();
     try {
       localStorage.removeItem(OFFICER_STORAGE_KEY);
+      localStorage.removeItem('hspd_developer_bypass_active_v1');
     } catch (e) {
       console.error(e);
     }
+  };
+
+  // Exit developer bypass and lock the website back down to the Coming Soon screen
+  const handleExitDeveloperMode = () => {
+    resetDeveloperModeAndLock();
+    setIsDevBypass(false);
+    handleLogout();
   };
 
   const handleRegisterOfficer = (newAccount: OfficerAccount) => {
@@ -931,16 +942,69 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap mt-1 sm:mt-0">
+            {/* View Mode Switcher: Mode Pengembangan vs Mode Normal */}
+            <div className="flex items-center bg-black/60 p-0.5 rounded-xl border border-amber-500/60 shadow-inner">
+              <button
+                type="button"
+                onClick={() => {
+                  setPreviewNormalLogin(false);
+                  setActiveNav('dev_monitor');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold font-mono transition flex items-center gap-1.5 cursor-pointer ${
+                  activeNav === 'dev_monitor' && !previewNormalLogin
+                    ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black shadow font-black'
+                    : 'text-amber-300/80 hover:text-white hover:bg-white/10'
+                }`}
+                title="Beralih ke Tampilan Konsol & Perkakas Pengembang (Developer Workspace)"
+              >
+                <Terminal className="w-3.5 h-3.5" />
+                <span>Mode Pengembangan</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPreviewNormalLogin(false);
+                  if (activeNav === 'dev_monitor') {
+                    setActiveNav('calc');
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold font-mono transition flex items-center gap-1.5 cursor-pointer ${
+                  activeNav !== 'dev_monitor' && !previewNormalLogin
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow font-black'
+                    : 'text-blue-300/80 hover:text-white hover:bg-white/10'
+                }`}
+                title="Beralih ke Tampilan Normal (MDC Kepolisian / Dokumen / Layanan Warga)"
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>Mode Normal</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPreviewNormalLogin(prev => !prev)}
+                className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold font-mono transition flex items-center gap-1 cursor-pointer ${
+                  previewNormalLogin
+                    ? 'bg-emerald-600 text-white shadow font-black'
+                    : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                }`}
+                title="Pratinjau Halaman Terminal Login Publik"
+              >
+                <LogIn className="w-3 h-3" />
+                <span>{previewNormalLogin ? 'Tutup Login' : 'Preview Login'}</span>
+              </button>
+            </div>
+
             {/* Saweria Donation button */}
             <a
               href={SAWERIA_DONATION_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-black font-black text-[11px] flex items-center gap-1 shadow transition active:scale-95"
+              className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-black font-black text-[11px] flex items-center gap-1 shadow transition active:scale-95"
               title="Donasi & Dukung Pengembang Website di Saweria"
             >
               <Coffee className="w-3.5 h-3.5" />
-              <span>Donasi: saweria.co/LinuxStore</span>
+              <span>Donasi (Saweria)</span>
               <ExternalLink className="w-3 h-3" />
             </a>
 
@@ -952,29 +1016,24 @@ export default function App() {
                 setComingSoonConfig(updated);
                 saveComingSoonConfig(updated);
               }}
-              className={`px-2.5 py-1 rounded-lg font-bold text-[11px] border transition cursor-pointer ${
+              className={`px-2.5 py-1.5 rounded-lg font-bold text-[11px] border transition cursor-pointer ${
                 comingSoonConfig.isEnabled 
                   ? 'bg-emerald-950 hover:bg-emerald-900 border-emerald-600 text-emerald-200' 
                   : 'bg-rose-950 hover:bg-rose-900 border-rose-600 text-rose-200'
               }`}
             >
-              {comingSoonConfig.isEnabled ? 'Buka Website untuk Publik (Matikan Coming Soon)' : 'Kunci Website (Nyalakan Coming Soon)'}
+              {comingSoonConfig.isEnabled ? 'Coming Soon: ON' : 'Coming Soon: OFF'}
             </button>
 
             {/* Exit developer bypass */}
             <button
               type="button"
-              onClick={() => {
-                setDeveloperBypass(false);
-                setIsDevBypass(false);
-                if (currentOfficer?.isDeveloper) {
-                  handleLogout();
-                }
-              }}
-              className="px-2.5 py-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-[11px] font-bold cursor-pointer"
-              title="Kunci kembali website dan keluar dari mode pengembang"
+              onClick={handleExitDeveloperMode}
+              className="px-2.5 py-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-900 border border-rose-600/80 text-rose-200 hover:text-white text-[11px] font-bold cursor-pointer transition flex items-center gap-1.5 shadow"
+              title="Kunci kembali website dan keluar dari mode pengembang (Kembali ke Coming Soon)"
             >
-              Kunci & Keluar Mode Dev
+              <Lock className="w-3.5 h-3.5 text-rose-400" />
+              <span>Kunci & Keluar Mode Dev</span>
             </button>
           </div>
         </div>
@@ -996,8 +1055,30 @@ export default function App() {
         />
       )}
 
-      {/* Top Header & Navigation: Dedicated Developer Portal vs Android MDT Mode vs Desktop Mode */}
-      {currentOfficer?.isDeveloper && activeNav === 'dev_monitor' ? (
+      {/* Top Header & Navigation: Dedicated Developer Portal vs Preview Login vs Android MDT Mode vs Desktop Mode */}
+      {previewNormalLogin ? (
+        <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-blue-950/80 border border-blue-500/70 rounded-xl p-3 text-xs font-mono text-blue-200 shadow-xl">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-ping" />
+              <span className="font-bold">Pratinjau Mode Normal: Halaman Login Terminal Dinas Kepolisian / Pemerintahan / Warga</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPreviewNormalLogin(false)}
+              className="px-3 py-1 rounded-lg bg-black/70 hover:bg-black border border-blue-400 text-white font-bold cursor-pointer transition active:scale-95 text-xs"
+            >
+              Tutup Pratinjau & Kembali
+            </button>
+          </div>
+          <OfficerLogin
+            onLogin={handleLogin}
+            roster={roster}
+            onRegisterOfficer={handleRegisterOfficer}
+            onUpdateOfficerPin={handleUpdateOfficerPin}
+          />
+        </div>
+      ) : currentOfficer?.isDeveloper && activeNav === 'dev_monitor' ? (
         <DeveloperWorkspacePortal
           currentOfficer={currentOfficer}
           onSwitchPortal={(portal) => {
@@ -1005,7 +1086,7 @@ export default function App() {
             else if (portal === 'GOVERNMENT') setActiveNav('gov_suite');
             else if (portal === 'CITIZEN') setActiveNav('citizen_portal');
           }}
-          onLogout={handleLogout}
+          onLogout={handleExitDeveloperMode}
         />
       ) : (
         <>
@@ -1359,6 +1440,15 @@ export default function App() {
                       code: 'CFG',
                       moduleKey: undefined,
                       isHighRankOnly: true
+                    }
+                  ] : []),
+                  ...((currentOfficer?.isDeveloper || isDevBypass) ? [
+                    {
+                      id: 'dev_monitor',
+                      label: '🛠️ Mode Pengembang',
+                      icon: Terminal,
+                      code: 'DEV',
+                      moduleKey: undefined
                     }
                   ] : []),
                 ]).map((tab, tabIdx) => {
