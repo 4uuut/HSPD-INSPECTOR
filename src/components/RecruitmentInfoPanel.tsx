@@ -59,9 +59,9 @@ export const RecruitmentInfoPanel: React.FC<Props> = ({ onTriggerBackdoor }) => 
     'Melayang Halus';
 
   return (
-    <div className="bg-[#161B22] border border-gray-800 rounded-xl shadow-2xl overflow-hidden flex flex-col h-full font-mono text-xs">
+    <div className="bg-[#0C1017] border border-gray-800 rounded-xl shadow-2xl overflow-hidden flex flex-col h-full font-mono text-xs">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-[#0F1319] via-[#151c27] to-[#0F1319] border-b border-gray-800 p-4 sm:p-5 flex flex-col sm:flex-row items-center gap-4 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-[#0B0F17] via-[#101724] to-[#0B0F17] border-b border-gray-800 p-4 sm:p-5 flex flex-col sm:flex-row items-center gap-4 relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-48 bg-gradient-to-l from-amber-500/10 to-transparent pointer-events-none"></div>
 
         {/* Dynamic Spinning & Moving Logo Container */}
@@ -119,14 +119,14 @@ export const RecruitmentInfoPanel: React.FC<Props> = ({ onTriggerBackdoor }) => 
       </div>
 
       {/* Navigation Sub-Tabs */}
-      <div className="grid grid-cols-4 border-b border-gray-800 bg-[#0D1117] text-[11px]">
+      <div className="grid grid-cols-4 border-b border-gray-800 bg-[#0A0E17] text-[11px]">
         <button
           type="button"
           onClick={() => setActiveTab('overview')}
           className={`py-2.5 px-1.5 flex items-center justify-center gap-1.5 font-bold transition border-b-2 ${
             activeTab === 'overview'
-              ? 'border-amber-500 text-amber-400 bg-[#161B22]'
-              : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/30'
+              ? 'border-amber-400 text-amber-300 bg-[#121724]/60'
+              : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/20'
           }`}
         >
           <Sparkles className="w-3.5 h-3.5 shrink-0" />
@@ -138,8 +138,8 @@ export const RecruitmentInfoPanel: React.FC<Props> = ({ onTriggerBackdoor }) => 
           onClick={() => setActiveTab('requirements')}
           className={`py-2.5 px-1.5 flex items-center justify-center gap-1.5 font-bold transition border-b-2 ${
             activeTab === 'requirements'
-              ? 'border-blue-500 text-blue-400 bg-[#161B22]'
-              : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/30'
+              ? 'border-blue-500 text-blue-400 bg-[#121724]/60'
+              : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/20'
           }`}
         >
           <FileCheck className="w-3.5 h-3.5 shrink-0" />
@@ -151,8 +151,8 @@ export const RecruitmentInfoPanel: React.FC<Props> = ({ onTriggerBackdoor }) => 
           onClick={() => setActiveTab('phases')}
           className={`py-2.5 px-1.5 flex items-center justify-center gap-1.5 font-bold transition border-b-2 ${
             activeTab === 'phases'
-              ? 'border-emerald-500 text-emerald-400 bg-[#161B22]'
-              : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/30'
+              ? 'border-emerald-500 text-emerald-400 bg-[#121724]/60'
+              : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/20'
           }`}
         >
           <Target className="w-3.5 h-3.5 shrink-0" />
@@ -164,8 +164,8 @@ export const RecruitmentInfoPanel: React.FC<Props> = ({ onTriggerBackdoor }) => 
           onClick={() => setActiveTab('divisions')}
           className={`py-2.5 px-1.5 flex items-center justify-center gap-1.5 font-bold transition border-b-2 ${
             activeTab === 'divisions'
-              ? 'border-purple-500 text-purple-400 bg-[#161B22]'
-              : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/30'
+              ? 'border-purple-500 text-purple-400 bg-[#121724]/60'
+              : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/20'
           }`}
         >
           <Building2 className="w-3.5 h-3.5 shrink-0" />
