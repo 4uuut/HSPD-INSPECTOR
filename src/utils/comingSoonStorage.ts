@@ -131,19 +131,27 @@ export function setDeveloperBypass(active: boolean): void {
   }
 }
 
-export function resetDeveloperModeAndLock(): void {
+export function exitDeveloperSession(forceLock: boolean = false): void {
   try {
     localStorage.removeItem(DEVELOPER_BYPASS_STORAGE_KEY);
     localStorage.removeItem('hspd_active_officer_v1');
-    const current = getComingSoonConfig();
-    const lockedConfig: ComingSoonConfig = { ...current, isEnabled: true };
-    localStorage.setItem(COMING_SOON_STORAGE_KEY, JSON.stringify(lockedConfig));
+    if (forceLock) {
+      const current = getComingSoonConfig();
+      const lockedConfig: ComingSoonConfig = { ...current, isEnabled: true };
+      localStorage.setItem(COMING_SOON_STORAGE_KEY, JSON.stringify(lockedConfig));
+      window.dispatchEvent(new CustomEvent('hspd-coming-soon-updated', { detail: lockedConfig }));
+      pushToFirestore('SYSTEM_CONFIGS', { id: 'COMING_SOON_CONFIG', ...lockedConfig }, 'COMING_SOON_CONFIG').catch(() => {});
+    }
     window.dispatchEvent(new CustomEvent('hspd-developer-bypass-updated', { detail: false }));
-    window.dispatchEvent(new CustomEvent('hspd-coming-soon-updated', { detail: lockedConfig }));
   } catch (e) {
-    console.error('Failed to reset developer mode:', e);
+    console.error('Failed to exit developer session:', e);
   }
 }
+
+export function resetDeveloperModeAndLock(): void {
+  exitDeveloperSession(true);
+}
+
 
 export function verifyDeveloperPasscode(input: string): boolean {
   if (!input) return false;

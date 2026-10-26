@@ -6,7 +6,7 @@ import {
   ExternalLink, Layers, Sparkles, Check, ChevronDown, ChevronUp, BarChart2,
   TrendingUp, Radio, Flame, Award, Globe, LogOut, KeyRound, 
   MessageSquare, Wrench, ShieldCheck, Play, ArrowRight, Eye, User,
-  Megaphone, Bell, Volume2, ChevronLeft, ChevronRight, Send, Zap, X
+  Megaphone, Bell, Volume2, ChevronLeft, ChevronRight, Send, Zap, X, LogIn
 } from 'lucide-react';
 import { 
   OfficerProfile, 
@@ -46,10 +46,13 @@ import { checkAndBroadcastLatestRelease } from '../utils/autoChangelogBroadcaste
 import { DiscordBotInviteCard } from './DiscordBotInviteCard';
 import { LiveSystemAnnouncementsHub } from './LiveSystemAnnouncementsHub';
 import { DiscordReleaseAnnouncementModal } from './DiscordReleaseAnnouncementModal';
+import { 
+  getComingSoonConfig, saveComingSoonConfig, ComingSoonConfig, SAWERIA_DONATION_URL 
+} from '../utils/comingSoonStorage';
 
 interface Props {
   currentOfficer: OfficerProfile | null;
-  onSwitchPortal?: (portal: 'POLICE' | 'GOVERNMENT' | 'CITIZEN') => void;
+  onSwitchPortal?: (portal: 'POLICE' | 'GOVERNMENT' | 'CITIZEN' | 'LOGIN') => void;
   onLogout?: () => void;
 }
 
@@ -109,8 +112,42 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
   const [webhookTestMessage, setWebhookTestMessage] = useState('📡 [PING TEST] Pesan uji coba koneksi gateway pengembang MDT HSPD.');
   const [webhookStatus, setWebhookStatus] = useState<string | null>(null);
 
+  // Coming Soon status & controls
+  const [comingSoonConfig, setComingSoonConfig] = useState<ComingSoonConfig>(() => getComingSoonConfig());
+
+  useEffect(() => {
+    const handleComingSoonSync = () => setComingSoonConfig(getComingSoonConfig());
+    window.addEventListener('hspd-coming-soon-updated', handleComingSoonSync);
+    return () => window.removeEventListener('hspd-coming-soon-updated', handleComingSoonSync);
+  }, []);
+
+  const handleToggleComingSoon = (newEnabled: boolean) => {
+    const updated: ComingSoonConfig = { ...comingSoonConfig, isEnabled: newEnabled };
+    setComingSoonConfig(updated);
+    saveComingSoonConfig(updated);
+    logDeveloperSystemActivity({
+      entity: 'SYSTEM',
+      module: 'SETTINGS',
+      action: 'SYSTEM_SYNC',
+      actor: currentOfficer?.name || 'Lead Developer',
+      actorBadge: currentOfficer?.badge || '#DEV-001',
+      severity: 'INFO',
+      title: `Ubah Status Coming Soon: ${newEnabled ? 'AKTIF (Terkunci)' : 'NONAKTIF (Publik Terbuka)'}`,
+      description: newEnabled 
+        ? 'Website dikunci ke tampilan Coming Soon untuk publik.' 
+        : 'Mode Coming Soon dinonaktifkan. Seluruh portal login polisi, pemerintah, dan layanan warga dibuka normal.'
+    });
+    if (!newEnabled) {
+      setSyncNotice('🟢 Mode Coming Soon telah DINONAKTIFKAN! Website resmi kini terbuka untuk umum (Anggota HSPD, Balai Kota & Warga dapat login normal).');
+    } else {
+      setSyncNotice('🔴 Mode Coming Soon AKTIF! Seluruh fitur & portal login publik dikunci.');
+    }
+    setTimeout(() => setSyncNotice(null), 8000);
+  };
+
   // Refresh activity data & system announcements
   const refreshData = () => {
+    setComingSoonConfig(getComingSoonConfig());
     setActivities(getAllAggregatedActivities());
     setBoloList(getSavedBoloAlerts());
     setCitizens(getSavedCitizens());
@@ -522,19 +559,50 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
           </div>
 
           {/* Right: Quick Inspection Switchers & Logout */}
-          <div className="flex items-center gap-2 font-mono text-xs">
+          <div className="flex items-center gap-2 font-mono text-xs flex-wrap">
+            {/* Quick Coming Soon Status indicator */}
+            <div className={`px-2.5 py-1 rounded-lg border flex items-center gap-2 text-[11px] ${
+              comingSoonConfig.isEnabled 
+                ? 'bg-rose-950/80 border-rose-600/70 text-rose-300' 
+                : 'bg-emerald-950/80 border-emerald-600/70 text-emerald-300'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${comingSoonConfig.isEnabled ? 'bg-rose-400' : 'bg-emerald-400 animate-pulse'}`} />
+              <span className="font-bold">{comingSoonConfig.isEnabled ? 'Coming Soon: ON' : 'Coming Soon: OFF'}</span>
+              <button
+                type="button"
+                onClick={() => handleToggleComingSoon(!comingSoonConfig.isEnabled)}
+                className="px-1.5 py-0.5 rounded bg-black/60 hover:bg-black text-[10px] text-white border border-gray-600 cursor-pointer"
+                title={comingSoonConfig.isEnabled ? 'Matikan Coming Soon & Buka Website untuk Umum' : 'Kunci Website ke Mode Coming Soon'}
+              >
+                {comingSoonConfig.isEnabled ? 'Matikan' : 'Aktifkan'}
+              </button>
+            </div>
+
             {onSwitchPortal && (
               <>
+                {/* Direct button to Public Login Portal (as in user screenshot) */}
+                <button
+                  type="button"
+                  id="btn-inspect-login"
+                  onClick={() => onSwitchPortal('LOGIN')}
+                  className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border border-emerald-400 text-white transition flex items-center gap-1.5 shadow font-bold cursor-pointer"
+                  title="Beralih ke Tampilan Halaman Login Terminal Dinas (Sesuai Gambar Dokumen)"
+                >
+                  <LogIn className="w-3.5 h-3.5 text-white" />
+                  <span>Portal Login Publik</span>
+                </button>
+
                 <button
                   type="button"
                   id="btn-inspect-hspd"
                   onClick={() => onSwitchPortal('POLICE')}
-                  className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-600 hover:to-indigo-600 border border-blue-400 text-white transition flex items-center gap-1.5 shadow font-bold cursor-pointer"
+                  className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-blue-700 to-indigo-700 hover:from-blue-600 hover:to-indigo-600 border border-blue-400 text-white transition flex items-center gap-1.5 shadow font-bold cursor-pointer"
                   title="Beralih ke Tampilan Aplikasi Mode Normal (MDC Kepolisian)"
                 >
                   <Shield className="w-3.5 h-3.5 text-white" />
-                  <span>Mode Normal</span>
+                  <span>MDC Polisi</span>
                 </button>
+
                 <button
                   type="button"
                   id="btn-inspect-gov"
@@ -543,9 +611,10 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
                   title="Masuk ke tampilan operasional Balai Kota & Pemerintah (Mode Inspeksi)"
                 >
                   <Building2 className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="hidden sm:inline">Inspeksi Balai Kota</span>
+                  <span className="hidden sm:inline">Balai Kota</span>
                   <span className="sm:hidden">Gov</span>
                 </button>
+
                 <button
                   type="button"
                   id="btn-inspect-citizen"
@@ -566,10 +635,12 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
                 id="btn-dev-logout"
                 onClick={onLogout}
                 className="px-3 py-1.5 rounded-lg bg-red-950/80 hover:bg-red-900 border border-red-700/60 text-red-200 hover:text-white transition flex items-center gap-1.5 shadow font-bold cursor-pointer"
-                title="Keluar dari sesi Pengembang dan kunci kembali ke tampilan Coming Soon"
+                title={comingSoonConfig.isEnabled 
+                  ? 'Keluar dari sesi Pengembang dan kunci kembali ke tampilan Coming Soon'
+                  : 'Keluar dari sesi Pengembang dan buka Halaman Login Publik'}
               >
                 <LogOut className="w-3.5 h-3.5 text-red-400" />
-                <span>Keluar Mode Dev (Coming Soon)</span>
+                <span>{comingSoonConfig.isEnabled ? 'Keluar (Coming Soon)' : 'Keluar ke Login Publik'}</span>
               </button>
             )}
           </div>
@@ -894,6 +965,94 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
               Belum ada siaran sistem yang terdaftar.
             </div>
           )}
+        </section>
+
+        {/* ================= KONTROL STATUS COMING SOON & AKSES PUBLIK ================= */}
+        <section className={`rounded-2xl border p-4 sm:p-5 transition shadow-2xl font-mono ${
+          comingSoonConfig.isEnabled
+            ? 'bg-gradient-to-r from-[#1A0B0F] via-[#220D14] to-[#16080E] border-rose-500/60 shadow-rose-950/40'
+            : 'bg-gradient-to-r from-[#061510] via-[#0B2117] to-[#081822] border-emerald-500/60 shadow-emerald-950/40'
+        }`}>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="space-y-1.5 max-w-2xl">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`px-2.5 py-0.5 rounded text-xs font-black uppercase tracking-wide border flex items-center gap-1.5 ${
+                  comingSoonConfig.isEnabled
+                    ? 'bg-rose-950 text-rose-300 border-rose-600'
+                    : 'bg-emerald-950 text-emerald-300 border-emerald-500'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${comingSoonConfig.isEnabled ? 'bg-rose-400' : 'bg-emerald-400 animate-ping'}`} />
+                  {comingSoonConfig.isEnabled ? 'MODE COMING SOON AKTIF (WEBSITE TERKUNCI)' : 'WEBSITE RESMI TELAH DIBUKA (COMING SOON OFF)'}
+                </span>
+                <span className="text-[11px] text-gray-400">
+                  {comingSoonConfig.isEnabled 
+                    ? '🔴 Seluruh menu publik, terminal dinas, dan layanan warga terkunci.' 
+                    : '🟢 Publik, Anggota Kepolisian HSPD, Balai Kota & Warga dapat login & beraktivitas normal.'}
+                </span>
+              </div>
+              <h3 className="text-sm sm:text-base font-bold text-white font-sans">
+                {comingSoonConfig.isEnabled
+                  ? 'Website sedang dalam mode prapeluncuran (Coming Soon). Publik tidak dapat melihat atau login.'
+                  : 'Mode Coming Soon dimatikan: Sistem MDC Kepolisian, Balai Kota, dan Layanan SKCK Warga aktif normal.'}
+              </h3>
+              <p className="text-xs text-gray-300 font-sans leading-relaxed">
+                {comingSoonConfig.isEnabled
+                  ? 'Untuk mengembalikan website ke tampilan formulir login dinas kepolisian, balai kota, dan warga (seperti pada gambar), matikan status Coming Soon di bawah atau klik "Portal Login Publik".'
+                  : 'Website siap digunakan oleh seluruh jajaran anggota kepolisian HSPD dan masyarakat. Anda dapat langsung membuka halaman Login Publik untuk verifikasi atau simulasi login anggota.'}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Toggle Coming Soon */}
+              <button
+                type="button"
+                onClick={() => handleToggleComingSoon(!comingSoonConfig.isEnabled)}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-2 cursor-pointer shadow-lg active:scale-95 ${
+                  comingSoonConfig.isEnabled
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black border border-emerald-400'
+                    : 'bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white border border-rose-500'
+                }`}
+              >
+                {comingSoonConfig.isEnabled ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-black stroke-[2.5]" />
+                    <span>MATIKAN COMING SOON (BUKA AKSES PUBLIK)</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4 text-white" />
+                    <span>KUNCI KEMBALI KE COMING SOON</span>
+                  </>
+                )}
+              </button>
+
+              {/* View Public Login Portal as in Screenshot */}
+              {onSwitchPortal && (
+                <button
+                  type="button"
+                  onClick={() => onSwitchPortal('LOGIN')}
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-xs border border-blue-400 transition flex items-center gap-2 cursor-pointer shadow-lg active:scale-95"
+                  title="Lihat langsung tampilan Halaman Login Terminal Dinas (seperti gambar)"
+                >
+                  <LogIn className="w-4 h-4 text-white" />
+                  <span>BUKA PORTAL LOGIN (SEPERTI GAMBAR)</span>
+                </button>
+              )}
+
+              {/* Exit Developer Session and leave site open to login */}
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="px-3.5 py-2.5 rounded-xl bg-black/60 hover:bg-black/90 border border-gray-600 text-gray-300 hover:text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                  title="Keluar dari akun developer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Keluar Mode Dev</span>
+                </button>
+              )}
+            </div>
+          </div>
         </section>
 
         {/* KPI OVERVIEW CARDS */}

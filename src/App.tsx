@@ -39,7 +39,7 @@ import { OfficerBonusHub } from './components/OfficerBonusHub';
 import { ComingSoonPortal } from './components/ComingSoonPortal';
 import { 
   getComingSoonConfig, saveComingSoonConfig, isDeveloperBypassActive, 
-  setDeveloperBypass, resetDeveloperModeAndLock, SAWERIA_DONATION_URL, ComingSoonConfig 
+  setDeveloperBypass, resetDeveloperModeAndLock, exitDeveloperSession, SAWERIA_DONATION_URL, ComingSoonConfig 
 } from './utils/comingSoonStorage';
 import { synchronizeDpoAndDmvIntegrity } from './utils/activityMonitoringStorage';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
@@ -601,7 +601,9 @@ export default function App() {
     setIsDuty(false);
     setDutyStartTime(0);
     setIsDevBypass(false);
-    resetDeveloperModeAndLock();
+    setDeveloperBypass(false);
+    setPreviewNormalLogin(false);
+    exitDeveloperSession(false);
     try {
       localStorage.removeItem(OFFICER_STORAGE_KEY);
       localStorage.removeItem('hspd_developer_bypass_active_v1');
@@ -610,11 +612,21 @@ export default function App() {
     }
   };
 
-  // Exit developer bypass and lock the website back down to the Coming Soon screen
-  const handleExitDeveloperMode = () => {
-    resetDeveloperModeAndLock();
+  // Exit developer session:
+  // If Coming Soon is OFF, user immediately sees the public login portal (OfficerLogin) for Polisi, Pemerintah & Warga
+  // If Coming Soon is ON, user sees the Coming Soon screen
+  const handleExitDeveloperMode = (forceLock = false) => {
+    exitDeveloperSession(forceLock);
     setIsDevBypass(false);
-    handleLogout();
+    setDeveloperBypass(false);
+    setCurrentOfficer(null);
+    setPreviewNormalLogin(false);
+    try {
+      localStorage.removeItem(OFFICER_STORAGE_KEY);
+      localStorage.removeItem('hspd_developer_bypass_active_v1');
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleRegisterOfficer = (newAccount: OfficerAccount) => {
@@ -942,7 +954,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap mt-1 sm:mt-0">
-            {/* View Mode Switcher: Mode Pengembangan vs Mode Normal */}
+            {/* View Mode Switcher: Mode Pengembangan vs Mode Normal vs Preview Login */}
             <div className="flex items-center bg-black/60 p-0.5 rounded-xl border border-amber-500/60 shadow-inner">
               <button
                 type="button"
@@ -995,6 +1007,17 @@ export default function App() {
               </button>
             </div>
 
+            {/* Direct button: Ke Halaman Login Publik (Seperti di Gambar) */}
+            <button
+              type="button"
+              onClick={() => handleExitDeveloperMode(false)}
+              className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-[11px] font-mono flex items-center gap-1.5 shadow transition cursor-pointer"
+              title="Beralih langsung ke Halaman Login Terminal Dinas (Sesuai Gambar Dokumen)"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Portal Login (Seperti Gambar)</span>
+            </button>
+
             {/* Saweria Donation button */}
             <a
               href={SAWERIA_DONATION_URL}
@@ -1012,28 +1035,35 @@ export default function App() {
             <button
               type="button"
               onClick={() => {
-                const updated = { ...comingSoonConfig, isEnabled: !comingSoonConfig.isEnabled };
+                const nextState = !comingSoonConfig.isEnabled;
+                const updated = { ...comingSoonConfig, isEnabled: nextState };
                 setComingSoonConfig(updated);
                 saveComingSoonConfig(updated);
+                if (!nextState) {
+                  // Saat Coming Soon dimatikan: langsung beralih ke Halaman Login Publik seperti di gambar!
+                  handleExitDeveloperMode(false);
+                }
               }}
-              className={`px-2.5 py-1.5 rounded-lg font-bold text-[11px] border transition cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg font-bold text-[11px] font-mono border transition cursor-pointer flex items-center gap-1.5 shadow ${
                 comingSoonConfig.isEnabled 
-                  ? 'bg-emerald-950 hover:bg-emerald-900 border-emerald-600 text-emerald-200' 
-                  : 'bg-rose-950 hover:bg-rose-900 border-rose-600 text-rose-200'
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400' 
+                  : 'bg-rose-600 hover:bg-rose-500 text-white border-rose-400'
               }`}
+              title={comingSoonConfig.isEnabled ? 'Matikan Coming Soon dan buka website ke Halaman Login Publik' : 'Kunci website kembali ke Coming Soon'}
             >
-              {comingSoonConfig.isEnabled ? 'Coming Soon: ON' : 'Coming Soon: OFF'}
+              <Power className="w-3.5 h-3.5" />
+              <span>{comingSoonConfig.isEnabled ? 'Matikan Coming Soon (Buka Publik)' : 'Aktifkan Coming Soon (Kunci)'}</span>
             </button>
 
             {/* Exit developer bypass */}
             <button
               type="button"
-              onClick={handleExitDeveloperMode}
+              onClick={() => handleExitDeveloperMode(comingSoonConfig.isEnabled)}
               className="px-2.5 py-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-900 border border-rose-600/80 text-rose-200 hover:text-white text-[11px] font-bold cursor-pointer transition flex items-center gap-1.5 shadow"
-              title="Kunci kembali website dan keluar dari mode pengembang (Kembali ke Coming Soon)"
+              title={comingSoonConfig.isEnabled ? 'Keluar dari mode pengembang dan kunci kembali website ke Coming Soon' : 'Keluar dari mode pengembang dan buka Halaman Login Publik'}
             >
               <Lock className="w-3.5 h-3.5 text-rose-400" />
-              <span>Kunci & Keluar Mode Dev</span>
+              <span>{comingSoonConfig.isEnabled ? 'Kunci & Keluar Mode Dev' : 'Keluar Mode Dev'}</span>
             </button>
           </div>
         </div>
@@ -1082,11 +1112,20 @@ export default function App() {
         <DeveloperWorkspacePortal
           currentOfficer={currentOfficer}
           onSwitchPortal={(portal) => {
-            if (portal === 'POLICE') setActiveNav('calc');
-            else if (portal === 'GOVERNMENT') setActiveNav('gov_suite');
-            else if (portal === 'CITIZEN') setActiveNav('citizen_portal');
+            if (portal === 'POLICE') {
+              setPreviewNormalLogin(false);
+              setActiveNav('calc');
+            } else if (portal === 'GOVERNMENT') {
+              setPreviewNormalLogin(false);
+              setActiveNav('gov_suite');
+            } else if (portal === 'CITIZEN') {
+              setPreviewNormalLogin(false);
+              setActiveNav('citizen_portal');
+            } else if (portal === 'LOGIN') {
+              handleExitDeveloperMode(false);
+            }
           }}
-          onLogout={handleExitDeveloperMode}
+          onLogout={() => handleExitDeveloperMode(comingSoonConfig.isEnabled)}
         />
       ) : (
         <>
