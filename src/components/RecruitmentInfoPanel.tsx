@@ -173,8 +173,8 @@ export const RecruitmentInfoPanel: React.FC<Props> = ({ onTriggerBackdoor }) => 
         </button>
       </div>
 
-      {/* Main Content Area with Scroll */}
-      <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 max-h-[560px]">
+      {/* Main Content Area without Internal Scroll to match screenshot */}
+      <div className="p-4 sm:p-5 space-y-3.5 flex-1">
         {/* TAB 1: OVERVIEW & MOTTO */}
         {activeTab === 'overview' && (
           <div className="space-y-4">

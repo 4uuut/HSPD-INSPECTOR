@@ -45,9 +45,6 @@ export const OfficerLogin: React.FC<Props> = ({
     return subscribeToBranding(cfg => setBranding(cfg));
   }, []);
 
-  // Mobile / layout navigation: 'auth' (right side) or 'recruitment' (left side on mobile)
-  const [mobileView, setMobileView] = useState<'auth' | 'recruitment'>('auth');
-  
   // Portal selector: 'POLICE' (HSPD MDT), 'GOVERNMENT' (State Government Portal), 'CITIZEN' (Public Citizen Hub)
   const [authPortalTab, setAuthPortalTab] = useState<'POLICE' | 'GOVERNMENT' | 'CITIZEN'>('POLICE');
 
@@ -422,68 +419,32 @@ export const OfficerLogin: React.FC<Props> = ({
           </div>
 
           {/* Right Status Badge & Citizen Service Button */}
-          <div className="flex items-center gap-3 font-mono text-xs">
+          <div className="flex items-center gap-2.5 sm:gap-3 font-mono text-xs">
             <button
               type="button"
               id="btn-nav-citizen-portal"
               onClick={() => setAuthPortalTab('CITIZEN')}
-              className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0A1A17]/80 hover:bg-[#0E2823] border border-emerald-500/70 text-emerald-400 rounded-lg text-xs font-bold transition shadow-sm"
+              className="flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 bg-[#0A1A17]/80 hover:bg-[#0E2823] border border-emerald-500/70 text-emerald-400 rounded-lg text-xs font-bold transition shadow-sm cursor-pointer"
               title="Buka Portal Layanan Warga Sipil (SKCK & Izin Usaha)"
             >
-              <Globe className="w-3.5 h-3.5 text-emerald-400" />
-              <span>🌐 Layanan Warga</span>
+              <Globe className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>Layanan Warga</span>
             </button>
 
-            <div className="hidden md:flex flex-col items-end text-right">
-              <span className="text-[10px] text-green-400 flex items-center gap-1.5 font-bold">
+            <div className="flex flex-col items-end text-right">
+              <span className="text-[10px] text-green-400 flex items-center gap-1.5 font-bold whitespace-nowrap">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                 SYSTEM ONLINE 10-8
               </span>
-              <span className="text-[9px] text-gray-500">{liveRoster.length} Personel Terdaftar</span>
-            </div>
-
-            {/* Mobile View Switcher */}
-            <div className="flex lg:hidden bg-gray-900 border border-gray-800 rounded-lg p-0.5 text-xs">
-              <button
-                type="button"
-                onClick={() => setMobileView('recruitment')}
-                className={`px-2 py-1 rounded font-bold transition flex items-center gap-1 ${
-                  mobileView === 'recruitment'
-                    ? authPortalTab === 'GOVERNMENT' ? 'bg-amber-600 text-black shadow' : 'bg-blue-600 text-white shadow'
-                    : 'text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                <BookOpen className="w-3 h-3" />
-                <span>{authPortalTab === 'GOVERNMENT' ? 'Rekrutmen' : 'Info'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMobileView('auth')}
-                className={`px-2 py-1 rounded font-bold transition flex items-center gap-1 ${
-                  mobileView === 'auth'
-                    ? authPortalTab === 'GOVERNMENT' ? 'bg-amber-600 text-black shadow' : 'bg-blue-600 text-white shadow'
-                    : 'text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                <LogIn className="w-3 h-3" />
-                <span>Login</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setAuthPortalTab('CITIZEN')}
-                className="px-2 py-1 rounded font-bold transition flex items-center gap-1 bg-emerald-950 text-emerald-300 border border-emerald-700/60"
-              >
-                <Globe className="w-3 h-3 text-emerald-400" />
-                <span>Warga</span>
-              </button>
+              <span className="text-[9px] text-gray-500 whitespace-nowrap">{liveRoster.length} Personel Terdaftar</span>
             </div>
           </div>
         </div>
 
         {/* MAIN SPLIT GRID: LEFT = RECRUITMENT INFO, RIGHT = AUTH TERMINAL */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start">
-          {/* ================= LEFT SIDE: RECRUITMENT INFO PANEL (~7 cols on desktop) ================= */}
-          <div className={`lg:col-span-7 h-full ${mobileView === 'recruitment' ? 'block' : 'hidden lg:block'}`}>
+          {/* ================= LEFT SIDE: RECRUITMENT INFO PANEL (7 cols on desktop, order-2 on mobile) ================= */}
+          <div className="lg:col-span-7 w-full order-2 lg:order-1 h-full">
             {authPortalTab === 'GOVERNMENT' ? (
               <GovernmentRecruitmentInfoPanel onTriggerBackdoor={() => setIsBackdoorModalOpen(true)} />
             ) : (
@@ -491,9 +452,8 @@ export const OfficerLogin: React.FC<Props> = ({
             )}
           </div>
 
-          {/* ================= RIGHT SIDE: AUTHENTICATION & LOGIN PORTAL (~5 cols on desktop) ================= */}
-          <div className={`lg:col-span-5 ${mobileView === 'auth' ? 'block' : 'hidden lg:block'}`}>
-            <div className="space-y-3">
+          {/* ================= RIGHT SIDE: AUTHENTICATION & LOGIN PORTAL (5 cols on desktop, order-1 on mobile) ================= */}
+          <div className="lg:col-span-5 w-full order-1 lg:order-2 space-y-3">
               {/* SLIDE / TAB SWITCHER: KEPOLISIAN VS PEMERINTAHAN VS LAYANAN WARGA */}
               <div className="grid grid-cols-3 gap-2 font-mono text-xs">
                 <button
@@ -742,7 +702,6 @@ export const OfficerLogin: React.FC<Props> = ({
             </div>
           </div>
         </div>
-      </div>
 
       {/* DISCORD PIN REQUEST MODAL */}
       <RequestPinDiscordModal

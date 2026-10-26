@@ -27,7 +27,7 @@ export interface ComingSoonConfig {
 }
 
 export const DEFAULT_COMING_SOON_CONFIG: ComingSoonConfig = {
-  isEnabled: true, // Default ON sesuai permintaan: website coming soon & fitur terkunci
+  isEnabled: false, // Default FALSE: Halaman login publik seperti di gambar aktif untuk seluruh anggota & warga di laptop/HP
   title: 'HIGH STATE POLICE DEPARTMENT • CAD/MDT SYSTEM',
   headline: 'WEBSITE SEDANG DALAM PENGEMBANGAN',
   subheadline: 'COMING SOON • TAHAP FINALISASI & INTEGRASI SISTEM',
