@@ -441,10 +441,10 @@ export const OfficerLogin: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* MAIN SPLIT GRID: LEFT = RECRUITMENT INFO, RIGHT = AUTH TERMINAL */}
+        {/* MAIN SPLIT GRID: LEFT/TOP = RECRUITMENT INFO, RIGHT/BOTTOM = AUTH TERMINAL */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start">
-          {/* ================= LEFT SIDE: RECRUITMENT INFO PANEL (7 cols on desktop, order-2 on mobile) ================= */}
-          <div className="lg:col-span-7 w-full order-2 lg:order-1 h-full">
+          {/* ================= RECRUITMENT INFO PANEL (Top on mobile, Left 7-cols on desktop) ================= */}
+          <div id="portal-info-section" className="lg:col-span-7 w-full order-1 h-full">
             {authPortalTab === 'GOVERNMENT' ? (
               <GovernmentRecruitmentInfoPanel onTriggerBackdoor={() => setIsBackdoorModalOpen(true)} />
             ) : (
@@ -452,8 +452,8 @@ export const OfficerLogin: React.FC<Props> = ({
             )}
           </div>
 
-          {/* ================= RIGHT SIDE: AUTHENTICATION & LOGIN PORTAL (5 cols on desktop, order-1 on mobile) ================= */}
-          <div className="lg:col-span-5 w-full order-1 lg:order-2 space-y-3">
+          {/* ================= AUTHENTICATION & LOGIN PORTAL (Below info on mobile, Right 5-cols on desktop) ================= */}
+          <div id="terminal-login-section" className="lg:col-span-5 w-full order-2 space-y-3">
               {/* SLIDE / TAB SWITCHER: KEPOLISIAN VS PEMERINTAHAN VS LAYANAN WARGA */}
               <div className="grid grid-cols-3 gap-2 font-mono text-xs">
                 <button
@@ -501,10 +501,10 @@ export const OfficerLogin: React.FC<Props> = ({
                     setAuthPortalTab('CITIZEN');
                   }}
                   className="py-2 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition text-[11px] bg-[#0A1A17]/80 border border-emerald-500/70 text-emerald-400 hover:bg-emerald-950/40 shadow-sm"
-                  title="Pembuatan SKCK & Surat Izin Usaha Tanpa Login"
+                  title="Buka Portal Layanan Warga Sipil (SKCK, Lapor, Izin Usaha, & Cek DPO)"
                 >
                   <Globe className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>WARGA (SKCK)</span>
+                  <span>LAYANAN WARGA</span>
                 </button>
               </div>
 

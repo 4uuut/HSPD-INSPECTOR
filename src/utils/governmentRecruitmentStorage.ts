@@ -267,8 +267,8 @@ export const DEFAULT_GOVERNMENT_PORTAL_CONFIG: GovernmentPortalConfig = {
   ],
 
   discordHotlineText: 'Discord Resmi Balai Kota & Pemerintahan',
-  discordHotlineUrl: 'https://discord.gg',
-  formRegistrationUrl: 'https://discord.gg',
+  discordHotlineUrl: 'https://discord.gg/THy6fzJvsw',
+  formRegistrationUrl: 'https://discord.gg/THy6fzJvsw',
   copyrightText: 'State Executive Government Administration © 2026',
 
   updatedAt: Date.now(),
@@ -382,9 +382,15 @@ export function getGovernmentPortalConfig(): GovernmentPortalConfig {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
+        const rawDiscord = parsed.discordHotlineUrl;
+        const normalizedDiscord = (!rawDiscord || rawDiscord === 'https://discord.gg' || rawDiscord === 'https://discord.gg/')
+          ? 'https://discord.gg/THy6fzJvsw'
+          : rawDiscord;
+
         return {
           ...DEFAULT_GOVERNMENT_PORTAL_CONFIG,
           ...parsed,
+          discordHotlineUrl: normalizedDiscord,
           coreValues: Array.isArray(parsed.coreValues) ? parsed.coreValues : DEFAULT_GOVERNMENT_PORTAL_CONFIG.coreValues,
           quickStats: synchronizedStats,
           icRequirements: Array.isArray(parsed.icRequirements) ? parsed.icRequirements : DEFAULT_GOVERNMENT_PORTAL_CONFIG.icRequirements,

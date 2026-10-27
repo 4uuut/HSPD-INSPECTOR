@@ -20,7 +20,6 @@ import {
   FileText,
   Megaphone,
   Award,
-  Sliders,
   Landmark,
   Scale,
   Briefcase
@@ -90,17 +89,6 @@ export const GovernmentRecruitmentInfoPanel: React.FC<Props> = ({ currentOfficer
             <span className="text-[10px] bg-amber-950/80 text-amber-300 border border-amber-600/60 px-2 py-0.5 rounded font-bold uppercase">
               {portal.badgeCategoryText || 'CIVIL SERVICE & EXECUTIVE'}
             </span>
-
-            {/* Quick Button for Superiors to Edit Announcement */}
-            <button
-              type="button"
-              onClick={() => setIsEditModalOpen(true)}
-              className="ml-auto px-2 py-0.5 bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/50 text-amber-200 text-[10px] font-bold rounded flex items-center gap-1 transition active:scale-95 shadow-sm"
-              title="Ubah pengumuman dan pengaturan portal rekrutmen ini (Akses Atasan)"
-            >
-              <Sliders className="w-3 h-3 text-amber-300" />
-              <span>Ubah Pengumuman (Atasan)</span>
-            </button>
           </div>
 
           <h2 className="text-base sm:text-lg font-bold text-amber-100 font-sans tracking-wide">
@@ -376,17 +364,16 @@ export const GovernmentRecruitmentInfoPanel: React.FC<Props> = ({ currentOfficer
               <span>Daftar / Formulir Seleksi</span>
             </a>
           )}
-          {portal.discordHotlineUrl && (
-            <a
-              href={portal.discordHotlineUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-2.5 py-1.5 bg-indigo-950 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 text-xs font-bold rounded-lg transition flex items-center gap-1"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span>Discord Kenegaraan</span>
-            </a>
-          )}
+          <a
+            href={portal.discordHotlineUrl || 'https://discord.gg/THy6fzJvsw'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-2.5 py-1.5 bg-indigo-950 hover:bg-indigo-900 border border-indigo-700/60 text-indigo-300 text-xs font-bold rounded-lg transition flex items-center gap-1.5 shadow-sm"
+            title="Buka Discord Resmi Kenegaraan (https://discord.gg/THy6fzJvsw)"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Discord Kenegaraan</span>
+          </a>
         </div>
       </div>
 
