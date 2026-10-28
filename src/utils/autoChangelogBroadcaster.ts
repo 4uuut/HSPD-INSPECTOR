@@ -25,6 +25,9 @@ export interface SystemReleasePayload {
   authorName?: string;
   authorBadge?: string;
   authorRank?: string;
+  channelId?: string;
+  botToken?: string;
+  webhookUrl?: string;
 }
 
 export const LAST_AUTO_BROADCAST_VERSION_KEY = 'hspd_last_auto_broadcast_version';
@@ -274,11 +277,14 @@ export async function checkAndBroadcastLatestRelease(
 
     const savedMention = localStorage.getItem(CHANGELOG_MENTION_ROLE_KEY) || releaseData.mentionRole || 'none';
     const colorNum = parseInt((releaseData.embedColorHex || '#3B82F6').replace('#', ''), 16) || 0x3B82F6;
+    const effectiveToken = releaseData.botToken || localStorage.getItem(DISCORD_BOT_TOKEN_KEY) || '';
+    const effectiveChannelId = releaseData.channelId || localStorage.getItem('hspd_changelog_channel_id') || '1547776898833326161';
 
     let broadcastSuccess = false;
     let successMessage = '';
+    let failureReason = '';
 
-    // 1. Coba kirimkan via Backend API route (jika bot Discord gateway aktif)
+    // 1. Coba kirimkan via Backend API route (Bot Discord REST API langsung ke channel)
     try {
       const res = await fetch(buildApiUrl('/api/discord/send-changelog'), {
         method: 'POST',
@@ -296,7 +302,8 @@ export async function checkAndBroadcastLatestRelease(
           mentionRole: savedMention,
           webhookUrl: savedWebhook,
           embedColor: colorNum,
-          channelId: '1547776898833326161',
+          channelId: effectiveChannelId,
+          botToken: effectiveToken,
           authorName: releaseData.authorName,
           authorBadge: releaseData.authorBadge,
           authorRank: releaseData.authorRank
@@ -306,10 +313,12 @@ export async function checkAndBroadcastLatestRelease(
       const parsed = await safeFetchJson(res);
       if (parsed.ok && parsed.data?.success) {
         broadcastSuccess = true;
-        successMessage = parsed.data.message || 'Pembaruan berhasil disiarkan otomatis ke Discord via Backend Bot!';
+        successMessage = parsed.data.message || 'Pembaruan berhasil disiarkan ke Discord via Bot Resmi!';
+      } else if (parsed.data?.message) {
+        failureReason = parsed.data.message;
       }
-    } catch {
-      // Backend mungkin tidak aktif jika dihosting murni statis / Vercel SPA, lanjut ke fallback Webhook
+    } catch (e: any) {
+      failureReason = e?.message || 'Gagal menghubungi server bot';
     }
 
     // 2. Client-side Webhook Fallback (memastikan 100% terkirim di Vercel / Static tanpa ketergantungan server)
@@ -421,7 +430,7 @@ export async function checkAndBroadcastLatestRelease(
       return {
         success: false,
         triggered: false,
-        message: 'Tidak dapat menyiarkan pembaruan ke Discord. Pastikan Webhook URL telah tersimpan di Pengaturan.'
+        message: failureReason || 'Tidak dapat menyiarkan pembaruan ke Discord. Pastikan Bot Discord aktif atau Channel ID valid.'
       };
     }
   } catch (error: any) {

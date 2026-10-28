@@ -14,8 +14,10 @@ import {
   ActivityEntity,
   BoloAlert,
   CitizenProfile,
-  DetectiveCase
+  DetectiveCase,
+  ArrestRecord
 } from '../types';
+import { ArrestMonthlyAnalyticsChart } from './ArrestMonthlyAnalyticsChart';
 import { 
   getAllAggregatedActivities, 
   getHourlyActivityTrend, 
@@ -46,6 +48,7 @@ import { checkAndBroadcastLatestRelease } from '../utils/autoChangelogBroadcaste
 import { DiscordBotInviteCard } from './DiscordBotInviteCard';
 import { LiveSystemAnnouncementsHub } from './LiveSystemAnnouncementsHub';
 import { DiscordReleaseAnnouncementModal } from './DiscordReleaseAnnouncementModal';
+import { ChangelogWebhookConfigModal } from './ChangelogWebhookConfigModal';
 import { 
   getComingSoonConfig, saveComingSoonConfig, ComingSoonConfig, SAWERIA_DONATION_URL 
 } from '../utils/comingSoonStorage';
@@ -85,7 +88,15 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
   const [activities, setActivities] = useState<SystemActivityLog[]>(() => getAllAggregatedActivities());
   const [selectedEntityFilter, setSelectedEntityFilter] = useState<'ALL' | 'HSPD' | 'GOVERNMENT' | 'SYSTEM'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeChartTab, setActiveChartTab] = useState<'HOURLY' | 'DAILY' | 'MODULES'>('HOURLY');
+  const [activeChartTab, setActiveChartTab] = useState<'HOURLY' | 'DAILY' | 'MODULES' | 'ARRESTS'>('HOURLY');
+  const [arrestRecords, setArrestRecords] = useState<ArrestRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem('hspd_arrest_records');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [chartEntityFilter, setChartEntityFilter] = useState<'ALL' | 'HSPD' | 'GOVERNMENT'>('ALL');
 
   // Diagnostics & Status
@@ -109,6 +120,8 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
   // Discord test state
   const [botConfig, setBotConfig] = useState(() => getSavedDiscordBotConfig());
   const [changelogConfig, setChangelogConfig] = useState(() => getSavedChangelogWebhookConfig());
+  const [isChangelogWebhookModalOpen, setIsChangelogWebhookModalOpen] = useState(false);
+  const [selectedNoticeForWebhook, setSelectedNoticeForWebhook] = useState<SystemAnnouncement | null>(null);
   const [webhookTestMessage, setWebhookTestMessage] = useState('📡 [PING TEST] Pesan uji coba koneksi gateway pengembang MDT HSPD.');
   const [webhookStatus, setWebhookStatus] = useState<string | null>(null);
 
@@ -119,6 +132,15 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
     const handleComingSoonSync = () => setComingSoonConfig(getComingSoonConfig());
     window.addEventListener('hspd-coming-soon-updated', handleComingSoonSync);
     return () => window.removeEventListener('hspd-coming-soon-updated', handleComingSoonSync);
+  }, []);
+
+  // Ensure v4.3.0 latest release is dynamically loaded into announcements on mount
+  useEffect(() => {
+    const currentList = getSystemAnnouncements();
+    if (!currentList.some(a => a.version === 'v4.3.0')) {
+      const synced = forceSyncOfficialAnnouncements();
+      setAnnouncements(synced);
+    }
   }, []);
 
   const handleToggleComingSoon = (newEnabled: boolean) => {
@@ -155,6 +177,7 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
     setRosterList(getRosterFromStorage());
     setGovRosterList(getGovernmentRoster());
     setAnnouncements(getSystemAnnouncements());
+    setChangelogConfig(getSavedChangelogWebhookConfig());
   };
 
   useEffect(() => {
@@ -346,24 +369,39 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
 
   const handleQuickDiscordPush = async (item: SystemAnnouncement) => {
     try {
-      setSyncNotice('📡 Menyiarkan ke Discord Webhook...');
+      const savedBotToken = localStorage.getItem('hspd_discord_bot_token') || '';
+      const savedWebhook = localStorage.getItem('hspd_changelog_webhook_url') || '';
+      const targetChannelId = localStorage.getItem('hspd_changelog_channel_id') || '1547776898833326161';
+
+      setSyncNotice('📡 Menyiarkan ke Channel Discord via Bot Resmi...');
       const res = await checkAndBroadcastLatestRelease(true, {
         version: item.version,
         title: item.title,
         headerText: `[ SIARAN RESMI PEMBARUAN SISTEM ${item.version} ]`,
         customDescription: item.description,
         newFeatures: item.features,
+        removedOrAdjusted: item.bugFixes?.length ? item.bugFixes : undefined,
         improvements: item.improvements,
-        bugFixes: item.bugFixes
+        bugFixes: item.bugFixes,
+        channelId: targetChannelId,
+        botToken: savedBotToken,
+        webhookUrl: savedWebhook
       });
-      setSyncNotice(res.success ? `✅ Berhasil disiarkan ke Discord (#${item.version})!` : `❌ ${res.message}`);
+
+      if (res.success) {
+        setSyncNotice(`✅ Berhasil disiarkan ke Discord (${item.version}) melalui Bot Resmi!`);
+      } else {
+        setSyncNotice(`❌ ${res.message}`);
+        setSelectedNoticeForWebhook(item);
+        setIsChangelogWebhookModalOpen(true);
+      }
     } catch (e: any) {
       setSyncNotice(`❌ Gagal siar: ${e?.message || e}`);
     }
-    setTimeout(() => setSyncNotice(null), 4000);
+    setTimeout(() => setSyncNotice(null), 5000);
   };
 
-  // Synchronize Official Announcements (v4.2.5, v4.2.4, etc.)
+  // Synchronize Official Announcements (v4.3.0, v4.2.6, etc.)
   const handleForceSyncOfficialUpdates = () => {
     setIsSyncing(true);
     try {
@@ -371,7 +409,7 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
       setAnnouncements(synced);
       setActiveNoticeIndex(0);
       playSystemNotificationChime('IMPORTANT');
-      setSyncNotice('✅ Berhasil menyinkronkan seluruh pembaruan sistem resmi terbaru (v4.2.5)!');
+      setSyncNotice('✅ Berhasil menyinkronkan seluruh pembaruan sistem resmi terbaru (v4.3.0)!');
     } catch (err: any) {
       setSyncNotice(`❌ Gagal sinkronisasi: ${err?.message || err}`);
     } finally {
@@ -819,10 +857,24 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
                 id="btn-sync-official-updates"
                 onClick={handleForceSyncOfficialUpdates}
                 className="px-2.5 py-1.5 rounded-lg bg-[#0E1F18] hover:bg-[#163025] border border-emerald-500/60 text-emerald-300 text-[11px] font-bold transition flex items-center gap-1 cursor-pointer active:scale-95 shadow"
-                title="Tarik dan sinkronkan seluruh pembaruan sistem resmi terbaru (v4.2.5)"
+                title="Tarik dan sinkronkan seluruh pembaruan sistem resmi terbaru (v4.3.0)"
               >
                 <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncing ? 'animate-spin' : ''}`} />
                 <span className="hidden sm:inline">Sinkron Update</span>
+              </button>
+
+              <button
+                type="button"
+                id="btn-config-changelog-webhook"
+                onClick={() => {
+                  setSelectedNoticeForWebhook(currentNotice || null);
+                  setIsChangelogWebhookModalOpen(true);
+                }}
+                className="px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition flex items-center gap-1 cursor-pointer active:scale-95 shadow bg-[#0E1F18] hover:bg-[#163025] border-emerald-500/60 text-emerald-300"
+                title="Konfigurasi Bot Discord Resmi / Channel ID (#changelog) untuk Siaran Pembaruan"
+              >
+                <Radio className="w-3.5 h-3.5 text-emerald-400" />
+                <span>🤖 Bot Discord Siaran</span>
               </button>
 
               <button
@@ -1193,6 +1245,16 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
                     >
                       Modul
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveChartTab('ARRESTS')}
+                      className={`px-2.5 py-1 rounded text-[11px] font-bold transition flex items-center gap-1 ${
+                        activeChartTab === 'ARRESTS' ? 'bg-cyan-600 text-white shadow' : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      <BarChart2 className="w-3 h-3" />
+                      <span>Tren Bulanan Kasus</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1296,7 +1358,35 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
                   </div>
                 </div>
               )}
+
+              {activeChartTab === 'ARRESTS' && (
+                <div className="pt-2">
+                  <ArrestMonthlyAnalyticsChart
+                    records={arrestRecords}
+                    isDeveloperMode={true}
+                    defaultExpanded={true}
+                  />
+                </div>
+              )}
             </div>
+
+            {/* Dedicated Executive Monthly Arrest Trend in Developer Analytics */}
+            {activeChartTab !== 'ARRESTS' && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-mono text-gray-400">
+                  <span className="font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
+                    <TrendingUp className="w-4 h-4 text-cyan-400" />
+                    Tren Penindakan Bulanan Komando (Arrest Records)
+                  </span>
+                  <span className="text-[10px] text-gray-500">Visualisasi Recharts • Realtime DB</span>
+                </div>
+                <ArrestMonthlyAnalyticsChart
+                  records={arrestRecords}
+                  isDeveloperMode={true}
+                  defaultExpanded={true}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -1891,6 +1981,23 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Changelog Discord Webhook Configuration Modal */}
+      {isChangelogWebhookModalOpen && (
+        <ChangelogWebhookConfigModal
+          isOpen={isChangelogWebhookModalOpen}
+          onClose={() => {
+            setIsChangelogWebhookModalOpen(false);
+            setChangelogConfig(getSavedChangelogWebhookConfig());
+          }}
+          currentNotice={selectedNoticeForWebhook || currentNotice || undefined}
+          onSuccessBroadcast={() => {
+            refreshData();
+            setSyncNotice('✅ Siaran pembaruan berhasil dikirim ke saluran Webhook Discord!');
+            setTimeout(() => setSyncNotice(null), 5000);
+          }}
+        />
       )}
     </div>
   );

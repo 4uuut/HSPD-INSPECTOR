@@ -21,6 +21,8 @@ import {
 import { playSystemNotificationChime } from '../utils/systemNotificationAudio';
 import { checkAndBroadcastLatestRelease } from '../utils/autoChangelogBroadcaster';
 import { logDeveloperSystemActivity } from '../utils/activityMonitoringStorage';
+import { getSavedChangelogWebhookConfig } from '../utils/discordWebhook';
+import { ChangelogWebhookConfigModal } from './ChangelogWebhookConfigModal';
 import { OfficerProfile } from '../types';
 
 interface Props {
@@ -45,6 +47,30 @@ export const LiveSystemAnnouncementsHub: React.FC<Props> = ({
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [isBroadcastingId, setIsBroadcastingId] = useState<string | null>(null);
   const [isSyncingOfficial, setIsSyncingOfficial] = useState(false);
+  const [isWebhookModalOpen, setIsWebhookModalOpen] = useState(false);
+  const [targetAnnouncementForDiscord, setTargetAnnouncementForDiscord] = useState<SystemAnnouncement | null>(null);
+  const [hasWebhookConfigured, setHasWebhookConfigured] = useState(() => Boolean(localStorage.getItem('hspd_changelog_webhook_url')));
+
+  // Auto-sync latest v4.3.0 official release if missing from announcements
+  React.useEffect(() => {
+    if (!announcements.some(a => a.version === 'v4.3.0')) {
+      forceSyncOfficialAnnouncements();
+      onRefresh();
+    }
+  }, []);
+
+  // Update webhook status on window focus or storage update
+  React.useEffect(() => {
+    const handleStorageUpdate = () => {
+      setHasWebhookConfigured(Boolean(localStorage.getItem('hspd_changelog_webhook_url')));
+    };
+    window.addEventListener('storage', handleStorageUpdate);
+    window.addEventListener('focus', handleStorageUpdate);
+    return () => {
+      window.removeEventListener('storage', handleStorageUpdate);
+      window.removeEventListener('focus', handleStorageUpdate);
+    };
+  }, []);
 
   // New Announcement Form State
   const [version, setVersion] = useState('v4.3.0');
@@ -193,10 +219,11 @@ export const LiveSystemAnnouncementsHub: React.FC<Props> = ({
       const synced = forceSyncOfficialAnnouncements();
       playSystemNotificationChime('IMPORTANT');
       onRefresh();
-      setActionNotice('✅ Berhasil menyinkronkan seluruh pembaruan sistem resmi terbaru (v4.2.5)!');
+      setActionNotice('✅ Berhasil menyinkronkan seluruh pembaruan sistem resmi terbaru (v4.3.0)!');
       setTimeout(() => setActionNotice(null), 4000);
     } catch (err: any) {
-      alert(`Gagal menyinkronkan pembaruan: ${err?.message || err}`);
+      setActionNotice(`❌ Gagal menyinkronkan pembaruan: ${err?.message || err}`);
+      setTimeout(() => setActionNotice(null), 5000);
     } finally {
       setIsSyncingOfficial(false);
     }
@@ -369,6 +396,15 @@ export const LiveSystemAnnouncementsHub: React.FC<Props> = ({
   const handlePushDiscord = async (item: SystemAnnouncement) => {
     setIsBroadcastingId(item.id);
     try {
+      const savedWebhook = localStorage.getItem('hspd_changelog_webhook_url');
+      if (!savedWebhook) {
+        setActionNotice('⚠️ Saluran Webhook Discord belum diatur! Membuka jendela pengaturan Webhook...');
+        setTargetAnnouncementForDiscord(item);
+        setIsWebhookModalOpen(true);
+        setTimeout(() => setActionNotice(null), 5000);
+        return;
+      }
+
       const res = await checkAndBroadcastLatestRelease(true, {
         version: item.version,
         title: item.title,
@@ -382,11 +418,14 @@ export const LiveSystemAnnouncementsHub: React.FC<Props> = ({
       if (res.success) {
         setActionNotice(`✅ Siaran pemberitahuan ${item.version} berhasil dikirim ke saluran Webhook Discord!`);
       } else {
-        alert(res.message);
+        setActionNotice(`❌ ${res.message}`);
+        setTargetAnnouncementForDiscord(item);
+        setIsWebhookModalOpen(true);
       }
       setTimeout(() => setActionNotice(null), 5000);
     } catch (err: any) {
-      alert(`Gagal menyiarkan ke Discord: ${err.message}`);
+      setActionNotice(`❌ Gagal menyiarkan ke Discord: ${err?.message || err}`);
+      setTimeout(() => setActionNotice(null), 5000);
     } finally {
       setIsBroadcastingId(null);
     }
@@ -499,10 +538,28 @@ export const LiveSystemAnnouncementsHub: React.FC<Props> = ({
             id="btn-sync-official-releases"
             onClick={handleForceSyncOfficial}
             className="px-3.5 py-2 bg-[#091D15] hover:bg-[#122A1E] text-emerald-300 hover:text-emerald-200 border border-emerald-500/60 rounded-xl text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-950/40 cursor-pointer active:scale-95"
-            title="Tarik dan sinkronkan seluruh pembaruan sistem resmi terbaru (v4.2.5)"
+            title="Tarik dan sinkronkan seluruh pembaruan sistem resmi terbaru (v4.3.0)"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-emerald-400 ${isSyncingOfficial ? 'animate-spin' : ''}`} />
             <span>SINKRONKAN UPDATE RESMI</span>
+          </button>
+
+          <button
+            type="button"
+            id="btn-config-hub-webhook"
+            onClick={() => {
+              setTargetAnnouncementForDiscord(announcements[0] || null);
+              setIsWebhookModalOpen(true);
+            }}
+            className={`px-3.5 py-2 rounded-xl text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-lg cursor-pointer active:scale-95 ${
+              hasWebhookConfigured
+                ? 'bg-[#091D15] hover:bg-[#122A1E] text-emerald-300 border border-emerald-500/60 shadow-emerald-950/40'
+                : 'bg-amber-950/80 hover:bg-amber-900 text-amber-300 border border-amber-500/80 animate-pulse shadow-amber-950/50'
+            }`}
+            title="Konfigurasi Webhook Discord untuk Siaran Otomatis"
+          >
+            <Radio className={`w-3.5 h-3.5 ${hasWebhookConfigured ? 'text-emerald-400' : 'text-amber-400'}`} />
+            <span>{hasWebhookConfigured ? '🟢 WEBHOOK DISCORD TERHUBUNG' : '⚠️ ATUR WEBHOOK DISCORD'}</span>
           </button>
 
           <button
@@ -1244,6 +1301,24 @@ export const LiveSystemAnnouncementsHub: React.FC<Props> = ({
           })
         )}
       </div>
+
+      {/* Changelog Discord Webhook Configuration Modal */}
+      {isWebhookModalOpen && (
+        <ChangelogWebhookConfigModal
+          isOpen={isWebhookModalOpen}
+          onClose={() => {
+            setIsWebhookModalOpen(false);
+            setHasWebhookConfigured(Boolean(localStorage.getItem('hspd_changelog_webhook_url')));
+          }}
+          currentNotice={targetAnnouncementForDiscord || announcements[0] || undefined}
+          onSuccessBroadcast={() => {
+            onRefresh();
+            setHasWebhookConfigured(true);
+            setActionNotice('✅ Siaran pembaruan berhasil dikirim ke saluran Webhook Discord!');
+            setTimeout(() => setActionNotice(null), 5000);
+          }}
+        />
+      )}
     </div>
   );
 };

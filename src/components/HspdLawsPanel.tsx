@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { 
-  Scale, BookOpen, Radio, ShieldAlert, Search, AlertCircle, 
+  Scale, BookOpen, ShieldAlert, Search, AlertCircle, 
   CheckCircle2, ChevronRight, FileText, Gavel, Siren, Shield, 
   Volume2, HelpCircle, ArrowRight, Clock, DollarSign, Lock
 } from 'lucide-react';
 import { getSavedPasalList, OFFENCE_CATEGORIES, getCategoryBadgeColor } from '../data/pasalData';
-import { TEN_CODES, RADIO_FREQUENCIES } from '../data/sopData';
+import { TEN_CODES } from '../data/sopData';
 import type { PasalItem } from '../types';
 
 interface Props {
@@ -71,8 +71,8 @@ export const HspdLawsPanel: React.FC<Props> = () => {
               : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/20'
           }`}
         >
-          <Radio className="w-3.5 h-3.5 shrink-0" />
-          <span className="truncate">3. 10-Codes & Radio</span>
+          <Volume2 className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">3. Sandi 10-Codes</span>
         </button>
 
         <button
@@ -298,30 +298,9 @@ export const HspdLawsPanel: React.FC<Props> = () => {
           </div>
         )}
 
-        {/* TAB 3: 10-CODES & RADIO */}
+        {/* TAB 3: 10-CODES */}
         {activeLawTab === 'radio' && (
           <div className="space-y-4">
-            {/* Tactical Radio Frequencies Box */}
-            <div className="p-3.5 bg-gradient-to-r from-[#0C121E] via-[#0D1525] to-[#0C121E] border border-emerald-900/50 rounded-xl space-y-2">
-              <div className="flex items-center gap-2 text-emerald-400 font-bold">
-                <Radio className="w-4 h-4" />
-                <span>FREKUENSI RESMI RADIO TAKTIS KEPOLISIAN (DISPATCH CHANNELS)</span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                {RADIO_FREQUENCIES.map((rf, i) => (
-                  <div key={i} className="p-2.5 bg-[#080C14] border border-gray-800 rounded-lg flex items-start gap-2">
-                    <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-700/60 font-mono font-bold text-[10px]">
-                      {rf.freq}
-                    </span>
-                    <div>
-                      <div className="font-bold text-gray-200">{rf.name}</div>
-                      <div className="text-[10px] text-gray-400 font-sans">{rf.desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
             {/* Official 10-Codes List */}
             <div className="p-3.5 bg-[#0D1117] border border-gray-800 rounded-xl space-y-2.5">
               <div className="flex items-center justify-between border-b border-gray-800 pb-2">

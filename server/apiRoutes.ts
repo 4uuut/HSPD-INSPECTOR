@@ -964,7 +964,8 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
       authorRank,
       headerText,
       customDescription,
-      embedColor
+      embedColor,
+      botToken
     } = req.body || {};
 
     const cleanFeatures: string[] = Array.isArray(newFeatures) 
@@ -987,16 +988,16 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
       });
     }
 
-    // Try via Bot Gateway Channel Message first if bot has token
+    // Try via Bot Gateway Channel Message first if bot has token (either from body, session file, or env)
     let botResult: { success: boolean; message: string; channelId?: string } | null = null;
-    const botStatus = discordGatewayManager.getStatus();
+    const effectiveToken = (botToken || discordGatewayManager.getActiveToken() || process.env.DISCORD_BOT_TOKEN || '').trim();
 
-    // PROTEKSI: Jika channelId diarahkan ke channel log-kasus (1541924088480669907), alihkan kembali ke channel changelog resmi (1547776898833326161)
-    const safeChannelId = (channelId === '1541924088480669907') ? '1547776898833326161' : channelId;
+    // PROTEKSI: Jika channelId diarahkan ke channel log-kasus (1541924088480669907) atau kosong, alihkan kembali ke channel changelog resmi (1547776898833326161)
+    const safeChannelId = (channelId === '1541924088480669907' || !channelId) ? '1547776898833326161' : channelId;
 
-    if (botStatus.hasToken) {
+    if (effectiveToken && effectiveToken.length > 20) {
       botResult = await discordGatewayManager.sendChangelogBroadcast({
-        version: version || 'v3.2.0',
+        version: version || 'v4.3.1',
         title: title || 'Pembaruan Sistem MDT HSPD',
         newFeatures: cleanFeatures,
         removedOrAdjusted: cleanRemoved,
@@ -1010,7 +1011,8 @@ apiRouter.post('/discord/send-changelog', async (req, res) => {
         authorRank,
         headerText,
         customDescription,
-        embedColor
+        embedColor,
+        botToken: effectiveToken
       });
     }
 

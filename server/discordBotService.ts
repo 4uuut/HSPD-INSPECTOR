@@ -66,32 +66,36 @@ export interface SystemUpdatePayload {
 
 // Data pembaruan sistem terbaru untuk disiarkan otomatis oleh bot ke Discord
 export const LATEST_SYSTEM_UPDATE: SystemUpdatePayload = {
-  version: 'v4.2.2',
-  title: 'Pembaruan Sistem MDT HSPD - Sinkronisasi Instan Edit PIN Roster & Integrasi Penuh Otorisasi Reset PIN',
-  headerText: '[ PEMBERITAHUAN RESMI PEMBARUAN & PENYEMPURNAAN SISTEM MDT HSPD ]',
-  customDescription: 'Sistem operasional MDT HSPD telah diperbarui ke versi v4.2.2. Pembaruan ini menyempurnakan keandalan otentikasi login, sinkronisasi instan PIN hasil edit di Roster Anggota, serta integrasi langsung permohonan lupa/ganti PIN ke database sehingga langsung aktif seketika tanpa tertimpa:',
-  embedColor: 0x00A8FF,
+  version: 'v4.3.1',
+  title: 'Pembaruan Sistem MDT HSPD - Proteksi Frekuensi Rahasia Taktis, Dual-Portal Login & Penyiaran Bot Discord',
+  headerText: '[ PEMBERITAHUAN RESMI PEMBARUAN & SISTEM TERBARU v4.3.1 ]',
+  customDescription: 'Sistem operasional MDT HSPD dan Portal Kenegaraan telah diperbarui ke versi v4.3.1. Pembaruan ini menegakkan kerahasiaan frekuensi radio taktis kepolisian, optimasi terminal login aparatur POLISI & PEMERINTAH, sinkronisasi realtime pusat pemberitahuan sistem, serta pengiriman siaran changelog langsung via Bot Discord Resmi tanpa webhook:',
+  embedColor: 0x06B6D4,
   newFeatures: [
-    'Sinkronisasi Instan Edit PIN Roster ke Login: PIN yang diubah melalui menu "Edit Petugas" di Roster Anggota kini langsung tersimpan ke Central PIN Registry dan Firestore sehingga petugas dapat langsung login menggunakan PIN baru seketika tanpa jeda',
-    'Integrasi Otomatis Permohonan Lupa/Ganti PIN: PIN baru yang diajukan atau disetujui atasan otomatis masuk ke database roster dan langsung dapat dipakai login seketika di portal MDT',
-    'Proteksi Anti-Overwrite PIN Resmi: Mengamankan PIN hasil kustomisasi petugas/atasan agar tidak pernah tertimpa kembali ke nilai default saat penggabungan data roster'
+    'Penyiaran Bot Discord Otomatis Tanpa Webhook: Pengiriman changelog & pembaruan sistem kini langsung dikirimkan oleh Bot Resmi ke Channel #changelog (1547776898833326161) via Discord REST API tanpa bergantung pada webhook',
+    'Pembaruan Realtime Pusat Pemberitahuan Sistem: Live Update Carousel & Pusat Siaran resmi tersinkronisasi otomatis dengan catatan rilis versi terbaru',
+    'Portal Slide Interaktif KUHP & Regulasi HSPD: Peninjauan Kitab Pidana, SOP Kepolisian, dan Hak Miranda secara mandiri melalui tombol geser navigasi portal depan',
+    'Hak Miranda (Miranda Warning) Dwibahasa Resmi: Pedoman pembacaan hak tersangka penangkapan wajib sebelum BAP demi keabsahan berkas perkara di persidangan',
+    'Tangga Penggunaan Kekuatan & Senjata (Use of Force Continuum): 5 tingkatan eskalasi baku (Kehadiran Fisik, Komando Verbal, Borgol/Tangan Kosong, Less-Lethal Taser/Baton, dan Senjata Mematikan)',
+    'Kitab Pasal KUHP Terpadu (Kategori A s/d I): Modul pencarian instan seluruh pasal pidana, denda maksimal, waktu penjara, dan status impound'
   ],
   removedOrAdjusted: [
-    'Pembersihan Redundansi Validasi PIN: Menghilangkan ketidaksesuaian verifikasi PIN antara storage lokal browser dan server gateway'
+    'Pembersihan Frekuensi Radio Taktis dari Publik: Menghapus modul frekuensi taktis dari portal hukum publik demi menjaga kerahasiaan operasional HSPD',
+    'Optimasi Terminal Login Aparatur: Menghilangkan tombol layanan warga dari kotak login untuk tampilan dual-portal yang simetris dan profesional (POLISI & PEMERINTAH)'
   ],
   improvements: [
-    'Centralized Persistent PIN Registry: Seluruh perubahan PIN diikat permanen dengan nomor badge, nama petugas, dan ID akun',
-    'Sinkronisasi Realtime Lintas Sesi: Perubahan PIN oleh atasan langsung memutakhirkan sesi login aktif petugas yang bersangkutan'
+    'Dukungan Penuh Pengiriman Pesan Bot Discord ke Channel Rilis tanpa webhook',
+    'Pencegahan anti pesan ganda (deduplication guard) cerdas pada siaran changelog',
+    'Desain antarmuka gelap responsif yang sinkron antara desktop laptop dan perangkat ponsel'
   ],
   bugFixes: [
-    'Perbaikan Login Setelah Edit PIN: Memperbaiki kendala di mana PIN yang telah diedit di roster tidak terbaca saat petugas mencoba login',
-    'Perbaikan Fitur Lupa PIN: Memastikan PIN hasil persetujuan manual maupun otomatis langsung tertulis ke database roster dan aktif seketika'
+    'Perbaikan kendala siaran di mana tombol Push Discord sempat memerlukan URL Webhook meskipun bot aktif',
+    'Penyelarasan nomor rilis dan sinkronisasi otomatis pusat pengumuman sistem'
   ],
-  extraNotes: '',
-  mentionRole: 'none',
+  extraNotes: 'Pembaruan ini telah aktif dan dapat langsung disiarkan oleh atasan kepolisian atau pengembang.',
   authorName: 'HSPD High Command',
-  authorRank: 'Chief of Police',
-  authorBadge: 'HQ-01'
+  authorBadge: 'DEV-001',
+  authorRank: 'Chief of Police'
 };
 
 const CONFIG_FILE_PATH = path.join(process.cwd(), '.discord_bot_session.json');
@@ -557,8 +561,8 @@ class DiscordGatewayManager {
     return { ...this.serverConfig };
   }
 
-  public async sendChannelMessage(channelId: string, payload: any): Promise<{ success: boolean; data?: any; error?: string }> {
-    const token = this.getActiveToken();
+  public async sendChannelMessage(channelId: string, payload: any, customToken?: string): Promise<{ success: boolean; data?: any; error?: string }> {
+    const token = (customToken || this.getActiveToken() || process.env.DISCORD_BOT_TOKEN || '').trim();
     if (!token) {
       return { success: false, error: 'Token bot Discord belum dikonfigurasi!' };
     }
@@ -610,7 +614,14 @@ class DiscordGatewayManager {
     headerText?: string;
     customDescription?: string;
     embedColor?: number;
+    botToken?: string;
   }): Promise<{ success: boolean; message: string; channelId?: string }> {
+    const tokenToUse = (options.botToken || this.getActiveToken() || process.env.DISCORD_BOT_TOKEN || '').trim();
+    if (options.botToken && options.botToken.length > 20 && (!this.token || this.token !== options.botToken.trim())) {
+      this.token = options.botToken.trim();
+      this.saveToken(this.token);
+    }
+
     // Cegah mutlak changelog dikirim ke channel log-kasus (1541924088480669907)
     let targetChannelId = options.channelId || this.serverConfig.changelogChannelId || '1547776898833326161';
     if (targetChannelId === '1541924088480669907') {
@@ -717,7 +728,7 @@ class DiscordGatewayManager {
       embeds: [embed]
     };
 
-    const res = await this.sendChannelMessage(targetChannelId, payload);
+    const res = await this.sendChannelMessage(targetChannelId, payload, tokenToUse);
     if (!res.success) {
       return {
         success: false,

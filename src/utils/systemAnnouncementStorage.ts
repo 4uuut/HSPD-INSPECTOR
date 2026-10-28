@@ -30,6 +30,71 @@ export const DISMISSED_ANNOUNCEMENTS_KEY = 'hspd_dismissed_announcements_v1';
 
 export const INITIAL_SYSTEM_ANNOUNCEMENTS: SystemAnnouncement[] = [
   {
+    id: 'announcement-v4-3-1-radio-secrecy-bot-discord',
+    version: 'v4.3.1',
+    title: 'Pembaruan Sistem: Kerahasiaan Frekuensi Radio Taktis HSPD, Optimasi Dual-Portal Login & Penyiaran Bot Discord',
+    category: 'UPDATE',
+    severity: 'CRITICAL',
+    targetAudience: 'GLOBAL',
+    description: 'Pembaruan resmi sistem MDT HSPD v4.3.1: Menegakkan kerahasiaan frekuensi radio taktis kepolisian dengan menghapusnya dari portal publik, optimasi antarmuka login dinas aparatur POLISI & PEMERINTAH, sinkronisasi realtime pusat pengumuman sistem, serta penyiaran pembaruan otomatis menggunakan Bot Discord resmi langsung ke channel #changelog tanpa ketergantungan webhook.',
+    features: [
+      '1. Kerahasiaan Frekuensi Radio Taktis HSPD: Menghapus modul frekuensi taktis dari portal hukum publik demi menjaga integritas dan kerahasiaan operasional kepolisian',
+      '2. Optimasi Dual-Portal Terminal Login: Kotak login kini dirancang khusus dan eksklusif untuk aparatur POLISI & PEMERINTAH (menghilangkan tombol layanan warga dari login box)',
+      '3. Penyiaran Pembaruan Otomatis Bot Discord: Siaran live update & changelog rilis dikirimkan langsung oleh Bot Resmi HSPD ke channel #changelog (1547776898833326161) via Discord REST API tanpa webhook',
+      '4. Pusat Pemberitahuan Sistem Realtime: Sinkronisasi instan live update dengan audio chime dan indikator status broadcast',
+      '5. Portal Slide KUHP & Hak Miranda: Navigasi geser undang-undang pidana dan standar resmi pembacaan Hak Miranda dwibahasa'
+    ],
+    improvements: [
+      'Pengiriman pesan Discord langsung menggunakan token bot REST API tanpa memerlukan konfigurasi webhook eksternal',
+      'Peningkatan kestabilan sinkronisasi data antar browser dan Firestore database',
+      'Antarmuka gelap profesional yang responsif di laptop dan HP'
+    ],
+    bugFixes: [
+      'Perbaikan kendala tombol Push Discord yang sempat memblokir pengiriman karena meminta webhook URL',
+      'Perbaikan riwayat pengumuman sistem agar selalu update ke versi rilis terbaru'
+    ],
+    publishedAt: Date.now(),
+    publishedBy: 'Head of Core Developer',
+    publishedByBadge: 'DEV-001',
+    isBannerActive: true,
+    discordBroadcasted: true,
+    viewCount: 1,
+    acknowledgedBy: []
+  },
+  {
+    id: 'announcement-v4-3-0-kuhp-laws-citizen-portal',
+    version: 'v4.3.0',
+    title: 'Pembaruan Sistem: Portal Slide KUHP & Regulasi HSPD, Hak Miranda, & Pusat Layanan Warga',
+    category: 'UPDATE',
+    severity: 'IMPORTANT',
+    targetAudience: 'GLOBAL',
+    description: 'Pembaruan resmi sistem MDT HSPD v4.3.0: Menghadirkan portal slide interaktif Kitab Undang-Undang Hukum Pidana (KUHP) & SOP Kepolisian, tangga eskalasi kekuatan (Use of Force Continuum), pembacaan resmi Hak Miranda dwibahasa, modul frekuensi taktis & 10-Codes, tombol terpadu Layanan Warga, serta link Discord Kenegaraan Balai Kota.',
+    features: [
+      '1. Portal Slide Interaktif KUHP & Regulasi HSPD: Tombol navigasi geser (< dan >) di portal depan untuk meninjau Kitab Pidana & SOP Kepolisian tanpa harus login',
+      '2. Hak Miranda (Miranda Warning) Resmi: Pedoman pembacaan hak tersangka penangkapan wajib sebelum BAP demi keabsahan berkas perkara di persidangan',
+      '3. Tangga Penggunaan Kekuatan (Use of Force Continuum): 5 tingkatan eskalasi baku (Kehadiran Fisik, Komando Verbal, Borgol/Tangan Kosong, Less-Lethal Taser/Baton, dan Senjata Mematikan)',
+      '4. Kitab Pasal KUHP Terpadu (Kategori A s/d I): Modul pencarian instan seluruh pasal pidana, denda maksimal, waktu kurungan penjara, dan status impound',
+      '5. Protokol 10-Codes & Frekuensi Radio Taktis: Referensi cepat komunikasi radio lapangan (10-1 s/d CODE 0) dan kanal frekuensi radio taktis (1111 HQ, 1112 ATM, 1113 Bank Desa, 1114 Bank Pusat)',
+      '6. Tombol Akses Cepat "LAYANAN WARGA": Warga sipil dapat langsung menekan tombol Layanan Warga di portal utama untuk perizinan SKCK, pelaporan pengaduan, dan cek buronan DPO',
+      '7. Integrasi Discord Kenegaraan Balai Kota: Tautan resmi (https://discord.gg/THy6fzJvsw) langsung terhubung di portal aparatur negara'
+    ],
+    improvements: [
+      'Pembersihan passcode dan tautan donasi yang tidak perlu pada portal dinas demi privasi sistem operasional',
+      'Desain antarmuka gelap responsif yang sinkron antara laptop dan perangkat ponsel'
+    ],
+    bugFixes: [
+      'Penyelarasan hak akses umum dan penonaktifan pembatasan mode coming soon',
+      'Penghapusan tombol modifikasi pengumuman atasan dari halaman login publik demi sterilisasi keamanan'
+    ],
+    publishedAt: Date.now(),
+    publishedBy: 'Head of Core Developer',
+    publishedByBadge: 'DEV-001',
+    isBannerActive: true,
+    discordBroadcasted: false,
+    viewCount: 1,
+    acknowledgedBy: []
+  },
+  {
     id: 'announcement-v4-2-6-operational-bonus-engine',
     version: 'v4.2.6',
     title: 'Pembaruan Sistem: Modul Perhitungan Bonus Operasional 6 Kategori Prestasi Dinas HSPD',

@@ -6,7 +6,8 @@ import {
   Shield, Lock, User, KeyRound, CheckCircle2, 
   AlertTriangle, ArrowRight, Eye, EyeOff, HelpCircle, 
   LogIn, BookOpen, MessageSquare, ShieldAlert, ShieldCheck,
-  Sparkles, Crown, Building2, Globe, FileText, Terminal, PhoneCall, Coffee
+  Sparkles, Crown, Building2, Globe, FileText, Terminal, PhoneCall, Coffee, Radio,
+  Siren, Zap, Scale
 } from 'lucide-react';
 import { HSPD_LOGO_URL } from '../assets/logo';
 import { RecruitmentInfoPanel } from './RecruitmentInfoPanel';
@@ -442,9 +443,9 @@ export const OfficerLogin: React.FC<Props> = ({
         </div>
 
         {/* MAIN SPLIT GRID: LEFT/TOP = RECRUITMENT INFO, RIGHT/BOTTOM = AUTH TERMINAL */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-stretch">
           {/* ================= RECRUITMENT INFO PANEL (Top on mobile, Left 7-cols on desktop) ================= */}
-          <div id="portal-info-section" className="lg:col-span-7 w-full order-1 h-full">
+          <div id="portal-info-section" className="lg:col-span-7 w-full order-1 flex flex-col h-full">
             {authPortalTab === 'GOVERNMENT' ? (
               <GovernmentRecruitmentInfoPanel onTriggerBackdoor={() => setIsBackdoorModalOpen(true)} />
             ) : (
@@ -453,9 +454,9 @@ export const OfficerLogin: React.FC<Props> = ({
           </div>
 
           {/* ================= AUTHENTICATION & LOGIN PORTAL (Below info on mobile, Right 5-cols on desktop) ================= */}
-          <div id="terminal-login-section" className="lg:col-span-5 w-full order-2 space-y-3">
-              {/* SLIDE / TAB SWITCHER: KEPOLISIAN VS PEMERINTAHAN VS LAYANAN WARGA */}
-              <div className="grid grid-cols-3 gap-2 font-mono text-xs">
+          <div id="terminal-login-section" className="lg:col-span-5 w-full order-2 flex flex-col h-full space-y-3">
+              {/* SLIDE / TAB SWITCHER: KEPOLISIAN VS PEMERINTAHAN */}
+              <div className="grid grid-cols-2 gap-2 font-mono text-xs shrink-0">
                 <button
                   type="button"
                   id="tab-login-police"
@@ -493,26 +494,13 @@ export const OfficerLogin: React.FC<Props> = ({
                   <Crown className="w-3.5 h-3.5 text-amber-400" />
                   <span>PEMERINTAH</span>
                 </button>
-
-                <button
-                  type="button"
-                  id="tab-login-citizen"
-                  onClick={() => {
-                    setAuthPortalTab('CITIZEN');
-                  }}
-                  className="py-2 px-3 rounded-lg font-bold flex items-center justify-center gap-1.5 transition text-[11px] bg-[#0A1A17]/80 border border-emerald-500/70 text-emerald-400 hover:bg-emerald-950/40 shadow-sm"
-                  title="Buka Portal Layanan Warga Sipil (SKCK, Lapor, Izin Usaha, & Cek DPO)"
-                >
-                  <Globe className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>LAYANAN WARGA</span>
-                </button>
               </div>
 
               {/* Terminal Login Card */}
-              <div className={`bg-[#0C1017] border ${authPortalTab === 'GOVERNMENT' ? 'border-amber-700/60 shadow-amber-950/30' : 'border-gray-800'} rounded-xl shadow-2xl overflow-hidden font-mono text-xs flex flex-col transition-colors duration-300`}>
+              <div className={`bg-[#0C1017] border ${authPortalTab === 'GOVERNMENT' ? 'border-amber-700/60 shadow-amber-950/30' : 'border-gray-800'} rounded-xl shadow-2xl overflow-hidden font-mono text-xs flex flex-col flex-1 justify-between transition-colors duration-300`}>
                 
                 {/* Terminal Title Bar */}
-                <div className={`border-b border-gray-800 ${authPortalTab === 'GOVERNMENT' ? 'bg-[#15120B]' : 'bg-[#0D1117]'} px-4 py-3 flex items-center justify-between`}>
+                <div className={`border-b border-gray-800 ${authPortalTab === 'GOVERNMENT' ? 'bg-[#15120B]' : 'bg-[#0D1117]'} px-4 py-3 flex items-center justify-between shrink-0`}>
                   <div className="flex items-center gap-2">
                     {authPortalTab === 'GOVERNMENT' ? (
                       <>
@@ -540,156 +528,305 @@ export const OfficerLogin: React.FC<Props> = ({
                 </div>
 
                 {/* TAB CONTENT CONTAINER */}
-                <div className="p-4 sm:p-5 space-y-4">
-                  {loginError && (
-                    <div className="p-3 bg-rose-950/50 border border-rose-800/80 rounded-lg text-rose-300 text-xs font-mono flex items-start gap-2">
-                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                      <div>{loginError}</div>
-                    </div>
-                  )}
+                <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5">
+                  <div className="space-y-3.5">
+                    {loginError && (
+                      <div className="p-3 bg-rose-950/50 border border-rose-800/80 rounded-lg text-rose-300 text-xs font-mono flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                        <div>{loginError}</div>
+                      </div>
+                    )}
 
-                  {loginSuccess && (
-                    <div className="p-3 bg-green-950/50 border border-green-800/80 rounded-lg text-green-300 text-xs font-mono flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
-                      <span>{loginSuccess}</span>
-                    </div>
-                  )}
+                    {loginSuccess && (
+                      <div className="p-3 bg-green-950/50 border border-green-800/80 rounded-lg text-green-300 text-xs font-mono flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-green-400 shrink-0" />
+                        <span>{loginSuccess}</span>
+                      </div>
+                    )}
 
-                  <form onSubmit={handleDirectLoginSubmit} className="space-y-4">
-                    {/* Field 1: Nama / Badge */}
-                    <div className="space-y-1">
-                      <label className="text-[11px] font-bold uppercase text-gray-300 flex items-center gap-1.5">
-                        {authPortalTab === 'GOVERNMENT' ? (
-                          <Crown className="w-3.5 h-3.5 text-amber-400" />
-                        ) : (
-                          <User className="w-3.5 h-3.5 text-blue-400" />
-                        )}
-                        <span>
-                          {authPortalTab === 'GOVERNMENT' ? 'Nama Pejabat / Callsign Pemerintahan' : 'NAMA PETUGAS / NOMOR BADGE'}
-                        </span>
-                        <span className="text-rose-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        id="login-username"
-                        autoFocus
-                        value={loginIdentifier}
-                        onChange={(e) => {
-                          setLoginIdentifier(e.target.value);
-                          setLoginError('');
-                        }}
-                        placeholder={authPortalTab === 'GOVERNMENT' ? 'Contoh: Momo Hatakeyama atau #GOV-01' : 'Contoh: Leoarnd Neave atau #001'}
-                        className={`w-full px-3.5 py-2.5 bg-[#0B0F17] border ${authPortalTab === 'GOVERNMENT' ? 'border-gray-700 focus:border-amber-500' : 'border-gray-800 focus:border-blue-500'} rounded-lg text-xs text-gray-100 placeholder:text-gray-600 outline-none font-mono transition`}
-                        required
-                      />
-                      <span className="text-[10px] text-gray-500 block">
-                        {authPortalTab === 'GOVERNMENT'
-                          ? 'Gunakan Nama Lengkap Pejabat atau Callsign resmi (#GOV-XX).'
-                          : 'Gunakan Nama Lengkap Karakter In-Game atau Nomor Badge resmi Anda.'}
-                      </span>
-                    </div>
-
-                    {/* Field 2: PIN Pribadi */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
+                    <form onSubmit={handleDirectLoginSubmit} className="space-y-3.5">
+                      {/* Field 1: Nama / Badge */}
+                      <div className="space-y-1">
                         <label className="text-[11px] font-bold uppercase text-gray-300 flex items-center gap-1.5">
-                          <Lock className="w-3.5 h-3.5 text-amber-400" />
-                          <span>{authPortalTab === 'GOVERNMENT' ? 'PIN Keamanan Pejabat' : 'PIN PRIBADI PETUGAS'}</span>
+                          {authPortalTab === 'GOVERNMENT' ? (
+                            <Crown className="w-3.5 h-3.5 text-amber-400" />
+                          ) : (
+                            <User className="w-3.5 h-3.5 text-blue-400" />
+                          )}
+                          <span>
+                            {authPortalTab === 'GOVERNMENT' ? 'Nama Pejabat / Callsign Pemerintahan' : 'NAMA PETUGAS / NOMOR BADGE'}
+                          </span>
                           <span className="text-rose-400">*</span>
                         </label>
-                        {authPortalTab === 'GOVERNMENT' ? (
-                          <button
-                            type="button"
-                            onClick={() => setIsGovPinModalOpen(true)}
-                            className="text-[10px] text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 transition"
-                          >
-                            <KeyRound className="w-3 h-3 text-amber-400" />
-                            <span>Lupa / Ganti PIN?</span>
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setIsDiscordModalOpen(true)}
-                            className="text-[10px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 transition"
-                          >
-                            <span className="w-3 h-3 rounded-sm border border-blue-400/80 inline-flex items-center justify-center text-[8px]"></span>
-                            <span>Lupa / Ganti PIN?</span>
-                          </button>
-                        )}
-                      </div>
-                      <div className="relative">
                         <input
-                          type={showPassword ? 'text' : 'password'}
-                          id="login-pin"
-                          value={loginPin}
+                          type="text"
+                          id="login-username"
+                          autoFocus
+                          value={loginIdentifier}
                           onChange={(e) => {
-                            setLoginPin(e.target.value);
+                            setLoginIdentifier(e.target.value);
                             setLoginError('');
                           }}
-                          placeholder="Masukkan PIN pribadi akun Anda"
-                          className={`w-full pl-3.5 pr-10 py-2.5 bg-[#0B0F17] border ${authPortalTab === 'GOVERNMENT' ? 'border-gray-700 focus:border-amber-500' : 'border-gray-800 focus:border-blue-500'} rounded-lg text-xs text-gray-100 placeholder:text-gray-600 outline-none font-mono transition`}
+                          placeholder={authPortalTab === 'GOVERNMENT' ? 'Contoh: Momo Hatakeyama atau #GOV-01' : 'Contoh: Leoarnd Neave atau #001'}
+                          className={`w-full px-3.5 py-2.5 bg-[#0B0F17] border ${authPortalTab === 'GOVERNMENT' ? 'border-gray-700 focus:border-amber-500' : 'border-gray-800 focus:border-blue-500'} rounded-lg text-xs text-gray-100 placeholder:text-gray-600 outline-none font-mono transition`}
                           required
                         />
+                        <span className="text-[10px] text-gray-500 block">
+                          {authPortalTab === 'GOVERNMENT'
+                            ? 'Gunakan Nama Lengkap Pejabat atau Callsign resmi (#GOV-XX).'
+                            : 'Gunakan Nama Lengkap Karakter In-Game atau Nomor Badge resmi Anda.'}
+                        </span>
+                      </div>
+
+                      {/* Field 2: PIN Pribadi */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[11px] font-bold uppercase text-gray-300 flex items-center gap-1.5">
+                            <Lock className="w-3.5 h-3.5 text-amber-400" />
+                            <span>{authPortalTab === 'GOVERNMENT' ? 'PIN Keamanan Pejabat' : 'PIN PRIBADI PETUGAS'}</span>
+                            <span className="text-rose-400">*</span>
+                          </label>
+                          {authPortalTab === 'GOVERNMENT' ? (
+                            <button
+                              type="button"
+                              onClick={() => setIsGovPinModalOpen(true)}
+                              className="text-[10px] text-amber-400 hover:text-amber-300 font-bold flex items-center gap-1 transition"
+                            >
+                              <KeyRound className="w-3 h-3 text-amber-400" />
+                              <span>Lupa / Ganti PIN?</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setIsDiscordModalOpen(true)}
+                              className="text-[10px] text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 transition"
+                            >
+                              <span className="w-3 h-3 rounded-sm border border-blue-400/80 inline-flex items-center justify-center text-[8px]"></span>
+                              <span>Lupa / Ganti PIN?</span>
+                            </button>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            id="login-pin"
+                            value={loginPin}
+                            onChange={(e) => {
+                              setLoginPin(e.target.value);
+                              setLoginError('');
+                            }}
+                            placeholder="Masukkan PIN pribadi akun Anda"
+                            className={`w-full pl-3.5 pr-10 py-2.5 bg-[#0B0F17] border ${authPortalTab === 'GOVERNMENT' ? 'border-gray-700 focus:border-amber-500' : 'border-gray-800 focus:border-blue-500'} rounded-lg text-xs text-gray-100 placeholder:text-gray-600 outline-none font-mono transition`}
+                            required
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-2.5 top-2.5 text-gray-500 hover:text-gray-300 transition"
+                            title={showPassword ? 'Sembunyikan PIN' : 'Tampilkan PIN'}
+                          >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* CAPTCHA "Saya Bukan Robot" Verification Box */}
+                      <div className="pt-1">
+                        <CaptchaVerification
+                          isVerified={isCaptchaVerified}
+                          mode={authPortalTab}
+                          onVerify={(verified) => {
+                            setIsCaptchaVerified(verified);
+                            if (verified) setLoginError('');
+                          }}
+                        />
+                      </div>
+
+                      {/* Submit Login Button */}
+                      <div className="pt-1">
                         <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-2.5 top-2.5 text-gray-500 hover:text-gray-300 transition"
-                          title={showPassword ? 'Sembunyikan PIN' : 'Tampilkan PIN'}
+                          type="submit"
+                          id="btn-login-terminal"
+                          disabled={!isCaptchaVerified}
+                          className={`w-full py-3 font-bold text-xs rounded-lg transition shadow-lg flex items-center justify-center gap-2 font-mono tracking-wider ${
+                            isCaptchaVerified
+                              ? authPortalTab === 'GOVERNMENT'
+                                ? 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white shadow-amber-950/40 cursor-pointer'
+                                : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30 cursor-pointer'
+                              : 'bg-[#121722] text-gray-400 border border-gray-800 cursor-not-allowed opacity-90'
+                          }`}
                         >
-                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          <ArrowRight className="w-4 h-4 shrink-0 text-current stroke-[2.5]" />
+                          <span>
+                            {isCaptchaVerified
+                              ? authPortalTab === 'GOVERNMENT'
+                                ? 'MASUK PORTAL SURAT PEMERINTAHAN'
+                                : 'MASUK TERMINAL (10-8 ON DUTY)'
+                              : 'LENGKAPI CAPTCHA UNTUK MASUK'}
+                          </span>
                         </button>
+                      </div>
+                    </form>
+
+                    {/* TACTICAL OPERATIONAL BRIEFING / BULLETIN (Fills middle gap elegantly) */}
+                    <div className={`p-3 rounded-xl border text-xs font-mono transition-all duration-300 ${
+                      authPortalTab === 'GOVERNMENT'
+                        ? 'bg-gradient-to-br from-[#16120B] via-[#1A140D] to-[#120F09] border-amber-800/50 shadow-md shadow-amber-950/30'
+                        : 'bg-gradient-to-br from-[#0B1320] via-[#0D1726] to-[#090F1A] border-blue-900/50 shadow-md shadow-blue-950/30'
+                    }`}>
+                      {/* Header: Title & Threat Level Pill */}
+                      <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-gray-800/80">
+                        <div className="flex items-center gap-2">
+                          <div className={`p-1.5 rounded-lg ${authPortalTab === 'GOVERNMENT' ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400'}`}>
+                            {authPortalTab === 'GOVERNMENT' ? <Building2 className="w-3.5 h-3.5" /> : <Siren className="w-3.5 h-3.5 animate-pulse" />}
+                          </div>
+                          <div>
+                            <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-200">
+                              {authPortalTab === 'GOVERNMENT' ? 'WARTA RESMI BALAI KOTA' : 'SIAGA OPERASIONAL KEPOLISIAN'}
+                            </h4>
+                            <span className="text-[9px] text-gray-500 block">
+                              {authPortalTab === 'GOVERNMENT' ? 'Pusat Kebijakan & Pelayanan Publik' : 'Pusat Komando & Pengendalian Taktis'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                          authPortalTab === 'GOVERNMENT'
+                            ? 'bg-amber-950/80 text-amber-300 border-amber-700/60'
+                            : 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60 shadow-sm shadow-emerald-950/40'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${authPortalTab === 'GOVERNMENT' ? 'bg-amber-400' : 'bg-emerald-400 animate-ping'}`} />
+                          <span>{authPortalTab === 'GOVERNMENT' ? 'LAYANAN NORMAL' : 'CODE 4 • KONDUSIF'}</span>
+                        </span>
+                      </div>
+
+                      {/* 3 Tactical Protocol Mini Cards */}
+                      <div className="grid grid-cols-3 gap-1.5 mb-2">
+                        {authPortalTab === 'GOVERNMENT' ? (
+                          <>
+                            <div className="p-2 rounded-lg bg-[#0C1017]/80 border border-amber-900/30 flex flex-col justify-between">
+                              <div className="flex items-center gap-1 text-[9px] text-amber-400 font-bold mb-0.5">
+                                <FileText className="w-3 h-3 shrink-0" />
+                                <span className="truncate">SKCK WARGA</span>
+                              </div>
+                              <span className="text-[8.5px] text-gray-400 leading-tight">Verifikasi & Pengesahan</span>
+                            </div>
+
+                            <div className="p-2 rounded-lg bg-[#0C1017]/80 border border-amber-900/30 flex flex-col justify-between">
+                              <div className="flex items-center gap-1 text-[9px] text-amber-400 font-bold mb-0.5">
+                                <Scale className="w-3 h-3 shrink-0" />
+                                <span className="truncate">PERIZINAN</span>
+                              </div>
+                              <span className="text-[8.5px] text-gray-400 leading-tight">Legalitas Usaha Kota</span>
+                            </div>
+
+                            <div className="p-2 rounded-lg bg-[#0C1017]/80 border border-amber-900/30 flex flex-col justify-between">
+                              <div className="flex items-center gap-1 text-[9px] text-amber-400 font-bold mb-0.5">
+                                <Crown className="w-3 h-3 shrink-0" />
+                                <span className="truncate">ROSTER GOV</span>
+                              </div>
+                              <span className="text-[8.5px] text-gray-400 leading-tight">Pejabat Eksekutif</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="p-2 rounded-lg bg-[#070B12]/90 border border-blue-900/40 flex flex-col justify-between">
+                              <div className="flex items-center gap-1 text-[9px] text-blue-400 font-bold mb-0.5">
+                                <Radio className="w-3 h-3 shrink-0 text-cyan-400" />
+                                <span className="truncate">RADIO 1111</span>
+                              </div>
+                              <span className="text-[8.5px] text-gray-400 leading-tight">Dispatch Utama Siaga</span>
+                            </div>
+
+                            <div className="p-2 rounded-lg bg-[#070B12]/90 border border-blue-900/40 flex flex-col justify-between">
+                              <div className="flex items-center gap-1 text-[9px] text-emerald-400 font-bold mb-0.5">
+                                <Zap className="w-3 h-3 shrink-0 text-emerald-400" />
+                                <span className="truncate">PATROLI 10-8</span>
+                              </div>
+                              <span className="text-[8.5px] text-gray-400 leading-tight">Siap Panggilan Darurat</span>
+                            </div>
+
+                            <div className="p-2 rounded-lg bg-[#070B12]/90 border border-blue-900/40 flex flex-col justify-between">
+                              <div className="flex items-center gap-1 text-[9px] text-amber-400 font-bold mb-0.5">
+                                <Scale className="w-3 h-3 shrink-0 text-amber-400" />
+                                <span className="truncate">SOP HUKUM</span>
+                              </div>
+                              <span className="text-[8.5px] text-gray-400 leading-tight">Miranda Warning Wajib</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Live Dispatch Message / MotD Strip */}
+                      <div className="flex items-center justify-between text-[9px] text-gray-400 pt-1.5 border-t border-gray-800/60">
+                        <span className="flex items-center gap-1.5 truncate">
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${authPortalTab === 'GOVERNMENT' ? 'bg-amber-400' : 'bg-cyan-400 animate-pulse'}`}></span>
+                          <span className="text-gray-300 font-sans truncate">
+                            {authPortalTab === 'GOVERNMENT'
+                              ? 'Balai Kota beroperasi penuh melayani administrasi & perizinan warga.'
+                              : 'Jaga integritas lencana, aktifkan bodycam, & layani warga dengan presisi.'}
+                          </span>
+                        </span>
+                        <span className={`font-mono text-[8px] font-bold shrink-0 ml-2 px-1.5 py-0.5 rounded border ${
+                          authPortalTab === 'GOVERNMENT'
+                            ? 'text-amber-400 bg-amber-950/40 border-amber-800/40'
+                            : 'text-blue-400 bg-blue-950/40 border-blue-800/40'
+                        }`}>
+                          {authPortalTab === 'GOVERNMENT' ? 'STATE-HQ' : 'CAD-DISPATCH'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Real-time Terminal Telemetry & Operational State */}
+                  <div className="space-y-3 pt-1 mt-auto">
+                    <div className={`p-3 rounded-lg border font-mono ${
+                      authPortalTab === 'GOVERNMENT'
+                        ? 'bg-amber-950/20 border-amber-800/40'
+                        : 'bg-[#090D14] border-gray-800/80'
+                    }`}>
+                      <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-gray-800/60">
+                        <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[10px] text-gray-300">
+                          <Radio className={`w-3 h-3 ${authPortalTab === 'GOVERNMENT' ? 'text-amber-400' : 'text-blue-400'} shrink-0`} />
+                          <span>{authPortalTab === 'GOVERNMENT' ? 'STATUS PROTOKOL NEGARA' : 'STATUS SISTEM KEPOLISIAN'}</span>
+                        </span>
+                        <span className="flex items-center gap-1 text-[9px] text-emerald-400 font-bold bg-emerald-950/70 border border-emerald-800/60 px-2 py-0.5 rounded">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                          ONLINE 10-8
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[10px]">
+                        <div>
+                          <span className="text-gray-500 block text-[9px]">ENKRIPSI DATA:</span>
+                          <span className="font-bold text-gray-200">AES-256 GCM</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 block text-[9px]">SERVER STATION:</span>
+                          <span className="font-bold text-gray-200">{authPortalTab === 'GOVERNMENT' ? 'GOV-HQ #01' : 'CENTRAL HQ #01'}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 block text-[9px]">OTORISASI:</span>
+                          <span className="font-bold text-gray-200">{authPortalTab === 'GOVERNMENT' ? 'STATE HIGH COUNCIL' : 'HIGH COMMAND CAD'}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 block text-[9px]">RESPON WAKTU:</span>
+                          <span className="font-bold text-emerald-400 font-mono">12ms • OPTIMAL</span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* CAPTCHA "Saya Bukan Robot" Verification Box */}
-                    <div className="pt-1">
-                      <CaptchaVerification
-                        isVerified={isCaptchaVerified}
-                        mode={authPortalTab}
-                        onVerify={(verified) => {
-                          setIsCaptchaVerified(verified);
-                          if (verified) setLoginError('');
-                        }}
-                      />
+                    {/* Information Policy */}
+                    <div className="pt-1 border-t border-gray-800/80 flex items-start gap-2 text-[10px] leading-relaxed">
+                      <ShieldAlert className="w-3.5 h-3.5 text-amber-500/90 shrink-0 mt-0.5" />
+                      <span className="text-gray-400">
+                        <strong className="text-amber-400 font-semibold">Catatan Registrasi:</strong> Pendaftaran akun anggota baru dilakukan secara resmi oleh High Command / Supervisor melalui menu Manajemen Anggota.
+                      </span>
                     </div>
-
-                    {/* Submit Login Button */}
-                    <div className="pt-2">
-                      <button
-                        type="submit"
-                        id="btn-login-terminal"
-                        disabled={!isCaptchaVerified}
-                        className={`w-full py-3 font-bold text-xs rounded-lg transition shadow-lg flex items-center justify-center gap-2 font-mono tracking-wider ${
-                          isCaptchaVerified
-                            ? authPortalTab === 'GOVERNMENT'
-                              ? 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white shadow-amber-950/40 cursor-pointer'
-                              : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30 cursor-pointer'
-                            : 'bg-[#121722] text-gray-400 border border-gray-800 cursor-not-allowed opacity-90'
-                        }`}
-                      >
-                        <ArrowRight className="w-4 h-4 shrink-0 text-current stroke-[2.5]" />
-                        <span>
-                          {isCaptchaVerified
-                            ? authPortalTab === 'GOVERNMENT'
-                              ? 'MASUK PORTAL SURAT PEMERINTAHAN'
-                              : 'MASUK TERMINAL (10-8 ON DUTY)'
-                            : 'LENGKAPI CAPTCHA UNTUK MASUK'}
-                        </span>
-                      </button>
-                    </div>
-                  </form>
-
-                  {/* Information Policy */}
-                  <div className="pt-2 border-t border-gray-800/80 flex items-start gap-2 text-[10px] leading-relaxed">
-                    <ShieldAlert className="w-3.5 h-3.5 text-amber-500/90 shrink-0 mt-0.5" />
-                    <span className="text-gray-400">
-                      <strong className="text-amber-400 font-semibold">Catatan Registrasi:</strong> Pendaftaran akun anggota baru dilakukan secara resmi oleh High Command / Supervisor melalui menu Manajemen Anggota.
-                    </span>
                   </div>
                 </div>
 
                 {/* Terminal Footer Info */}
-                <div className="bg-[#0F1319] border-t border-gray-800 px-4 py-2 flex items-center justify-between text-[10px] text-gray-500 font-mono">
+                <div className="bg-[#0F1319] border-t border-gray-800 px-4 py-2 flex items-center justify-between text-[10px] text-gray-500 font-mono shrink-0">
                   <span className="flex items-center gap-1.5 text-gray-400">
                     <ShieldCheck className="w-3 h-3 text-emerald-400" />
                     <span>HSPD SECURE MDT v3.5 • SECURE CAD/RMS</span>

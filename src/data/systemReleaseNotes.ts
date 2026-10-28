@@ -24,6 +24,75 @@ export interface SystemReleaseNote {
 
 export const ALL_SYSTEM_RELEASES: SystemReleaseNote[] = [
   {
+    version: 'v4.3.1',
+    releaseDate: '28 Oktober 2026',
+    title: 'Pembaruan Sistem MDT HSPD - Proteksi Frekuensi Rahasia Taktis, Dual-Portal Login & Penyiaran Bot Discord',
+    headerText: '[ PEMBERITAHUAN RESMI PEMBARUAN & SISTEM TERBARU v4.3.1 ]',
+    customDescription: 'Sistem operasional MDT HSPD dan Portal Kenegaraan telah diperbarui ke versi v4.3.1. Pembaruan ini menegakkan kerahasiaan frekuensi radio taktis kepolisian, optimasi terminal login aparatur POLISI & PEMERINTAH, sinkronisasi realtime pusat pemberitahuan sistem, serta pengiriman siaran changelog langsung via Bot Discord Resmi tanpa webhook:',
+    embedColorHex: '#06B6D4',
+    embedColorInt: 0x06B6D4,
+    newFeatures: [
+      '1️⃣ Penyiaran Bot Discord Otomatis Tanpa Webhook: Pengiriman changelog & pembaruan sistem kini langsung dikirimkan oleh Bot Resmi ke Channel #changelog (1547776898833326161) via Discord REST API tanpa bergantung pada webhook',
+      '2️⃣ Pembaruan Realtime Pusat Pemberitahuan Sistem: Live Update Carousel & Pusat Siaran resmi tersinkronisasi otomatis dengan catatan rilis versi terbaru',
+      '3️⃣ Portal Slide Interaktif KUHP & Regulasi HSPD: Peninjauan Kitab Pidana, SOP Kepolisian, dan Hak Miranda secara mandiri melalui tombol geser navigasi portal depan',
+      '4️⃣ Hak Miranda (Miranda Warning) Dwibahasa Resmi: Pedoman pembacaan hak tersangka penangkapan wajib sebelum BAP demi keabsahan berkas perkara di persidangan',
+      '5️⃣ Tangga Penggunaan Kekuatan & Senjata (Use of Force Continuum): 5 tingkatan eskalasi baku (Kehadiran Fisik, Komando Verbal, Borgol/Tangan Kosong, Less-Lethal Taser/Baton, dan Senjata Mematikan)',
+      '6️⃣ Kitab Pasal KUHP Terpadu (Kategori A s/d I): Modul pencarian instan seluruh pasal pidana, denda maksimal, waktu penjara, dan status impound'
+    ],
+    removedOrAdjusted: [
+      'Pembersihan Frekuensi Radio Taktis dari Publik: Menghapus modul frekuensi taktis dari portal hukum publik demi menjaga kerahasiaan operasional HSPD',
+      'Optimasi Terminal Login Aparatur: Menghilangkan tombol layanan warga dari kotak login untuk tampilan dual-portal yang simetris dan profesional (POLISI & PEMERINTAH)'
+    ],
+    improvements: [
+      'Dukungan Penuh Pengiriman Pesan Bot Discord ke Channel Rilis tanpa webhook',
+      'Pencegahan anti pesan ganda (deduplication guard) cerdas pada siaran changelog',
+      'Desain antarmuka gelap responsif yang sinkron antara desktop laptop dan perangkat ponsel'
+    ],
+    bugFixes: [
+      'Perbaikan kendala siaran di mana tombol Push Discord sempat memerlukan URL Webhook meskipun bot aktif',
+      'Penyelarasan nomor rilis dan sinkronisasi otomatis pusat pengumuman sistem'
+    ],
+    extraNotes: 'Pembaruan ini telah aktif dan dapat langsung disiarkan oleh atasan kepolisian atau pengembang.',
+    mentionRole: 'none',
+    authorName: 'HSPD High Command',
+    authorBadge: 'DEV-001',
+    authorRank: 'Chief of Police'
+  },
+  {
+    version: 'v4.3.0',
+    releaseDate: '27 Oktober 2026',
+    title: 'Pembaruan Sistem MDT HSPD - Portal Interaktif Regulasi & KUHP HSPD, SOP Hak Miranda, dan Pusat Layanan Warga',
+    headerText: '[ PEMBERITAHUAN RESMI PEMBARUAN SISTEM MDT HSPD v4.3.0 ]',
+    customDescription: 'Sistem operasional MDT HSPD dan Portal Kenegaraan telah ditingkatkan ke versi v4.3.0. Menghadirkan portal slide interaktif Kitab Undang-Undang Hukum Pidana (KUHP) & SOP Kepolisian, tangga eskalasi kekuatan (Use of Force), pembacaan resmi Hak Miranda, modul frekuensi taktis & 10-Codes, tombol terpadu Layanan Warga, serta link Discord Kenegaraan Balai Kota:',
+    embedColorHex: '#06B6D4',
+    embedColorInt: 0x06B6D4,
+    newFeatures: [
+      '1️⃣ Portal Slide Interaktif Undang-Undang & Regulasi HSPD: Tombol navigasi geser (< dan >) di portal informasi utama untuk meninjau Kitab Pidana & SOP Kepolisian tanpa harus login',
+      '2️⃣ Hak Miranda (Miranda Warning) Dwibahasa Resmi: Pedoman pembacaan hak tersangka penangkapan wajib sebelum BAP demi keabsahan berkas perkara di persidangan',
+      '3️⃣ Tangga Penggunaan Kekuatan & Senjata (Use of Force Continuum): 5 tingkatan eskalasi baku (Kehadiran Fisik, Komando Verbal, Borgol/Tangan Kosong, Less-Lethal Taser/Baton, dan Senjata Mematikan)',
+      '4️⃣ Kitab Pasal KUHP Terpadu (Kategori A s/d I): Modul pencarian instan seluruh pasal pidana, denda maksimal, waktu penjara, dan status impound',
+      '5️⃣ Protokol 10-Codes & Frekuensi Radio Taktis: Referensi cepat komunikasi radio lapangan (10-1 s/d CODE 0) dan kanal frekuensi radio taktis (1111 HQ, 1112 ATM, 1113 Bank Desa, 1114 Bank Pusat)',
+      '6️⃣ Tombol Akses Cepat "LAYANAN WARGA": Warga sipil dapat langsung menekan tombol Layanan Warga di portal utama untuk perizinan SKCK, pelaporan pengaduan, dan cek buronan DPO',
+      '7️⃣ Integrasi Discord Kenegaraan Balai Kota: Tautan resmi (https://discord.gg/THy6fzJvsw) langsung terhubung di portal aparatur negara'
+    ],
+    removedOrAdjusted: [
+      'Pembersihan passcode dan tautan donasi yang tidak perlu pada portal dinas',
+      'Penghapusan tombol modifikasi pengumuman atasan dari halaman login publik demi sterilisasi keamanan'
+    ],
+    improvements: [
+      'Desain antarmuka gelap responsif yang sinkron antara laptop dan perangkat ponsel',
+      'Penyempurnaan performa pencarian pasal dan 10-codes secara instan'
+    ],
+    bugFixes: [
+      'Perbaikan kendala alur mode coming soon agar seluruh portal dapat diakses normal'
+    ],
+    extraNotes: 'Pembaruan ini telah aktif dan dapat langsung digunakan oleh seluruh personel, aparat pemerintah, dan warga.',
+    mentionRole: 'none',
+    authorName: 'HSPD High Command',
+    authorBadge: 'DEV-001',
+    authorRank: 'Chief of Police'
+  },
+  {
     version: 'v4.2.6',
     releaseDate: '25 Oktober 2026',
     title: 'Pembaruan Sistem MDT HSPD - Modul Perhitungan Bonus Operasional 6 Kategori Prestasi Dinas',

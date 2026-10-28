@@ -18,6 +18,7 @@ import {
 import { AuthorityPinModal } from './AuthorityPinModal';
 import { HSPD_LOGO_URL } from '../assets/logo';
 import { exportElementAsImage } from '../utils/exportDocumentAsImage';
+import { ArrestMonthlyAnalyticsChart } from './ArrestMonthlyAnalyticsChart';
 
 interface Props {
   records: ArrestRecord[];
@@ -800,6 +801,12 @@ ${r.evidenceUrl ? `\n[b]Bukti / Evidence (Foto / Video):[/b]\n${isImage ? `[img]
           </div>
         </div>
       </div>
+
+      {/* SECTION: DATA VISUALIZATION MONTHLY ARREST TRENDS (RECHARTS) */}
+      <ArrestMonthlyAnalyticsChart
+        records={records}
+        isDeveloperMode={Boolean(currentOfficer?.isDeveloper)}
+      />
 
       {/* WEBHOOK STATUS NOTIFICATION BANNER */}
       {webhookStatusMessage && (
