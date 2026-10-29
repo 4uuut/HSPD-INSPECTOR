@@ -668,103 +668,119 @@ export const OfficerLogin: React.FC<Props> = ({
                       </div>
                     </form>
 
-                    {/* TACTICAL OPERATIONAL BRIEFING / BULLETIN (Fills middle gap elegantly) */}
-                    <div className={`p-3 rounded-xl border text-xs font-mono transition-all duration-300 ${
+                    {/* UNIFIED TACTICAL DISPATCH & OPERATIONAL TELEMETRY CARD */}
+                    <div className={`p-3 rounded-xl border text-xs font-mono transition-all duration-200 ${
                       authPortalTab === 'GOVERNMENT'
                         ? 'bg-gradient-to-br from-[#16120B] via-[#1A140D] to-[#120F09] border-amber-800/50 shadow-md shadow-amber-950/30'
                         : 'bg-gradient-to-br from-[#0B1320] via-[#0D1726] to-[#090F1A] border-blue-900/50 shadow-md shadow-blue-950/30'
                     }`}>
                       {/* Header: Title & Threat Level Pill */}
                       <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-gray-800/80">
-                        <div className="flex items-center gap-2">
-                          <div className={`p-1.5 rounded-lg ${authPortalTab === 'GOVERNMENT' ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400'}`}>
-                            {authPortalTab === 'GOVERNMENT' ? <Building2 className="w-3.5 h-3.5" /> : <Siren className="w-3.5 h-3.5 animate-pulse" />}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className={`p-1.5 rounded-lg shrink-0 ${authPortalTab === 'GOVERNMENT' ? 'bg-amber-500/15 text-amber-400' : 'bg-blue-500/15 text-blue-400'}`}>
+                            {authPortalTab === 'GOVERNMENT' ? <Building2 className="w-3.5 h-3.5" /> : <Siren className="w-3.5 h-3.5" />}
                           </div>
-                          <div>
-                            <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-200">
-                              {authPortalTab === 'GOVERNMENT' ? 'WARTA RESMI BALAI KOTA' : 'SIAGA OPERASIONAL KEPOLISIAN'}
+                          <div className="min-w-0">
+                            <h4 className="text-[10px] font-bold uppercase tracking-wider text-gray-200 truncate">
+                              {authPortalTab === 'GOVERNMENT' ? 'WARTA OPERASIONAL BALAI KOTA' : 'SIAGA OPERASIONAL KEPOLISIAN'}
                             </h4>
-                            <span className="text-[9px] text-gray-500 block">
-                              {authPortalTab === 'GOVERNMENT' ? 'Pusat Kebijakan & Pelayanan Publik' : 'Pusat Komando & Pengendalian Taktis'}
+                            <span className="text-[9px] text-gray-500 block truncate">
+                              {authPortalTab === 'GOVERNMENT' ? 'Pusat Kebijakan & Dewan Eksekutif' : 'Pusat Komando Dispatch & RMS'}
                             </span>
                           </div>
                         </div>
 
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold border shrink-0 ${
                           authPortalTab === 'GOVERNMENT'
                             ? 'bg-amber-950/80 text-amber-300 border-amber-700/60'
                             : 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60 shadow-sm shadow-emerald-950/40'
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${authPortalTab === 'GOVERNMENT' ? 'bg-amber-400' : 'bg-emerald-400 animate-ping'}`} />
-                          <span>{authPortalTab === 'GOVERNMENT' ? 'LAYANAN NORMAL' : 'CODE 4 • KONDUSIF'}</span>
+                          <span className={`w-1.5 h-1.5 rounded-full ${authPortalTab === 'GOVERNMENT' ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'}`} />
+                          <span>{authPortalTab === 'GOVERNMENT' ? 'PELAYANAN AKTIF' : '10-8 • KONDUSIF'}</span>
                         </span>
                       </div>
 
-                      {/* 3 Tactical Protocol Mini Cards */}
-                      <div className="grid grid-cols-3 gap-1.5 mb-2">
+                      {/* 2x2 Tactical Specs & Protocols Grid */}
+                      <div className="grid grid-cols-2 gap-2 mb-2 text-[10px]">
                         {authPortalTab === 'GOVERNMENT' ? (
                           <>
-                            <div className="p-2 rounded-lg bg-[#0C1017]/80 border border-amber-900/30 flex flex-col justify-between">
-                              <div className="flex items-center gap-1 text-[9px] text-amber-400 font-bold mb-0.5">
-                                <FileText className="w-3 h-3 shrink-0" />
-                                <span className="truncate">SKCK WARGA</span>
+                            <div className="p-2 rounded-lg bg-[#0C1017]/90 border border-amber-900/30 flex items-center justify-between gap-1.5">
+                              <div className="min-w-0">
+                                <span className="text-gray-500 block text-[9px]">LAYANAN WARGA:</span>
+                                <span className="font-bold text-amber-300 truncate block">SKCK & PERIZINAN</span>
                               </div>
-                              <span className="text-[8.5px] text-gray-400 leading-tight">Verifikasi & Pengesahan</span>
+                              <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                             </div>
 
-                            <div className="p-2 rounded-lg bg-[#0C1017]/80 border border-amber-900/30 flex flex-col justify-between">
-                              <div className="flex items-center gap-1 text-[9px] text-amber-400 font-bold mb-0.5">
-                                <Scale className="w-3 h-3 shrink-0" />
-                                <span className="truncate">PERIZINAN</span>
+                            <div className="p-2 rounded-lg bg-[#0C1017]/90 border border-amber-900/30 flex items-center justify-between gap-1.5">
+                              <div className="min-w-0">
+                                <span className="text-gray-500 block text-[9px]">BALAI KOTA:</span>
+                                <span className="font-bold text-gray-200 truncate block">KOTA NORMAL</span>
                               </div>
-                              <span className="text-[8.5px] text-gray-400 leading-tight">Legalitas Usaha Kota</span>
+                              <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                             </div>
 
-                            <div className="p-2 rounded-lg bg-[#0C1017]/80 border border-amber-900/30 flex flex-col justify-between">
-                              <div className="flex items-center gap-1 text-[9px] text-amber-400 font-bold mb-0.5">
-                                <Crown className="w-3 h-3 shrink-0" />
-                                <span className="truncate">ROSTER GOV</span>
+                            <div className="p-2 rounded-lg bg-[#0C1017]/90 border border-amber-900/30 flex items-center justify-between gap-1.5">
+                              <div className="min-w-0">
+                                <span className="text-gray-500 block text-[9px]">ENKRIPSI DATA:</span>
+                                <span className="font-bold text-gray-200 truncate block">AES-256 GCM</span>
                               </div>
-                              <span className="text-[8.5px] text-gray-400 leading-tight">Pejabat Eksekutif</span>
+                              <ShieldCheck className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            </div>
+
+                            <div className="p-2 rounded-lg bg-[#0C1017]/90 border border-amber-900/30 flex items-center justify-between gap-1.5">
+                              <div className="min-w-0">
+                                <span className="text-gray-500 block text-[9px]">RESPON SERVER:</span>
+                                <span className="font-bold text-emerald-400 truncate block">12ms • OPTIMAL</span>
+                              </div>
+                              <Radio className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                             </div>
                           </>
                         ) : (
                           <>
-                            <div className="p-2 rounded-lg bg-[#070B12]/90 border border-blue-900/40 flex flex-col justify-between">
-                              <div className="flex items-center gap-1 text-[9px] text-blue-400 font-bold mb-0.5">
-                                <Radio className="w-3 h-3 shrink-0 text-cyan-400" />
-                                <span className="truncate">RADIO 1111</span>
+                            <div className="p-2 rounded-lg bg-[#070B12]/90 border border-blue-900/40 flex items-center justify-between gap-1.5">
+                              <div className="min-w-0">
+                                <span className="text-gray-500 block text-[9px]">DISPATCH RADIO:</span>
+                                <span className="font-bold text-cyan-300 truncate block">FREQ 1111 SIAGA</span>
                               </div>
-                              <span className="text-[8.5px] text-gray-400 leading-tight">Dispatch Utama Siaga</span>
+                              <Radio className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                             </div>
 
-                            <div className="p-2 rounded-lg bg-[#070B12]/90 border border-blue-900/40 flex flex-col justify-between">
-                              <div className="flex items-center gap-1 text-[9px] text-emerald-400 font-bold mb-0.5">
-                                <Zap className="w-3 h-3 shrink-0 text-emerald-400" />
-                                <span className="truncate">PATROLI 10-8</span>
+                            <div className="p-2 rounded-lg bg-[#070B12]/90 border border-blue-900/40 flex items-center justify-between gap-1.5">
+                              <div className="min-w-0">
+                                <span className="text-gray-500 block text-[9px]">UNIT PATROLI:</span>
+                                <span className="font-bold text-emerald-400 truncate block">10-8 ON DUTY</span>
                               </div>
-                              <span className="text-[8.5px] text-gray-400 leading-tight">Siap Panggilan Darurat</span>
+                              <Zap className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                             </div>
 
-                            <div className="p-2 rounded-lg bg-[#070B12]/90 border border-blue-900/40 flex flex-col justify-between">
-                              <div className="flex items-center gap-1 text-[9px] text-amber-400 font-bold mb-0.5">
-                                <Scale className="w-3 h-3 shrink-0 text-amber-400" />
-                                <span className="truncate">SOP HUKUM</span>
+                            <div className="p-2 rounded-lg bg-[#070B12]/90 border border-blue-900/40 flex items-center justify-between gap-1.5">
+                              <div className="min-w-0">
+                                <span className="text-gray-500 block text-[9px]">SOP MIRANDA:</span>
+                                <span className="font-bold text-amber-300 truncate block">WAJIB SAAT BAP</span>
                               </div>
-                              <span className="text-[8.5px] text-gray-400 leading-tight">Miranda Warning Wajib</span>
+                              <Scale className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            </div>
+
+                            <div className="p-2 rounded-lg bg-[#070B12]/90 border border-blue-900/40 flex items-center justify-between gap-1.5">
+                              <div className="min-w-0">
+                                <span className="text-gray-500 block text-[9px]">ENKRIPSI DATA:</span>
+                                <span className="font-bold text-gray-200 truncate block">AES-256 • 12ms</span>
+                              </div>
+                              <ShieldCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                             </div>
                           </>
                         )}
                       </div>
 
-                      {/* Live Dispatch Message / MotD Strip */}
+                      {/* Live MotD strip */}
                       <div className="flex items-center justify-between text-[9px] text-gray-400 pt-1.5 border-t border-gray-800/60">
                         <span className="flex items-center gap-1.5 truncate">
                           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${authPortalTab === 'GOVERNMENT' ? 'bg-amber-400' : 'bg-cyan-400 animate-pulse'}`}></span>
                           <span className="text-gray-300 font-sans truncate">
                             {authPortalTab === 'GOVERNMENT'
-                              ? 'Balai Kota beroperasi penuh melayani administrasi & perizinan warga.'
-                              : 'Jaga integritas lencana, aktifkan bodycam, & layani warga dengan presisi.'}
+                              ? 'Balai Kota siap melayani perizinan & keabsahan dokumen warga.'
+                              : 'Jaga integritas lencana, aktifkan bodycam, & lindungi warga.'}
                           </span>
                         </span>
                         <span className={`font-mono text-[8px] font-bold shrink-0 ml-2 px-1.5 py-0.5 rounded border ${
@@ -778,50 +794,12 @@ export const OfficerLogin: React.FC<Props> = ({
                     </div>
                   </div>
 
-                  {/* Real-time Terminal Telemetry & Operational State */}
-                  <div className="space-y-3 pt-1 mt-auto">
-                    <div className={`p-3 rounded-lg border font-mono ${
-                      authPortalTab === 'GOVERNMENT'
-                        ? 'bg-amber-950/20 border-amber-800/40'
-                        : 'bg-[#090D14] border-gray-800/80'
-                    }`}>
-                      <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-gray-800/60">
-                        <span className="flex items-center gap-1.5 font-bold uppercase tracking-wider text-[10px] text-gray-300">
-                          <Radio className={`w-3 h-3 ${authPortalTab === 'GOVERNMENT' ? 'text-amber-400' : 'text-blue-400'} shrink-0`} />
-                          <span>{authPortalTab === 'GOVERNMENT' ? 'STATUS PROTOKOL NEGARA' : 'STATUS SISTEM KEPOLISIAN'}</span>
-                        </span>
-                        <span className="flex items-center gap-1 text-[9px] text-emerald-400 font-bold bg-emerald-950/70 border border-emerald-800/60 px-2 py-0.5 rounded">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                          ONLINE 10-8
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-[10px]">
-                        <div>
-                          <span className="text-gray-500 block text-[9px]">ENKRIPSI DATA:</span>
-                          <span className="font-bold text-gray-200">AES-256 GCM</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500 block text-[9px]">SERVER STATION:</span>
-                          <span className="font-bold text-gray-200">{authPortalTab === 'GOVERNMENT' ? 'GOV-HQ #01' : 'CENTRAL HQ #01'}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500 block text-[9px]">OTORISASI:</span>
-                          <span className="font-bold text-gray-200">{authPortalTab === 'GOVERNMENT' ? 'STATE HIGH COUNCIL' : 'HIGH COMMAND CAD'}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500 block text-[9px]">RESPON WAKTU:</span>
-                          <span className="font-bold text-emerald-400 font-mono">12ms • OPTIMAL</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Information Policy */}
-                    <div className="pt-1 border-t border-gray-800/80 flex items-start gap-2 text-[10px] leading-relaxed">
-                      <ShieldAlert className="w-3.5 h-3.5 text-amber-500/90 shrink-0 mt-0.5" />
-                      <span className="text-gray-400">
-                        <strong className="text-amber-400 font-semibold">Catatan Registrasi:</strong> Pendaftaran akun anggota baru dilakukan secara resmi oleh High Command / Supervisor melalui menu Manajemen Anggota.
-                      </span>
-                    </div>
+                  {/* Information Policy */}
+                  <div className="pt-2 border-t border-gray-800/80 flex items-start gap-2 text-[10px] leading-relaxed mt-auto">
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-500/90 shrink-0 mt-0.5" />
+                    <span className="text-gray-400">
+                      <strong className="text-amber-400 font-semibold">Catatan Registrasi:</strong> Pendaftaran akun anggota baru dilakukan secara resmi oleh High Command / Supervisor melalui menu Manajemen Anggota.
+                    </span>
                   </div>
                 </div>
 

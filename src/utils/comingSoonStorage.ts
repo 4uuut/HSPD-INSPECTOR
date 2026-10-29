@@ -103,6 +103,9 @@ export function getComingSoonConfig(): ComingSoonConfig {
 export function saveComingSoonConfig(config: ComingSoonConfig): void {
   try {
     localStorage.setItem(COMING_SOON_STORAGE_KEY, JSON.stringify(config));
+    if (config.isEnabled && !isDeveloperBypassActive()) {
+      localStorage.removeItem('hspd_active_officer_v1');
+    }
     window.dispatchEvent(new CustomEvent('hspd-coming-soon-updated', { detail: config }));
     pushToFirestore('SYSTEM_CONFIGS', { id: 'COMING_SOON_CONFIG', ...config }, 'COMING_SOON_CONFIG').catch(() => {});
   } catch (e) {

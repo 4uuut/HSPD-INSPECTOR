@@ -91,11 +91,15 @@ export const ComingSoonPortal: React.FC<Props> = ({ onBypassSuccess }) => {
       {/* Top Status Bar */}
       <header className="relative z-10 border-b border-gray-800/80 bg-[#0B0E15]/90 backdrop-blur-md px-4 sm:px-8 py-3.5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="relative">
+          <div 
+            onClick={() => setShowDeveloperModal(true)}
+            className="relative cursor-pointer select-none group"
+            title="State of HighState Police Department"
+          >
             <img 
               src={HSPD_LOGO_URL} 
               alt="HSPD Logo" 
-              className="w-10 h-10 object-contain drop-shadow-[0_0_12px_rgba(245,158,11,0.4)]" 
+              className="w-10 h-10 object-contain drop-shadow-[0_0_12px_rgba(245,158,11,0.4)] group-hover:scale-105 transition-transform" 
             />
             <div className="absolute -inset-1 rounded-full border border-amber-500/40 animate-ping pointer-events-none" />
           </div>
@@ -114,22 +118,12 @@ export const ComingSoonPortal: React.FC<Props> = ({ onBypassSuccess }) => {
           </div>
         </div>
 
-        {/* Status Indicator & Developer Bypass Trigger */}
+        {/* Status Indicator */}
         <div className="flex items-center gap-2.5">
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-950/80 border border-rose-600/60 text-rose-300 text-[10px] font-mono font-bold">
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-            <span>MODUL PUBLIK & LOGIN TERKUNCI</span>
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-950/80 border border-amber-600/60 text-amber-300 text-[10px] font-mono font-bold">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+            <span>STATUS: DALAM TAHAP PENGEMBANGAN</span>
           </div>
-
-          <button
-            type="button"
-            onClick={() => setShowDeveloperModal(true)}
-            className="px-3 py-1.5 rounded-xl bg-[#141924] hover:bg-[#1E2536] border border-amber-500/60 hover:border-amber-400 text-amber-300 hover:text-amber-200 text-xs font-mono font-bold transition flex items-center gap-1.5 cursor-pointer shadow-lg shadow-amber-950/40 active:scale-95"
-            title="Masuk Melalui Otorisasi Khusus Pengembang Web"
-          >
-            <Terminal className="w-3.5 h-3.5 text-amber-400" />
-            <span>Mode Pengembang</span>
-          </button>
         </div>
       </header>
 
@@ -183,31 +177,6 @@ export const ComingSoonPortal: React.FC<Props> = ({ onBypassSuccess }) => {
           </div>
         </div>
 
-        {/* Security / Locked Notice Box */}
-        <div className="w-full max-w-2xl bg-red-950/30 border border-red-800/60 rounded-2xl p-4 text-left font-mono flex items-start gap-3">
-          <div className="p-2 rounded-xl bg-red-950 border border-red-700/80 text-red-400 shrink-0 mt-0.5">
-            <Lock className="w-5 h-5" />
-          </div>
-          <div className="space-y-1">
-            <h3 className="text-xs sm:text-sm font-bold text-red-300 uppercase tracking-wide">
-              Semua Fitur & Login Dinonaktifkan Sementara
-            </h3>
-            <p className="text-[11px] text-gray-300 leading-relaxed font-sans">
-              Anda tidak dapat menekan menu, mengakses portal warga, atau melakukan login dinas polisi/pemerintah selama status Coming Soon aktif. Hanya akun <strong>Mode Pengembang Terverifikasi</strong> yang dapat melewati penguncian ini.
-            </p>
-            <div className="pt-1.5">
-              <button
-                type="button"
-                onClick={() => setShowDeveloperModal(true)}
-                className="text-[11px] text-amber-400 hover:text-amber-300 font-bold underline flex items-center gap-1 cursor-pointer font-mono"
-              >
-                <span>Buka Kunci Gerbang Pengembang (Developer Bypass)</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-        </div>
-
         {/* ================= SNEAK PEEK / FITUR YANG AKAN HADIR ================= */}
         <div className="w-full space-y-4 pt-4">
           <div className="text-center space-y-1">
@@ -253,9 +222,13 @@ export const ComingSoonPortal: React.FC<Props> = ({ onBypassSuccess }) => {
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-gray-800/80 bg-[#07090E] px-4 sm:px-8 py-5 text-center text-xs font-mono text-gray-500 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Shield className="w-4 h-4 text-amber-400" />
-          <span>High State Police Department • CAD/MDT Operational Network 2026</span>
+        <div 
+          onClick={() => setShowDeveloperModal(true)}
+          className="flex items-center gap-2 cursor-pointer group hover:text-amber-400 transition-colors select-none"
+          title="Klik untuk membuka Login Mode Pengembang"
+        >
+          <Shield className="w-4 h-4 text-amber-400 group-hover:scale-110 group-hover:text-amber-300 transition-all" />
+          <span className="group-hover:underline">High State Police Department • CAD/MDT Operational Network 2026</span>
         </div>
         <div className="flex items-center gap-4 text-gray-400">
           <a
@@ -267,14 +240,6 @@ export const ComingSoonPortal: React.FC<Props> = ({ onBypassSuccess }) => {
             <Coffee className="w-3.5 h-3.5 text-amber-400" />
             <span>Saweria LinuxStore</span>
           </a>
-          <span>•</span>
-          <button
-            type="button"
-            onClick={() => setShowDeveloperModal(true)}
-            className="hover:text-amber-400 transition cursor-pointer"
-          >
-            Akses Pengembang
-          </button>
         </div>
       </footer>
 

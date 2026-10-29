@@ -37,7 +37,7 @@ interface Props {
   onTriggerBackdoor?: () => void;
 }
 
-export const GovernmentRecruitmentInfoPanel: React.FC<Props> = ({ currentOfficer, onTriggerBackdoor }) => {
+const GovernmentRecruitmentInfoPanelComponent: React.FC<Props> = ({ currentOfficer, onTriggerBackdoor }) => {
   const [portal, setPortal] = useState<GovernmentPortalConfig>(getGovernmentPortalConfig());
   const [activeTab, setActiveTab] = useState<'overview' | 'requirements' | 'phases' | 'ministries'>('overview');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -389,3 +389,6 @@ export const GovernmentRecruitmentInfoPanel: React.FC<Props> = ({ currentOfficer
     </div>
   );
 };
+
+export const GovernmentRecruitmentInfoPanel = React.memo(GovernmentRecruitmentInfoPanelComponent);
+

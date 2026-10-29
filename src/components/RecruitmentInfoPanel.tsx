@@ -19,7 +19,7 @@ interface Props {
   onTriggerBackdoor?: () => void;
 }
 
-export const RecruitmentInfoPanel: React.FC<Props> = ({ onTriggerBackdoor }) => {
+const RecruitmentInfoPanelComponent: React.FC<Props> = ({ onTriggerBackdoor }) => {
   const [branding, setBranding] = useState<DepartmentBrandingConfig>(getCustomBranding());
   const [portal, setPortal] = useState<RecruitmentPortalConfig>(getRecruitmentPortalConfig());
   const [currentSlide, setCurrentSlide] = useState<'RECRUITMENT' | 'LAWS'>('RECRUITMENT');
@@ -535,3 +535,6 @@ export const RecruitmentInfoPanel: React.FC<Props> = ({ onTriggerBackdoor }) => 
     </div>
   );
 };
+
+export const RecruitmentInfoPanel = React.memo(RecruitmentInfoPanelComponent);
+

@@ -39,7 +39,8 @@ import { OfficerBonusHub } from './components/OfficerBonusHub';
 import { ComingSoonPortal } from './components/ComingSoonPortal';
 import { 
   getComingSoonConfig, saveComingSoonConfig, isDeveloperBypassActive, 
-  setDeveloperBypass, resetDeveloperModeAndLock, exitDeveloperSession, SAWERIA_DONATION_URL, ComingSoonConfig 
+  setDeveloperBypass, resetDeveloperModeAndLock, exitDeveloperSession, SAWERIA_DONATION_URL, ComingSoonConfig,
+  COMING_SOON_STORAGE_KEY
 } from './utils/comingSoonStorage';
 import { synchronizeDpoAndDmvIntegrity } from './utils/activityMonitoringStorage';
 import { getAuthorityPinConfig, formatRemainingTime, AuthorityPinConfig } from './utils/authorityPin';
@@ -198,17 +199,54 @@ export default function App() {
   const [previewNormalLogin, setPreviewNormalLogin] = useState<boolean>(false);
 
   useEffect(() => {
-    const handleComingSoonSync = () => setComingSoonConfig(getComingSoonConfig());
+    const handleComingSoonSync = () => {
+      const latestCfg = getComingSoonConfig();
+      setComingSoonConfig(latestCfg);
+      if (latestCfg.isEnabled) {
+        // Otomatis tendang keluar semua akun (baik HSPD maupun Government) ke tampilan Coming Soon
+        const isBypass = isDeveloperBypassActive();
+        try {
+          const rawOfficer = localStorage.getItem(OFFICER_STORAGE_KEY);
+          const activeProf = rawOfficer ? JSON.parse(rawOfficer) : null;
+          if (!isBypass && !activeProf?.isDeveloper) {
+            localStorage.removeItem(OFFICER_STORAGE_KEY);
+            setCurrentOfficer(null);
+            setIsDuty(false);
+            setPreviewNormalLogin(false);
+          }
+        } catch {}
+      }
+    };
     const handleBypassSync = () => setIsDevBypass(isDeveloperBypassActive());
 
     window.addEventListener('hspd-coming-soon-updated', handleComingSoonSync);
     window.addEventListener('hspd-developer-bypass-updated', handleBypassSync);
+    window.addEventListener('storage', (e) => {
+      if (e.key === COMING_SOON_STORAGE_KEY) {
+        handleComingSoonSync();
+      }
+    });
 
     return () => {
       window.removeEventListener('hspd-coming-soon-updated', handleComingSoonSync);
       window.removeEventListener('hspd-developer-bypass-updated', handleBypassSync);
+      window.removeEventListener('storage', handleComingSoonSync);
     };
   }, []);
+
+  // Pastikan akun non-developer langsung tertendang keluar jika Coming Soon aktif
+  useEffect(() => {
+    if (comingSoonConfig.isEnabled && !isDevBypass && !currentOfficer?.isDeveloper) {
+      if (currentOfficer) {
+        try {
+          localStorage.removeItem(OFFICER_STORAGE_KEY);
+        } catch {}
+        setCurrentOfficer(null);
+        setIsDuty(false);
+        setPreviewNormalLogin(false);
+      }
+    }
+  }, [comingSoonConfig.isEnabled, isDevBypass, currentOfficer]);
 
   // Dedicated Android / Mobile View Mode State & Auto-detection
   const [isAndroidMode, setIsAndroidMode] = useState<boolean>(() => {
