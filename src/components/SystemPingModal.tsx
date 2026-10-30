@@ -17,6 +17,7 @@ export const SystemPingModal: React.FC<Props> = ({ isOpen, onClose, currentOffic
     return localStorage.getItem('hspd_ping_channel_id') || '1550418868814610433';
   });
   const [isSending, setIsSending] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<'manual' | 'pagi' | 'siang' | 'malam'>('manual');
   const [result, setResult] = useState<{ success: boolean; message: string; data?: any } | null>(null);
   const [serverStats, setServerStats] = useState<any>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
@@ -81,11 +82,16 @@ export const SystemPingModal: React.FC<Props> = ({ isOpen, onClose, currentOffic
         body: JSON.stringify({ donationUrl, websiteUrl })
       }).catch(() => {});
 
+      const slotTriggerTitle = selectedSlot === 'manual'
+        ? `${currentOfficer?.name || 'Petugas'} (${currentOfficer?.badge || 'HSPD'})`
+        : `Uji Coba Manual (Sesi ${selectedSlot.toUpperCase()}) oleh ${currentOfficer?.name || 'Petugas'}`;
+
       const res = await sendSystemPingToDiscord({
         channelId: targetChannelId || '1550418868814610433',
-        triggerBy: `${currentOfficer?.name || 'Petugas'} (${currentOfficer?.badge || 'HSPD'})`,
+        triggerBy: slotTriggerTitle,
         websiteUrl: websiteUrl || 'https://mdc-hspd-inspector.vercel.app/',
-        donationUrl: donationUrl || 'https://saweria.co/LinuxStore'
+        donationUrl: donationUrl || 'https://saweria.co/LinuxStore',
+        sessionSlot: selectedSlot
       } as any);
       setResult(res);
       fetchLiveStats();
@@ -146,16 +152,106 @@ export const SystemPingModal: React.FC<Props> = ({ isOpen, onClose, currentOffic
 
         {/* Content */}
         <div className="p-5 space-y-4 overflow-y-auto">
-          {/* Jawaban Langsung: Lokasi & Otomatisasi */}
-          <div className="p-3.5 bg-blue-950/40 border border-blue-800/70 rounded-xl text-xs space-y-2">
-            <div className="font-bold text-blue-200 flex items-center gap-2">
-              <Radio className="w-4 h-4 text-blue-400" />
-              <span>SISTEM PENGIRIMAN: OTOMATIS & MANUAL</span>
+          {/* Jadwal Pengiriman 3x Sehari (Pagi, Siang & Malam) */}
+          <div className="p-3.5 bg-blue-950/40 border border-blue-800/70 rounded-xl text-xs space-y-2.5">
+            <div className="font-bold text-blue-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Radio className="w-4 h-4 text-blue-400" />
+                <span>PENGIRIMAN PING OTOMATIS: 3X SEHARI (WIB)</span>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950/50 text-amber-300 border border-amber-700/60 font-bold">
+                WAKTU SERVER: {serverStats?.schedule?.currentWibTime || 'WIB'}
+              </span>
             </div>
             <p className="text-gray-300 leading-relaxed">
-              • <strong>Otomatis Kirim:</strong> Sistem sudah disetel <strong>aktif otomatis</strong> mengirimkan ping laporan status ke channel Discord <strong className="text-blue-300 font-mono">1550418868814610433</strong> saat server dimulai dan secara berkala <strong>1 hari sekali (24 jam)</strong>.<br />
-              • <strong>Manual Kirim (Tombol Instan):</strong> Anda dapat menekan tombol <strong>&quot;⚡ Kirim Ping Status Sekarang&quot;</strong> di bawah ini kapan saja untuk langsung mengirimkan laporan status terbaru ke Discord.
+              • <strong>Otomatis 3x Sehari:</strong> Sistem terjadwal otomatis mengirimkan laporan ping kesehatan ke channel Discord <strong className="text-blue-300 font-mono">1550418868814610433</strong> pada 3 sesi harian: <strong>🌅 Pagi (07:00 WIB)</strong>, <strong>☀️ Siang (13:00 WIB)</strong>, dan <strong>🌙 Malam (20:00 WIB)</strong>.<br />
+              • <strong>Jadwal Berikutnya:</strong> <strong className="text-amber-400 font-mono">{serverStats?.schedule?.nextScheduledSlot || 'Pagi (07:00 WIB)'}</strong>.<br />
+              • <strong>Uji Coba Manual:</strong> Anda juga dapat memilih salah satu sesi di bawah atau langsung menekan tombol <strong>&quot;⚡ Kirim Ping Status Sekarang&quot;</strong> kapan saja.
             </p>
+
+            {/* 3 Interactive Schedule Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+              {/* Pagi */}
+              <button
+                type="button"
+                onClick={() => setSelectedSlot(prev => prev === 'pagi' ? 'manual' : 'pagi')}
+                className={`p-2 rounded-lg border text-left transition ${
+                  selectedSlot === 'pagi'
+                    ? 'bg-amber-950/60 border-amber-500 shadow-sm'
+                    : 'bg-[#10141D] border-gray-800 hover:border-gray-700'
+                }`}
+              >
+                <div className="flex items-center justify-between text-xs font-bold text-amber-300 mb-0.5">
+                  <span className="flex items-center gap-1.5">
+                    <span>🌅</span>
+                    <span>Sesi Pagi</span>
+                  </span>
+                  <span className="text-[10px] font-mono">07:00 WIB</span>
+                </div>
+                <div className="text-[10px] font-mono flex items-center justify-between text-gray-400">
+                  <span>Hari Ini:</span>
+                  <span className={serverStats?.schedule?.slots?.find((s: any) => s.id === 'pagi')?.sentToday ? 'text-emerald-400 font-bold' : 'text-gray-400'}>
+                    {serverStats?.schedule?.slots?.find((s: any) => s.id === 'pagi')?.sentToday ? 'Terkirim ✓' : 'Menunggu'}
+                  </span>
+                </div>
+              </button>
+
+              {/* Siang */}
+              <button
+                type="button"
+                onClick={() => setSelectedSlot(prev => prev === 'siang' ? 'manual' : 'siang')}
+                className={`p-2 rounded-lg border text-left transition ${
+                  selectedSlot === 'siang'
+                    ? 'bg-blue-950/60 border-blue-500 shadow-sm'
+                    : 'bg-[#10141D] border-gray-800 hover:border-gray-700'
+                }`}
+              >
+                <div className="flex items-center justify-between text-xs font-bold text-blue-300 mb-0.5">
+                  <span className="flex items-center gap-1.5">
+                    <span>☀️</span>
+                    <span>Sesi Siang</span>
+                  </span>
+                  <span className="text-[10px] font-mono">13:00 WIB</span>
+                </div>
+                <div className="text-[10px] font-mono flex items-center justify-between text-gray-400">
+                  <span>Hari Ini:</span>
+                  <span className={serverStats?.schedule?.slots?.find((s: any) => s.id === 'siang')?.sentToday ? 'text-emerald-400 font-bold' : 'text-gray-400'}>
+                    {serverStats?.schedule?.slots?.find((s: any) => s.id === 'siang')?.sentToday ? 'Terkirim ✓' : 'Menunggu'}
+                  </span>
+                </div>
+              </button>
+
+              {/* Malam */}
+              <button
+                type="button"
+                onClick={() => setSelectedSlot(prev => prev === 'malam' ? 'manual' : 'malam')}
+                className={`p-2 rounded-lg border text-left transition ${
+                  selectedSlot === 'malam'
+                    ? 'bg-purple-950/60 border-purple-500 shadow-sm'
+                    : 'bg-[#10141D] border-gray-800 hover:border-gray-700'
+                }`}
+              >
+                <div className="flex items-center justify-between text-xs font-bold text-purple-300 mb-0.5">
+                  <span className="flex items-center gap-1.5">
+                    <span>🌙</span>
+                    <span>Sesi Malam</span>
+                  </span>
+                  <span className="text-[10px] font-mono">20:00 WIB</span>
+                </div>
+                <div className="text-[10px] font-mono flex items-center justify-between text-gray-400">
+                  <span>Hari Ini:</span>
+                  <span className={serverStats?.schedule?.slots?.find((s: any) => s.id === 'malam')?.sentToday ? 'text-emerald-400 font-bold' : 'text-gray-400'}>
+                    {serverStats?.schedule?.slots?.find((s: any) => s.id === 'malam')?.sentToday ? 'Terkirim ✓' : 'Menunggu'}
+                  </span>
+                </div>
+              </button>
+            </div>
+            {selectedSlot !== 'manual' && (
+              <div className="text-[11px] text-amber-300/90 font-mono flex items-center justify-between bg-amber-950/30 p-2 rounded border border-amber-900/40">
+                <span>Mode Uji Terpilih: <strong>Sesi {selectedSlot.toUpperCase()}</strong></span>
+                <span onClick={() => setSelectedSlot('manual')} className="underline cursor-pointer hover:text-white">Reset Uji</span>
+              </div>
+            )}
           </div>
 
           {/* Metric Tiles: Website & Bot Status */}
@@ -345,10 +441,10 @@ export const SystemPingModal: React.FC<Props> = ({ isOpen, onClose, currentOffic
               />
               <div>
                 <span className="text-xs font-bold text-gray-200 block">
-                  Otomatis Kirim Ping Rutin ke Channel #{targetChannelId} (Setiap 60 Menit)
+                  Otomatis Kirim Ping Rutin 3x Sehari (Pagi 07:00, Siang 13:00 & Malam 20:00 WIB) ke Channel #{targetChannelId}
                 </span>
-                <span className="text-[10px] text-gray-500 block">
-                  Memantau server 24/7 dan memberikan laporan kesehatan otomatis ke Discord
+                <span className="text-[10px] text-gray-400 block">
+                  Memantau server 24/7 dan memberikan laporan kesehatan otomatis 3x sehari ke channel Discord resmi
                 </span>
               </div>
             </label>

@@ -1161,13 +1161,14 @@ apiRouter.post('/discord/trigger-auto-changelog', async (req, res) => {
 // POST /api/discord/send-system-ping - Mengirim status kesehatan website & bot ke channel Discord (default: 1550418868814610433)
 apiRouter.post('/discord/send-system-ping', async (req, res) => {
   try {
-    const { channelId, triggerBy, websiteUrl, webhookUrl, donationUrl } = req.body || {};
+    const { channelId, triggerBy, websiteUrl, webhookUrl, donationUrl, sessionSlot } = req.body || {};
     const result = await discordGatewayManager.sendSystemHealthPing({
       channelId: channelId || '1550418868814610433',
       triggerBy,
       websiteUrl,
       webhookUrl,
-      donationUrl
+      donationUrl,
+      sessionSlot
     });
     return res.json(result);
   } catch (err: any) {
@@ -1179,11 +1180,12 @@ apiRouter.post('/discord/send-system-ping', async (req, res) => {
   }
 });
 
-// GET /api/discord/ping-status - Realtime ping & health data
+// GET /api/discord/ping-status - Realtime ping, health data & 3x daily schedule status
 apiRouter.get('/discord/ping-status', (req, res) => {
   try {
     const status = discordGatewayManager.getStatus();
     const serverConfig = discordGatewayManager.getServerConfig();
+    const schedule = discordGatewayManager.getPingScheduleStatus();
     return res.json({
       success: true,
       website: {
@@ -1199,7 +1201,8 @@ apiRouter.get('/discord/ping-status', (req, res) => {
         hasToken: status.hasToken,
         uptimeSeconds: status.uptimeSeconds,
         changelogChannelId: serverConfig.changelogChannelId || '1547776898833326161'
-      }
+      },
+      schedule
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, message: err.message });

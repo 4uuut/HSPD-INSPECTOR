@@ -66,6 +66,8 @@ export async function sendSystemPingToDiscord(options?: {
   triggerBy?: string;
   websiteUrl?: string;
   webhookUrl?: string;
+  donationUrl?: string;
+  sessionSlot?: 'pagi' | 'siang' | 'malam' | 'manual' | 'startup';
 }): Promise<{ success: boolean; message: string; data?: any }> {
   if (isPingInFlight) {
     return {
@@ -104,7 +106,8 @@ export async function sendSystemPingToDiscord(options?: {
           triggerBy: options?.triggerBy || 'Petugas HSPD Web Terminal',
           websiteUrl: effectiveWebsiteUrl,
           webhookUrl: savedWebhook,
-          donationUrl: effectiveDonationUrl
+          donationUrl: effectiveDonationUrl,
+          sessionSlot: options?.sessionSlot || 'manual'
         })
       });
 

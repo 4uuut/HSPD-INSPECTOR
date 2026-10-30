@@ -29,6 +29,10 @@ export interface DiscordBotServerConfig {
   autoBroadcastChangelog?: boolean; // True secara default: otomatis kirim changelog saat ada rilis/fitur baru
   autoPingEnabled?: boolean; // True secara default: otomatis kirim ping status website & bot berkala
   lastPingSentAt?: number;
+  lastPingSlotSent?: string; // Slot ping terakhir yang berhasil terkirim (e.g. '2026-10-30-pagi')
+  pingMorningHour?: number; // Jam sesi pagi (Default: 7 = 07:00 WIB)
+  pingAfternoonHour?: number; // Jam sesi siang (Default: 13 = 13:00 WIB)
+  pingNightHour?: number; // Jam sesi malam (Default: 20 = 20:00 WIB)
   lastAnnouncedVersion?: string; // Versi terakhir yang sudah otomatis disiarkan
   lastAnnouncedAt?: number;
   dutyChannelId?: string;
@@ -464,30 +468,192 @@ class DiscordGatewayManager {
     this.startAutoPingScheduler();
   }
 
+  private sentPingSlotsToday: Set<string> = new Set();
+  private autoPingCheckTimer: NodeJS.Timeout | null = null;
+
   /**
    * Pengiriman otomatis berkala status kesehatan website & bot ke channel Discord (Default: 1550418868814610433)
-   * Disetel 1 hari sekali (24 jam)
+   * Disetel 3x Sehari (Pagi, Siang & Malam) berdasarkan Waktu Indonesia Barat (WIB / Asia/Jakarta):
+   * 1. 🌅 Pagi: 07:00 WIB
+   * 2. ☀️ Siang: 13:00 WIB
+   * 3. 🌙 Malam: 20:00 WIB
    */
   private startAutoPingScheduler() {
-    // Jalankan ping pertama kali setelah 10 detik server aktif
+    // 1. Jalankan ping verifikasi inisialisasi setelah 12 detik server aktif
     setTimeout(() => {
       if (this.serverConfig.autoPingEnabled !== false) {
         this.sendSystemHealthPing({
           channelId: '1550418868814610433',
-          triggerBy: 'Sistem Heartbeat Otomatis (Server Startup)'
+          triggerBy: 'Sistem Heartbeat Otomatis (Server Startup)',
+          sessionSlot: 'startup'
         }).catch(() => {});
       }
-    }, 10000);
+    }, 12000);
 
-    // Jalankan berkala 1 HARI SEKALI (24 jam = 24 * 60 * 60 * 1000 ms)
-    setInterval(() => {
-      if (this.serverConfig.autoPingEnabled !== false) {
-        this.sendSystemHealthPing({
-          channelId: '1550418868814610433',
-          triggerBy: 'Sistem Heartbeat Otomatis (Rutin 24 Jam / 1 Hari Sekali)'
-        }).catch(() => {});
-      }
-    }, 24 * 60 * 60 * 1000);
+    // 2. Loop interval setiap 30 detik untuk memeriksa jam jadwal WIB
+    if (this.autoPingCheckTimer) {
+      clearInterval(this.autoPingCheckTimer);
+    }
+
+    this.autoPingCheckTimer = setInterval(() => {
+      this.checkScheduledDailyPings();
+    }, 30000);
+  }
+
+  /**
+   * Logika pengecekan otomatis pengiriman ping 3x sehari (Pagi, Siang, Malam WIB)
+   */
+  private checkScheduledDailyPings() {
+    if (this.serverConfig.autoPingEnabled === false) return;
+
+    const wibInfo = this.getWibTimeInfo();
+    const morningHour = this.serverConfig.pingMorningHour ?? 7;
+    const afternoonHour = this.serverConfig.pingAfternoonHour ?? 13;
+    const nightHour = this.serverConfig.pingNightHour ?? 20;
+
+    let matchedSlot: { slot: 'pagi' | 'siang' | 'malam'; label: string; hour: number; timeStr: string } | null = null;
+
+    if (wibInfo.hour === morningHour) {
+      matchedSlot = { slot: 'pagi', label: 'Pagi', hour: morningHour, timeStr: `${String(morningHour).padStart(2, '0')}:00 WIB` };
+    } else if (wibInfo.hour === afternoonHour) {
+      matchedSlot = { slot: 'siang', label: 'Siang', hour: afternoonHour, timeStr: `${String(afternoonHour).padStart(2, '0')}:00 WIB` };
+    } else if (wibInfo.hour === nightHour) {
+      matchedSlot = { slot: 'malam', label: 'Malam', hour: nightHour, timeStr: `${String(nightHour).padStart(2, '0')}:00 WIB` };
+    }
+
+    if (!matchedSlot) return;
+
+    // Window waktu pengiriman: menit 0 s/d 10 pada jam yang ditentukan
+    if (wibInfo.minute > 10) return;
+
+    const slotKey = `${wibInfo.dateKey}-${matchedSlot.slot}`;
+    if (this.sentPingSlotsToday.has(slotKey) || this.serverConfig.lastPingSlotSent === slotKey) {
+      return; // Sudah terkirim untuk sesi ini hari ini
+    }
+
+    this.sentPingSlotsToday.add(slotKey);
+    this.serverConfig.lastPingSlotSent = slotKey;
+    this.saveServerConfig();
+
+    console.log(`[Auto-Ping 3x Sehari] 📡 Mengirimkan otomatis Ping Sesi ${matchedSlot.label} (${matchedSlot.timeStr}) ke Discord...`);
+
+    this.sendSystemHealthPing({
+      channelId: '1550418868814610433',
+      triggerBy: `Sistem Otomatis 3x Sehari (Sesi ${matchedSlot.label} - ${matchedSlot.timeStr})`,
+      sessionSlot: matchedSlot.slot
+    }).catch(err => {
+      console.warn(`[Auto-Ping 3x Sehari] Gagal mengirim Ping Sesi ${matchedSlot?.label}:`, err);
+    });
+  }
+
+  /**
+   * Helper konversi waktu presisi ke Zona Waktu Indonesia Barat (WIB / Asia/Jakarta)
+   */
+  public getWibTimeInfo(): { hour: number; minute: number; second: number; dateKey: string; timeString: string; fullDateString: string } {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Jakarta',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+    const parts = formatter.formatToParts(now);
+    const p: Record<string, string> = {};
+    for (const part of parts) {
+      p[part.type] = part.value;
+    }
+    const year = p['year'] || '2026';
+    const month = p['month'] || '01';
+    const day = p['day'] || '01';
+    const hour = parseInt(p['hour'] || '0', 10);
+    const minute = parseInt(p['minute'] || '0', 10);
+    const second = parseInt(p['second'] || '0', 10);
+    const dateKey = `${year}-${month}-${day}`;
+    const timeString = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')} WIB`;
+
+    const fullDateString = new Intl.DateTimeFormat('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    }).format(now) + ' WIB';
+
+    return { hour, minute, second, dateKey, timeString, fullDateString };
+  }
+
+  /**
+   * Memberikan status jadwal pengiriman ping 3x sehari untuk frontend & dashboard
+   */
+  public getPingScheduleStatus() {
+    const wib = this.getWibTimeInfo();
+    const morningHour = this.serverConfig.pingMorningHour ?? 7;
+    const afternoonHour = this.serverConfig.pingAfternoonHour ?? 13;
+    const nightHour = this.serverConfig.pingNightHour ?? 20;
+
+    const pagiKey = `${wib.dateKey}-pagi`;
+    const siangKey = `${wib.dateKey}-siang`;
+    const malamKey = `${wib.dateKey}-malam`;
+
+    const isPagiSent = this.sentPingSlotsToday.has(pagiKey) || this.serverConfig.lastPingSlotSent === pagiKey;
+    const isSiangSent = this.sentPingSlotsToday.has(siangKey) || this.serverConfig.lastPingSlotSent === siangKey;
+    const isMalamSent = this.sentPingSlotsToday.has(malamKey) || this.serverConfig.lastPingSlotSent === malamKey;
+
+    let nextSlotName = 'Pagi';
+    let nextSlotTime = `${String(morningHour).padStart(2, '0')}:00 WIB`;
+    if (wib.hour < morningHour) {
+      nextSlotName = 'Pagi';
+      nextSlotTime = `${String(morningHour).padStart(2, '0')}:00 WIB`;
+    } else if (wib.hour < afternoonHour) {
+      nextSlotName = 'Siang';
+      nextSlotTime = `${String(afternoonHour).padStart(2, '0')}:00 WIB`;
+    } else if (wib.hour < nightHour) {
+      nextSlotName = 'Malam';
+      nextSlotTime = `${String(nightHour).padStart(2, '0')}:00 WIB`;
+    } else {
+      nextSlotName = 'Pagi (Besok)';
+      nextSlotTime = `Besok ${String(morningHour).padStart(2, '0')}:00 WIB`;
+    }
+
+    return {
+      autoPingEnabled: this.serverConfig.autoPingEnabled !== false,
+      frequency: '3x Sehari (Pagi, Siang & Malam)',
+      currentWibTime: wib.timeString,
+      currentWibFullDate: wib.fullDateString,
+      nextScheduledSlot: `${nextSlotName} (${nextSlotTime})`,
+      lastPingSentAt: this.lastPingSentAt,
+      slots: [
+        {
+          id: 'pagi',
+          name: 'Sesi Pagi',
+          icon: '🌅',
+          time: `${String(morningHour).padStart(2, '0')}:00 WIB`,
+          sentToday: isPagiSent
+        },
+        {
+          id: 'siang',
+          name: 'Sesi Siang',
+          icon: '☀️',
+          time: `${String(afternoonHour).padStart(2, '0')}:00 WIB`,
+          sentToday: isSiangSent
+        },
+        {
+          id: 'malam',
+          name: 'Sesi Malam',
+          icon: '🌙',
+          time: `${String(nightHour).padStart(2, '0')}:00 WIB`,
+          sentToday: isMalamSent
+        }
+      ]
+    };
   }
 
   private loadSavedServerConfig() {
@@ -881,6 +1047,7 @@ class DiscordGatewayManager {
     websiteUrl?: string;
     webhookUrl?: string;
     donationUrl?: string;
+    sessionSlot?: 'pagi' | 'siang' | 'malam' | 'manual' | 'startup';
   }): Promise<{ success: boolean; message: string; channelId?: string; pingStats?: any }> {
     const targetChannelId = options?.channelId || '1550418868814610433';
 
@@ -923,6 +1090,34 @@ class DiscordGatewayManager {
     const webLatency = Math.floor(Math.random() * 15) + 18; // 18-33ms internal container roundtrip
     const gatewayPing = this.state.lastHeartbeatAck ? Math.max(12, Math.min(120, Date.now() - this.state.lastHeartbeatAck)) : 22;
 
+    const sessionSlot = options?.sessionSlot || 'manual';
+    let sessionHeader = '📡 **[ PING KESEHATAN SISTEM: WEBSITE & BOT ONLINE ]**';
+    let sessionTitle = '📡 Laporan Ping Status Real-Time Website & Bot Discord';
+    let sessionDescPrefix = '';
+    let sessionColor = isBotOnline ? 0x2ECC71 : 0x00A8FF;
+
+    if (sessionSlot === 'pagi') {
+      sessionHeader = '🌅 **[ PING KESEHATAN SISTEM: SESI PAGI (07:00 WIB) - WEBSITE & BOT ONLINE ]**';
+      sessionTitle = '🌅 Laporan Ping Status Sistem • Sesi Pagi (07:00 WIB)';
+      sessionDescPrefix = '🌅 **Pemeriksaan Rutin Sesi Pagi (07:00 WIB)**\nLaporan otomatis pagi hari untuk memastikan integritas konektivitas terminal MDT HSPD dan bot dispatch Discord beroperasi optimal.\n\n';
+      sessionColor = 0xF59E0B;
+    } else if (sessionSlot === 'siang') {
+      sessionHeader = '☀️ **[ PING KESEHATAN SISTEM: SESI SIANG (13:00 WIB) - WEBSITE & BOT ONLINE ]**';
+      sessionTitle = '☀️ Laporan Ping Status Sistem • Sesi Siang (13:00 WIB)';
+      sessionDescPrefix = '☀️ **Pemeriksaan Rutin Sesi Siang (13:00 WIB)**\nLaporan otomatis siang hari untuk memantau stabilitas server saat beban operasional tinggi berlangsung prima.\n\n';
+      sessionColor = 0x3B82F6;
+    } else if (sessionSlot === 'malam') {
+      sessionHeader = '🌙 **[ PING KESEHATAN SISTEM: SESI MALAM (20:00 WIB) - WEBSITE & BOT ONLINE ]**';
+      sessionTitle = '🌙 Laporan Ping Status Sistem • Sesi Malam (20:00 WIB)';
+      sessionDescPrefix = '🌙 **Pemeriksaan Rutin Sesi Malam (20:00 WIB)**\nLaporan otomatis malam hari untuk memantau kelancaran patroli malam dan ketahanan koneksi server 24/7.\n\n';
+      sessionColor = 0x8B5CF6;
+    } else if (sessionSlot === 'startup') {
+      sessionHeader = '🚀 **[ PING KESEHATAN SISTEM: SERVER STARTUP - WEBSITE & BOT ONLINE ]**';
+      sessionTitle = '🚀 Laporan Inisialisasi Sistem • Server Startup';
+      sessionDescPrefix = '🚀 **Inisialisasi Sistem & Gateway Berhasil**\nServer Express dan Bot Gateway Discord telah aktif dan siap melayani operasional kepolisian.\n\n';
+      sessionColor = 0x10B981;
+    }
+
     const pingStats = {
       website: {
         status: 'ONLINE',
@@ -936,6 +1131,7 @@ class DiscordGatewayManager {
         gatewayPingMs: gatewayPing,
         uptime: uptimeStr
       },
+      sessionSlot,
       timestamp: wibDateStr
     };
 
@@ -946,9 +1142,9 @@ class DiscordGatewayManager {
         name: 'SISTEM MONITORING & HEALTH CHECK • HIGH STATE POLICE',
         icon_url: botAvatar
       },
-      title: '📡 Laporan Ping Status Real-Time Website & Bot Discord',
-      description: `Pemeriksaan integritas konektivitas terminal MDT HSPD dan bot dispatch Discord secara berkala.\n\n🕒 **Waktu Pemeriksaan:** \`${wibDateStr}\``,
-      color: isBotOnline ? 0x2ECC71 : 0x00A8FF,
+      title: sessionTitle,
+      description: `${sessionDescPrefix}Pemeriksaan konektivitas terminal MDT HSPD dan bot dispatch Discord secara berkala.\n\n🕒 **Waktu Pemeriksaan:** \`${wibDateStr}\``,
+      color: sessionColor,
       fields: [
         {
           name: '🌐 Status Website & Server MDT',
@@ -968,10 +1164,20 @@ class DiscordGatewayManager {
             `• Waktu Aktif (Uptime): \`${uptimeStr}\``
           ].join('\n'),
           inline: false
+        },
+        {
+          name: '⏰ Jadwal Pengiriman Ping Rutin (3x Sehari)',
+          value: [
+            `• 🌅 **Sesi Pagi:** \`07:00 WIB\` ${sessionSlot === 'pagi' ? '**(SEDANG DIKIRIM ✓)**' : ''}`,
+            `• ☀️ **Sesi Siang:** \`13:00 WIB\` ${sessionSlot === 'siang' ? '**(SEDANG DIKIRIM ✓)**' : ''}`,
+            `• 🌙 **Sesi Malam:** \`20:00 WIB\` ${sessionSlot === 'malam' ? '**(SEDANG DIKIRIM ✓)**' : ''}`,
+            `• 🛡️ **Pemicu:** \`${options?.triggerBy || 'Sistem Otomatis 3x Sehari'}\``
+          ].join('\n'),
+          inline: false
         }
       ],
       footer: {
-        text: `HSPD System Diagnostics • Status Operasional Optimal`,
+        text: `HSPD System Diagnostics • Status Operasional Optimal 3x Sehari`,
         icon_url: botAvatar
       },
       timestamp: now.toISOString()
@@ -1005,7 +1211,7 @@ class DiscordGatewayManager {
     const payload = {
       username: botName || 'HSPD Roleplay Assistant',
       avatar_url: botAvatar,
-      content: `📡 **[ PING KESEHATAN SISTEM: WEBSITE & BOT ONLINE ]**`,
+      content: sessionHeader,
       embeds: [embed],
       components
     };
