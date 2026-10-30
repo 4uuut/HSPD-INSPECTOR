@@ -1266,3 +1266,578 @@ apiRouter.post('/discord/simulate-command', async (req, res) => {
   }
 });
 
+// =========================================================================
+// GTA SA-MP & MOONLOADER OPERATIONAL GATEWAY ROUTES (/api/samp/*)
+// Memungkinkan koneksi 2 arah antara game GTA SA-MP dan Web CAD/MDT HSPD
+// =========================================================================
+
+interface SampDutyRecord {
+  officerName: string;
+  badge: string;
+  isDuty: boolean;
+  dutyStartTime: number;
+  dutyStatus: string;
+  dutyDurationSeconds?: number;
+  callsign?: string;
+  partner?: string;
+  serverIp?: string;
+  serverName?: string;
+  inGameId?: number;
+  lastSeen: number;
+  updatedAt: number;
+  source: 'moonloader' | 'samp_server' | 'web';
+}
+
+const sampDutyRegistry = new Map<string, SampDutyRecord>();
+const sampPanicAlerts: Array<{
+  id: string;
+  officerName: string;
+  badge: string;
+  location?: string;
+  timestamp: number;
+  inGameId?: number;
+}> = [];
+
+// Helper: normalize key
+function getSampOfficerKey(badge: string, name?: string): string {
+  const cleanBadge = (badge || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (cleanBadge) return cleanBadge;
+  return (name || 'unknown').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+// 1. POST /api/samp/duty - Diterima dari MoonLoader saat pemain ketik /duty di in-game
+apiRouter.post('/samp/duty', (req, res) => {
+  try {
+    const body = req.body || {};
+    const officerName = (body.officerName || body.name || 'Officer').trim();
+    const badge = (body.badge || body.badgeNumber || '000').trim();
+    const isDuty = typeof body.isDuty === 'boolean' ? body.isDuty : (body.status === '8-1-1' || body.status === '10-8');
+    const dutyStatus = body.dutyStatus || (isDuty ? '8-1-1' : '8-1-0');
+    const callsign = (body.callsign || 'UNIT-1').trim();
+    const partner = (body.partner || '').trim();
+    const serverIp = body.serverIp || 'GTA SA-MP Server';
+    const serverName = body.serverName || 'State of High State RP';
+    const inGameId = typeof body.inGameId === 'number' ? body.inGameId : undefined;
+    const source = body.source || 'moonloader';
+
+    const now = Date.now();
+    const key = getSampOfficerKey(badge, officerName);
+    const existing = sampDutyRegistry.get(key);
+
+    let dutyStartTime = now;
+    let dutyDurationSeconds = 0;
+
+    if (isDuty) {
+      if (existing && existing.isDuty && existing.dutyStartTime > 0) {
+        dutyStartTime = existing.dutyStartTime;
+      } else {
+        dutyStartTime = now;
+      }
+      dutyDurationSeconds = Math.max(0, Math.floor((now - dutyStartTime) / 1000));
+    } else {
+      if (existing && existing.dutyStartTime > 0) {
+        dutyStartTime = existing.dutyStartTime;
+        dutyDurationSeconds = Math.max(0, Math.floor((now - existing.dutyStartTime) / 1000));
+      } else {
+        dutyStartTime = 0;
+        dutyDurationSeconds = 0;
+      }
+    }
+
+    const updatedRecord: SampDutyRecord = {
+      officerName,
+      badge,
+      isDuty,
+      dutyStartTime: isDuty ? dutyStartTime : 0,
+      dutyStatus,
+      dutyDurationSeconds,
+      callsign,
+      partner: partner || undefined,
+      serverIp,
+      serverName,
+      inGameId,
+      lastSeen: now,
+      updatedAt: now,
+      source
+    };
+
+    sampDutyRegistry.set(key, updatedRecord);
+
+    console.log(`[SA-MP MoonLoader] Officer ${officerName} (#${badge}) updated duty: ${isDuty ? '🟢 ON DUTY' : '🔴 OFF DUTY'} (${dutyStatus}) from ${serverName}`);
+
+    return res.json({
+      success: true,
+      message: `Status dinas petugas ${officerName} (#${badge}) berhasil disinkronkan ke Web CAD!`,
+      officer: updatedRecord
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: `Gagal memproses sync duty SA-MP: ${err.message || err}` });
+  }
+});
+
+// 2. GET /api/samp/duty-status - Digunakan web dan MoonLoader untuk cek status terkini
+apiRouter.get('/samp/duty-status', (req, res) => {
+  try {
+    const badge = String(req.query.badge || '').trim();
+    const name = String(req.query.name || req.query.officerName || '').trim();
+
+    if (!badge && !name) {
+      return res.status(400).json({ success: false, message: 'Harap sertakan parameter badge atau name!' });
+    }
+
+    const key = getSampOfficerKey(badge, name);
+    const record = sampDutyRegistry.get(key);
+
+    if (!record) {
+      return res.json({
+        success: true,
+        found: false,
+        isDuty: false,
+        dutyStartTime: 0,
+        dutyStatus: '8-1-0',
+        message: 'Belum ada data dinas SA-MP yang tercatat untuk petugas ini.'
+      });
+    }
+
+    const now = Date.now();
+    const durationSeconds = record.isDuty && record.dutyStartTime > 0 
+      ? Math.max(0, Math.floor((now - record.dutyStartTime) / 1000))
+      : (record.dutyDurationSeconds || 0);
+
+    const hours = Math.floor(durationSeconds / 3600);
+    const minutes = Math.floor((durationSeconds % 3600) / 60);
+    const seconds = durationSeconds % 60;
+    const dutyFormatted = `${hours > 0 ? `${hours} Jam ` : ''}${minutes} Menit ${seconds} Detik`;
+
+    return res.json({
+      success: true,
+      found: true,
+      officer: record,
+      isDuty: record.isDuty,
+      dutyStartTime: record.dutyStartTime,
+      dutyStatus: record.dutyStatus,
+      dutyDurationSeconds: durationSeconds,
+      dutyFormatted,
+      lastSeen: record.lastSeen,
+      updatedAt: record.updatedAt
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 3. GET /api/samp/live-officers - Menampilkan semua petugas yang sedang On Duty di game SA-MP
+apiRouter.get('/samp/live-officers', (req, res) => {
+  try {
+    const now = Date.now();
+    const officers = Array.from(sampDutyRegistry.values()).map(o => {
+      const durationSeconds = o.isDuty && o.dutyStartTime > 0 
+        ? Math.max(0, Math.floor((now - o.dutyStartTime) / 1000))
+        : (o.dutyDurationSeconds || 0);
+      return {
+        ...o,
+        dutyDurationSeconds: durationSeconds,
+        isOnlineInGame: (now - o.lastSeen) < 180000 // online jika sinyal diterima dalam 3 menit
+      };
+    });
+
+    const activeOnDuty = officers.filter(o => o.isDuty);
+
+    return res.json({
+      success: true,
+      totalRegistered: officers.length,
+      totalOnDuty: activeOnDuty.length,
+      officers
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 4. POST /api/samp/panic - Tombol Panik / Backup 10-20 dari in-game SA-MP
+apiRouter.post('/samp/panic', (req, res) => {
+  try {
+    const { officerName, badge, location, inGameId } = req.body || {};
+    const alert = {
+      id: `panic-${Date.now()}`,
+      officerName: officerName || 'Petugas HSPD',
+      badge: badge || 'UNKNOWN',
+      location: location || 'Lokasi Tidak Diketahui',
+      timestamp: Date.now(),
+      inGameId: inGameId || null
+    };
+
+    sampPanicAlerts.unshift(alert);
+    if (sampPanicAlerts.length > 50) sampPanicAlerts.pop();
+
+    console.warn(`🚨 [SA-MP PANIC 10-20] Officer ${alert.officerName} (#${alert.badge}) meminta bantuan darurat di ${alert.location}!`);
+
+    return res.json({
+      success: true,
+      message: '🚨 Peringatan darurat 10-20 (Panic Button) berhasil disiarkan ke seluruh jajaran Terminal CAD/MDT HSPD!',
+      alert
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// 5. GET /api/samp/panic-alerts - Mengambil daftar tombol panik aktif
+apiRouter.get('/samp/panic-alerts', (req, res) => {
+  return res.json({
+    success: true,
+    alerts: sampPanicAlerts
+  });
+});
+
+// 6. POST /api/samp/test-ping - Endpoint uji koneksi dari MoonLoader / Tester Web
+apiRouter.all('/samp/test-ping', (req, res) => {
+  return res.json({
+    success: true,
+    status: 'ONLINE',
+    system: 'HSPD CAD/MDT SA-MP MoonLoader Gateway',
+    version: 'v3.8',
+    serverTime: new Date().toISOString(),
+    corsEnabled: true,
+    supportedFeatures: [
+      'Auto-detect /duty on SA-MP chat/command',
+      'Real-time Web CAD Duty Status Sync',
+      '10-20 Panic Backup Alert Broadcast',
+      'In-game Miranda Rights Automation',
+      'Floating CAD Tactical HUD'
+    ]
+  });
+});
+
+// 7. GET /api/samp/download/moonloader - Download script HSPD_CAD_Sync.lua yang sudah otomatis terkonfigurasi
+apiRouter.get('/samp/download/moonloader', (req, res) => {
+  try {
+    const host = req.get('host') || 'localhost:3000';
+    const protocol = req.protocol === 'https' || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+    const defaultApiUrl = `${protocol}://${host}`;
+
+    const luaScript = generateMoonLoaderScript(defaultApiUrl);
+
+    res.setHeader('Content-Type', 'text/x-lua; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="HSPD_CAD_Sync.lua"');
+    return res.send(luaScript);
+  } catch (err: any) {
+    return res.status(500).send(`-- Gagal generate script: ${err.message}`);
+  }
+});
+
+function generateMoonLoaderScript(defaultBaseUrl: string): string {
+  return `-- ============================================================================
+-- HIGH STATE POLICE DEPARTMENT (HSPD) - CAD / MDT SA-MP MOONLOADER SYNC SCRIPT
+-- Versi: 3.8.0 (Official Release 2026)
+-- Deskripsi: Menghubungkan game GTA San Andreas / SA-MP dengan Web Terminal CAD HSPD
+-- Fitur: 
+--   * Otomatis deteksi saat Anda ketik /duty atau On/Off duty di in-game
+--   * Otomatis kirim status ke Website CAD HSPD secara instan & real-time
+--   * Floating HUD status dinas & timer di layar game
+--   * Perintah: /hspd, /hspd duty, /hspd cad, /hspd miranda, /hspd backup
+-- ============================================================================
+
+script_name("HSPD_CAD_Sync")
+script_author("HSPD IT Division")
+script_version("3.8.0")
+script_description("Sinkronisasi Otomatis Status Dinas Polisi SA-MP ke Web CAD HSPD")
+
+local sampev = nil
+pcall(function() sampev = require("samp.events") end)
+local inicfg = require("inicfg")
+
+-- Konfigurasi Default
+local iniPath = "hspd_sync.ini"
+local defaultCfg = {
+    settings = {
+        server_url = "${defaultBaseUrl}",
+        officer_badge = "001",
+        officer_callsign = "UNIT-1",
+        auto_duty_sync = true,
+        show_hud = true,
+        hud_pos_x = 20,
+        hud_pos_y = 400
+    }
+}
+
+local cfg = inicfg.load(defaultCfg, iniPath)
+if not cfg then
+    cfg = defaultCfg
+    inicfg.save(cfg, iniPath)
+end
+
+-- Variabel Status Dinas Lokal
+local isDutyLocal = false
+local dutyStartTime = 0
+local lastSyncTimestamp = 0
+local fontHud = nil
+
+-- Helper Pesan Chat Warna HSPD
+function sendHspdChat(text)
+    if sampIsChatOpen and sampIsChatOpen() then return end
+    sampAddChatMessage("{00A8FF}[HSPD CAD] {FFFFFF}" .. text, -1)
+end
+
+-- Helper HTTP Request Async (Menggunakan requests atau Windows curl fallback)
+function sendApiRequest(endpoint, payloadTable, callback)
+    lua_thread.create(function()
+        local jsonStr = "{"
+        local first = true
+        for k, v in pairs(payloadTable) do
+            if not first then jsonStr = jsonStr .. "," end
+            first = false
+            if type(v) == "boolean" then
+                jsonStr = jsonStr .. string.format('"%s":%s', k, tostring(v))
+            elseif type(v) == "number" then
+                jsonStr = jsonStr .. string.format('"%s":%s', k, tostring(v))
+            else
+                local cleanStr = tostring(v):gsub('"', '\\\\"')
+                jsonStr = jsonStr .. string.format('"%s":"%s"', k, cleanStr)
+            end
+        end
+        jsonStr = jsonStr .. "}"
+
+        local fullUrl = cfg.settings.server_url .. endpoint
+        
+        -- Coba menggunakan library requests jika terinstall di MoonLoader
+        local hasRequests, requests = pcall(require, "requests")
+        if hasRequests and requests then
+            local response = requests.post{
+                url = fullUrl,
+                headers = { ["Content-Type"] = "application/json" },
+                data = jsonStr,
+                timeout = 5
+            }
+            if response and response.status_code == 200 then
+                if callback then callback(true, response.text) end
+                return
+            end
+        end
+
+        -- Fallback: Gunakan PowerShell curl async agar game tidak freeze
+        local psCmd = string.format('powershell -Command "Invoke-RestMethod -Uri \'%s\' -Method Post -ContentType \'application/json\' -Body \'%s\' -TimeoutSec 4"', fullUrl, jsonStr:gsub("'", "''"))
+        os.execute(psCmd .. " > nul 2>&1")
+        if callback then callback(true, "Sent via Background Transport") end
+    end)
+end
+
+-- Sinkronisasi Status Dinas ke Web CAD
+function syncDutyToCad(isDutyState, statusText)
+    local myName = "Officer"
+    local myId = -1
+    local serverName = "GTA SA-MP"
+    local serverIp = "127.0.0.1:7777"
+
+    pcall(function()
+        if sampIsLocalPlayerSpawned and sampIsLocalPlayerSpawned() then
+            local _, id = sampGetPlayerIdByCharHandle(PLAYER_PED)
+            myId = id
+            myName = sampGetPlayerNickname(myId)
+            serverName = sampGetCurrentServerName()
+            serverIp = sampGetCurrentServerAddress()
+        end
+    end)
+
+    isDutyLocal = isDutyState
+    if isDutyState then
+        if dutyStartTime == 0 then dutyStartTime = os.time() end
+    else
+        dutyStartTime = 0
+    end
+
+    local payload = {
+        officerName = myName,
+        badge = cfg.settings.officer_badge or "001",
+        isDuty = isDutyState,
+        dutyStatus = isDutyState and "8-1-1" or "8-1-0",
+        callsign = cfg.settings.officer_callsign or "UNIT-1",
+        serverIp = serverIp,
+        serverName = serverName,
+        inGameId = myId,
+        source = "moonloader"
+    }
+
+    sendHspdChat(string.format("Menghubungkan status dinas {FFD700}%s{FFFFFF} ke Web CAD...", isDutyState and "ON DUTY (8-1-1)" or "OFF DUTY (8-1-0)"))
+
+    sendApiRequest("/api/samp/duty", payload, function(success, res)
+        if success then
+            sendHspdChat(string.format("{00FF7F}BERHASIL!{FFFFFF} Status dinas Anda di Web CAD telah aktif: {00FF7F}%s{FFFFFF}", isDutyState and "🟢 ON DUTY" or "🔴 OFF DUTY"))
+        else
+            sendHspdChat("{FF4500}PERINGATAN:{FFFFFF} Gagal terhubung ke Web CAD. Periksa URL server di config!")
+        end
+    end)
+end
+
+-- Kirim Panic Button 10-20 Darurat
+function sendPanicAlert()
+    local myName = "Officer"
+    local myId = -1
+    local loc = "San Andreas"
+    
+    pcall(function()
+        local _, id = sampGetPlayerIdByCharHandle(PLAYER_PED)
+        myId = id
+        myName = sampGetPlayerNickname(myId)
+        local x, y, z = getCharCoordinates(PLAYER_PED)
+        loc = string.format("X: %.1f, Y: %.1f, Z: %.1f", x, y, z)
+    end)
+
+    local payload = {
+        officerName = myName,
+        badge = cfg.settings.officer_badge or "001",
+        location = loc,
+        inGameId = myId
+    }
+
+    sendHspdChat("{FF0000}[EMERGENCY 10-20]{FFFFFF} Menyiarkan sinyal bantuan darurat ke Dispatch CAD...")
+    sendApiRequest("/api/samp/panic", payload, function(success)
+        if success then
+            sendHspdChat("{00FF7F}10-20 TERSAMPAIKAN!{FFFFFF} Seluruh unit di Terminal CAD menerima koordinat darurat Anda!")
+        end
+    end)
+end
+
+-- Hook Perintah Game: Deteksi saat pemain ketik /duty
+if sampev then
+    function sampev.onSendCommand(command)
+        if not cfg.settings.auto_duty_sync then return end
+        
+        local cmd = command:lower()
+        if cmd == "/duty" or cmd:find("^/duty%s*") then
+            -- Balikkan status dinas lokal saat ketik /duty
+            local nextState = not isDutyLocal
+            syncDutyToCad(nextState, nextState and "8-1-1" or "8-1-0")
+        end
+    end
+
+    -- Hook Pesan Server: Deteksi jika server mengeluarkan pesan notifikasi dinas
+    function sampev.onServerMessage(color, text)
+        if not cfg.settings.auto_duty_sync then return end
+        local lower = text:lower()
+
+        -- Pola On Duty
+        if lower:find("now on duty") or lower:find("memulai tugas") or lower:find("kamu sedang on duty") or lower:find("status: on duty") then
+            if not isDutyLocal then
+                syncDutyToCad(true, "8-1-1")
+            end
+        -- Pola Off Duty
+        elseif lower:find("now off duty") or lower:find("selesai tugas") or lower:find("kamu telah off duty") or lower:find("status: off duty") then
+            if isDutyLocal then
+                syncDutyToCad(false, "8-1-0")
+            end
+        end
+    end
+end
+
+-- Render Floating HUD di Layar Game
+function renderHspdDutyHud()
+    if not cfg.settings.show_hud then return end
+    if not isDutyLocal then return end
+
+    local x = cfg.settings.hud_pos_x or 20
+    local y = cfg.settings.hud_pos_y or 400
+
+    local elapsed = (dutyStartTime > 0) and (os.time() - dutyStartTime) or 0
+    local h = math.floor(elapsed / 3600)
+    local m = math.floor((elapsed % 3600) / 60)
+    local s = elapsed % 60
+    local timeStr = string.format("%02d:%02d:%02d", h, m, s)
+
+    local hudText = string.format("[HSPD CAD] 10-8 ON DUTY | #%s | %s | %s", 
+        cfg.settings.officer_badge or "001",
+        cfg.settings.officer_callsign or "UNIT-1",
+        timeStr
+    )
+
+    if renderFontDrawText then
+        renderFontDrawText(fontHud, hudText, x, y, 0xFF00FF7F)
+    end
+end
+
+function main()
+    while not isSampLoaded() or not isSampfuncsLoaded() do wait(100) end
+    while not sampIsLocalPlayerSpawned() do wait(200) end
+
+    -- Init font HUD
+    pcall(function()
+        fontHud = renderCreateFont("Arial", 9, 5) -- Arial bold
+    end)
+
+    sendHspdChat("{00A8FF}HSPD CAD/MDT Sync v3.8 Terhubung!{FFFFFF} Ketik {FFD700}/hspd{FFFFFF} untuk bantuan.")
+
+    -- Registrasi Perintah In-game
+    sampRegisterChatCommand("hspd", function(param)
+        local args = {}
+        for w in string.gmatch(param or "", "%S+") do table.insert(args, w) end
+        local sub = args[1] and args[1]:lower() or ""
+
+        if sub == "" then
+            sendHspdChat("=== {FFD700}HIGH STATE POLICE DEPARTMENT CAD GATEWAY{FFFFFF} ===")
+            sendHspdChat("{00A8FF}/hspd duty [on/off]{FFFFFF} - Sinkron status dinas manual ke CAD")
+            sendHspdChat("{00A8FF}/hspd status{FFFFFF} - Cek status dinas & koneksi CAD saat ini")
+            sendHspdChat("{00A8FF}/hspd cad{FFFFFF} - Buka Website Web CAD HSPD di browser")
+            sendHspdChat("{00A8FF}/hspd miranda{FFFFFF} - Bacakan naskah Hak Miranda otomatis ke warga")
+            sendHspdChat("{00A8FF}/hspd backup{FFFFFF} - Siarkan tombol panik 10-20 ke Web CAD Dispatch")
+            sendHspdChat("{00A8FF}/hspd config [url] [badge]{FFFFFF} - Ubah URL web CAD & nomor badge")
+            sendHspdChat("{00A8FF}/hspd hud{FFFFFF} - Toggle tampilan HUD floating dinas di layar")
+        elseif sub == "duty" then
+            local action = args[2] and args[2]:lower() or ""
+            if action == "on" then
+                syncDutyToCad(true, "8-1-1")
+            elseif action == "off" then
+                syncDutyToCad(false, "8-1-0")
+            else
+                syncDutyToCad(not isDutyLocal, not isDutyLocal and "8-1-1" or "8-1-0")
+            end
+        elseif sub == "status" then
+            local elapsed = (dutyStartTime > 0) and (os.time() - dutyStartTime) or 0
+            local m = math.floor(elapsed / 60)
+            sendHspdChat(string.format("Status: %s {FFFFFF}| Durasi: {FFD700}%d Menit{FFFFFF} | Badge: {00A8FF}#%s{FFFFFF} | Server: %s",
+                isDutyLocal and "{00FF7F}🟢 ON DUTY (8-1-1)" or "{FF4500}🔴 OFF DUTY (8-1-0)",
+                m,
+                cfg.settings.officer_badge or "001",
+                cfg.settings.server_url
+            ))
+        elseif sub == "cad" then
+            sendHspdChat("Membuka Terminal CAD HSPD di browser default Anda...")
+            os.execute('start ' .. cfg.settings.server_url)
+        elseif sub == "miranda" then
+            lua_thread.create(function()
+                sendHspdChat("{FFD700}[SOP MIRANDA]{FFFFFF} Membacakan hak tersangka...")
+                sampSendChat("/s [HSPD] Anda berhak untuk tetap diam!")
+                wait(2200)
+                sampSendChat("/s [HSPD] Apapun yang Anda katakan dapat dan akan digunakan untuk melawan Anda di pengadilan hukum!")
+                wait(2200)
+                sampSendChat("/s [HSPD] Anda berhak untuk berbicara dengan pengacara dan didampingi selama pemeriksaan!")
+                wait(2200)
+                sampSendChat("/s [HSPD] Apakah Anda memahami hak-hak yang telah saya bacakan kepada Anda?")
+            end)
+        elseif sub == "backup" then
+            sendPanicAlert()
+        elseif sub == "config" then
+            if args[2] then
+                cfg.settings.server_url = args[2]:gsub("/+$", "")
+                if args[3] then cfg.settings.officer_badge = args[3] end
+                inicfg.save(cfg, iniPath)
+                sendHspdChat("{00FF7F}Konfigurasi berhasil disimpan!{FFFFFF} URL: " .. cfg.settings.server_url .. " | Badge: #" .. cfg.settings.officer_badge)
+            else
+                sendHspdChat("Format: {FFD700}/hspd config [URL_WEB_CAD] [NOMOR_BADGE]{FFFFFF}")
+            end
+        elseif sub == "hud" then
+            cfg.settings.show_hud = not cfg.settings.show_hud
+            inicfg.save(cfg, iniPath)
+            sendHspdChat("HUD Dinas Layar: " .. (cfg.settings.show_hud and "{00FF7F}AKTIF" or "{FF4500}NONAKTIF"))
+        end
+    end)
+
+    -- Loop utama
+    while true do
+        wait(0)
+        renderHspdDutyHud()
+    end
+end
+`;
+}
+
+

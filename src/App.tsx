@@ -64,8 +64,10 @@ import {
   Search, Car, Crosshair, Landmark, Flame, Stamp as StampIcon,
   UserCheck, Microscope, Cloud, Database, Palette, Smartphone, Monitor, Settings,
   Building2, Crown, Globe, Activity, Zap, ChevronLeft, ChevronRight, Terminal,
-  Coffee, ExternalLink, Heart, LogIn
+  Coffee, ExternalLink, Heart, LogIn, Gamepad2
 } from 'lucide-react';
+import { SampMoonLoaderModal } from './components/SampMoonLoaderModal';
+
 import { HSPD_LOGO_URL } from './assets/logo';
 import { 
   initRealtimeFirebaseSync, 
@@ -192,6 +194,7 @@ export default function App() {
   const [isExportAttendanceModalOpen, setIsExportAttendanceModalOpen] = useState(false);
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
   const [isPingModalOpen, setIsPingModalOpen] = useState(false);
+  const [isSampModalOpen, setIsSampModalOpen] = useState(false);
 
   // Coming Soon & Pre-Launch Developer Lockout State
   const [comingSoonConfig, setComingSoonConfig] = useState<ComingSoonConfig>(() => getComingSoonConfig());
@@ -607,8 +610,43 @@ export default function App() {
     }
   };
 
+  // Real-time synchronization with GTA SA-MP MoonLoader
+  // Jika petugas ketik /duty di game GTA SA-MP, web langsung otomatis berpindah status dinas
+  useEffect(() => {
+    if (!currentOfficer?.badge) return;
+    let isMounted = true;
+
+    const checkSampDuty = async () => {
+      try {
+        const badgeParam = encodeURIComponent(currentOfficer.badge);
+        const nameParam = encodeURIComponent(currentOfficer.name || '');
+        const res = await fetch(buildApiUrl(`/api/samp/duty-status?badge=${badgeParam}&name=${nameParam}`));
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!isMounted || !data.found) return;
+
+        // Check if in-game SA-MP state is newer and different
+        const sampUpdated = Number(data.updatedAt || 0);
+        const lastSeenSync = Number(sessionStorage.getItem('hspd_samp_synced_at') || '0');
+        if (sampUpdated > lastSeenSync && data.isDuty !== isDuty) {
+          sessionStorage.setItem('hspd_samp_synced_at', String(sampUpdated));
+          handleDutyStatusChanged(data.isDuty, data.dutyStartTime, data.dutyStatus);
+        }
+      } catch {
+        // Silent fallback for offline
+      }
+    };
+
+    const interval = setInterval(checkSampDuty, 5000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [currentOfficer?.badge, currentOfficer?.name, isDuty]);
+
   // Save officer to localStorage and load their individual duty state
   const handleLogin = (officer: OfficerProfile) => {
+
     if (officer.isDeveloper) {
       setActiveNav('dev_monitor' as any);
     } else {
@@ -1343,6 +1381,22 @@ export default function App() {
                 <span className="md:hidden">ANDROID</span>
               </button>
 
+              {/* GTA SA-MP & MOONLOADER OPERATIONAL GATEWAY BUTTON */}
+              {!isGovernment && (
+                <button
+                  id="btn-samp-moonloader-hub"
+                  type="button"
+                  onClick={() => setIsSampModalOpen(true)}
+                  className="px-2.5 py-1.5 bg-gradient-to-r from-cyan-950/80 to-[#0c1a2e] hover:from-cyan-900 hover:to-blue-900 text-cyan-300 border border-cyan-500/70 hover:border-cyan-400 rounded-lg text-xs font-bold font-mono transition flex items-center gap-1.5 shadow-sm shadow-cyan-950/40"
+                  title="Hubungkan Status On/Off Duty Otomatis dengan Game GTA SA-MP via MoonLoader"
+                >
+                  <Gamepad2 className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+                  <span className="hidden md:inline">🎮 GTA SA-MP</span>
+                  <span className="md:hidden">SA-MP</span>
+                </button>
+              )}
+
+
               {/* REALTIME FIREBASE CLOUD DATABASE STATUS BADGE */}
               <div 
                 className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1 bg-[#0A0D12] border rounded-lg text-[10px] font-mono shadow-sm ${
@@ -1988,6 +2042,15 @@ export default function App() {
         onClose={() => setIsPingModalOpen(false)}
         currentOfficer={currentOfficer}
       />
+
+      {/* GTA SA-MP & MoonLoader Operational Gateway Modal */}
+      <SampMoonLoaderModal
+        isOpen={isSampModalOpen}
+        onClose={() => setIsSampModalOpen(false)}
+        currentOfficer={currentOfficer}
+        onDutyStatusChanged={handleDutyStatusChanged}
+      />
+
 
       {/* High Density Footer Status Line */}
       <footer className="border-t border-gray-800 bg-[#161B22] py-2 px-4 text-[11px] text-gray-500">

@@ -46,6 +46,7 @@ import {
 import { playSystemNotificationChime } from '../utils/systemNotificationAudio';
 import { checkAndBroadcastLatestRelease } from '../utils/autoChangelogBroadcaster';
 import { DiscordBotInviteCard } from './DiscordBotInviteCard';
+import { FiveMDiscordRpcGenerator } from './FiveMDiscordRpcGenerator';
 import { LiveSystemAnnouncementsHub } from './LiveSystemAnnouncementsHub';
 import { DiscordReleaseAnnouncementModal } from './DiscordReleaseAnnouncementModal';
 import { ChangelogWebhookConfigModal } from './ChangelogWebhookConfigModal';
@@ -1691,6 +1692,9 @@ export const DeveloperWorkspacePortal: React.FC<Props> = ({
               botName="HSPD MDT Official Bot"
               theme="emerald"
             />
+
+            {/* FiveM Discord Rich Presence (RPC) Hub & Code Generator */}
+            <FiveMDiscordRpcGenerator />
           </div>
         )}
 

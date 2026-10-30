@@ -15,6 +15,7 @@ import { recordDutySession, getTodayDutyStatsForOfficer } from '../utils/attenda
 import { getActiveLeaveForOfficer, formatIndoDateDisplay } from '../utils/officerLeaveStorage';
 import { processAndCompressImage } from '../utils/imageCompressor';
 import { HSPD_LOGO_URL } from '../assets/logo';
+import { SampMoonLoaderModal } from './SampMoonLoaderModal';
 
 interface Props {
   isOpen: boolean;
@@ -75,6 +76,7 @@ export const DutyControlModal: React.FC<Props> = ({
   const [dutyNotes, setDutyNotes] = useState('');
   const [dutyCallsign, setDutyCallsign] = useState('UNIT-1');
   const [dutyPartner, setDutyPartner] = useState('');
+  const [showSampModal, setShowSampModal] = useState(false);
 
   // Sync default next state when opened
   useEffect(() => {
@@ -469,6 +471,26 @@ export const DutyControlModal: React.FC<Props> = ({
             </div>
           </button>
         )}
+
+        {/* GTA SA-MP & MOONLOADER OPERATIONAL GATEWAY BUTTON */}
+        <button
+          type="button"
+          onClick={() => setShowSampModal(true)}
+          className="w-full py-2.5 px-3 bg-gradient-to-r from-cyan-950/70 via-[#0d1624] to-blue-950/70 hover:from-cyan-900/80 hover:to-blue-900/80 border border-cyan-500/50 hover:border-cyan-400 rounded-xl text-cyan-200 text-xs font-bold flex items-center justify-between transition shadow-md group font-mono active:scale-98"
+        >
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+            </span>
+            <span className="font-extrabold text-cyan-300">🎮 SAMBUNGKAN KE GAME GTA SA-MP (MOONLOADER)</span>
+          </div>
+          <div className="flex items-center gap-1 text-[11px] text-cyan-400 group-hover:translate-x-0.5 transition">
+            <span className="bg-cyan-950 border border-cyan-500/50 px-2 py-0.5 rounded text-[10px]">Auto-Sync /duty</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </div>
+        </button>
+
 
         {/* STATUS SELECTION CARDS: 8-1-1 ON DUTY & 8-1-0 OFF DUTY ONLY */}
         <div>
@@ -1269,6 +1291,14 @@ export const DutyControlModal: React.FC<Props> = ({
           </div>
         </div>
       )}
+
+      {/* SAMP MOONLOADER OPERATIONAL GATEWAY MODAL */}
+      <SampMoonLoaderModal
+        isOpen={showSampModal}
+        onClose={() => setShowSampModal(false)}
+        currentOfficer={currentOfficer}
+        onDutyStatusChanged={onDutyStatusChanged}
+      />
     </div>
   );
 };
